@@ -41,52 +41,65 @@ pub use this_crate::VersionTuple;
 
 /// The pink system contract interface.
 ///
-/// A system contract would be instantiated whenever a cluster is created.
+/// The system contract, instantiated with each cluster creation, manages access permissions to
+/// the privileged chain extension functions and pink events. Some of these functions or events
+/// are exclusive to the system contract. User contracts wishing to call these functions or
+/// emit these events must first request the system contract, which then checks the permissions
+/// to either execute or reject the request.
 #[pink::system]
 #[ink::trait_definition(namespace = "pink_system")]
 pub trait System {
-    /// The version of the system. Can be used to determine the api ability.
+    /// Returns the system contract version, indicating its API capabilities.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use pink_extension::system::SystemRef;
+    /// let (major, minor, patch) = SystemRef::instance().version();
+    /// ```
     #[ink(message, selector = 0x87c98a8d)]
     fn version(&self) -> VersionTuple;
-    /// Grant an address the administrator role.
+
+    /// Grants the administrator role to an address. Administrator contracts can set drivers,
+    /// deploy sidevm, etc.
     ///
-    /// The caller must be the owner of the cluster.
+    /// Must be called by the cluster owner.
     #[ink(message)]
     fn grant_admin(&mut self, contract_id: AccountId) -> Result<()>;
 
-    /// Check if an address is an administrator
+    /// Checks if an address is an administrator.
     #[ink(message)]
     fn is_admin(&self, contract_id: AccountId) -> bool;
 
-    /// Set a contract as a driver for `name`.
+    /// Marks a contract as a driver for a given name, retrievable via `get_driver` or `get_driver2`.
+    /// The caller must be the cluster owner or an administrator. Any valid string can be a name.
+    /// There are predefined names used by the Phat Contract system.
     ///
-    /// The caller must be the owner of the cluster or an administrator.
+    /// There are some predefined names that are used by the Phat Contract system:
+    /// - `PinkLogger`: The contract that with a sidevm instance that collect the logs and events
+    ///  emitted by the ink! contracts in current cluster.
+    /// - `ContractDeposit`: The contract that implements the `trait ContractDeposit` which talks
+    ///  to the pallet PhatKokenomic on Phala chain.
     #[ink(message)]
     fn set_driver(&mut self, name: String, contract_id: AccountId) -> Result<()>;
 
-    /// Get driver contract id for `name`.
+    /// Retrieves the driver contract id for a given name.
     #[ink(message)]
     fn get_driver(&self, name: String) -> Option<AccountId>;
 
-    /// Get driver contract id for `name` and the set block number.
+    /// Retrieves the driver contract id and the set block number for a given name.
     #[ink(message)]
     fn get_driver2(&self, name: String) -> Option<(crate::BlockNumber, AccountId)>;
 
-    /// Deploy a sidevm instance attached to a given contract.
-    ///
-    /// The caller must be an administrator.
+    /// Deploys a sidevm instance attached to a contract. Must be called by an administrator.
     #[ink(message)]
     fn deploy_sidevm_to(&self, contract_id: AccountId, code_hash: Hash) -> Result<()>;
 
-    /// Stop a sidevm instance attached to a given contract.
-    ///
-    /// The caller must be an administrator.
+    /// Stops a sidevm instance attached to a contract. Must be called by an administrator.
     #[ink(message)]
     fn stop_sidevm_at(&self, contract_id: AccountId) -> Result<()>;
 
-    /// Set block hook, such as OnBlockEnd, for given contract
-    ///
-    /// The caller must be an administrator.
+    /// Sets a block hook for a contract. Must be called by an administrator.
+    /// Note: This feature is deprecated and will be removed in the future.
     #[ink(message)]
     fn set_hook(
         &mut self,
@@ -96,44 +109,43 @@ pub trait System {
         gas_limit: u64,
     ) -> Result<()>;
 
-    /// Set weight of the contract for query requests and sidevm scheduling.
-    ///
-    /// Higher weight would let the contract to get more resource.
+    /// Sets the contract weight for query requests and sidevm scheduling.
+    /// A higher weight allows the contract to access more resources.
     #[ink(message)]
     fn set_contract_weight(&self, contract_id: AccountId, weight: u32) -> Result<()>;
 
-    /// Return the total balance of given account
+    /// Returns the total balance of a given account.
     #[ink(message)]
     fn total_balance_of(&self, account: AccountId) -> Balance;
 
-    /// Return the free balance of given account
+    /// Returns the free balance of a given account.
     #[ink(message)]
     fn free_balance_of(&self, account: AccountId) -> Balance;
 
-    /// Upgrade the system contract to the latest version.
+    /// Upgrades the system contract to the latest version.
     #[ink(message)]
     fn upgrade_system_contract(&mut self) -> Result<()>;
 
-    /// Do the upgrade condition checks and state migration if necessary.
-    ///
-    /// This function is called by the system contract itself on the new version
-    /// of code in the upgrading process.
+    /// Performs upgrade condition checks and state migration if necessary.
+    /// Called by the system contract on the new code version during an upgrade process.
     #[ink(message)]
     fn do_upgrade(&self, from_version: VersionTuple) -> Result<()>;
 
-    /// Upgrade the contract runtime
+    /// Upgrades the contract runtime.
     #[ink(message)]
     fn upgrade_runtime(&mut self, version: (u32, u32)) -> Result<()>;
 
-    /// Check if the code is already uploaded to the cluster with given code hash.
+    /// Checks if the code with a given hash is already uploaded to the cluster.
     #[ink(message)]
     fn code_exists(&self, code_hash: Hash, code_type: CodeType) -> bool;
 
-    /// Get the current code hash of given contract.
+    /// Retrieves the current code hash of a given contract.
     #[ink(message)]
     fn code_hash(&self, account: AccountId) -> Option<ink::primitives::Hash>;
 
-    /// Get the history of given driver.
+    /// Retrieves the history of a given driver, returning a vector of
+    /// (block_number, contract_id) tuples where the block number is the
+    /// block number when the driver is set.
     #[ink(message)]
     fn driver_history(&self, name: String) -> Option<Vec<(crate::BlockNumber, AccountId)>>;
 }

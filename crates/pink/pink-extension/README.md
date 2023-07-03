@@ -34,13 +34,16 @@ fn http_get_example(&self) {
 
 The Pink! crate is designed to empower you, enabling you to leverage the unique features of the Phat Contract, such as making HTTP requests as demonstrated in our examples. This crate supplies the crucial types and functions needed to seamlessly interact with the Phat Contract runtime.
 
-There two kind of APIs to communication with the runtime:
+There are three kind of APIs to communication with the runtime:
 
 -   Emitting Events:
     These APIs are primarily used in situations where the operation could lead to side effects that need to be deterministically recorded and may be rolled back during the execution of the contract call. For additional information on Emitting Events APIs, please refer to the [PinkEvent documentation](crate::PinkEvent).
 
 -   Chain Extension:
     These APIs are predominantly used for read-only operations or operations that aren't expected to create deterministic side effects. For an in-depth understanding of Chain Extension APIs, please refer to the [PinkExt documentation](crate::chain_extension::PinkExtBackend).
+
+-   System contract:
+    There is a special contract called the System contract in each cluster. The system contract is instantiated when the cluster is created. Either ink contracts or external accounts can call the system contract to perform certain operations. For more information on the System contract, please refer to the [System documentation](crate::system::SystemForDoc).
 
 For practical implementation examples, explore our [Phat Contract examples](https://github.com/Phala-Network/phat-contract-examples) repository.
 

@@ -12,6 +12,23 @@ pub struct HttpRequest {
     pub body: Vec<u8>,
 }
 
+impl HttpRequest {
+    /// Create a new http request.
+    pub fn new(
+        url: impl Into<String>,
+        method: impl Into<String>,
+        headers: Vec<(String, String)>,
+        body: Vec<u8>,
+    ) -> Self {
+        Self {
+            url: url.into(),
+            method: method.into(),
+            headers,
+            body,
+        }
+    }
+}
+
 #[derive(scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct HttpResponse {
