@@ -25,6 +25,7 @@ pub struct EventsBlockHeader {
 #[derive(Encode, Decode, Clone)]
 pub struct EventsBlockBody {
     pub phala_block_number: BlockNumber,
+    pub contract_call_nonce: Option<Vec<u8>>,
     pub events: SystemEvents,
 }
 

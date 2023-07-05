@@ -201,5 +201,8 @@ pub mod ocall {
         ) -> BatchHttpResult;
         #[xcall(id = 16)]
         fn emit_system_event_block(&self, number: u64, encoded_block: Vec<u8>);
+
+        #[xcall(id = 17)]
+        fn contract_call_nonce(&self) -> Option<Vec<u8>>;
     }
 }
