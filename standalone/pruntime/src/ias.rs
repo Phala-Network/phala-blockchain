@@ -104,8 +104,8 @@ pub fn create_attestation_report(
     let quote_vec = create_quote_vec(data)?;
     let (attn_report, sig, cert) = get_report_from_intel(&quote_vec, ias_key, timeout)?;
 
-    let sig = base64::decode(sig).expect("Sig should be a valid base64");
-    let cert = base64::decode(cert).expect("SigCert should be a valid base64");
+    let sig = base64::decode(sig).context("Failed to decode sig in base64 format")?;
+    let cert = base64::decode(cert).context("Failed to decode cert in base64 format")?;
 
     Ok((attn_report, sig, cert))
 }
