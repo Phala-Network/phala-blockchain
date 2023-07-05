@@ -208,7 +208,7 @@ pub trait PinkExt {
 
     /// Get current event chain head info
     ///
-    /// Returns (next event block number, last_event_block_hash)
+    /// Returns (next event block number, last event block hash)
     #[ink(extension = 23, handle_status = false)]
     fn current_event_chain_head() -> (u64, Hash);
 }

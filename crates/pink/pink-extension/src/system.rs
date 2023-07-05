@@ -139,7 +139,7 @@ pub trait System {
 
     /// Get current event chain head info
     ///
-    /// Returns (next event block number, last_event_block_hash)
+    /// Returns (next event block number, last event block hash)
     #[ink(message)]
     fn current_event_chain_head(&self) -> (u64, Hash);
 }
