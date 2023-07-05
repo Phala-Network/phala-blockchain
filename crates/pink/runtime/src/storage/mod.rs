@@ -108,7 +108,7 @@ pub fn maybe_emit_system_event_block(events: SystemEvents) {
         phala_block_number: System::block_number(),
         events,
     };
-    let number = PalletPink::next_event_block_number();
+    let number = PalletPink::take_next_event_block_number();
     let header = EventsBlockHeader {
         parent_hash: PalletPink::last_event_block_hash(),
         number,

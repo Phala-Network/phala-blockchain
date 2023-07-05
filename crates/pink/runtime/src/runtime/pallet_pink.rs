@@ -71,6 +71,7 @@ pub mod pallet {
 
     /// The next event chain sequence number
     #[pallet::storage]
+    #[pallet::getter(fn next_event_block_number)]
     pub(crate) type NextEventBlockNumber<T: Config> = StorageValue<_, u64, ValueQuery>;
 
     /// The last emited event block hash
@@ -177,7 +178,7 @@ pub mod pallet {
             <TreasuryAccount<T>>::put(account);
         }
 
-        pub fn next_event_block_number() -> u64 {
+        pub fn take_next_event_block_number() -> u64 {
             <NextEventBlockNumber<T>>::mutate(|n| {
                 let next = *n;
                 *n += 1;
