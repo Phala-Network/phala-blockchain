@@ -121,8 +121,8 @@ impl RuntimeHandleMut<'_> {
     pub fn instantiate(
         &mut self,
         code_hash: Hash,
-        salt: Vec<u8>,
         instantiate_data: Vec<u8>,
+        salt: Vec<u8>,
         mode: ExecutionMode,
         tx_args: TransactionArguments,
     ) -> Vec<u8> {
@@ -134,7 +134,7 @@ impl RuntimeHandleMut<'_> {
         );
         let entry = AccountId::from(blake2_256(&buf));
         context::using_entry_contract(entry, move || {
-            self.contract_instantiate(code_hash, salt, instantiate_data, mode, tx_args)
+            self.contract_instantiate(code_hash, instantiate_data, salt, mode, tx_args)
         })
     }
 }
@@ -841,8 +841,8 @@ impl Cluster {
         &mut self,
         logger: Option<CommandSender>,
         code_hash: Hash,
-        salt: Vec<u8>,
         instantiate_data: Vec<u8>,
+        salt: Vec<u8>,
         mode: ExecutionMode,
         tx_args: TransactionArguments,
     ) -> (Vec<u8>, Option<ExecSideEffects>) {
