@@ -1,17 +1,23 @@
-use std::sync::Arc;
+use parity_scale_codec::{Decode, Error};
 
-use librocksdb_sys as ffi;
-use rocksdb::{Error as DBError, MultiThreaded, TransactionDB};
-
-pub use database::RocksDB;
+pub use self::rocksdb::RocksDB;
 pub use hashdb::RocksHashDB;
-pub use snapshot::Snapshot;
 
 #[cfg(test)]
-pub(crate) use database::with_cache_dir;
+pub(crate) use rocksdb::with_cache_dir;
 
-type Database = Arc<TransactionDB<MultiThreaded>>;
-
-mod database;
+mod traits;
 mod hashdb;
-mod snapshot;
+mod rocksdb;
+
+pub type DecodedDBValue = (Vec<u8>, i32);
+
+fn decode_value(value: Option<Vec<u8>>) -> Result<Option<DecodedDBValue>, Error> {
+    match value {
+        None => Ok(None),
+        Some(value) => {
+            let (d, rc): (Vec<u8>, i32) = Decode::decode(&mut &value[..])?;
+            Ok(Some((d, rc)))
+        }
+    }
+}

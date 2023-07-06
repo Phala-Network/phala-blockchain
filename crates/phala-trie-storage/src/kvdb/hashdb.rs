@@ -13,7 +13,7 @@ use sp_state_machine::{DBValue, DefaultError, TrieBackendStorage};
 use rocksdb::IteratorMode;
 
 use crate::{
-    kvdb::database::create_db,
+    kvdb::rocksdb::create_db,
     memdb::{HashKey, KeyFunction},
     MemoryDB,
 };
@@ -172,7 +172,7 @@ fn serde_hashdb_works() {
     use sp_core::Blake2Hasher;
 
     let cache_dir = tempfile::tempdir().unwrap();
-    crate::kvdb::database::with_cache_dir(cache_dir.path().to_str().unwrap(), || {
+    crate::kvdb::rocksdb::with_cache_dir(cache_dir.path().to_str().unwrap(), || {
         let mut mdb = MemoryDB::default();
         mdb.insert((&[], None), &(b"foo".to_vec(), 2).encode());
         let db = RocksHashDB::<Blake2Hasher>::new();

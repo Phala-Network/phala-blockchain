@@ -1,9 +1,7 @@
-use std::{
-    fmt::Display,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
+pub use snapshot::Snapshot;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
 };
 
 use log::info;
@@ -15,9 +13,14 @@ use serde::{
 };
 use sp_state_machine::DefaultError;
 
-use rocksdb::{Error as DBError, IteratorMode, MultiThreaded, Options, TransactionDB};
+use librocksdb_sys as ffi;
+use rocksdb::{Error as DBError, IteratorMode, MultiThreaded, Options, Transaction, TransactionDB};
 
-use super::{Database, Snapshot};
+mod snapshot;
+
+type Database = Arc<TransactionDB<MultiThreaded>>;
+
+use super::{traits::KvStorage, decode_value};
 pub enum RocksDB {
     Database { db: Database, sn: usize },
     Snapshot(Arc<Snapshot>),
@@ -40,44 +43,7 @@ impl RocksDB {
     }
 
     pub fn consolidate<K: AsRef<[u8]>>(&self, other: impl Iterator<Item = (K, (Vec<u8>, i32))>) {
-        let RocksDB::Database { db, .. } = self else {
-            panic!("Consolidate on a snapshot")
-        };
-
-        let transaction = db.transaction();
-        for (key, (value, rc)) in other {
-            if rc == 0 {
-                continue;
-            }
-
-            let key = key.as_ref();
-
-            let pv =
-                decode_value(transaction.get(key)).expect("Failed to get value from transaction");
-
-            let raw_value = match pv {
-                None => (value, rc),
-                Some((mut d, mut orc)) => {
-                    if orc <= 0 {
-                        d = value;
-                    }
-
-                    orc += rc;
-
-                    if orc == 0 {
-                        transaction
-                            .delete(key)
-                            .expect("Failed to delete key from transaction");
-                        continue;
-                    }
-                    (d, orc)
-                }
-            };
-            transaction
-                .put(key, raw_value.encode())
-                .expect("Failed to put key in transaction");
-        }
-        transaction.commit().expect("Failed to commit transaction");
+        KvStorage::consolidate(self, other)
     }
 
     #[cfg(test)]
@@ -107,13 +73,45 @@ impl RocksDB {
         &self,
         key: &[u8],
     ) -> Result<Option<(sp_state_machine::DBValue, i32)>, DefaultError> {
-        decode_value(self.get(key))
+        let value = self.get(key).map_err(|err| err.to_string())?;
+        decode_value(value).or(Err("Decode db value failed".into()))
     }
 }
 
 impl Default for RocksDB {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl KvStorage for RocksDB {
+    type Transaction<'a> = Transaction<'a, TransactionDB<MultiThreaded>>;
+
+    fn transaction<'a>(&'a self) -> Self::Transaction<'a> {
+        let RocksDB::Database { db, .. } = self else {
+            panic!("Consolidate on a snapshot")
+        };
+        db.transaction()
+    }
+}
+
+impl<'a> super::traits::Transaction for Transaction<'a, TransactionDB<MultiThreaded>> {
+    type Error = DBError;
+
+    fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, Self::Error> {
+        self.get(key)
+    }
+
+    fn put(&self, key: &[u8], value: &[u8]) -> Result<(), Self::Error> {
+        self.put(key, value)
+    }
+
+    fn delete(&self, key: &[u8]) -> Result<(), Self::Error> {
+        self.delete(key)
+    }
+
+    fn commit(self) -> Result<(), Self::Error> {
+        self.commit()
     }
 }
 
@@ -202,20 +200,6 @@ impl<'de> Deserialize<'de> for RocksDB {
             }
         }
         deserializer.deserialize_map(MapVisitor)
-    }
-}
-
-fn decode_value<E: Display>(
-    value: Result<Option<Vec<u8>>, E>,
-) -> Result<Option<(sp_state_machine::DBValue, i32)>, DefaultError> {
-    let value = value.map_err(|err| err.to_string())?;
-    match value {
-        None => Ok(None),
-        Some(value) => {
-            let (d, rc): (Vec<u8>, i32) =
-                Decode::decode(&mut &value[..]).or(Err("Decode db value failed"))?;
-            Ok(Some((d, rc)))
-        }
     }
 }
 
