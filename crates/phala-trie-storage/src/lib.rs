@@ -116,7 +116,7 @@ where
     let root = trie.root();
     let db = trie.backend_storage();
     match db {
-        DatabaseAdapter::Rocks(db) => (root, db).serialize(serializer),
+        DatabaseAdapter::RocksDB(db) => (root, db).serialize(serializer),
         DatabaseAdapter::Memory(mdb) => (root, ser::SerAsSeq(mdb)).serialize(serializer),
     }
 }
@@ -142,7 +142,7 @@ where
         }
         DBType::RocksDB => {
             let (root, db): (H::Out, RocksHashDB<H>) = Deserialize::deserialize(deserializer)?;
-            (root, DatabaseAdapter::Rocks(db))
+            (root, DatabaseAdapter::RocksDB(db))
         }
     };
     Ok(TrieBackendBuilder::new(db, root).build())
