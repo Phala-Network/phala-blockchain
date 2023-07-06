@@ -6,6 +6,7 @@ mod runtime;
 use std::{env, thread};
 
 use clap::Parser;
+use phala_trie_storage::DBType;
 use tracing::{error, info, info_span, Instrument};
 
 use phactory_api::ecall_args::InitArgs;
@@ -82,9 +83,24 @@ struct Args {
     #[arg(long)]
     no_rcu: bool,
 
-    /// Put the chain and contract state to disk.
-    #[arg(long)]
-    use_kvdb: bool,
+    /// Where to put the chain and contract state.
+    #[arg(long, default_value = "memory")]
+    db: ParsedDBType,
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug)]
+enum ParsedDBType {
+    Memory,
+    Rocksdb,
+}
+
+impl From<ParsedDBType> for DBType {
+    fn from(db: ParsedDBType) -> Self {
+        match db {
+            ParsedDBType::Memory => DBType::Memory,
+            ParsedDBType::Rocksdb => DBType::RocksDB,
+        }
+    }
 }
 
 #[rocket::main]
@@ -102,8 +118,7 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
 
     info!(sgx, ?args, "Starting pruntime...");
 
-    phala_trie_storage::set_use_rocksdb(args.use_kvdb);
-    pink_runner::storage::set_use_rocksdb(args.use_kvdb);
+    phala_trie_storage::set_default_db_type(args.db.into());
 
     let sealing_path;
     let storage_path;

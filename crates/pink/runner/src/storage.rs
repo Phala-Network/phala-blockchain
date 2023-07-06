@@ -1,18 +1,7 @@
 use im::OrdMap;
-use phala_trie_storage::RocksDB;
+use phala_trie_storage::{default_db_type, DBType, RocksDB};
 use pink_capi::{types::Hash, v1::ocall::StorageChanges};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::sync::atomic::{AtomicBool, Ordering};
-
-static USE_ROCKSDB: AtomicBool = AtomicBool::new(true);
-
-fn use_rocksdb() -> bool {
-    USE_ROCKSDB.load(Ordering::Relaxed)
-}
-
-pub fn set_use_rocksdb(use_rocksdb: bool) {
-    USE_ROCKSDB.store(use_rocksdb, Ordering::Relaxed);
-}
 
 enum StorageAdapter {
     RocksDB(RocksDB),
@@ -21,10 +10,9 @@ enum StorageAdapter {
 
 impl Default for StorageAdapter {
     fn default() -> Self {
-        if use_rocksdb() {
-            StorageAdapter::RocksDB(Default::default())
-        } else {
-            StorageAdapter::Memory(Default::default())
+        match default_db_type() {
+            DBType::Memory => StorageAdapter::Memory(Default::default()),
+            DBType::RocksDB => StorageAdapter::RocksDB(Default::default()),
         }
     }
 }
@@ -46,10 +34,9 @@ impl<'de> Deserialize<'de> for StorageAdapter {
     where
         D: Deserializer<'de>,
     {
-        if use_rocksdb() {
-            Deserialize::deserialize(deserializer).map(StorageAdapter::RocksDB)
-        } else {
-            Deserialize::deserialize(deserializer).map(StorageAdapter::Memory)
+        match default_db_type() {
+            DBType::Memory => Deserialize::deserialize(deserializer).map(StorageAdapter::Memory),
+            DBType::RocksDB => Deserialize::deserialize(deserializer).map(StorageAdapter::RocksDB),
         }
     }
 }
@@ -72,7 +59,7 @@ impl StorageAdapter {
             StorageAdapter::Memory(mdb) => {
                 let (rc, v) = mdb.get(key).cloned()?;
                 Some((v, rc))
-            },
+            }
         }
     }
 

@@ -4,7 +4,6 @@ use super::*;
 
 pub enum DatabaseAdapter<H: Hasher> {
     Rocks(RocksHashDB<H>),
-    /// The memory is only for unittest
     Memory(MemoryDB<H>),
 }
 
@@ -15,6 +14,20 @@ impl<H: Hasher> DatabaseAdapter<H> {
 
     pub fn default_memdb() -> Self {
         Self::Memory(MemoryDB::default())
+    }
+
+    pub fn load(mdb: MemoryDB<H>, db_type: crate::DBType) -> Self {
+        match db_type {
+            DBType::Memory => Self::Memory(mdb),
+            DBType::RocksDB => Self::Rocks(RocksHashDB::load(mdb)),
+        }
+    }
+
+    pub fn new(typ: crate::DBType) -> Self {
+        match typ {
+            DBType::Memory => Self::Memory(Default::default()),
+            DBType::RocksDB => Self::Rocks(Default::default()),
+        }
     }
 
     pub fn snapshot(&self) -> Self {
