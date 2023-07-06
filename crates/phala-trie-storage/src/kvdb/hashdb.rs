@@ -87,7 +87,7 @@ impl<H: Hasher, DB: KvStorage> Serialize for HashDB<H, DB> {
     where
         S: Serializer,
     {
-        super::serializing::serialize(&self.inner, serializer)
+        super::serializing::serialize_as_seq(&self.inner, serializer)
     }
 }
 impl<'de, H: Hasher, DB: KvStorage> Deserialize<'de> for HashDB<H, DB> {
@@ -95,7 +95,7 @@ impl<'de, H: Hasher, DB: KvStorage> Deserialize<'de> for HashDB<H, DB> {
     where
         D: Deserializer<'de>,
     {
-        Ok(HashDB::from_inner(super::serializing::deserialize::<
+        Ok(HashDB::from_inner(super::serializing::deserialize_from_seq::<
             _,
             DB,
             H,
