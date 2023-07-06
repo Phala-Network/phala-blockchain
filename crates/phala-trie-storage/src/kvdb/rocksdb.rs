@@ -93,11 +93,7 @@ impl KvStorage for RocksDB {
     where
         Self: Sized,
     {
-        let (db, sn) = create_db();
-        Self::Database {
-            db: Arc::new(db),
-            sn,
-        }
+        Self::new()
     }
 
     fn for_each(&self, mut cb: impl FnMut(&[u8], &[u8])) {
@@ -150,7 +146,7 @@ impl<'a> super::traits::Transaction for Transaction<'a, TransactionDB<MultiThrea
     }
 }
 
-pub(crate) fn create_db() -> (TransactionDB<MultiThreaded>, usize) {
+fn create_db() -> (TransactionDB<MultiThreaded>, usize) {
     let cache_dir = super::cache_dir::get();
     static NEXT_SN: AtomicUsize = AtomicUsize::new(0);
     let sn = NEXT_SN.fetch_add(1, Ordering::SeqCst);
@@ -162,7 +158,7 @@ pub(crate) fn create_db() -> (TransactionDB<MultiThreaded>, usize) {
     options.set_max_open_files(256);
     options.create_if_missing(true);
     options.set_error_if_exists(true);
-    let path = format!("{cache_dir}/cache_{sn}",);
+    let path = format!("{cache_dir}/cache-{sn}.rocksdb",);
     let db = TransactionDB::open(&options, &Default::default(), path).expect("Faile to open KVDB");
     (db, sn)
 }
