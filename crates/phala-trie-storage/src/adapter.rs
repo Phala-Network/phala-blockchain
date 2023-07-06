@@ -3,15 +3,11 @@ use sp_state_machine::{DefaultError, TrieBackendStorage};
 use super::*;
 
 pub enum DatabaseAdapter<H: Hasher> {
-    RocksDB(RocksHashDB<H>),
     Memory(MemoryDB<H>),
+    RocksDB(HashRocksDB<H>),
 }
 
 impl<H: Hasher> DatabaseAdapter<H> {
-    pub fn default_rocksdb() -> Self {
-        Self::RocksDB(RocksHashDB::new())
-    }
-
     pub fn default_memdb() -> Self {
         Self::Memory(MemoryDB::default())
     }
@@ -19,7 +15,7 @@ impl<H: Hasher> DatabaseAdapter<H> {
     pub fn load(mdb: MemoryDB<H>, db_type: crate::DBType) -> Self {
         match db_type {
             DBType::Memory => Self::Memory(mdb),
-            DBType::RocksDB => Self::RocksDB(RocksHashDB::load(mdb)),
+            DBType::RocksDB => Self::RocksDB(HashRocksDB::load(mdb)),
         }
     }
 

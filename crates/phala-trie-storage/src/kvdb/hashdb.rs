@@ -108,15 +108,15 @@ fn serde_hashdb_works() {
     use hash_db::HashDB;
     use sp_core::Blake2Hasher;
     use parity_scale_codec::Encode;
-    use crate::RocksHashDB;
+    use crate::HashRocksDB;
 
     let cache_dir = tempfile::tempdir().unwrap();
     super::with_cache_dir(cache_dir.path().to_str().unwrap(), || {
         let mut mdb = MemoryDB::default();
         mdb.insert((&[], None), &(b"foo".to_vec(), 2).encode());
-        let db = RocksHashDB::<Blake2Hasher>::new();
+        let db = HashRocksDB::<Blake2Hasher>::new();
         db.consolidate(mdb);
         let cobr = serde_cbor::to_vec(&db).unwrap();
-        let _: RocksHashDB<Blake2Hasher> = serde_cbor::from_slice(&cobr).unwrap();
+        let _: HashRocksDB<Blake2Hasher> = serde_cbor::from_slice(&cobr).unwrap();
     });
 }

@@ -22,7 +22,7 @@ use sp_core::Hasher;
 use sp_state_machine::{Backend, IterArgs, TrieBackend, TrieBackendBuilder};
 use sp_trie::{trie_types::TrieDBMutBuilderV0 as TrieDBMutBuilder, TrieMut};
 
-pub use kvdb::{RocksDB, RocksHashDB};
+pub use kvdb::{RocksDB, HashRocksDB};
 pub use memdb::GenericMemoryDB as MemoryDB;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -141,7 +141,7 @@ where
             (root, DatabaseAdapter::Memory(mdb))
         }
         DBType::RocksDB => {
-            let (root, db): (H::Out, RocksHashDB<H>) = Deserialize::deserialize(deserializer)?;
+            let (root, db): (H::Out, HashRocksDB<H>) = Deserialize::deserialize(deserializer)?;
             (root, DatabaseAdapter::RocksDB(db))
         }
     };
