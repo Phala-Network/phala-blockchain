@@ -111,7 +111,7 @@ fn serde_hashdb_works() {
     use crate::RocksHashDB;
 
     let cache_dir = tempfile::tempdir().unwrap();
-    crate::kvdb::rocksdb::with_cache_dir(cache_dir.path().to_str().unwrap(), || {
+    super::with_cache_dir(cache_dir.path().to_str().unwrap(), || {
         let mut mdb = MemoryDB::default();
         mdb.insert((&[], None), &(b"foo".to_vec(), 2).encode());
         let db = RocksHashDB::<Blake2Hasher>::new();
