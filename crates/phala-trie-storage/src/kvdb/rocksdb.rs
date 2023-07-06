@@ -5,12 +5,7 @@ use std::sync::{
 };
 
 use log::info;
-use parity_scale_codec::{Decode, Encode};
-use serde::{
-    de::{MapAccess, Visitor},
-    ser::SerializeMap,
-    Deserialize, Deserializer, Serialize, Serializer,
-};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sp_state_machine::DefaultError;
 
 use librocksdb_sys as ffi;
@@ -174,64 +169,20 @@ pub(crate) fn create_db() -> (TransactionDB<MultiThreaded>, usize) {
 
 impl Serialize for RocksDB {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut ser = serializer.serialize_map(None)?;
-        /// To deduplicate the two match arms
-        macro_rules! ser_iter {
-            ($iter: expr) => {
-                for item in $iter {
-                    let (key, v) = item.expect("Failed to iterate pairs over Database");
-                    let (value, rc): (Vec<u8>, i32) =
-                        Decode::decode(&mut &v[..]).expect("Failed to decode db value");
-                    ser.serialize_entry(&key, &(rc, value))?;
-                }
-            };
-        }
-        match self {
-            RocksDB::Database { db, .. } => {
-                ser_iter!(db.iterator(IteratorMode::Start))
-            }
-            RocksDB::Snapshot(snap) => {
-                ser_iter!(snap.iterator(IteratorMode::Start))
-            }
-        }
-        ser.end()
+        super::serializing::serialize_as_map(self, serializer)
     }
 }
 
 impl<'de> Deserialize<'de> for RocksDB {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct MapVisitor;
-        impl<'de> Visitor<'de> for MapVisitor {
-            type Value = RocksDB;
-
-            fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
-                formatter.write_str("a map")
-            }
-
-            fn visit_map<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-            where
-                A: MapAccess<'de>,
-            {
-                let (db, sn) = create_db();
-                let transaction = db.transaction();
-                while let Some((key, (rc, value))) = seq.next_entry::<Vec<u8>, (i32, Vec<u8>)>()? {
-                    transaction
-                        .put(&key, (value, rc).encode())
-                        .expect("Failed to put key in transaction");
-                }
-                transaction.commit().expect("Failed to commit transaction");
-                Ok(RocksDB::Database {
-                    db: Arc::new(db),
-                    sn,
-                })
-            }
-        }
-        deserializer.deserialize_map(MapVisitor)
+        super::serializing::deserialize_from_map(deserializer)
     }
 }
 
 #[test]
 fn serde_works() {
+    use parity_scale_codec::Encode;
+
     let tmp_dir = tempfile::tempdir().unwrap();
     super::with_cache_dir(tmp_dir.path().to_str().unwrap(), || {
         let db = RocksDB::new();
