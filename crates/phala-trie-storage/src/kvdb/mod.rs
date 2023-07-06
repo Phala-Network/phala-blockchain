@@ -3,14 +3,14 @@ use parity_scale_codec::{Decode, Error};
 pub use self::rocksdb::RocksDB;
 pub use hashdb::HashDB;
 pub type RocksHashDB<H> = HashDB<H, RocksDB>;
-
 #[cfg(test)]
-pub(crate) use self::rocksdb::with_cache_dir;
+pub(crate) use cache_dir::with as with_cache_dir;
 
 mod hashdb;
 mod rocksdb;
 mod serializing;
 mod traits;
+mod cache_dir;
 
 pub type DecodedDBValue = (Vec<u8>, i32);
 

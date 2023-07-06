@@ -155,32 +155,19 @@ impl<'a> super::traits::Transaction for Transaction<'a, TransactionDB<MultiThrea
     }
 }
 
-// The global cache dir for unit tests.
-environmental::environmental!(test_cached_path: String);
-
-#[cfg(test)]
-pub(crate) fn with_cache_dir<T>(cache_dir: &str, f: impl FnOnce() -> T) -> T {
-    let mut cache_dir = cache_dir.to_string();
-    test_cached_path::using(&mut cache_dir, f)
-}
-
 pub(crate) fn create_db() -> (TransactionDB<MultiThreaded>, usize) {
-    let test_path = test_cached_path::with(|path| path.clone());
-    // The PHACTORY_TRIE_CACHE_PATH would be hardcoded in the manifest when running in gramine.
-    let cache_path = &test_path
-        .or_else(|| immutable_env::get("PHACTORY_TRIE_CACHE_PATH"))
-        .unwrap_or_else(|| "data/protected_files/caches".to_string());
+    let cache_dir = super::cache_dir::get();
     static NEXT_SN: AtomicUsize = AtomicUsize::new(0);
     let sn = NEXT_SN.fetch_add(1, Ordering::SeqCst);
-    if sn == 0 && std::path::Path::new(cache_path).exists() {
-        info!("Removing cache folder: {}", cache_path);
-        std::fs::remove_dir_all(cache_path).expect("Failed to remove cache folder");
+    if sn == 0 && std::path::Path::new(&cache_dir).exists() {
+        info!("Removing cache folder: {}", &cache_dir);
+        std::fs::remove_dir_all(&cache_dir).expect("Failed to remove cache folder");
     }
     let mut options = Options::default();
     options.set_max_open_files(256);
     options.create_if_missing(true);
     options.set_error_if_exists(true);
-    let path = format!("{cache_path}/cache_{sn}",);
+    let path = format!("{cache_dir}/cache_{sn}",);
     let db = TransactionDB::open(&options, &Default::default(), path).expect("Faile to open KVDB");
     (db, sn)
 }
@@ -245,8 +232,8 @@ impl<'de> Deserialize<'de> for RocksDB {
 
 #[test]
 fn serde_works() {
-    let cache_dir = tempfile::tempdir().unwrap();
-    with_cache_dir(cache_dir.path().to_str().unwrap(), || {
+    let tmp_dir = tempfile::tempdir().unwrap();
+    super::with_cache_dir(tmp_dir.path().to_str().unwrap(), || {
         let db = RocksDB::new();
         db.put(b"foo", &(vec![42u8], 1i32).encode()).unwrap();
         let ser = serde_cbor::to_vec(&db).unwrap();
@@ -257,8 +244,8 @@ fn serde_works() {
 
 #[test]
 fn snapshot_works() {
-    let cache_dir = tempfile::tempdir().unwrap();
-    with_cache_dir(cache_dir.path().to_str().unwrap(), || {
+    let tmp_dir = tempfile::tempdir().unwrap();
+    super::with_cache_dir(tmp_dir.path().to_str().unwrap(), || {
         let db = RocksDB::new();
         db.put(b"foo", b"bar").unwrap();
         assert_eq!(db.get(b"foo").unwrap().unwrap(), b"bar");
