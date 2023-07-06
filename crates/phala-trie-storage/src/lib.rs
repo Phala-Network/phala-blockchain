@@ -1,14 +1,14 @@
 #[cfg(feature = "serde")]
 pub mod ser;
 
-mod fused;
+mod adapter;
 mod kvdb;
 mod memdb;
 
 #[cfg(test)]
 mod tests;
 
-use fused::DatabaseAdapter;
+use adapter::DatabaseAdapter;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::iter::FromIterator;
@@ -45,7 +45,7 @@ pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
 pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
 
 pub type InMemoryBackend<H> = TrieBackend<MemoryDB<H>, H>;
-pub type KvdbBackend<H> = TrieBackend<fused::DatabaseAdapter<H>, H>;
+pub type KvdbBackend<H> = TrieBackend<adapter::DatabaseAdapter<H>, H>;
 
 pub struct TrieStorage<H: Hasher>(KvdbBackend<H>)
 where

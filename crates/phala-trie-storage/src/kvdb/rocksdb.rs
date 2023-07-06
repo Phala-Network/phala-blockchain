@@ -20,7 +20,7 @@ mod snapshot;
 
 type Database = Arc<TransactionDB<MultiThreaded>>;
 
-use super::{traits::KvStorage, decode_value};
+use super::{decode_value, traits::KvStorage};
 pub enum RocksDB {
     Database { db: Database, sn: usize },
     Snapshot(Arc<Snapshot>),
@@ -93,25 +93,65 @@ impl KvStorage for RocksDB {
         };
         db.transaction()
     }
+
+    fn new() -> Self
+    where
+        Self: Sized,
+    {
+        let (db, sn) = create_db();
+        Self::Database {
+            db: Arc::new(db),
+            sn,
+        }
+    }
+
+    fn for_each(&self, mut cb: impl FnMut(&[u8], &[u8])) {
+        /// To deduplicate the two match arms
+        macro_rules! db_iter {
+            ($iter: expr) => {
+                for item in $iter {
+                    let (k, v) = item.expect("Failed to iterate pairs over Database");
+                    cb(&k, &v);
+                }
+            };
+        }
+        match &self {
+            RocksDB::Database { db, .. } => {
+                db_iter!(db.iterator(IteratorMode::Start));
+            }
+            RocksDB::Snapshot(snap) => {
+                db_iter!(snap.iterator(IteratorMode::Start));
+            }
+        }
+    }
+
+    fn snapshot(&self) -> Self
+    where
+        Self: Sized,
+    {
+        self.snapshot()
+    }
+
+    fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
+        self.get(key).expect("Failed to get key")
+    }
 }
 
 impl<'a> super::traits::Transaction for Transaction<'a, TransactionDB<MultiThreaded>> {
-    type Error = DBError;
-
-    fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, Self::Error> {
-        self.get(key)
+    fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
+        self.get(key).expect("Failed to get key")
     }
 
-    fn put(&self, key: &[u8], value: &[u8]) -> Result<(), Self::Error> {
-        self.put(key, value)
+    fn put(&self, key: &[u8], value: &[u8]) {
+        self.put(key, value).expect("Failed to put key");
     }
 
-    fn delete(&self, key: &[u8]) -> Result<(), Self::Error> {
-        self.delete(key)
+    fn delete(&self, key: &[u8]) {
+        self.delete(key).expect("Failed to delete key");
     }
 
-    fn commit(self) -> Result<(), Self::Error> {
-        self.commit()
+    fn commit(self) {
+        self.commit().expect("Failed to commit transaction");
     }
 }
 

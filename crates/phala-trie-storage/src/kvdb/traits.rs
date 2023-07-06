@@ -2,21 +2,27 @@ use parity_scale_codec::Encode;
 
 use super::decode_value;
 
-pub(crate) trait Transaction {
-    type Error: std::fmt::Debug;
-    fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, Self::Error>;
-    fn put(&self, key: &[u8], value: &[u8]) -> Result<(), Self::Error>;
-    fn delete(&self, key: &[u8]) -> Result<(), Self::Error>;
-    fn commit(self) -> Result<(), Self::Error>;
+pub trait Transaction {
+    fn get(&self, key: &[u8]) -> Option<Vec<u8>>;
+    fn put(&self, key: &[u8], value: &[u8]);
+    fn delete(&self, key: &[u8]);
+    fn commit(self);
 }
 
-pub(crate) trait KvStorage {
+pub trait KvStorage {
     type Transaction<'a>: Transaction
     where
         Self: 'a;
 
+    fn new() -> Self
+    where
+        Self: Sized;
+    fn snapshot(&self) -> Self
+    where
+        Self: Sized;
+    fn get(&self, key: &[u8]) -> Option<Vec<u8>>;
     fn transaction<'a>(&'a self) -> Self::Transaction<'a>;
-
+    fn for_each(&self, cb: impl FnMut(&[u8], &[u8]));
     fn consolidate<K: AsRef<[u8]>>(&self, other: impl Iterator<Item = (K, (Vec<u8>, i32))>) {
         let transaction = self.transaction();
         for (key, (value, rc)) in other {
@@ -26,7 +32,7 @@ pub(crate) trait KvStorage {
 
             let key = key.as_ref();
 
-            let pv = transaction.get(key).expect("Failed to get value from DB");
+            let pv = transaction.get(key);
             let pv = decode_value(pv).expect("Failed to decode value");
 
             let raw_value = match pv {
@@ -39,18 +45,14 @@ pub(crate) trait KvStorage {
                     orc += rc;
 
                     if orc == 0 {
-                        transaction
-                            .delete(key)
-                            .expect("Failed to delete key from transaction");
+                        transaction.delete(key);
                         continue;
                     }
                     (d, orc)
                 }
             };
-            transaction
-                .put(key, &raw_value.encode())
-                .expect("Failed to put key in transaction");
+            transaction.put(key, &raw_value.encode());
         }
-        transaction.commit().expect("Failed to commit transaction");
+        transaction.commit();
     }
 }

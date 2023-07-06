@@ -39,7 +39,7 @@ impl<H: Hasher> DatabaseAdapter<H> {
 
     pub fn consolidate_mdb(&mut self, other: MemoryDB<H>) {
         match self {
-            DatabaseAdapter::RocksDB(kvdb) => kvdb.consolidate_mdb(other),
+            DatabaseAdapter::RocksDB(kvdb) => kvdb.consolidate(other),
             DatabaseAdapter::Memory(mdb) => mdb.consolidate(other),
         }
     }
