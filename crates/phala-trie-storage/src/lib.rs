@@ -12,7 +12,9 @@ use fused::DatabaseAdapter;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::iter::FromIterator;
-use std::sync::atomic::{AtomicBool, Ordering};
+
+use atomic::Atomic;
+use std::sync::atomic::Ordering;
 
 use parity_scale_codec::Codec;
 use sp_core::storage::ChildInfo;
@@ -22,6 +24,13 @@ use sp_trie::{trie_types::TrieDBMutBuilderV0 as TrieDBMutBuilder, TrieMut};
 
 pub use kvdb::{RocksDB, RocksHashDB};
 pub use memdb::GenericMemoryDB as MemoryDB;
+
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[repr(u32)]
+pub enum DBType {
+    Memory,
+    RocksDB,
+}
 
 /// Storage key.
 pub type StorageKey = Vec<u8>;
@@ -42,14 +51,14 @@ pub struct TrieStorage<H: Hasher>(KvdbBackend<H>)
 where
     H::Out: Ord;
 
-static USE_ROCKSDB: AtomicBool = AtomicBool::new(true);
+static STORAGE_BACKEND: Atomic<DBType> = Atomic::<DBType>::new(DBType::Memory);
 
-fn use_rocksdb() -> bool {
-    USE_ROCKSDB.load(Ordering::Relaxed)
+pub fn default_db_type() -> DBType {
+    STORAGE_BACKEND.load(Ordering::Relaxed)
 }
 
-pub fn set_use_rocksdb(use_rocksdb: bool) {
-    USE_ROCKSDB.store(use_rocksdb, Ordering::Relaxed);
+pub fn set_default_db_type(t: DBType) {
+    STORAGE_BACKEND.store(t, Ordering::Relaxed);
 }
 
 impl<H: Hasher> Default for TrieStorage<H>
@@ -57,11 +66,7 @@ where
     H::Out: Codec + Ord,
 {
     fn default() -> Self {
-        let backend = if use_rocksdb() {
-            DatabaseAdapter::default_rocksdb()
-        } else {
-            DatabaseAdapter::default_memdb()
-        };
+        let backend = DatabaseAdapter::new(default_db_type());
         Self(TrieBackendBuilder::new(backend, Default::default()).build())
     }
 }
@@ -95,11 +100,7 @@ where
             }
         }
     }
-    let storage = if use_rocksdb() {
-        DatabaseAdapter::Rocks(RocksHashDB::load(mdb))
-    } else {
-        DatabaseAdapter::Memory(mdb)
-    };
+    let storage = DatabaseAdapter::load(mdb, default_db_type());
     TrieBackendBuilder::new(storage, root).build()
 }
 
@@ -128,17 +129,21 @@ where
     H::Out: Codec + Deserialize<'de> + Ord,
     De: Deserializer<'de>,
 {
-    let (root, db) = if use_rocksdb() {
-        let (root, db): (H::Out, RocksHashDB<H>) = Deserialize::deserialize(deserializer)?;
-        (root, DatabaseAdapter::Rocks(db))
-    } else {
-        let (root, kvs): (H::Out, Vec<(Vec<u8>, i32)>) = Deserialize::deserialize(deserializer)?;
-        let mdb = MemoryDB::from_inner(
-            kvs.into_iter()
-                .map(|(data, rc)| (H::hash(data.as_ref()), (data, rc)))
-                .collect(),
-        );
-        (root, DatabaseAdapter::Memory(mdb))
+    let (root, db) = match default_db_type() {
+        DBType::Memory => {
+            let (root, kvs): (H::Out, Vec<(Vec<u8>, i32)>) =
+                Deserialize::deserialize(deserializer)?;
+            let mdb = MemoryDB::from_inner(
+                kvs.into_iter()
+                    .map(|(data, rc)| (H::hash(data.as_ref()), (data, rc)))
+                    .collect(),
+            );
+            (root, DatabaseAdapter::Memory(mdb))
+        }
+        DBType::RocksDB => {
+            let (root, db): (H::Out, RocksHashDB<H>) = Deserialize::deserialize(deserializer)?;
+            (root, DatabaseAdapter::Rocks(db))
+        }
     };
     Ok(TrieBackendBuilder::new(db, root).build())
 }

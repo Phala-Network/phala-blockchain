@@ -23,6 +23,7 @@ librocksdb-sys = "0.10.0"
 log = "0.4"
 environmental = "1"
 immutable_env = { version = "0.1.0", path = "../immutable_env" }
+atomic = "0.5.3"
 
 [dev-dependencies]
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
