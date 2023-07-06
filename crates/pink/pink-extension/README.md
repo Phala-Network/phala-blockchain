@@ -1,6 +1,6 @@
 <h1 align="center">Phala's ink! - Writing Enhanced Smart Contracts</h1>
 
-Pink! is a smart contract language based on Parity's `ink!`. It extends the basic functionality with additional features, tailored to interact efficiently with Phala's Phat Contract runtime.
+Pink! is a smart contract language extending Parity's `ink!`. It extends the basic functionality with additional features, tailored to interact efficiently with Phala's Phat Contract runtime.
 
 ## Getting Started
 
