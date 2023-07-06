@@ -24,6 +24,8 @@ log = "0.4"
 environmental = "1"
 immutable_env = { version = "0.1.0", path = "../immutable_env" }
 atomic = "0.5.3"
+redb = "1"
+ouroboros = "0.17"
 
 [dev-dependencies]
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }

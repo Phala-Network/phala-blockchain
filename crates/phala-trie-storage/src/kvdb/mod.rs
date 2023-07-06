@@ -8,6 +8,8 @@ pub(crate) use cache_dir::with as with_cache_dir;
 
 mod hashdb;
 mod rocksdb;
+mod redb;
+
 mod serializing;
 mod traits;
 mod cache_dir;
