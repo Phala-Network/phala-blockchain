@@ -2,7 +2,7 @@ use parity_scale_codec::{Decode, Error};
 
 pub use self::rocksdb::RocksDB;
 pub use hashdb::HashDB;
-pub type RocksHashDB<H> = HashDB<H, RocksDB>;
+pub type HashRocksDB<H> = HashDB<H, RocksDB>;
 #[cfg(test)]
 pub(crate) use cache_dir::with as with_cache_dir;
 
