@@ -30,6 +30,6 @@
     "portfinder": "^1.0.28"
   },
   "devDependencies": {
-    "protobufjs": "^6.11.3"
+    "protobufjs": "^7.2.4"
   }
 }
