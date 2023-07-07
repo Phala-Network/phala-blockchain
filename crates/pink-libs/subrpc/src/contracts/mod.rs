@@ -2,6 +2,7 @@ use scale::{Decode, Encode};
 
 use objects::*;
 use pink_extension::chain_extension::signing;
+use primitive_types::H256;
 
 use crate::contracts::objects::{ContractCall, WeightV2};
 
@@ -59,6 +60,23 @@ impl<'a> InkContract<'a>  {
         contract_args: Option<&A>,
         value: Balance,
     ) -> Result<R> {
+        self.query_at(
+            origin,
+            contract_method,
+            contract_args,
+            value,
+            None
+        )
+    }
+
+    pub fn query_at <A: Encode, R: Decode>(
+        &self,
+        origin: [u8; 32],
+        contract_method: [u8; 4],
+        contract_args: Option<&A>,
+        value: Balance,
+        at: Option<H256>
+    ) -> Result<R> {
 
         /*
         let origin : [u8;32] = signing::get_public_key(signer, signing::SigType::Sr25519)
@@ -77,7 +95,7 @@ impl<'a> InkContract<'a>  {
 
         let encoded_call = Encode::encode(&call);
 
-        let contract_query_result: ContractQueryResult<ContractError, Balance> = crate::query_contract(self.rpc, &encoded_call, None)
+        let contract_query_result: ContractQueryResult<ContractError, Balance> = crate::query_contract(self.rpc, &encoded_call, at)
             .map_err(|e| Error::FailedToQueryContract(e))?;
 
         let result = contract_query_result.result.data.map_err(|_| Error::NoResult)?;
