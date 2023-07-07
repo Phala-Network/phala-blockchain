@@ -102,6 +102,7 @@ struct Args {
 enum ParsedDBType {
     Memory,
     Rocksdb,
+    Redb,
 }
 
 impl From<ParsedDBType> for DBType {
@@ -109,6 +110,7 @@ impl From<ParsedDBType> for DBType {
         match db {
             ParsedDBType::Memory => DBType::Memory,
             ParsedDBType::Rocksdb => DBType::RocksDB,
+            ParsedDBType::Redb => DBType::Redb,
         }
     }
 }
