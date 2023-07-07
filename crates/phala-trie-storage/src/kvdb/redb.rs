@@ -3,10 +3,14 @@ use std::sync::{atomic::AtomicUsize, Arc};
 use atomic::Ordering;
 use log::info;
 use ouroboros::self_referencing;
-use redb::{Database, ReadTransaction, ReadableTable, TableDefinition, WriteTransaction};
+use redb::{
+    Database, ReadOnlyTable, ReadTransaction, ReadableTable, TableDefinition, WriteTransaction,
+};
 use serde::{Deserialize, Serialize};
 
 use super::traits::{KvStorage, Transaction};
+
+const TABLE: TableDefinition<&[u8], &[u8]> = TableDefinition::new("pairs");
 
 #[self_referencing]
 pub struct OwnedTransaction {
@@ -15,11 +19,28 @@ pub struct OwnedTransaction {
     #[covariant]
     tx: ReadTransaction<'this>,
 }
-const TABLE: TableDefinition<&[u8], &[u8]> = TableDefinition::new("pairs");
+
+#[self_referencing]
+pub struct OwnedTable {
+    tx: OwnedTransaction,
+    #[borrows(tx)]
+    #[covariant]
+    table: ReadOnlyTable<'this, &'static [u8], &'static [u8]>,
+}
+
+impl OwnedTransaction {
+    fn into_table(self) -> OwnedTable {
+        OwnedTableBuilder {
+            tx: self,
+            table_builder: |tx| tx.borrow_tx().open_table(TABLE).expect("open_table failed"),
+        }
+        .build()
+    }
+}
 
 pub enum Redb {
     Database { db: Arc<Database>, sn: usize },
-    Snapshot(Arc<OwnedTransaction>),
+    Snapshot(Arc<OwnedTable>),
 }
 
 impl KvStorage for Redb {
@@ -45,7 +66,7 @@ impl KvStorage for Redb {
                     tx_builder: |db| db.begin_read().expect("begin_read failed"),
                 }
                 .build();
-                Redb::Snapshot(Arc::new(tx))
+                Redb::Snapshot(Arc::new(tx.into_table()))
             }
             Redb::Snapshot(snap) => Redb::Snapshot(snap.clone()),
         }
@@ -62,10 +83,7 @@ impl KvStorage for Redb {
                     .map(|v| v.value().to_vec())
             }
             Redb::Snapshot(snap) => {
-                let table = snap
-                    .borrow_tx()
-                    .open_table(TABLE)
-                    .expect("open_table failed");
+                let table = snap.borrow_table();
                 table
                     .get(key)
                     .expect("get failed")
@@ -92,10 +110,7 @@ impl KvStorage for Redb {
                 }
             }
             Redb::Snapshot(snap) => {
-                let table = snap
-                    .borrow_tx()
-                    .open_table(TABLE)
-                    .expect("open_table failed");
+                let table = snap.borrow_table();
                 for result in table.iter().expect("iter over redb failed") {
                     let (k, v) = result.expect("iter over redb failed");
                     cb(k.value(), v.value());
