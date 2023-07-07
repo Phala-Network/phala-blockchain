@@ -1293,6 +1293,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             gas_limit,
                             gas_free: false,
                             storage_deposit_limit,
+                            deposit: 0,
                         };
                         let mut runtime = cluster.runtime_mut(log_handler.clone());
                         let _result = runtime.instantiate(

@@ -641,15 +641,13 @@ impl Cluster {
                     context::using(&mut ctx, move || {
                         context::using_entry_contract(contract_id.clone(), || {
                             let mut runtime = self.runtime_mut(log_handler);
-                            if deposit > 0 {
-                                runtime.deposit(origin.clone(), deposit);
-                            }
                             let args = TransactionArguments {
                                 origin,
                                 transfer,
                                 gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
                                 gas_free: true,
                                 storage_deposit_limit: None,
+                                deposit,
                             };
                             let ink_result = runtime.call(contract_id, input_data, mode, args);
                             let effects = if mode.is_estimating() {
@@ -721,15 +719,13 @@ impl Cluster {
                 let log_handler = context.log_handler.clone();
                 context::using(&mut ctx, move || {
                     let mut runtime = self.runtime_mut(log_handler);
-                    if deposit > 0 {
-                        runtime.deposit(origin.clone(), deposit);
-                    }
                     let args = TransactionArguments {
                         origin,
                         transfer,
                         gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
                         gas_free: true,
                         storage_deposit_limit: None,
+                        deposit,
                     };
                     let ink_result = runtime.instantiate(
                         code_hash,
@@ -778,6 +774,7 @@ impl Cluster {
                     gas_limit,
                     gas_free,
                     storage_deposit_limit,
+                    deposit: 0,
                 };
 
                 let mut runtime = self.runtime_mut(context.log_handler.clone());
