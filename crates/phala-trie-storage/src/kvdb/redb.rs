@@ -74,7 +74,7 @@ impl KvStorage for Redb {
         }
     }
 
-    fn transaction<'a>(&'a self) -> Self::Transaction<'a> {
+    fn transaction(&self) -> Self::Transaction<'_> {
         let Self::Database { db, sn: _ } = self else {
             panic!("transaction() called on snapshot")
         };
@@ -171,7 +171,7 @@ fn create_db() -> (Database, usize) {
     let path = format!("{cache_dir}/cache-{sn}.redb",);
     let db = Database::builder()
         .set_cache_size(1024 * 1024 * 128)
-        .create(&path)
+        .create(path)
         .expect("Failed to create database");
     (db, sn)
 }

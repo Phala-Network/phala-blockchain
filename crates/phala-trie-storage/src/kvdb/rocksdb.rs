@@ -66,7 +66,7 @@ impl Default for RocksDB {
 impl KvStorage for RocksDB {
     type Transaction<'a> = Transaction<'a, TransactionDB<MultiThreaded>>;
 
-    fn transaction<'a>(&'a self) -> Self::Transaction<'a> {
+    fn transaction(&self) -> Self::Transaction<'_> {
         let RocksDB::Database { db, .. } = self else {
             panic!("Consolidate on a snapshot")
         };
@@ -172,7 +172,7 @@ fn serde_works() {
         db.put(b"foo", &(vec![42u8], 1i32).encode()).unwrap();
         let ser = serde_cbor::to_vec(&db).unwrap();
         let de: RocksDB = serde_cbor::from_slice(&ser).unwrap();
-        assert_eq!(de.get_r(b"foo").unwrap(), Some((vec![42], 1)));
+        assert_eq!(de.get_decoded(b"foo"), Some((vec![42], 1)));
     });
 }
 
