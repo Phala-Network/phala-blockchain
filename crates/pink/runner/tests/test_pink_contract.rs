@@ -20,6 +20,7 @@ fn tx_args() -> TransactionArguments {
         gas_limit: Weight::MAX,
         gas_free: true,
         storage_deposit_limit: None,
+        deposit: 0,
     }
 }
 

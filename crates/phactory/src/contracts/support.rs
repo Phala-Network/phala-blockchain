@@ -209,6 +209,7 @@ impl Contract {
             gas_free: false,
             storage_deposit_limit: None,
             gas_limit,
+            deposit: 0,
         };
         let mut handle = env.contract_cluster.runtime_mut(env.log_handler.clone());
         _ = handle.call(

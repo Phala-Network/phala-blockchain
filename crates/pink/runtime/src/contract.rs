@@ -147,6 +147,7 @@ pub fn instantiate(
         gas_limit,
         storage_deposit_limit,
         gas_free,
+        deposit: _,
     } = args;
     let gas_limit = Weight::from_parts(gas_limit, 0).set_proof_size(u64::MAX);
     let result = contract_tx(origin.clone(), gas_limit, gas_free, move || {
@@ -187,6 +188,7 @@ pub fn bare_call(
         gas_limit,
         gas_free,
         storage_deposit_limit,
+        deposit: _,
     } = tx_args;
     let gas_limit = Weight::from_parts(gas_limit, 0).set_proof_size(u64::MAX);
     let determinism = if mode.deterministic_required() {

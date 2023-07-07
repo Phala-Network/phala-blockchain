@@ -48,6 +48,7 @@ pub mod ecall {
         pub gas_limit: Weight,
         pub gas_free: bool,
         pub storage_deposit_limit: Option<Balance>,
+        pub deposit: Balance,
     }
 
     #[derive(Encode, Decode, Clone, Debug)]
