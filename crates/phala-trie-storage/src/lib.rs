@@ -22,7 +22,10 @@ use sp_core::Hasher;
 use sp_state_machine::{Backend, IterArgs, TrieBackend, TrieBackendBuilder};
 use sp_trie::{trie_types::TrieDBMutBuilderV0 as TrieDBMutBuilder, TrieMut};
 
-pub use kvdb::{RocksDB, HashRocksDB};
+pub use kvdb::{
+    traits::{KvStorage, Transaction},
+    HashRedb, HashRocksDB, Redb, RocksDB,
+};
 pub use memdb::GenericMemoryDB as MemoryDB;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -30,6 +33,7 @@ pub use memdb::GenericMemoryDB as MemoryDB;
 pub enum DBType {
     Memory,
     RocksDB,
+    Redb,
 }
 
 /// Storage key.
@@ -116,8 +120,9 @@ where
     let root = trie.root();
     let db = trie.backend_storage();
     match db {
-        DatabaseAdapter::RocksDB(db) => (root, db).serialize(serializer),
         DatabaseAdapter::Memory(mdb) => (root, ser::SerAsSeq(mdb)).serialize(serializer),
+        DatabaseAdapter::RocksDB(db) => (root, db).serialize(serializer),
+        DatabaseAdapter::Redb(db) => (root, db).serialize(serializer),
     }
 }
 
@@ -143,6 +148,10 @@ where
         DBType::RocksDB => {
             let (root, db): (H::Out, HashRocksDB<H>) = Deserialize::deserialize(deserializer)?;
             (root, DatabaseAdapter::RocksDB(db))
+        }
+        DBType::Redb => {
+            let (root, db): (H::Out, HashRedb<H>) = Deserialize::deserialize(deserializer)?;
+            (root, DatabaseAdapter::Redb(db))
         }
     };
     Ok(TrieBackendBuilder::new(db, root).build())

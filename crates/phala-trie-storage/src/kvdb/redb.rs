@@ -4,6 +4,7 @@ use atomic::Ordering;
 use log::info;
 use ouroboros::self_referencing;
 use redb::{Database, ReadTransaction, ReadableTable, TableDefinition, WriteTransaction};
+use serde::{Deserialize, Serialize};
 
 use super::traits::{KvStorage, Transaction};
 
@@ -101,6 +102,30 @@ impl KvStorage for Redb {
                 }
             }
         }
+    }
+}
+
+impl Default for Redb {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Serialize for Redb {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        super::serializing::serialize_as_map(self, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Redb {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        super::serializing::deserialize_from_map(deserializer)
     }
 }
 

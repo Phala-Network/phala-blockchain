@@ -6,7 +6,6 @@ use std::sync::{
 
 use log::info;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use sp_state_machine::DefaultError;
 
 use librocksdb_sys as ffi;
 use rocksdb::{Error as DBError, IteratorMode, MultiThreaded, Options, Transaction, TransactionDB};
@@ -15,7 +14,7 @@ mod snapshot;
 
 type Database = Arc<TransactionDB<MultiThreaded>>;
 
-use super::{decode_value, traits::KvStorage};
+use super::traits::KvStorage;
 pub enum RocksDB {
     Database { db: Database, sn: usize },
     Snapshot(Arc<Snapshot>),
@@ -27,13 +26,6 @@ impl RocksDB {
         Self::Database {
             db: Arc::new(db),
             sn,
-        }
-    }
-
-    pub fn snapshot(&self) -> Self {
-        match self {
-            Self::Database { db, .. } => Self::Snapshot(Arc::new(Snapshot::new(db.clone()))),
-            Self::Snapshot(snap) => Self::Snapshot(snap.clone()),
         }
     }
 
@@ -62,14 +54,6 @@ impl RocksDB {
             RocksDB::Database { db, .. } => db.get(key),
             RocksDB::Snapshot(snap) => snap.get(key),
         }
-    }
-
-    pub fn get_r(
-        &self,
-        key: &[u8],
-    ) -> Result<Option<(sp_state_machine::DBValue, i32)>, DefaultError> {
-        let value = self.get(key).map_err(|err| err.to_string())?;
-        decode_value(value).or(Err("Decode db value failed".into()))
     }
 }
 
@@ -120,7 +104,10 @@ impl KvStorage for RocksDB {
     where
         Self: Sized,
     {
-        self.snapshot()
+        match self {
+            Self::Database { db, .. } => Self::Snapshot(Arc::new(Snapshot::new(db.clone()))),
+            Self::Snapshot(snap) => Self::Snapshot(snap.clone()),
+        }
     }
 
     fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
