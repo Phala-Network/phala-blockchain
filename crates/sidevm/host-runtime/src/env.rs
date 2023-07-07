@@ -336,6 +336,17 @@ impl Env {
     pub fn is_stifled(&self, store: &mut impl AsStoreMut) -> bool {
         self.inner.lock().unwrap().is_stifled(store)
     }
+
+    pub fn memory(&self) -> Memory {
+        self.inner
+            .lock()
+            .unwrap()
+            .memory
+            .0
+            .as_ref()
+            .expect("BUG: missing memory in env")
+            .clone()
+    }
 }
 
 impl<'a, 'b> env::OcallEnv for FnEnvMut<'a, &'b mut EnvInner> {

@@ -4524,6 +4524,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-clap-parsers"
+version = "0.1.0"
+
+[[package]]
 name = "phala-crypto"
 version = "0.1.0"
 dependencies = [
@@ -5204,6 +5208,7 @@ dependencies = [
  "phactory-api",
  "phactory-pal",
  "phala-allocator",
+ "phala-clap-parsers",
  "phala-git-revision",
  "phala-rocket-middleware",
  "phala-sanitized-logger",

@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use phala_clap_parsers::parse_duration;
 use sp_core::{crypto::SecretStringError, Pair, H256};
 use std::time::Duration;
 
@@ -66,41 +67,8 @@ pub struct RunArgs {
     pub caller: sp_core::sr25519::Pair,
 }
 
-#[derive(Debug)]
-pub struct InvalidDuration;
-
-impl std::fmt::Display for InvalidDuration {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Invalid duration")
-    }
-}
-
-impl std::error::Error for InvalidDuration {}
-
 fn parse_sr25519(s: &str) -> Result<sp_core::sr25519::Pair, SecretStringError> {
     <sp_core::sr25519::Pair as Pair>::from_string(s, None)
-}
-
-fn parse_duration(s: &str) -> Result<Duration, InvalidDuration> {
-    let mut num_str = s;
-    let mut unit = "s";
-
-    if let Some(idx) = s.find(|c: char| !c.is_numeric()) {
-        num_str = &s[..idx];
-        unit = &s[idx..];
-    }
-
-    let num = num_str.parse::<u64>().or(Err(InvalidDuration))?;
-
-    let num = match unit {
-        "s" | "" => num,
-        "m" => num * 60,
-        "h" => num * 60 * 60,
-        "d" => num * 60 * 60 * 24,
-        _ => return Err(InvalidDuration),
-    };
-
-    Ok(Duration::from_secs(num))
 }
 
 pub fn parse_hash(s: &str) -> Result<H256, hex::FromHexError> {
@@ -111,31 +79,4 @@ pub fn parse_hash(s: &str) -> Result<H256, hex::FromHexError> {
     let mut buf = [0u8; 32];
     hex::decode_to_slice(s, &mut buf)?;
     Ok(H256::from(buf))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_duration() {
-        assert_eq!(parse_duration("10").unwrap(), Duration::from_secs(10));
-        assert_eq!(parse_duration("10s").unwrap(), Duration::from_secs(10));
-        assert_eq!(parse_duration("10m").unwrap(), Duration::from_secs(600));
-        assert_eq!(parse_duration("10h").unwrap(), Duration::from_secs(36000));
-        assert_eq!(parse_duration("10d").unwrap(), Duration::from_secs(864000));
-        assert_eq!(parse_duration("1").unwrap(), Duration::from_secs(1));
-        assert_eq!(parse_duration("100").unwrap(), Duration::from_secs(100));
-    }
-
-    #[test]
-    fn test_parse_duration_invalid() {
-        assert!(parse_duration("10x").is_err());
-        assert!(parse_duration("ms").is_err());
-    }
-
-    #[test]
-    fn test_parse_duration_empty() {
-        assert!(parse_duration("").is_err());
-    }
 }
