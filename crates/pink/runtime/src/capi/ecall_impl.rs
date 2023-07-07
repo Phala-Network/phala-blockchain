@@ -89,6 +89,7 @@ impl ecall::ECalls for ECallImpl {
             gas_limit: Weight::MAX,
             gas_free: true,
             storage_deposit_limit: None,
+            deposit: 0,
         };
         let result = crate::contract::instantiate(
             code_hash,
@@ -191,6 +192,7 @@ impl ecall::ECalls for ECallImpl {
         tx_args: TransactionArguments,
     ) -> Vec<u8> {
         let tx_args = sanitize_args(tx_args, mode);
+        handle_deposit(&tx_args);
         let address = PalletPink::contract_address(&tx_args.origin, &code_hash, &input_data, &salt);
         let result = crate::contract::instantiate(code_hash, input_data, salt, mode, tx_args);
         if !result.debug_message.is_empty() {
@@ -239,6 +241,7 @@ impl ecall::ECalls for ECallImpl {
         tx_args: TransactionArguments,
     ) -> Vec<u8> {
         let tx_args = sanitize_args(tx_args, mode);
+        handle_deposit(&tx_args);
         let result = crate::contract::bare_call(address.clone(), input_data, mode, tx_args);
         if !result.debug_message.is_empty() {
             let message = String::from_utf8_lossy(&result.debug_message).into_owned();
@@ -292,4 +295,10 @@ fn sanitize_args(mut args: TransactionArguments, mode: ExecutionMode) -> Transac
     };
     args.gas_limit = args.gas_limit.min(gas_limit);
     args
+}
+
+fn handle_deposit(args: &TransactionArguments) {
+    if args.deposit > 0 {
+        let _ = PalletBalances::deposit_creating(&args.origin, args.deposit);
+    }
 }
