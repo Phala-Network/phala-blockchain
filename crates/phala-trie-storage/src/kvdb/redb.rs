@@ -32,7 +32,11 @@ impl OwnedTransaction {
     fn into_table(self) -> OwnedTable {
         OwnedTableBuilder {
             tx: self,
-            table_builder: |tx| tx.borrow_tx().open_table(TABLE).expect("open_table failed"),
+            table_builder: |tx| {
+                tx.borrow_tx()
+                    .open_table(TABLE)
+                    .expect("Failed to open table in redb")
+            },
         }
         .build()
     }
@@ -63,7 +67,10 @@ impl KvStorage for Redb {
             Redb::Database { db, .. } => {
                 let tx = OwnedTransactionBuilder {
                     db: db.clone(),
-                    tx_builder: |db| db.begin_read().expect("begin_read failed"),
+                    tx_builder: |db| {
+                        db.begin_read()
+                            .expect("Failed to create read transaction for snapshot")
+                    },
                 }
                 .build();
                 Redb::Snapshot(Arc::new(tx.into_table()))
@@ -75,18 +82,20 @@ impl KvStorage for Redb {
     fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
         match self {
             Redb::Database { db, .. } => {
-                let tx = db.begin_read().expect("begin_read failed");
-                let table = tx.open_table(TABLE).expect("open_table failed");
+                let tx = db
+                    .begin_read()
+                    .expect("Failed to create read transaction for get");
+                let table = tx.open_table(TABLE).expect("Failed to open table in redb");
                 table
                     .get(key)
-                    .expect("get failed")
+                    .expect("Failed to get value from database, the database may be corrupted")
                     .map(|v| v.value().to_vec())
             }
             Redb::Snapshot(snap) => {
                 let table = snap.borrow_table();
                 table
                     .get(key)
-                    .expect("get failed")
+                    .expect("Failed to get value from snapshot, the database may be corrupted")
                     .map(|v| v.value().to_vec())
             }
         }
@@ -96,23 +105,28 @@ impl KvStorage for Redb {
         let Self::Database { db, sn: _ } = self else {
             panic!("transaction() called on snapshot")
         };
-        db.begin_write().expect("begin_write failed")
+        db.begin_write()
+            .expect("Failed to create write transaction")
     }
 
     fn for_each(&self, mut cb: impl FnMut(&[u8], &[u8])) {
         match self {
             Redb::Database { db, .. } => {
-                let tx = db.begin_read().expect("begin_read failed");
-                let table = tx.open_table(TABLE).expect("open_table failed");
-                for result in table.iter().expect("iter over redb failed") {
-                    let (k, v) = result.expect("iter over redb failed");
+                let tx = db
+                    .begin_read()
+                    .expect("Failed to create read transaction for iteration");
+                let table = tx
+                    .open_table(TABLE)
+                    .expect("Failed to open table for iteration");
+                for result in table.iter().expect("Failed to iterate over redb") {
+                    let (k, v) = result.expect("Failed to iter over redb");
                     cb(k.value(), v.value());
                 }
             }
             Redb::Snapshot(snap) => {
                 let table = snap.borrow_table();
-                for result in table.iter().expect("iter over redb failed") {
-                    let (k, v) = result.expect("iter over redb failed");
+                for result in table.iter().expect("Failed to iterate over redb snapshot") {
+                    let (k, v) = result.expect("Failed to iter over redb snapshot");
                     cb(k.value(), v.value());
                 }
             }
@@ -147,28 +161,28 @@ impl<'de> Deserialize<'de> for Redb {
 impl Transaction for WriteTransaction<'_> {
     fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
         self.open_table(TABLE)
-            .expect("open_table failed")
+            .expect("Failed to open table in redb")
             .get(key)
-            .expect("get failed")
+            .expect("Failed to get value from database, the database may be corrupted")
             .map(|v| v.value().to_vec())
     }
 
     fn put(&self, key: &[u8], value: &[u8]) {
         self.open_table(TABLE)
-            .expect("open_table failed")
+            .expect("Failed to open table in redb")
             .insert(key, value)
-            .expect("put failed");
+            .expect("Failed to put value into database, the database may be corrupted");
     }
 
     fn delete(&self, key: &[u8]) {
         self.open_table(TABLE)
-            .expect("open_table failed")
+            .expect("Failed to open table in redb")
             .remove(key)
-            .expect("delete failed");
+            .expect("Failed to delete value from database, the database may be corrupted");
     }
 
     fn commit(self) {
-        self.commit().expect("commit failed");
+        self.commit().expect("Failed to commit transaction");
     }
 }
 
