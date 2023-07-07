@@ -107,6 +107,7 @@ pub fn maybe_emit_system_event_block(events: SystemEvents) {
     let body = EventsBlockBody {
         phala_block_number: System::block_number(),
         contract_call_nonce: OCallImpl.contract_call_nonce(),
+        entry_contract: OCallImpl.entry_contract(),
         events,
     };
     let number = PalletPink::take_next_event_block_number();

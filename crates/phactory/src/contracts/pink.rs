@@ -420,6 +420,10 @@ impl OCalls for RuntimeHandle<'_> {
     fn contract_call_nonce(&self) -> Option<Vec<u8>> {
         context::get_call_nonce()
     }
+
+    fn entry_contract(&self) -> Option<AccountId> {
+        context::get_entry_contract()
+    }
 }
 
 impl OCalls for RuntimeHandleMut<'_> {
@@ -501,6 +505,10 @@ impl OCalls for RuntimeHandleMut<'_> {
 
     fn contract_call_nonce(&self) -> Option<Vec<u8>> {
         self.readonly().contract_call_nonce()
+    }
+
+    fn entry_contract(&self) -> Option<AccountId> {
+        self.readonly().entry_contract()
     }
 }
 

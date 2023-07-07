@@ -499,6 +499,10 @@ mod test_cluster {
         fn contract_call_nonce(&self) -> Option<Vec<u8>> {
             None
         }
+
+        fn entry_contract(&self) -> Option<AccountId> {
+            None    
+        }
     }
 
     impl CrossCall for TestCluster {

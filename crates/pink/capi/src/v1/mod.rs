@@ -204,5 +204,8 @@ pub mod ocall {
 
         #[xcall(id = 17)]
         fn contract_call_nonce(&self) -> Option<Vec<u8>>;
+
+        #[xcall(id = 18)]
+        fn entry_contract(&self) -> Option<AccountId>;
     }
 }

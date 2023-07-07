@@ -26,6 +26,7 @@ pub struct EventsBlockHeader {
 pub struct EventsBlockBody {
     pub phala_block_number: BlockNumber,
     pub contract_call_nonce: Option<Vec<u8>>,
+    pub entry_contract: Option<AccountId>,
     pub events: SystemEvents,
 }
 
