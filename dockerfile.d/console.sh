@@ -1,8 +1,7 @@
 #!/bin/bash
 
 declare -A P2P_PORT=( ["alice"]="30333" ["bob"]="31333" ["charlie"]="32333" ["dave"]="33333" )
-declare -A RPC_PORT=( ["alice"]="9933" ["bob"]="19933" ["charlie"]="29933" ["dave"]="39933" )
-declare -A WS_PORT=( ["alice"]="9944" ["bob"]="19944" ["charlie"]="29944" ["dave"]="49944" )
+declare -A RPC_PORT=( ["alice"]="9944" ["bob"]="19944" ["charlie"]="29944" ["dave"]="49944" )
 declare -a rpc_port_array=( 0 9933 19933 29933 39933 )
 
 NODE_NAME=phala-node
@@ -28,8 +27,7 @@ dev)
       --base-path $BASE_PATH_BASE/dev \
       --dev \
       --port 30333 \
-      --rpc-port 9933 \
-      --ws-port 9944 \
+      --rpc-port 9944 \
       --rpc-cors=all \
       --execution=Wasm \
       --validator \
@@ -42,8 +40,7 @@ dev-native)
       --base-path $BASE_PATH_BASE/dev \
       --dev \
       --port 30333 \
-      --rpc-port 9933 \
-      --ws-port 9944 \
+      --rpc-port 9944 \
       --rpc-cors=all \
       --execution=Native \
       --validator \
@@ -68,7 +65,6 @@ start)
         --node-key 0000000000000000000000000000000000000000000000000000000000000001 \
         --port "${P2P_PORT[${role}]}" \
         --rpc-port "${RPC_PORT[${role}]}" \
-        --ws-port "${WS_PORT[${role}]}" \
         --validator "$@"
   ;;
   bob|charlie|dave)
@@ -81,7 +77,6 @@ start)
         --rpc-cors all \
         --port "${P2P_PORT[${role}]}" \
         --rpc-port "${RPC_PORT[${role}]}" \
-        --ws-port "${WS_PORT[${role}]}" \
         --validator "$@"
   ;;
   *)

@@ -6,6 +6,7 @@ mod contracts;
 mod instant;
 mod query;
 mod web_api;
+mod primitives;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

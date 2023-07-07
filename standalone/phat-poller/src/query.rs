@@ -9,6 +9,7 @@ use phala_types::contract;
 use phala_types::contract::ContractId;
 use scale::{Decode, Encode};
 use sp_core::Pair as _;
+use tracing::warn;
 use std::convert::TryFrom as _;
 
 #[derive(Debug, Encode, Decode)]
@@ -77,11 +78,11 @@ pub async fn pink_query<I: Encode, O: Decode>(
     let call_data = (selector.to_be_bytes(), args).encode();
     let payload = pink_query_raw(worker_pubkey, url, id, call_data, key).await??;
     let output =
-        pallet_contracts_primitives::ContractExecResult::<u128>::decode(&mut &payload[..])?
+        crate::primitives::ContractExecResult::<u128>::decode(&mut &payload[..])?
             .result
             .map_err(|err| anyhow::anyhow!("DispatchError({err:?})"))?;
     if output.did_revert() {
-        return Err(anyhow!("Contract execution reverted"));
+        warn!("Contract execution reverted, output={:?}", output.data);
     }
     let r = Result::<O, LangError>::decode(&mut &output.data[..])??;
     Ok(r)
