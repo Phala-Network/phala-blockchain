@@ -200,6 +200,8 @@ pub trait PinkExt {
     /// This method derives a sr25519 key using the provided salt and the contract private key.
     /// The derived key is deterministic so it could be used in transactions to sign messages.
     ///
+    /// The derived key can also be used as a cryptographically secure entropy source.
+    ///
     /// # Arguments
     ///
     /// * `salt`: The salt to use in the key derivation function.
@@ -219,7 +221,7 @@ pub trait PinkExt {
     #[ink(extension = 4, handle_status = false)]
     fn derive_sr25519_key(salt: Cow<[u8]>) -> Vec<u8>;
 
-    /// Get the public key associated with a private key.
+    /// Derive the public key from a private key.
     ///
     /// This method takes a signature type and private key and returns the associated public key.
     ///
@@ -312,7 +314,7 @@ pub trait PinkExt {
     /// Get a value from the local cache.
     ///
     /// This method retrieves a value from the local cache. It can only be used in query functions.
-    /// If called from a command context, it will always return `None`.
+    /// If called from a transaction context, it will always return `None`.
     ///
     /// # Arguments
     ///
@@ -338,7 +340,7 @@ pub trait PinkExt {
     /// Remove a value from the local cache.
     ///
     /// This method removes a value from the local cache and returns the removed value if it existed.
-    /// If called from a command context, it will always return `None`.
+    /// If called from a transaction context, it will always return `None`.
     ///
     /// # Arguments
     ///
@@ -357,6 +359,10 @@ pub trait PinkExt {
     /// Log a message.
     ///
     /// This method logs a message at a given level.
+    ///
+    /// The logs would be shown in the worker log file. Additionally, if a log server
+    /// contract has been deployed in the cluster, the logs would be sent to the log server.
+    /// Users can query the logs via the log server API.
     ///
     /// # Arguments
     ///
@@ -413,11 +419,11 @@ pub trait PinkExt {
     #[ink(extension = 11, handle_status = false)]
     fn getrandom(length: u8) -> Vec<u8>;
 
-    /// Check if it is running in a Command context.
+    /// Check if it is running in a transaction context.
     ///
     /// # Returns
     ///
-    /// * `bool` - `true` if it is running in a Command context, `false` if in query.
+    /// * `bool` - `true` if it is running in a transaction context, `false` if in query.
     ///
     /// # Availability
     /// any contract | query | transaction
@@ -490,7 +496,7 @@ pub trait PinkExt {
     #[ink(extension = 15, handle_status = false)]
     fn system_contract_id() -> AccountId;
 
-    /// Get balance of a given contract.
+    /// Get balance of a given address.
     ///
     /// # Arguments
     ///
@@ -505,7 +511,7 @@ pub trait PinkExt {
     #[ink(extension = 16, handle_status = false)]
     fn balance_of(account: AccountId) -> (Balance, Balance);
 
-    /// Get the worker public key.
+    /// Get the public key of the worker running this query.
     ///
     /// # Returns
     ///

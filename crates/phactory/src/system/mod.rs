@@ -1674,7 +1674,7 @@ pub fn handle_contract_command_result(
 ) {
     let effects = match result {
         Err(err) => {
-            error!("Run contract command failed: {:?}", err);
+            error!("Run contract tx call failed: {:?}", err);
             return;
         }
         Ok(Some(effects)) => effects,

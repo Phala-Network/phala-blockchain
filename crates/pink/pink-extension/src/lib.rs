@@ -250,6 +250,8 @@ impl PinkEvent {
 /// * `gas_limit`: The maximum amount of gas that can be used when calling the receiver contract.
 ///
 /// Note: The cost of the execution would be charged to the contract itself.
+/// 
+/// This api is only available for the system contract. User contracts should use `System::set_hook` instead.
 pub fn set_hook(hook: HookPoint, contract: AccountId, selector: u32, gas_limit: u64) {
     emit_event::<PinkEnvironment, _>(PinkEvent::SetHook {
         hook,
