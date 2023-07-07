@@ -2,15 +2,13 @@ use alloc::vec::Vec;
 use scale::{Compact, Decode, Encode};
 use crate::transaction::MultiAddress;
 
-
-// TODO u32 should be parametrized
-pub fn create_contract_call<AccountId, ARGS: Encode>(
+pub(crate) fn build_contract_call<AccountId, AccountIndex, Balance, ARGS: Encode>(
     contract_id: AccountId,
     contract_method: [u8;4],
-    contract_args: Option<ARGS>,
-    value: u128,
+    contract_args: Option<&ARGS>,
+    value: Balance,
     gas_limit: WeightV2,
-) -> ContractCall<AccountId, u32, u128> {
+) -> ContractCall<AccountId, AccountIndex, Balance> {
 
     let storage_deposit_limit = None;
 
@@ -31,14 +29,13 @@ pub fn create_contract_call<AccountId, ARGS: Encode>(
 }
 
 
-pub fn create_contract_query<AccountId, ARGS: Encode>(
+pub(crate) fn build_contract_query<AccountId, Balance, ARGS: Encode>(
     origin: AccountId,
-    //contract_id: [u8;32],
     contract_id: AccountId,
     contract_method: [u8;4],
-    contract_args: Option<ARGS>,
-    value: u128,
-) -> ContractQuery<AccountId, u128> {
+    contract_args: Option<&ARGS>,
+    value: Balance,
+) -> ContractQuery<AccountId, Balance> {
 
     let mut data = Vec::new();
     contract_method.encode_to(&mut data);
@@ -62,7 +59,7 @@ pub fn create_contract_query<AccountId, ARGS: Encode>(
 /// Struct used to send an encoded transaction to the contract
 #[derive(Encode, Decode, PartialEq, Eq, Clone, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub struct ContractCall<AccountId, AccountIndex, Balance> {
+pub(crate) struct ContractCall<AccountId, AccountIndex, Balance> {
     /// Contract address
     dest: MultiAddress<AccountId, AccountIndex>,
     /// Only for payable messages, call will fail otherwise
@@ -91,7 +88,7 @@ pub struct WeightV2 {
 /// Struct used to query a wasm contract
 #[derive(Encode, Decode, PartialEq, Eq, Clone, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub struct ContractQuery<AccountId, Balance> {
+pub(crate) struct ContractQuery<AccountId, Balance> {
     origin: AccountId,
     dest: AccountId,
     value: Balance,
@@ -105,75 +102,53 @@ pub struct ContractQuery<AccountId, Balance> {
 #[derive(Encode, Decode, Clone, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct ContractQueryResult<Error, Balance>{
-    pub gas_consumed: WeightV2,
-    pub gas_required: WeightV2,
-    pub storage_deposit: StorageDeposit<Balance>,
-    pub debug_message: Vec<u8>,
-    pub result: ExecReturnValue<Error>,
+    pub(crate) gas_consumed: WeightV2,
+    pub(crate) gas_required: WeightV2,
+    pub(crate) storage_deposit: StorageDeposit<Balance>,
+    pub(crate) debug_message: Vec<u8>,
+    pub(crate) result: ExecReturnValue<Error>,
 }
 
 #[derive(Encode, Decode, Clone, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub struct ExecReturnValue<Error> {
-    pub flags: u32,
-    pub data: Result<Vec<u8>, Error>,
+pub(crate) struct ExecReturnValue<Error> {
+    pub(crate) flags: u32,
+    pub(crate) data: Result<Vec<u8>, Error>,
 }
 
 #[derive(Encode, Decode, PartialEq, Eq, Clone, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub enum StorageDeposit<Balance> {
+pub(crate) enum StorageDeposit<Balance> {
     Refund(Balance),
     Charge(Balance),
 }
 
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Encoded(pub Vec<u8>);
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cmp;
-
-    fn compare (a: &[u8], b: &[u8]) -> cmp::Ordering {
-        a.iter()
-            .zip(b)
-            .map(|(x, y)| x.cmp(y))
-            .find(|&ord| ord != cmp::Ordering::Equal)
-            .unwrap_or(a.len().cmp(&b.len()))
-    }
-
-
-    /// this struct should match with the error returned by the contract
-    #[derive(Encode, Decode, PartialEq, Eq, Clone, Copy, Debug)]
-    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-    enum Error {
-        Error1,
-        Error2,
-    }
 
     #[test]
     fn test_encode_contract_call() {
 
         let contract_id : [u8; 32] = hex_literal::hex!("f77bfd16d61d39dcd8c4413ac88642354f5726bb5915bf52bc4f502a671f1aa5");
         let contract_method = hex_literal::hex!("1d32619f");
-        let contract_args = Some(2i32);
+        let contract_args = Some(&2i32);
 
-        let call = create_contract_call(
-             contract_id,
-             contract_method,
-             contract_args,
-             0,
-             WeightV2 {
-                 ref_time: 3991666688u64,
-                 proof_size: 131072u64
-             }
+        let call : ContractCall<[u8; 32], u32, u128> = build_contract_call(
+            contract_id,
+            contract_method,
+            contract_args,
+            0u128,
+            WeightV2 {
+                ref_time: 3991666688u64,
+                proof_size: 131072u64
+            }
         );
 
         let encoded_call = Encode::encode(&call);
         let expected =  hex_literal::hex!("00f77bfd16d61d39dcd8c4413ac88642354f5726bb5915bf52bc4f502a671f1aa500030000eced0200080000201d32619f02000000");
-        assert_eq!(cmp::Ordering::Equal, compare(&expected, &encoded_call));
+        assert_eq!(&expected, encoded_call.as_slice());
     }
 
     #[test]
@@ -182,18 +157,24 @@ mod tests {
         let origin : [u8;32] = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d");
         let contract_id : [u8;32]  = hex_literal::hex!("f77bfd16d61d39dcd8c4413ac88642354f5726bb5915bf52bc4f502a671f1aa5");
         let contract_method = hex_literal::hex!("2f865bd9");
-        let contract_args : Option<()> = None;// no args
+        let contract_args : Option<&()> = None;// no args
 
-        let call = create_contract_query(
-            origin, contract_id, contract_method, contract_args, 0
+        let call = build_contract_query(
+            origin, contract_id, contract_method, contract_args, 0u128
         );
 
         let encoded_call = Encode::encode(&call);
         let expected =  hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27df77bfd16d61d39dcd8c4413ac88642354f5726bb5915bf52bc4f502a671f1aa5000000000000000000000000000000000000102f865bd9");
-        assert_eq!(cmp::Ordering::Equal, compare(&expected, &encoded_call));
+        assert_eq!(&expected, encoded_call.as_slice());
     }
 
 
+    /// this struct should match with the error returned by the contract
+    #[derive(Decode, Debug)]
+    enum Error {
+        Error1,
+        Error2,
+    }
 
     #[test]
     fn test_decode_contract_query_result() {

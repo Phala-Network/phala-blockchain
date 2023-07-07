@@ -20,7 +20,7 @@ use rpc::call_rpc;
 pub use ss58::{get_ss58addr_version, Ss58Codec};
 use traits::common::Error;
 use transaction::{MultiAddress, MultiSignature, Signature, UnsignedExtrinsic};
-use crate::wasm_contracts::ContractQueryResult;
+use contracts::objects::ContractQueryResult;
 
 pub mod hasher;
 mod objects;
@@ -29,7 +29,7 @@ mod rpc;
 mod ss58;
 pub mod storage;
 mod transaction;
-pub mod wasm_contracts;
+pub mod contracts;
 
 pub mod traits {
     pub mod common {
@@ -379,8 +379,6 @@ mod tests {
     use super::*;
     use hex_literal::hex;
     use scale::{Compact, Encode};
-    use pink_extension::ResultExt;
-    use crate::wasm_contracts;
 
     /// Test data:
     ///
@@ -591,63 +589,5 @@ mod tests {
         .map(|b| b.map(hex::encode));
         _ = dbg!(r);
     }
-
-
-    /// Call and query a wasm smart contract deployed in Shibuya (Astar testnet)
-    #[test]
-    //#[ignore = "only for demonstration purposes"]
-    fn test_query_and_call_wasm_smart_contract() {
-        pink_extension_runtime::mock_ext::mock_all_ext();
-
-        let rpc = "http://127.0.0.1:9944";
-
-        // public key of test account `//Alice`
-        let origin : [u8;32] = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d");
-        // Secret key of test account `//Alice`
-        let signer:[u8; 32] = hex_literal::hex!("e5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a");
-
-        let contract_id : [u8; 32] = hex_literal::hex!("f77bfd16d61d39dcd8c4413ac88642354f5726bb5915bf52bc4f502a671f1aa5");
-        let contract_method = hex_literal::hex!("1d32619f");
-        let contract_args : i32 = 2;
-
-        //dry run method for query the required gaz"
-        let call = wasm_contracts::create_contract_query(
-            origin.into(), contract_id, contract_method, Some(contract_args), 0
-        );
-        let encoded_call = Encode::encode(&call);
-        println!("encoded query: {:02x?}", encoded_call);
-
-        let contract_query_result: ContractQueryResult<Error, u128> = query_contract(rpc, &encoded_call, None)
-            .log_err("Failed to dry run the method")
-            .unwrap();
-        println!("query result: {:02x?}", contract_query_result);
-
-        // call the contract
-        let call = wasm_contracts::create_contract_call(
-            contract_id, contract_method, Some(contract_args), 0, contract_query_result.gas_required
-        );
-
-        let signed_tx = create_transaction(
-            &signer,
-            "astar",
-            rpc,
-            07u8,
-            06u8,
-            call,
-            ExtraParam::default(),
-            )
-            .log_err("Failed to sign tx")
-            .unwrap();
-
-        println!("signed_tx: {:02x?}", signed_tx);
-
-        let result = send_transaction(rpc, &signed_tx)
-            .log_err("Failed to send tx")
-            .unwrap();
-
-        dbg!(hex::encode(result));
-
-    }
-
 
 }
