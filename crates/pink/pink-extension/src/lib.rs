@@ -145,7 +145,7 @@ pub enum PinkEvent {
     /// System contract
     #[codec(index = 8)]
     SetLogHandler(AccountId),
-    /// Set the weight of contract used to schedule queries and sidevm vruntime
+    /// Set the weight of contract used to schedule queries and sidevm virtual runtime
     ///
     /// Please do not use this event directly, use [`set_contract_weight()`] instead.
     ///
@@ -324,7 +324,7 @@ pub fn set_log_handler(contract: AccountId) {
     emit_event::<PinkEnvironment, _>(PinkEvent::SetLogHandler(contract))
 }
 
-/// Set the weight of contract used to schedule queries and sidevm vruntime. (system only)
+/// Set the weight of contract used to schedule queries and sidevm virtual runtime. (system only)
 pub fn set_contract_weight(contract: AccountId, weight: u32) {
     emit_event::<PinkEnvironment, _>(PinkEvent::SetContractWeight { contract, weight });
 }

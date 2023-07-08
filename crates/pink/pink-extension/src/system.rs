@@ -78,7 +78,7 @@ pub trait System {
     /// - `PinkLogger`: The contract that with a sidevm instance that collect the logs and events
     ///  emitted by the ink! contracts in current cluster.
     /// - `ContractDeposit`: The contract that implements the `trait ContractDeposit` which talks
-    ///  to the pallet PhatKokenomic on Phala chain.
+    ///  to the pallet PhatTokenomic on Phala chain.
     #[ink(message)]
     fn set_driver(&mut self, name: String, contract_id: AccountId) -> Result<()>;
 
