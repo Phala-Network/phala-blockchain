@@ -50,7 +50,6 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
     }
   }
 
-  // @FIXME from & counts
   async getLog(contractId: AccountId | string, from: number = 0, counts: number = 100) {
     const api = this.api as ApiPromise
 
@@ -70,7 +69,7 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
           action: 'GetLog',
           contract: contractId,
           from,
-          counts,
+          count: counts,
         })),
       },
     })
