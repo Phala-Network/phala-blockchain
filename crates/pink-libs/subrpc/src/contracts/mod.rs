@@ -96,7 +96,7 @@ impl<'a> InkContract<'a>  {
         let encoded_call = Encode::encode(&call);
 
         let contract_query_result: ContractQueryResult<ContractError, Balance> = crate::query_contract(self.rpc, &encoded_call, at)
-            .map_err(|e| Error::FailedToQueryContract(e))?;
+            .map_err(Error::FailedToQueryContract)?;
 
         let result = contract_query_result.result.data.map_err(|_| Error::NoResult)?;
         let result = <core::result::Result<R, Error>>::decode(&mut result.as_slice())
