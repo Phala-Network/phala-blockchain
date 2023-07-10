@@ -183,9 +183,9 @@ impl Contract {
         phala_mq::select! {
             next_cmd = self.cmd_rcv_mq => match next_cmd {
                 Ok((_, cmd, origin)) => {
-                    info!("Contract {:?} handling command", self.address());
+                    info!("Contract {:?} handling tx call", self.address());
                     let Ok(command) = Decode::decode(&mut &cmd.0[..]) else {
-                        error!("Failed to decode command input");
+                        error!("Failed to decode tx input");
                         return Some(Err(TransactionError::BadInput));
                     };
                     env.contract_cluster.handle_command(self.address(), origin, command, &mut context)

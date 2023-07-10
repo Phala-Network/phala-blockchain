@@ -1,6 +1,6 @@
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
-use syn::{spanned::Spanned, FnArg, Result};
+use syn::{parse_quote, spanned::Spanned, FnArg, Result};
 
 pub(crate) enum InterfaceType {
     System,
@@ -25,6 +25,8 @@ fn patch_or_err(
 ) -> Result<TokenStream2> {
     use heck::{ToLowerCamelCase, ToSnakeCase};
     let the_trait: syn::ItemTrait = syn::parse2(input)?;
+    let trait_for_doc = generate_trait_for_doc(the_trait.clone());
+    let the_trait = patch_origin_system_doc(the_trait);
     let trait_ident = &the_trait.ident;
     let trait_name = the_trait.ident.to_string();
     let trait_impl_mod = Ident::new(
@@ -133,6 +135,9 @@ fn patch_or_err(
         #config
         #the_trait
 
+        #[cfg(doc)]
+        #trait_for_doc
+
         pub use #trait_impl_mod::#impl_type;
         mod #trait_impl_mod {
             use super::*;
@@ -221,6 +226,38 @@ fn patch_or_err(
             }
         }
     })
+}
+
+fn patch_origin_system_doc(mut trait_item: syn::ItemTrait) -> syn::ItemTrait {
+    let additonal_doc = format!(
+        "**The doc is messed up by the ink macro. See [`{}ForDoc`] for a clean version**\n\n",
+        trait_item.ident
+    );
+    trait_item
+        .attrs
+        .insert(0, parse_quote!(#[doc = #additonal_doc]));
+    trait_item
+}
+
+fn generate_trait_for_doc(mut trait_item: syn::ItemTrait) -> syn::ItemTrait {
+    let additonal_doc = format!(
+        "**This is the clean version doc of [`{}`]**\n\n",
+        trait_item.ident
+    );
+    trait_item.attrs.retain(|attr| attr.path().is_ident("doc"));
+    trait_item
+        .attrs
+        .insert(0, parse_quote!(#[doc = #additonal_doc]));
+    trait_item.ident = syn::Ident::new(
+        &format!("{}ForDoc", trait_item.ident),
+        trait_item.ident.span(),
+    );
+    for item in trait_item.items.iter_mut() {
+        if let syn::TraitItem::Fn(method) = item {
+            method.attrs.retain(|attr| !attr.path().is_ident("ink"));
+        }
+    }
+    trait_item
 }
 
 #[cfg(test)]

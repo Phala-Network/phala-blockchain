@@ -34,37 +34,58 @@ pub fn log(level: Level, args: Arguments<'_>) {
     Logger.log(&record);
 }
 
-/// Same as log::log!
+/// The `log!` macro allows you to log messages with specific logging levels in pink contract.
+///
+/// It is a flexible macro that uses a provided log level (trace, debug, info, warn, error), 
+/// followed by a format string and an optional list of arguments to generate the final log message.
 #[macro_export]
 macro_rules! log {
     ($level: expr, $($arg:tt)+) => {{ $crate::logger::log($level, ::core::format_args!($($arg)+)) }}
 }
 
-/// Same as log::error!
+/// Same as `info!` but at Error level.
 #[macro_export(local_inner_macros)]
 macro_rules! error {
     ($($arg:tt)+) => {{ log!($crate::logger::Level::Error, $($arg)+) }}
 }
 
-/// Same as log::warn!
+/// Same as `info!` but at Warn level.
 #[macro_export(local_inner_macros)]
 macro_rules! warn {
     ($($arg:tt)+) => {{ log!($crate::logger::Level::Warn, $($arg)+) }}
 }
 
-/// Same as log::info!
+/// Macro `info!` logs messages at the Info level in pink contract.
+///
+/// This macro is used to log information that would be helpful to understand the general flow 
+/// of the system's execution. It is similar to `log::info`, but it is specifically designed 
+/// to work within the pink contract environment.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```ignore
+/// use pink_extension as pink;
+/// pink::info!("This is an information message.");
+/// let answer = 42;
+/// pink::info!("The answer is {}.", answer);
+/// ```
+///
+/// The above example would log "This is an information message." and 
+/// "The answer is 42." at the Info level.
 #[macro_export(local_inner_macros)]
 macro_rules! info {
     ($($arg:tt)+) => {{ log!($crate::logger::Level::Info, $($arg)+) }}
 }
 
-/// Same as log::debug!
+/// Same as `info!` but at Debug level.
 #[macro_export(local_inner_macros)]
 macro_rules! debug {
     ($($arg:tt)+) => {{ log!($crate::logger::Level::Debug, $($arg)+) }}
 }
 
-/// Same as log::trace!
+/// Same as `info!` but at Trace level.
 #[macro_export(local_inner_macros)]
 macro_rules! trace {
     ($($arg:tt)+) => {{ log!($crate::logger::Level::Trace, $($arg)+) }}

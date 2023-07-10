@@ -50,7 +50,9 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
 
         for item in item_trait.items.iter_mut() {
             if let syn::TraitItem::Fn(item_method) = item {
-                item_method.attrs.clear();
+                item_method
+                    .attrs
+                    .retain(|attr| !attr.path().is_ident("ink"));
 
                 // Turn &[u8] into Cow<[u8]>
                 for input in item_method.sig.inputs.iter_mut() {
