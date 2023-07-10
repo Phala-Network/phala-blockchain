@@ -293,7 +293,7 @@ impl OCalls for RuntimeHandle<'_> {
     }
 
     fn storage_get(&self, key: Vec<u8>) -> Option<Vec<u8>> {
-        self.cluster.storage.get(&key).map(|(_rc, val)| val.clone())
+        self.cluster.storage.get(&key).map(|(_rc, val)| val)
     }
 
     fn storage_commit(&mut self, _root: Hash, _changes: StorageChanges) {
@@ -436,6 +436,11 @@ impl OCalls for RuntimeHandleMut<'_> {
     }
 
     fn storage_commit(&mut self, root: Hash, changes: StorageChanges) {
+        // The underlying RocksDB would reject to commit to a snapshot.
+        if !context::get().mode.is_transaction() {
+            return;
+        }
+        info!("commit state root: {:?}", root);
         self.cluster.storage.commit(root, changes);
     }
 

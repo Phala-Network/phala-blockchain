@@ -67,6 +67,12 @@ mod storage_ext {
     }
 
     impl ChainStorage {
+        pub fn default_memdb() -> Self {
+            Self {
+                trie_storage: TrieStorage::default_memdb(),
+            }
+        }
+
         fn get_raw(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>> {
             self.trie_storage.get(key)
         }

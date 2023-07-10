@@ -59,6 +59,7 @@ describe('A full stack', function () {
         keyring = new Keyring({ type: 'sr25519', ss58Format: 30 });
         alice = keyring.addFromUri('//Alice');
         bob = keyring.addFromUri('//Bob');
+        console.log(`The test datadir is at ${cluster.tmpPath}`);
     });
 
     after(async function () {
@@ -443,7 +444,7 @@ describe('A full stack', function () {
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[2].getInfo();
                 return info.system?.gatekeeper.role == 2;  // 2: GatekeeperRole.Active in protobuf
-            }, 1000))
+            }, 3000))
 
             // Step 3: wait a few more blocks and ensure there are no conflicts in gatekeepers' shared mq
         });
@@ -1333,6 +1334,7 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
         '--cores=0',  // Disable benchmark
         '--checkpoint-interval=5',
         '--port', teePort.toString(),
+        '--db=redb',
     ];
     let bin = pRuntimeBin;
     if (inSgx) {

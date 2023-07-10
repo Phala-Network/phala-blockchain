@@ -93,6 +93,7 @@ ${LIBOS}:
 	rsync -r --no-links ${GRAMINE_RUNTIME_DIR}/ ${RUNTIME_DIR}/lib
 ifeq ($(USE_MUSL),0)
 	cp -rfL ${HOST_LIBC_DIR}/libgcc_s.so.1 ${RUNTIME_DIR}/lib/
+	cp -rfL ${HOST_LIBC_DIR}/libstdc++.so.6 ${RUNTIME_DIR}/lib/
 endif
 ifeq ($(SGX),1)
 	cp -rfL ${GRAMINE_DIR}/sgx ${RUNTIME_DIR}/
