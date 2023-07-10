@@ -20,15 +20,14 @@
   },
   "dependencies": {
     "@phala/sdk": "file:../frontend/packages/sdk",
-    "@phala/typedefs": "^0.2.32",
     "axios": "^0.25.0",
     "bn.js": "^5.2.1",
     "chai": "^4.3.6",
-    "dotenv": "^16.0.0",
+    "dotenv": "^16.3.1",
     "mocha": "^9.2.2",
     "portfinder": "^1.0.28"
   },
   "devDependencies": {
-    "protobufjs": "^6.11.3"
+    "protobufjs": "^7.2.4"
   }
 }
