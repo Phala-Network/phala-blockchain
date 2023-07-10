@@ -69,13 +69,6 @@ impl<'a> InkContract<'a> {
         value: Balance,
         at: Option<H256>,
     ) -> Result<R> {
-        /*
-        let origin : [u8;32] = signing::get_public_key(signer, signing::SigType::Sr25519)
-            .try_into()
-            .map_err(|_| Error::InvalidAddressLength)?;
-
-         */
-
         let call = build_contract_query(
             origin,
             *self.contract_id,
