@@ -118,10 +118,10 @@ impl<'a> InkContract<'a> {
             call,
             crate::ExtraParam::default(),
         )
-        .map_err(|e| Error::FailedToCreateTransaction(e))?;
+        .map_err(Error::FailedToCreateTransaction)?;
 
         let result = crate::send_transaction(self.rpc, &signed_tx)
-            .map_err(|e| Error::FailedToSendTransaction(e))?;
+            .map_err(Error::FailedToSendTransaction)?;
 
         return Ok(result);
     }
@@ -149,7 +149,7 @@ impl<'a> InkContract<'a> {
 
         let contract_query_result: ContractQueryResult<ContractError, Balance> =
             crate::query_contract(self.rpc, &encoded_call, None)
-                .map_err(|e| Error::FailedToQueryContract(e))?;
+                .map_err(Error::FailedToQueryContract)?;
 
         self.send_transaction(
             contract_method,
