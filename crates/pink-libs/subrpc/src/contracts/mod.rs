@@ -8,7 +8,7 @@ use crate::contracts::objects::{ContractCall, WeightV2};
 
 pub mod objects;
 
-pub type ContractId = [u8;32];
+pub type ContractId = [u8; 32];
 pub type Balance = u128;
 
 #[derive(Encode, Decode, Debug)]
@@ -34,50 +34,41 @@ pub enum ContractError {
 
 pub type Result<T> = core::result::Result<T, Error>;
 
-pub struct InkContract<'a>  {
+pub struct InkContract<'a> {
     rpc: &'a str,
     pallet_id: u8,
     call_id: u8,
     contract_id: &'a ContractId,
 }
 
-
-impl<'a> InkContract<'a>  {
-
+impl<'a> InkContract<'a> {
     pub fn new(rpc: &'a str, pallet_id: u8, call_id: u8, contract_id: &'a ContractId) -> Self {
         InkContract {
             rpc,
             pallet_id,
             call_id,
-            contract_id
+            contract_id,
         }
     }
 
-    pub fn query <A: Encode, R: Decode>(
+    pub fn query<A: Encode, R: Decode>(
         &self,
         origin: [u8; 32],
         contract_method: [u8; 4],
         contract_args: Option<&A>,
         value: Balance,
     ) -> Result<R> {
-        self.query_at(
-            origin,
-            contract_method,
-            contract_args,
-            value,
-            None
-        )
+        self.query_at(origin, contract_method, contract_args, value, None)
     }
 
-    pub fn query_at <A: Encode, R: Decode>(
+    pub fn query_at<A: Encode, R: Decode>(
         &self,
         origin: [u8; 32],
         contract_method: [u8; 4],
         contract_args: Option<&A>,
         value: Balance,
-        at: Option<H256>
+        at: Option<H256>,
     ) -> Result<R> {
-
         /*
         let origin : [u8;32] = signing::get_public_key(signer, signing::SigType::Sr25519)
             .try_into()
@@ -95,16 +86,19 @@ impl<'a> InkContract<'a>  {
 
         let encoded_call = Encode::encode(&call);
 
-        let contract_query_result: ContractQueryResult<ContractError, Balance> = crate::query_contract(self.rpc, &encoded_call, at)
-            .map_err(Error::FailedToQueryContract)?;
+        let contract_query_result: ContractQueryResult<ContractError, Balance> =
+            crate::query_contract(self.rpc, &encoded_call, at)
+                .map_err(Error::FailedToQueryContract)?;
 
-        let result = contract_query_result.result.data.map_err(|_| Error::NoResult)?;
+        let result = contract_query_result
+            .result
+            .data
+            .map_err(|_| Error::NoResult)?;
         let result = <core::result::Result<R, Error>>::decode(&mut result.as_slice())
             .map_err(|_| Error::FailedToDecode)?;
         let result = result.map_err(|_| Error::FailedToReadResult)?;
         Ok(result)
     }
-
 
     pub fn send_transaction<A: Encode>(
         &self,
@@ -113,14 +107,13 @@ impl<'a> InkContract<'a>  {
         value: Balance,
         gas_limit: WeightV2,
         signer: &[u8; 32],
-    ) -> Result<Vec<u8>>{
-
-        let call : ContractCall<ContractId, u32, Balance> = build_contract_call(
+    ) -> Result<Vec<u8>> {
+        let call: ContractCall<ContractId, u32, Balance> = build_contract_call(
             *self.contract_id,
             contract_method,
             contract_args,
             value,
-            gas_limit
+            gas_limit,
         );
 
         let signed_tx = crate::create_transaction(
@@ -132,15 +125,13 @@ impl<'a> InkContract<'a>  {
             call,
             crate::ExtraParam::default(),
         )
-            .map_err(|e|Error::FailedToCreateTransaction(e))?;
+        .map_err(|e| Error::FailedToCreateTransaction(e))?;
 
         let result = crate::send_transaction(self.rpc, &signed_tx)
-            .map_err(|e|Error::FailedToSendTransaction(e))?;
+            .map_err(|e| Error::FailedToSendTransaction(e))?;
 
         return Ok(result);
-
     }
-
 
     pub fn dry_run_and_send_transaction<A: Encode>(
         &self,
@@ -148,9 +139,8 @@ impl<'a> InkContract<'a>  {
         contract_args: Option<&A>,
         value: Balance,
         signer: &[u8; 32],
-    ) -> Result<Vec<u8>>{
-
-        let origin : [u8;32] = signing::get_public_key(signer, signing::SigType::Sr25519)
+    ) -> Result<Vec<u8>> {
+        let origin: [u8; 32] = signing::get_public_key(signer, signing::SigType::Sr25519)
             .try_into()
             .map_err(|_| Error::InvalidAddressLength)?;
 
@@ -164,13 +154,18 @@ impl<'a> InkContract<'a>  {
 
         let encoded_call = Encode::encode(&call);
 
-        let contract_query_result: ContractQueryResult<ContractError, Balance> = crate::query_contract(self.rpc, &encoded_call, None)
-            .map_err(|e| Error::FailedToQueryContract(e))?;
+        let contract_query_result: ContractQueryResult<ContractError, Balance> =
+            crate::query_contract(self.rpc, &encoded_call, None)
+                .map_err(|e| Error::FailedToQueryContract(e))?;
 
-        self.send_transaction(contract_method, contract_args, value, contract_query_result.gas_required, signer)
-
+        self.send_transaction(
+            contract_method,
+            contract_args,
+            value,
+            contract_query_result.gas_required,
+            signer,
+        )
     }
-
 }
 
 #[cfg(test)]
@@ -245,11 +240,10 @@ mod tests {
         rpc: String,
         pallet_id: u8,
         call_id: u8,
-        contract_id: ContractId
+        contract_id: ContractId,
     }
 
     fn env() -> EnvVars {
-
         // local node
         /*
         EnvVars {
@@ -264,9 +258,10 @@ mod tests {
             rpc: "https://shibuya.public.blastapi.io".to_string(),
             pallet_id: 70u8,
             call_id: 06u8,
-            contract_id: hex_literal::hex!("f5836caf1c1956afca4527b43f31b7ef6c37345df4539a5091088fbf975a70a9"),
+            contract_id: hex_literal::hex!(
+                "f5836caf1c1956afca4527b43f31b7ef6c37345df4539a5091088fbf975a70a9"
+            ),
         }
-
     }
 
     #[test]
@@ -275,26 +270,33 @@ mod tests {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
         // get the environment variables
-        let EnvVars{ rpc, pallet_id, call_id,  contract_id } = env();
+        let EnvVars {
+            rpc,
+            pallet_id,
+            call_id,
+            contract_id,
+        } = env();
 
         // create the struct to interact with the smart contract
         let contract = InkContract::new(&rpc, pallet_id, call_id, &contract_id);
 
         // address who performs the query
-        let origin = hex_literal::hex!("189dac29296d31814dc8c56cf3d36a0543372bba7538fa322a4aebfebc39e056");
+        let origin =
+            hex_literal::hex!("189dac29296d31814dc8c56cf3d36a0543372bba7538fa322a4aebfebc39e056");
         // method to call:
         // "label": "get",
         // "selector": "0x2f865bd9"
         let method_get = hex_literal::hex!("2f865bd9");
         // no argument
-        let params: Option::<&()> = None;
+        let params: Option<&()> = None;
 
         // call the method
-        let value : i32 = contract.query(origin, method_get, params, 0).expect("Error when call the method 'get'");
+        let value: i32 = contract
+            .query(origin, method_get, params, 0)
+            .expect("Error when call the method 'get'");
         // display the result
-        println!("Query the method get, result : {}", value );
+        println!("Query the method get, result : {}", value);
         assert!(value > 0);
-
     }
 
     #[test]
@@ -303,29 +305,36 @@ mod tests {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
         // get the environment variables
-        let EnvVars{ rpc, pallet_id, call_id,  contract_id } = env();
+        let EnvVars {
+            rpc,
+            pallet_id,
+            call_id,
+            contract_id,
+        } = env();
 
         // create the struct to interact with the smart contract
         let contract = InkContract::new(&rpc, pallet_id, call_id, &contract_id);
 
         // address who performs the query
-        let origin = hex_literal::hex!("189dac29296d31814dc8c56cf3d36a0543372bba7538fa322a4aebfebc39e056");
+        let origin =
+            hex_literal::hex!("189dac29296d31814dc8c56cf3d36a0543372bba7538fa322a4aebfebc39e056");
         // method to call:
         //  "label": "get_with_result",
         //  "selector": "0xf21dd3cb"
         let method_get_with_result = hex_literal::hex!("f21dd3cb");
         // no argument
-        let params: Option::<&()> = None;
+        let params: Option<&()> = None;
 
         // result of the query
         type Result = core::result::Result<i32, Error>;
         // call the method
-        let value : Result = contract.query(origin, method_get_with_result, params, 0).expect("Error when call the method 'get_with_result'");
+        let value: Result = contract
+            .query(origin, method_get_with_result, params, 0)
+            .expect("Error when call the method 'get_with_result'");
 
         // display the result
-        println!("Query the method get, result : {:?}", value );
+        println!("Query the method get, result : {:?}", value);
         assert!(value.unwrap() > 0);
-
     }
 
     #[test]
@@ -334,24 +343,31 @@ mod tests {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
         // get the environment variables
-        let EnvVars{ rpc, pallet_id, call_id,  contract_id } = env();
+        let EnvVars {
+            rpc,
+            pallet_id,
+            call_id,
+            contract_id,
+        } = env();
 
         // create the struct to interact with the smart contract
         let contract = InkContract::new(&rpc, pallet_id, call_id, &contract_id);
 
         // Secret key of test account `//Alice`
-        let alice_pk:[u8; 32] = hex_literal::hex!("e5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a");
+        let alice_pk: [u8; 32] =
+            hex_literal::hex!("e5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a");
 
         // method to call:
         //         "label": "inc_by_1",
         //         "selector": "0xb5d14a10"
         let method_inc_by_1 = hex_literal::hex!("b5d14a10");
         // no argument
-        let params: Option::<&()> = None;
+        let params: Option<&()> = None;
 
         // call the method
-        contract.dry_run_and_send_transaction(method_inc_by_1, params, 0, &alice_pk).expect("Error when call the method 'inc'");
-
+        contract
+            .dry_run_and_send_transaction(method_inc_by_1, params, 0, &alice_pk)
+            .expect("Error when call the method 'inc'");
     }
 
     #[test]
@@ -360,24 +376,31 @@ mod tests {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
         // get the environment variables
-        let EnvVars{ rpc, pallet_id, call_id,  contract_id } = env();
+        let EnvVars {
+            rpc,
+            pallet_id,
+            call_id,
+            contract_id,
+        } = env();
 
         // create the struct to interact with the smart contract
         let contract = InkContract::new(&rpc, pallet_id, call_id, &contract_id);
 
         // Secret key of test account `//Alice`
-        let alice_pk:[u8; 32] = hex_literal::hex!("e5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a");
+        let alice_pk: [u8; 32] =
+            hex_literal::hex!("e5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a");
 
         // method to call:
         //         "label": "inc",
         //         "selector": "0x1d32619f"
         let method_inc = hex_literal::hex!("1d32619f");
         // argument
-        let params : Option<&i32> = Some(&3);
+        let params: Option<&i32> = Some(&3);
 
         // call the method
-        contract.dry_run_and_send_transaction(method_inc, params, 0, &alice_pk).expect("Error when call the method 'inc'");
-
+        contract
+            .dry_run_and_send_transaction(method_inc, params, 0, &alice_pk)
+            .expect("Error when call the method 'inc'");
     }
 
     #[test]
@@ -386,23 +409,29 @@ mod tests {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
         // get the environment variables
-        let EnvVars{ rpc, pallet_id, call_id,  contract_id } = env();
+        let EnvVars {
+            rpc,
+            pallet_id,
+            call_id,
+            contract_id,
+        } = env();
 
         // create the struct to interact with the smart contract
         let contract = InkContract::new(&rpc, pallet_id, call_id, &contract_id);
 
         // address who performs the query
-        let origin = hex_literal::hex!("189dac29296d31814dc8c56cf3d36a0543372bba7538fa322a4aebfebc39e056");
+        let origin =
+            hex_literal::hex!("189dac29296d31814dc8c56cf3d36a0543372bba7538fa322a4aebfebc39e056");
         // method to call:
         //         "label": "get_error",
         //         "selector": "0x6baa1eed"
         let method_get_error = hex_literal::hex!("6baa1eed");
         // no argument
-        let params: Option::<&()> = None;
+        let params: Option<&()> = None;
         // result of the query
         type Result = core::result::Result<i32, Error>;
         // call the method
-        let result : Result = contract.query(origin, method_get_error, params, 0);
+        let result: Result = contract.query(origin, method_get_error, params, 0);
         match result {
             Err(e) => println!("Expected error {:?}", e),
             r => {
@@ -418,19 +447,25 @@ mod tests {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
         // get the environment variables
-        let EnvVars{ rpc, pallet_id, call_id,  contract_id } = env();
+        let EnvVars {
+            rpc,
+            pallet_id,
+            call_id,
+            contract_id,
+        } = env();
 
         // create the struct to interact with the smart contract
         let contract = InkContract::new(&rpc, pallet_id, call_id, &contract_id);
 
         // address who performs the query
-        let alice_pk:[u8; 32] = hex_literal::hex!("e5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a");
+        let alice_pk: [u8; 32] =
+            hex_literal::hex!("e5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a");
         // method to call:
         //         "label": "get_error",
         //         "selector": "0x6baa1eed"
         let method_get_error = hex_literal::hex!("6baa1eed");
         // no argument
-        let params: Option::<&()> = None;
+        let params: Option<&()> = None;
 
         // call the method
         let result = contract.dry_run_and_send_transaction(method_get_error, params, 0, &alice_pk);
@@ -442,6 +477,4 @@ mod tests {
             }
         }
     }
-
 }
-

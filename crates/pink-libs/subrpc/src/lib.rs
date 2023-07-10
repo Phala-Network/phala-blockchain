@@ -13,6 +13,7 @@ use pink_json as json;
 use primitive_types::H256;
 use scale::{Compact, Decode, Encode};
 
+use contracts::objects::ContractQueryResult;
 use objects::*;
 use pink_extension::chain_extension::{signing, SigType};
 pub use primitives::era::Era;
@@ -20,8 +21,8 @@ use rpc::call_rpc;
 pub use ss58::{get_ss58addr_version, Ss58Codec};
 use traits::common::Error;
 use transaction::{MultiAddress, MultiSignature, Signature, UnsignedExtrinsic};
-use contracts::objects::ContractQueryResult;
 
+pub mod contracts;
 pub mod hasher;
 mod objects;
 mod primitives;
@@ -29,7 +30,6 @@ mod rpc;
 mod ss58;
 pub mod storage;
 mod transaction;
-pub mod contracts;
 
 pub mod traits {
     pub mod common {
@@ -341,10 +341,12 @@ pub fn send_transaction(rpc_node: &str, signed_tx: &[u8]) -> core::result::Resul
     hex::decode(&resp.result[2..]).or(Err(Error::InvalidBody))
 }
 
-
 /// Query a wasm smart contract
-pub fn query_contract<E: scale::Decode, B: scale::Decode>(rpc_node: &str, query: &[u8], at: Option<H256>) -> Result<ContractQueryResult<E, B>> {
-
+pub fn query_contract<E: scale::Decode, B: scale::Decode>(
+    rpc_node: &str,
+    query: &[u8],
+    at: Option<H256>,
+) -> Result<ContractQueryResult<E, B>> {
     let query_hex = format!("0x{}", hex::encode(query));
     let maybe_hex_at = at.map_or("null".to_string(), |h| format!("\"0x{h:x}\""));
 
@@ -369,10 +371,7 @@ pub fn query_contract<E: scale::Decode, B: scale::Decode>(rpc_node: &str, query:
     }
 
     Ok(contract_query_result)
-
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -589,5 +588,4 @@ mod tests {
         .map(|b| b.map(hex::encode));
         _ = dbg!(r);
     }
-
 }
