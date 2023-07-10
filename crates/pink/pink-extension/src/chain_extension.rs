@@ -629,6 +629,12 @@ pub trait PinkExt {
     /// ```
     #[ink(extension = 22, handle_status = true)]
     fn batch_http_request(requests: Vec<HttpRequest>, timeout_ms: u64) -> BatchHttpResult;
+
+    /// Get current event chain head info
+    ///
+    /// Returns (next event block number, last event block hash)
+    #[ink(extension = 23, handle_status = false)]
+    fn current_event_chain_head() -> (u64, Hash);
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

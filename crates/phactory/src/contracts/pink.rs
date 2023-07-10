@@ -30,6 +30,7 @@ use ::pink::{
     constants::WEIGHT_REF_TIME_PER_SECOND,
     types::{AccountId, Balance, ExecSideEffects, Hash, TransactionArguments},
 };
+use tracing::info;
 
 pub use phala_types::contract::InkCommand;
 
@@ -120,8 +121,8 @@ impl RuntimeHandleMut<'_> {
     pub fn instantiate(
         &mut self,
         code_hash: Hash,
-        salt: Vec<u8>,
         instantiate_data: Vec<u8>,
+        salt: Vec<u8>,
         mode: ExecutionMode,
         tx_args: TransactionArguments,
     ) -> Vec<u8> {
@@ -133,7 +134,7 @@ impl RuntimeHandleMut<'_> {
         );
         let entry = AccountId::from(blake2_256(&buf));
         context::using_entry_contract(entry, move || {
-            self.contract_instantiate(code_hash, salt, instantiate_data, mode, tx_args)
+            self.contract_instantiate(code_hash, instantiate_data, salt, mode, tx_args)
         })
     }
 }
@@ -271,6 +272,19 @@ pub(crate) mod context {
             entry_contract::using(&mut contract, f)
         }
     }
+
+    pub(super) use call_nonce::{get_call_nonce, using_call_nonce};
+    mod call_nonce {
+        environmental::environmental!(contract_call_nonce: Vec<u8>);
+
+        pub fn get_call_nonce() -> Option<Vec<u8>> {
+            contract_call_nonce::with(|a| a.clone())
+        }
+
+        pub fn using_call_nonce<T>(mut call_nonce: Vec<u8>, f: impl FnOnce() -> T) -> T {
+            contract_call_nonce::using(&mut call_nonce, f)
+        }
+    }
 }
 
 impl OCalls for RuntimeHandle<'_> {
@@ -398,6 +412,18 @@ impl OCalls for RuntimeHandle<'_> {
         }
         Ok(results)
     }
+
+    fn emit_system_event_block(&self, _number: u64, _encoded_block: Vec<u8>) {
+        error!("emit_system_event_block called on readonly calls");
+    }
+
+    fn contract_call_nonce(&self) -> Option<Vec<u8>> {
+        context::get_call_nonce()
+    }
+
+    fn entry_contract(&self) -> Option<AccountId> {
+        context::get_entry_contract()
+    }
 }
 
 impl OCalls for RuntimeHandleMut<'_> {
@@ -471,6 +497,18 @@ impl OCalls for RuntimeHandleMut<'_> {
     ) -> BatchHttpResult {
         self.readonly()
             .batch_http_request(contract, requests, timeout_ms)
+    }
+
+    fn emit_system_event_block(&self, number: u64, encoded_block: Vec<u8>) {
+        info!(target: "phactory::event_chain", number, payload=%hex_fmt::HexFmt(encoded_block));
+    }
+
+    fn contract_call_nonce(&self) -> Option<Vec<u8>> {
+        self.readonly().contract_call_nonce()
+    }
+
+    fn entry_contract(&self) -> Option<AccountId> {
+        self.readonly().entry_contract()
     }
 }
 
@@ -778,12 +816,14 @@ impl Cluster {
                 };
 
                 let mut runtime = self.runtime_mut(context.log_handler.clone());
-                let output = runtime.call(
-                    contract_id.clone(),
-                    message,
-                    ExecutionMode::Transaction,
-                    args,
-                );
+                let output = context::using_call_nonce(nonce.clone().into(), || {
+                    runtime.call(
+                        contract_id.clone(),
+                        message,
+                        ExecutionMode::Transaction,
+                        args,
+                    )
+                });
 
                 if let Some(log_handler) = &context.log_handler {
                     let msg = SidevmCommand::PushSystemMessage(SystemMessage::PinkMessageOutput {
@@ -800,6 +840,22 @@ impl Cluster {
                 Ok(runtime.effects)
             }
         }
+    }
+
+    pub(crate) fn instantiate(
+        &mut self,
+        logger: Option<CommandSender>,
+        code_hash: Hash,
+        instantiate_data: Vec<u8>,
+        salt: Vec<u8>,
+        mode: ExecutionMode,
+        tx_args: TransactionArguments,
+    ) -> (Vec<u8>, Option<ExecSideEffects>) {
+        let mut runtime = self.runtime_mut(logger);
+        let result = context::using_call_nonce(salt.clone(), || {
+            runtime.instantiate(code_hash, instantiate_data, salt, mode, tx_args)
+        });
+        (result, runtime.effects.take())
     }
 
     pub(crate) fn snapshot(&self) -> Self {

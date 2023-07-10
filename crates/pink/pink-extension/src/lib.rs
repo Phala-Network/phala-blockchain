@@ -191,6 +191,20 @@ impl PinkEvent {
             PinkEvent::UpgradeRuntimeTo { .. } => "UpgradeRuntimeTo",
         }
     }
+
+    pub fn is_private(&self) -> bool {
+        match self {
+            PinkEvent::SetHook { .. } => false,
+            PinkEvent::DeploySidevmTo { .. } => false,
+            PinkEvent::SidevmMessage(_) => true,
+            PinkEvent::CacheOp(_) => true,
+            PinkEvent::StopSidevm => false,
+            PinkEvent::ForceStopSidevm { .. } => false,
+            PinkEvent::SetLogHandler(_) => false,
+            PinkEvent::SetContractWeight { .. } => false,
+            PinkEvent::UpgradeRuntimeTo { .. } => false,
+        }
+    }
 }
 
 /// Instructions to manipulate the cache.

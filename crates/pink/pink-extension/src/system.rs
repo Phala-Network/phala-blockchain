@@ -148,6 +148,12 @@ pub trait System {
     /// block number when the driver is set.
     #[ink(message)]
     fn driver_history(&self, name: String) -> Option<Vec<(crate::BlockNumber, AccountId)>>;
+
+    /// Get current event chain head info
+    ///
+    /// Returns (next event block number, last event block hash)
+    #[ink(message)]
+    fn current_event_chain_head(&self) -> (u64, Hash);
 }
 
 /// Errors that can occur upon calling a driver contract.

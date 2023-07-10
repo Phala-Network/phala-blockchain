@@ -344,6 +344,10 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
     fn runtime_version(&self) -> Result<(u32, u32), Self::Error> {
         Ok((1, 0))
     }
+
+    fn current_event_chain_head(&self) -> Result<(u64, Hash), Self::Error> {
+        Ok((0, Default::default()))
+    }
 }
 
 struct LimitedWriter<W> {
