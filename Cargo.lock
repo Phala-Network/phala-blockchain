@@ -8665,7 +8665,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "dlmalloc",
  "ink",
@@ -8680,7 +8680,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension-macro"
-version = "0.4.2"
+version = "0.4.4"
 dependencies = [
  "heck 0.4.1",
  "ink_ir",
