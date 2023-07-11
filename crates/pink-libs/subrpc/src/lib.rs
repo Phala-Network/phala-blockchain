@@ -365,11 +365,6 @@ pub fn query_contract<E: scale::Decode, B: scale::Decode>(
     let contract_query_result = <ContractQueryResult<E, B>>::decode(&mut result.as_slice())
         .map_err(|_| Error::DecodeFailed)?;
 
-    if contract_query_result.result.flags != 0 {
-        // it means the contract returns an error
-        return Err(Error::ContractError);
-    }
-
     Ok(contract_query_result)
 }
 

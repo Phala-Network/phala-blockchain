@@ -23,6 +23,9 @@ pub enum Error {
     InvalidAddressLength,
     NoResult,
     FailedToReadResult,
+    ContractError(Vec<u8>), // the contract explicitly returns an error (error flag == 256)
+    ContractUnknownError,   // the contract explicitly returns an error (error flag == 256) but cannot decode the error
+    ContractTrapped(u32),   // contract panicked: error flag <> 0 && error flag <> 256
 }
 
 #[derive(Encode, Decode, Debug)]
@@ -83,6 +86,10 @@ impl<'a> InkContract<'a> {
             crate::query_contract(self.rpc, &encoded_call, at)
                 .map_err(Error::FailedToQueryContract)?;
 
+        // manage the errors
+        self.handle_error(&contract_query_result)?;
+
+        // no error => the contract succeeds
         let result = contract_query_result
             .result
             .data
@@ -90,6 +97,7 @@ impl<'a> InkContract<'a> {
         let result = <core::result::Result<R, Error>>::decode(&mut result.as_slice())
             .map_err(|_| Error::FailedToDecode)?;
         let result = result.map_err(|_| Error::FailedToReadResult)?;
+
         Ok(result)
     }
 
@@ -151,6 +159,10 @@ impl<'a> InkContract<'a> {
             crate::query_contract(self.rpc, &encoded_call, None)
                 .map_err(Error::FailedToQueryContract)?;
 
+        // manage the errors
+        self.handle_error(&contract_query_result)?;
+
+        // no error when query => we can send teh transaction
         self.send_transaction(
             contract_method,
             contract_args,
@@ -159,13 +171,35 @@ impl<'a> InkContract<'a> {
             signer,
         )
     }
+
+    fn handle_error(
+        &self,
+        contract_query_result: &ContractQueryResult<ContractError, Balance>,
+    ) -> Result<()> {
+        // flags == 0 => the contract succeeds
+        if contract_query_result.result.flags == 0 {
+            return Ok(());
+        }
+
+        // flags == 256 => the contract returns a managed error (ie error expected by the contract)
+        if contract_query_result.result.flags == 256 {
+            let error = match &contract_query_result.result.data {
+                Ok(v) => Error::ContractError(v.clone()),
+                _ => Error::ContractUnknownError,
+            };
+            return Err(error);
+        }
+        // otherwise, the contracts panicked
+        Err(Error::ContractTrapped(contract_query_result.result.flags))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    ///  Here the contract deployed on Shibuya (Astar testnet) , contract Id :
+    /// Here the contract deployed on Shibuya (Astar testnet)
+    /// contract Id : 4e7b932eac00f9fc5b2593acc36f921a157dda398c4d70f107dc22651678015a
     ///
     /// #[ink::contract]
     /// mod incrementer {
@@ -225,6 +259,11 @@ mod tests {
     ///             Err(Error::WillfulError)
     ///         }
     ///
+    ///         #[ink(message)]
+    ///         pub fn panic(&self) -> Result<(), Error> {
+    ///             panic!("For test");
+    ///         }
+    ///
     ///     }
     /// }
     ///
@@ -252,7 +291,7 @@ mod tests {
             pallet_id: 70u8,
             call_id: 6u8,
             contract_id: hex_literal::hex!(
-                "f5836caf1c1956afca4527b43f31b7ef6c37345df4539a5091088fbf975a70a9"
+                "4e7b932eac00f9fc5b2593acc36f921a157dda398c4d70f107dc22651678015a"
             ),
         }
     }
@@ -426,7 +465,59 @@ mod tests {
         // call the method
         let result: Result = contract.query(origin, method_get_error, params, 0);
         match result {
-            Err(e) => println!("Expected error {:?}", e),
+            Err(Error::ContractError(e)) => println!("Expected contract error {:?}", e),
+            Err(e) => {
+                println!(
+                    "We expect to receive a contract error but we receive this error {:?}",
+                    e
+                );
+                panic!("we expect to receive a contract error");
+            }
+            r => {
+                println!("We expect to receive an error but we receive that {:?}", r);
+                panic!("we expect to receive an error");
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "this is expensive so we don't test it often"]
+    fn test_query_with_trapped_error() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        // get the environment variables
+        let EnvVars {
+            rpc,
+            pallet_id,
+            call_id,
+            contract_id,
+        } = env();
+
+        // create the struct to interact with the smart contract
+        let contract = InkContract::new(&rpc, pallet_id, call_id, &contract_id);
+
+        // address who performs the query
+        let origin =
+            hex_literal::hex!("189dac29296d31814dc8c56cf3d36a0543372bba7538fa322a4aebfebc39e056");
+        // method to call:
+        //         "label": "get_error_panicked",
+        //         "selector": "0x6e4c826a"
+        let method_get_error = hex_literal::hex!("6e4c826a");
+        // no argument
+        let params: Option<&()> = None;
+        // result of the query
+        type Result = core::result::Result<i32, Error>;
+        // call the method
+        let result: Result = contract.query(origin, method_get_error, params, 0);
+        match result {
+            Err(Error::ContractTrapped(e)) => println!("Expected contract trapped error {:?}", e),
+            Err(e) => {
+                println!(
+                    "We expect to receive a contract trapped error but we receive this error {:?}",
+                    e
+                );
+                panic!("we expect to receive a contract trapped error");
+            }
             r => {
                 println!("We expect to receive an error but we receive that {:?}", r);
                 panic!("we expect to receive an error");
@@ -455,8 +546,8 @@ mod tests {
             hex_literal::hex!("e5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a");
         // method to call:
         //         "label": "get_error",
-        //         "selector": "0x6baa1eed"
-        let method_get_error = hex_literal::hex!("6baa1eed");
+        //         "selector": "0x721bc303"
+        let method_get_error = hex_literal::hex!("721bc303");
         // no argument
         let params: Option<&()> = None;
 
