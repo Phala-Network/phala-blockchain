@@ -3,6 +3,7 @@ BUILD?=release
 ifeq ($(BUILD),release)
 	XARGS=--release
 endif
+PREBUILT_PINK_RUNTIMES_PROFILE ?= development
 
 include config.mk
 
@@ -15,7 +16,7 @@ run:
 	./bin/app -c 0
 
 ${PINK_RUNTIME_DIST}: ${PINK_RUNTIME}
-	cp pink-runtimes/* bin/
+	cp pink-runtimes/${PREBUILT_PINK_RUNTIMES_PROFILE}/* bin/
 	cp $? $@
 	cp $@ target/${BUILD}/
 	strip --strip-all --keep-symbol=__pink_runtime_init $@
