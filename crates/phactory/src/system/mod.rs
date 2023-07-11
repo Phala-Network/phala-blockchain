@@ -1293,16 +1293,17 @@ impl<Platform: pal::Platform> System<Platform> {
                             gas_limit,
                             gas_free: false,
                             storage_deposit_limit,
+                            deposit: 0,
                         };
-                        let mut runtime = cluster.runtime_mut(log_handler.clone());
-                        let _result = runtime.instantiate(
+                        let (_result, effects) = cluster.instantiate(
+                            log_handler.clone(),
                             code_hash,
                             contract_info.instantiate_data,
                             contract_info.salt,
                             ExecutionMode::Transaction,
                             tx_args,
                         );
-                        if let Some(effects) = runtime.effects.take() {
+                        if let Some(effects) = effects {
                             apply_pink_side_effects(
                                 effects,
                                 &mut self.contracts,
@@ -1674,7 +1675,7 @@ pub fn handle_contract_command_result(
 ) {
     let effects = match result {
         Err(err) => {
-            error!("Run contract command failed: {:?}", err);
+            error!("Run contract tx call failed: {:?}", err);
             return;
         }
         Ok(Some(effects)) => effects,

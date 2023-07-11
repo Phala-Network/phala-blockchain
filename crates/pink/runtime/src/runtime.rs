@@ -19,6 +19,8 @@ pub use pink_extension::{EcdhPublicKey, HookPoint, Message, OspMessage, PinkEven
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<PinkRuntime>;
 type Block = frame_system::mocking::MockBlock<PinkRuntime>;
 
+pub type SystemEvents = Vec<frame_system::EventRecord<RuntimeEvent, Hash>>;
+
 frame_support::construct_runtime! {
     pub struct PinkRuntime where
         Block = Block,

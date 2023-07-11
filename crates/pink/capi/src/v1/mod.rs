@@ -48,6 +48,7 @@ pub mod ecall {
         pub gas_limit: Weight,
         pub gas_free: bool,
         pub storage_deposit_limit: Option<Balance>,
+        pub deposit: Balance,
     }
 
     #[derive(Encode, Decode, Clone, Debug)]
@@ -199,5 +200,13 @@ pub mod ocall {
             requests: Vec<HttpRequest>,
             timeout_ms: u64,
         ) -> BatchHttpResult;
+        #[xcall(id = 16)]
+        fn emit_system_event_block(&self, number: u64, encoded_block: Vec<u8>);
+
+        #[xcall(id = 17)]
+        fn contract_call_nonce(&self) -> Option<Vec<u8>>;
+
+        #[xcall(id = 18)]
+        fn entry_contract(&self) -> Option<AccountId>;
     }
 }

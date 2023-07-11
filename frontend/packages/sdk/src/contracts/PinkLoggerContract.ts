@@ -7,7 +7,7 @@ import type { OnChainRegistry } from '../OnChainRegistry'
 import type { InkResponse } from '../types'
 
 import { Keyring } from '@polkadot/api'
-import { hexAddPrefix, hexToU8a, stringToHex } from '@polkadot/util'
+import { hexAddPrefix, hexToU8a, stringToHex, hexToString } from '@polkadot/util'
 import { sr25519Agree, sr25519KeypairFromSeed } from "@polkadot/wasm-crypto";
 
 import { PinkContractPromise, pinkQuery } from './PinkContract'
@@ -28,7 +28,7 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
       _pair = keyring.addFromUri('//Alice')
     }
     const cert = await signCertificate({ api, pair: _pair })
-    const { output } = await systemContract.query['system::getDriver'](_pair, cert, 'PinkLogger')
+    const { output } = await systemContract.query['system::getDriver'](_pair.address, { cert }, 'PinkLogger')
     const contractId = (output as Result<Text, any>).asOk.toHex()
     if (!contractId) {
       throw new ContractInitialError('No PinkLogger contract registered in the cluster.')
@@ -50,7 +50,6 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
     }
   }
 
-  // @FIXME from & counts
   async getLog(contractId: AccountId | string, from: number = 0, counts: number = 100) {
     const api = this.api as ApiPromise
 
@@ -70,7 +69,7 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
           action: 'GetLog',
           contract: contractId,
           from,
-          counts,
+          count: counts,
         })),
       },
     })
@@ -91,7 +90,10 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
       }
       throw new Error(error)
     }
-    const payload = inkResponse.result.asOk.asInkMessageReturn.toHuman() as string
+    const payload = inkResponse.result.asOk.asInkMessageReturn.toString()
+    if (payload.substring(0, 2) === '0x') {
+      return JSON.parse(hexToString(payload))
+    }
     return JSON.parse(payload)
   }
 }

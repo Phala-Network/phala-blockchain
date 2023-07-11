@@ -279,6 +279,11 @@ mod system {
         fn driver_history(&self, name: String) -> Option<Vec<(BlockNumber, AccountId)>> {
             self.drivers_history.get(&name)
         }
+
+        #[ink(message)]
+        fn current_event_chain_head(&self) -> (u64, pink::Hash) {
+            pink::ext().current_event_chain_head()
+        }
     }
 
     impl ContractDeposit for System {

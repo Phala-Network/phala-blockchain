@@ -12,6 +12,23 @@ pub struct HttpRequest {
     pub body: Vec<u8>,
 }
 
+impl HttpRequest {
+    /// Create a new http request.
+    pub fn new(
+        url: impl Into<String>,
+        method: impl Into<String>,
+        headers: Vec<(String, String)>,
+        body: Vec<u8>,
+    ) -> Self {
+        Self {
+            url: url.into(),
+            method: method.into(),
+            headers,
+            body,
+        }
+    }
+}
+
 #[derive(scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct HttpResponse {
@@ -126,8 +143,8 @@ macro_rules! http_req {
 /// Make a simple HTTP GET request
 ///
 /// # Arguments
-/// url: The URL to GET
-/// headers: The headers to send with the request
+/// - url: The URL to GET
+/// - headers: The headers to send with the request
 ///
 /// # Examples
 ///
@@ -156,9 +173,9 @@ macro_rules! http_get {
 /// Make a simple HTTP POST request
 ///
 /// # Arguments
-/// url: The URL to POST
-/// data: The payload to POST
-/// headers: The headers to send with the request
+/// - url: The URL to POST
+/// - data: The payload to POST
+/// - headers: The headers to send with the request
 ///
 /// # Examples
 ///
@@ -187,9 +204,9 @@ macro_rules! http_post {
 /// Make a simple HTTP PUT request
 ///
 /// # Arguments
-/// url: The destination URL
-/// data: The payload to PUT
-/// headers: The headers to send with the request
+/// - url: The destination URL
+/// - data: The payload to PUT
+/// - headers: The headers to send with the request
 ///
 /// # Examples
 ///

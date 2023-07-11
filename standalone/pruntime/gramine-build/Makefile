@@ -26,6 +26,7 @@ RUNTIME_DIR = cruntime
 LIBOS_BASENAME ?= $(shell basename ${GRAMINE_LIBOS})
 LIBOS ?= ${RUNTIME_DIR}/${LIBOS_BASENAME}
 PINK_RUNTIME_DIST_DIR = ${RUNTIME_DIR}/pink-runtime
+PREBUILT_PINK_RUNTIMES_PROFILE ?= development
 
 ifeq ($(USE_MUSL),1)
 BIN_FILE = ../target/x86_64-unknown-linux-musl/${BUILD}/${BIN_NAME}
@@ -47,23 +48,23 @@ PRUNTIME_SEAL_DIR ?= ${PRUNTIME_DATA_DIR}/protected_files
 PRUNTIME_STORAGE_DIR ?= ${PRUNTIME_DATA_DIR}/storage_files
 
 .PHONY: all
-all: ${BIN_NAME} ${BIN_NAME}.manifest ${LIBOS}
-ifeq ($(SGX),1)
-all: ${BIN_NAME}.manifest.sgx ${BIN_NAME}.sig
-endif
+all: ${BIN_NAME} ${LIBOS}
+
+.PHONY: signed-sgx-artifacts
+signed-sgx-artifacts: ${BIN_NAME}.manifest ${BIN_NAME}.manifest.sgx ${BIN_NAME}.sig
 
 .PHONY: ${BIN_FILE}
 ${BIN_FILE}:
-	make BUILD=${BUILD} -C ..
+	make BUILD=${BUILD} PREBUILT_PINK_RUNTIMES_PROFILE=${PREBUILT_PINK_RUNTIMES_PROFILE} -C ..
 
 ${BIN_NAME}: ${BIN_FILE}
 	cp ${BIN_FILE} ${BIN_NAME}
 	mkdir -p ${PINK_RUNTIME_DIST_DIR}
 ifeq ($(PREFER_PREBUILT_PINK_LIBS),1)
 	cp ${PINK_RUNTIME_DIST} ${PINK_RUNTIME_DIST_DIR}/
-	cp ../pink-runtimes/* ${PINK_RUNTIME_DIST_DIR}/
+	cp ../pink-runtimes/${PREBUILT_PINK_RUNTIMES_PROFILE}/* ${PINK_RUNTIME_DIST_DIR}/
 else
-	cp ../pink-runtimes/* ${PINK_RUNTIME_DIST_DIR}/
+	cp ../pink-runtimes/${PREBUILT_PINK_RUNTIMES_PROFILE}/* ${PINK_RUNTIME_DIST_DIR}/
 	cp ${PINK_RUNTIME_DIST} ${PINK_RUNTIME_DIST_DIR}/
 endif
 
@@ -124,18 +125,24 @@ clean:
 .PHONY: distclean
 distclean: clean
 
-.PHONY: dist
-dist: all
+.PHONY: pre-dist
+pre-dist: all
 	mkdir -p ${PREFIX}/data
 	cp ${BIN_NAME} ${PREFIX}/
 	cp Rocket.toml ${PREFIX}/
+	cp -rfL ${RUNTIME_DIR} ${PREFIX}/
+
+.PHONY: dist
 ifeq ($(SGX),1)
+dist: pre-dist ${BIN_NAME}.manifest signed-sgx-artifacts
+	cp ${BIN_NAME}.manifest ${PREFIX}/
 	cp ${BIN_NAME}.manifest.sgx ${PREFIX}/
 	cp ${BIN_NAME}.sig ${PREFIX}/
 	cp gramine-sgx ${PREFIX}/
-endif
-	cp -rfL ${RUNTIME_DIR} ${PREFIX}/
+else
+dist: pre-dist ${BIN_NAME}.manifest
 	cp ${BIN_NAME}.manifest ${PREFIX}/
+endif
 
 token-dist: token dist
 	cp ${BIN_NAME}.token ${PREFIX}/

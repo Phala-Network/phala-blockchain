@@ -20,6 +20,7 @@ fn tx_args() -> TransactionArguments {
         gas_limit: Weight::MAX,
         gas_free: true,
         storage_deposit_limit: None,
+        deposit: 0,
     }
 }
 
@@ -490,6 +491,18 @@ mod test_cluster {
             timeout_ms: u64,
         ) -> BatchHttpResult {
             pink_extension_runtime::batch_http_request(requests, timeout_ms)
+        }
+
+        fn emit_system_event_block(&self, number: u64, _encoded_block: Vec<u8>) {
+            log::info!("emit_system_event_block: number={}", number,);
+        }
+
+        fn contract_call_nonce(&self) -> Option<Vec<u8>> {
+            None
+        }
+
+        fn entry_contract(&self) -> Option<AccountId> {
+            None    
         }
     }
 
