@@ -123,7 +123,7 @@ impl<'a> InkContract<'a> {
         let result = crate::send_transaction(self.rpc, &signed_tx)
             .map_err(Error::FailedToSendTransaction)?;
 
-        return Ok(result);
+        Ok(result)
     }
 
     pub fn dry_run_and_send_transaction<A: Encode>(
@@ -241,8 +241,8 @@ mod tests {
         /*
         EnvVars {
             rpc: "http://127.0.0.1:9944".to_string(),
-            pallet_id: 07u8,
-            call_id: 06u8,
+            pallet_id: 7u8,
+            call_id: 6u8,
             contract_id: hex_literal::hex!("14dca26ea5e235f71373a6b44752ee3e63b3bed2b68e8e5cce0ec9b486d59dab"),
         }
          */
@@ -250,7 +250,7 @@ mod tests {
         EnvVars {
             rpc: "https://shibuya.public.blastapi.io".to_string(),
             pallet_id: 70u8,
-            call_id: 06u8,
+            call_id: 6u8,
             contract_id: hex_literal::hex!(
                 "f5836caf1c1956afca4527b43f31b7ef6c37345df4539a5091088fbf975a70a9"
             ),

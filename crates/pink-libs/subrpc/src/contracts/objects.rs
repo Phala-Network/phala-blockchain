@@ -14,8 +14,8 @@ pub(crate) fn build_contract_call<AccountId, AccountIndex, Balance, ARGS: Encode
     let mut data = Vec::new();
     contract_method.encode_to(&mut data);
     if let Some(args) = contract_args {
-        let encoded_contract_args = args.encode();
-        data.append(&mut encoded_contract_args.clone());
+        let mut encoded_contract_args = args.encode();
+        data.append(&mut encoded_contract_args);
     }
 
     ContractCall {
@@ -37,13 +37,13 @@ pub(crate) fn build_contract_query<AccountId, Balance, ARGS: Encode>(
     let mut data = Vec::new();
     contract_method.encode_to(&mut data);
     if let Some(args) = contract_args {
-        let encoded_contract_args = args.encode();
-        data.append(&mut encoded_contract_args.clone());
+        let mut encoded_contract_args = args.encode();
+        data.append(&mut encoded_contract_args);
     }
 
     ContractQuery {
-        origin: origin.into(),
-        dest: contract_id.into(),
+        origin,
+        dest: contract_id,
         value,
         gas_limit: None,
         storage_deposit_limit: None,
