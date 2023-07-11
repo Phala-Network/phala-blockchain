@@ -16,7 +16,6 @@ import { createBluePrintTx } from '@polkadot/api-contract/base/util';
 import { isUndefined, isWasm, u8aToU8a } from '@polkadot/util';
 
 import { PinkBlueprintPromise } from './PinkBlueprint';
-import { signCertificate } from '../certificate';
 
 
 export class InkCodeSubmittableResult extends SubmittableResult {
@@ -44,7 +43,7 @@ export class InkCodeSubmittableResult extends SubmittableResult {
       const codeHash = this.abi.info.source.wasmHash.toString();
       const t0 = new Date().getTime();
       while (true) {
-        const { output } = await system.query['system::codeExists'](pair, cert, codeHash, 'Ink')
+        const { output } = await system.query['system::codeExists'](pair.address, { cert }, codeHash, 'Ink')
         if (output && (output as Result<bool, any>).asOk.toPrimitive()) {
           this.#isFinalized = true;
           return
@@ -104,6 +103,10 @@ export class PinkCodePromise {
 
   public get tx (): MapConstructorExec<'promise'> {
     return this.#tx;
+  }
+
+  public upload() {
+    return this.#instantiate(0, [])
   }
 
   #instantiate = (_constructorOrId: AbiConstructor | string | number, _params: unknown[]) => {

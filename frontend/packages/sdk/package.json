@@ -35,33 +35,35 @@
     "build:proto": "scripts/build_proto.sh",
     "dev": "tsup --watch",
     "lint": "tsc --noEmit",
-    "auto-publish": "npm publish --access public"
+    "auto-publish": "npm publish --access public",
+    "test": "vitest run"
   },
   "dependencies": {
     "@phala/typedefs": "^0.2.33",
-    "@polkadot/api": "^10.7.1",
-    "@polkadot/api-contract": "^10.7.1",
-    "@polkadot/keyring": "^12.2.1",
-    "@polkadot/types": "^10.7.1",
-    "@polkadot/util": "^12.2.1",
-    "@polkadot/util-crypto": "^12.2.1",
+    "@polkadot/api": "^10.9.1",
+    "@polkadot/api-contract": "^10.9.1",
+    "@polkadot/keyring": "^12.3.2",
+    "@polkadot/types": "^10.9.1",
+    "@polkadot/util": "^12.3.2",
+    "@polkadot/util-crypto": "^12.3.2",
     "crypto-browserify": "^3.12.0",
-    "protobufjs": "^6.11.3",
+    "protobufjs": "^7.2.4",
     "undici": "^5.22.1"
   },
   "devDependencies": {
     "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
     "@esbuild-plugins/node-modules-polyfill": "^0.2.2",
-    "@types/node": "^16.11.59",
-    "@typescript-eslint/eslint-plugin": "^5.42.1",
-    "@typescript-eslint/parser": "^5.42.1",
-    "esbuild": "^0.17.11",
-    "eslint": "^8.23.1",
-    "eslint-config-prettier": "^8.5.0",
+    "@types/node": "^20.4.1",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "esbuild": "^0.18.11",
+    "eslint": "^8.44.0",
+    "eslint-config-prettier": "^8.8.0",
     "eslint-plugin-prettier": "^4.2.1",
     "ts-node": "^10.9.1",
-    "tsup": "^6.4.0",
-    "typescript": "^4.8.4"
+    "tsup": "^7.1.0",
+    "typescript": "^5.1.6",
+    "vitest": "^0.33.0"
   },
   "engines": {
     "node": ">=16"

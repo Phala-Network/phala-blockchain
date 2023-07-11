@@ -4,7 +4,6 @@ import type { ISubmittableResult } from '@polkadot/types/types';
 import type { AbiMessage, AbiConstructor, BlueprintOptions, ContractCallOutcome } from '@polkadot/api-contract/types';
 import type { ContractCallResult, MessageMeta, MapConstructorExec } from '@polkadot/api-contract/base/types';
 import type { ApiPromise } from '@polkadot/api';
-import type { KeyringPair } from '@polkadot/keyring/types';
 
 import type { OnChainRegistry } from '../OnChainRegistry';
 import type { InkResponse, InkQueryError, AbiLike } from '../types';
@@ -15,7 +14,6 @@ import { ApiBase } from '@polkadot/api/base';
 import { BN_ZERO, isUndefined, hexAddPrefix, u8aToHex, hexToU8a } from '@polkadot/util';
 import { createBluePrintTx, withMeta } from '@polkadot/api-contract/base/util';
 import { sr25519Agree, sr25519KeypairFromSeed, sr25519Sign } from "@polkadot/wasm-crypto";
-import crypto from 'crypto';
 import { from } from 'rxjs';
 
 import { Abi } from '@polkadot/api-contract/Abi';
@@ -25,11 +23,12 @@ import { CodecMap, Option } from '@polkadot/types';
 import { pruntime_rpc as pruntimeRpc } from "../proto";
 import { decrypt, encrypt } from "../lib/aes-256-gcm";
 import { randomHex } from "../lib/hex";
-import { PinkContractPromise } from './PinkContract';
+import assert from '../lib/assert';
+import { PinkContractQueryOptions, PinkContractPromise } from './PinkContract';
 
 
 interface ContractInkQuery<ApiType extends ApiTypes> extends MessageMeta {
-  (origin: KeyringPair, ...params: unknown[]): ContractCallResult<ApiType, ContractCallOutcome>;
+  (origin: string | AccountId | Uint8Array, ...params: unknown[]): ContractCallResult<ApiType, ContractCallOutcome>;
 }
 
 interface MapMessageInkQuery<ApiType extends ApiTypes> {
@@ -99,8 +98,8 @@ async function pinkQuery(
   });
 };
 
-function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, options: CertificateData, params: unknown[]) => ContractCallResult<'promise', ContractCallOutcome>): ContractInkQuery<'promise'> {
-  return withMeta(meta, (origin: string | AccountId | Uint8Array, options: CertificateData, ...params: unknown[]): ContractCallResult<'promise', ContractCallOutcome> =>
+function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, params: unknown[]) => ContractCallResult<'promise', ContractCallOutcome>): ContractInkQuery<'promise'> {
+  return withMeta(meta, (origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, ...params: unknown[]): ContractCallResult<'promise', ContractCallOutcome> =>
     fn(origin, options, params)
   );
 }
@@ -226,7 +225,7 @@ export class PinkBlueprintPromise {
     params: unknown[]
   ) => {
     if (!salt) {
-      salt = hex(crypto.randomBytes(4))
+      salt = randomHex(4)
     }
     const codeHash = this.abi.info.source.wasmHash.toString()
     return this.api.tx.phalaPhatContracts.instantiateContract(
@@ -253,7 +252,7 @@ export class PinkBlueprintPromise {
 
   #estimateGas = (
     constructorOrId: AbiConstructor | string | number,
-    options: CertificateData,
+    options: PinkContractQueryOptions,
     params: unknown[]
   ) => {
     const api = this.api as ApiPromise
@@ -263,6 +262,7 @@ export class PinkBlueprintPromise {
     const seed = hexToU8a(hexAddPrefix(randomHex(32)));
     const pair = sr25519KeypairFromSeed(seed);
     const [sk, pk] = [pair.slice(0, 64), pair.slice(64)];
+    const { cert } = options
 
     const queryAgreementKey = sr25519Agree(
       hexToU8a(hexAddPrefix(this.phatRegistry.remotePubkey)),
@@ -270,7 +270,14 @@ export class PinkBlueprintPromise {
     );
 
     const inkQueryInternal = async (origin: string | AccountId | Uint8Array) => {
-      const salt = hex(crypto.randomBytes(4))
+      if (typeof origin === 'string') {
+        assert(origin === cert.address, 'origin must be the same as the certificate address')
+      } else if (origin.hasOwnProperty('verify') && origin.hasOwnProperty('adddress')) {
+        throw new Error('Contract query expected AccountId as first parameter but since we got signer object here.')
+      } else {
+        assert(origin.toString() === cert.address, 'origin must be the same as the certificate address')
+      }
+      const salt = randomHex(4)
       const payload = api.createType("InkQuery", {
         head: {
           nonce: hexAddPrefix(randomHex(32)),
@@ -286,7 +293,7 @@ export class PinkBlueprintPromise {
           },
         },
       });
-      const rawResponse = await pinkQuery(api, this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), options);
+      const rawResponse = await pinkQuery(api, this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert);
       const response = api.createType<InkResponse>("InkResponse", rawResponse);
       if (response.result.isErr) {
         return api.createType<InkQueryError>(

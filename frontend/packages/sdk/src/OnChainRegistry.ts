@@ -238,8 +238,8 @@ export class OnChainRegistry {
     }
     const signParams: any = ((pair as any).signer) ? pair : { pair }
     const cert = await signCertificate({ ...signParams, api: this.api })
-    const { output: totalBalanceOf } = await system.query['system::totalBalanceOf'](pair, cert, address)
-    const { output: freeBalanceOf } = await system.query['system::freeBalanceOf'](pair, cert, address)
+    const { output: totalBalanceOf } = await system.query['system::totalBalanceOf'](pair.address, { cert }, address)
+    const { output: freeBalanceOf } = await system.query['system::freeBalanceOf'](pair.address, { cert }, address)
     return {
       total: (totalBalanceOf as Result<U64, any>).asOk.toBn(),
       free: (freeBalanceOf as Result<U64, any>).asOk.toBn(),
