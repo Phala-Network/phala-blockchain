@@ -199,7 +199,7 @@ mod tests {
     use super::*;
 
     /// Here the contract deployed on Shibuya (Astar testnet)
-    /// contract Id : 4e7b932eac00f9fc5b2593acc36f921a157dda398c4d70f107dc22651678015a
+    /// contract Id : d0859843adc542e9439152c9a17e8cf5260c644346334b1a38dd624a7fb24af6
     ///
     /// #[ink::contract]
     /// mod incrementer {
@@ -291,7 +291,7 @@ mod tests {
             pallet_id: 70u8,
             call_id: 6u8,
             contract_id: hex_literal::hex!(
-                "4e7b932eac00f9fc5b2593acc36f921a157dda398c4d70f107dc22651678015a"
+                "d0859843adc542e9439152c9a17e8cf5260c644346334b1a38dd624a7fb24af6"
             ),
         }
     }
@@ -500,9 +500,9 @@ mod tests {
         let origin =
             hex_literal::hex!("189dac29296d31814dc8c56cf3d36a0543372bba7538fa322a4aebfebc39e056");
         // method to call:
-        //         "label": "get_error_panicked",
-        //         "selector": "0x6e4c826a"
-        let method_get_error = hex_literal::hex!("6e4c826a");
+        //         "label": "panic",
+        //         "selector": "0xfb02c510"
+        let method_get_error = hex_literal::hex!("fb02c510");
         // no argument
         let params: Option<&()> = None;
         // result of the query
