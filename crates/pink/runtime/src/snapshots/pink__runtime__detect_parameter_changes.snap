@@ -1,6 +1,6 @@
 ---
 source: crates/pink/runtime/src/runtime.rs
-assertion_line: 157
+assertion_line: 160
 expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <PinkRuntime as Config>::Schedule::get(),\n    <PinkRuntime as Config>::DefaultDepositLimit::get(),\n    <PinkRuntime as Config>::MaxCodeLen::get(),\n    <PinkRuntime as Config>::MaxStorageKeyLen::get())"
 ---
 (
@@ -83,7 +83,7 @@ expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <
             table_size: 4096,
             br_table_size: 256,
             subject_len: 32,
-            payload_len: 16384,
+            payload_len: 1048576,
             runtime_memory: 2147483648,
         },
         instruction_weights: InstructionWeights {

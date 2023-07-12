@@ -128,6 +128,7 @@ parameter_types! {
         schedule.limits.memory_pages = 4 * MB;
         schedule.instruction_weights.fallback = 8000;
         schedule.limits.runtime_memory = 2048 * 1024 * 1024; // For unittests
+        schedule.limits.payload_len = 1024 * 1024; // Max size for storage value
         schedule
     };
 }
