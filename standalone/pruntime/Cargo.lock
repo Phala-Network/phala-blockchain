@@ -4895,7 +4895,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension-runtime"
-version = "0.4.2"
+version = "0.4.4"
 dependencies = [
  "futures",
  "getrandom 0.2.7",
