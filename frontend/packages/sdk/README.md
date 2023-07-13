@@ -9,7 +9,7 @@ We recommend not install @polkadot packages directly, @phala/sdk will handle tha
 ```shell
 npm install --save @phala/sdk
 # Or yarn
-yarn install @phala/sdk
+yarn add @phala/sdk
 ```
 
 You need create the `apiPromise` instance first, also the `OnChainRegistry` instance for the next:
@@ -25,7 +25,7 @@ async function main() {
     const api = await ApiPromise.create(options({
         provider: new WsProvider(RPC_TESTNET_URL),
         noInitWarn: true,
-    })
+    }))
     const phatRegistry = await OnChainRegistry.create(api)
 }
 
@@ -50,14 +50,14 @@ We continue with `//Alice` in follow up code snippets, so all 3 things can be re
 const keyring = new Keyring({ type: 'sr25519' });
 const pair = keyring.addFromUri('//Alice');
 const contractId = '';
-const abi = JSON.parse(fs.readFileSync('./your_local_path/target/ink/metadata.json'));
+const abi = JSON.parse(fs.readFileSync('./your_local_path/target/ink/metadata.json', 'utf-8'));
 ```
 
 Now let's initializing the `PinkContractPromise` instance first.
 
 ```javascript
 const contractKey = await phatRegistry.getContractKey(contractId);
-const contract = new PinkContractPromise(api, phatRegistry, abi, contractId, contractKey);
+const contract = new PinkContractPromise(api, phatRegistry, abi, contractId, contractKey!);
 ```
 
 In the original version of polkadot.js, `tx` refer to the `write` operation and `query` refer to the `read` operation. But in Phat Contract, they got different concepts. **`tx` means on-chain operations, `query` means off-chain operations**. We recommended you put your computation logic in off-chain codes as much as possible.
@@ -72,7 +72,7 @@ For off-chain computations (or `query` calls), we don't need set `gasLimit` and 
 
 ```javascript
 // (We perform the send from an account, here using Alice's address)
-const { gasRequired, storageDeposit, result, output } = await contract.query.get(pair.address, { cert });
+const { gasRequired, storageDeposit, result, output } = await contract.query.methodName(pair.address, { cert });
 ```
 
 For on-chain computations (or `tx` calls), you need estimate gas fee first. It's same as the original polkadot.js API Contract:
