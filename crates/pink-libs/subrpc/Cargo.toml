@@ -1,6 +1,6 @@
 [package]
 name = "pink-subrpc"
-version = "0.4.2"
+version = "0.4.3"
 authors = ["Phala Network"]
 edition = "2021"
 license = "Apache-2.0"
