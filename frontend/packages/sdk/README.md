@@ -56,8 +56,8 @@ const abi = JSON.parse(fs.readFileSync('./your_local_path/target/ink/metadata.js
 Now let's initializing the `PinkContractPromise` instance first.
 
 ```javascript
-const contractKey = await phatRegistry.getContractKey(contractId);
-const contract = new PinkContractPromise(api, phatRegistry, abi, contractId, contractKey!);
+const contractKey = await phatRegistry.getContractKeyOrFail(contractId);
+const contract = new PinkContractPromise(api, phatRegistry, abi, contractId, contractKey);
 ```
 
 In the original version of polkadot.js, `tx` refer to the `write` operation and `query` refer to the `read` operation. But in Phat Contract, they got different concepts. **`tx` means on-chain operations, `query` means off-chain operations**. We recommended you put your computation logic in off-chain codes as much as possible.
