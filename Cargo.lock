@@ -3356,9 +3356,9 @@ dependencies = [
 
 [[package]]
 name = "ethers"
-version = "2.0.2"
+version = "2.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "697aba1bec98cb86e7bebd69f9bb365218871464137af9e93e7a72bd6dc421d0"
+checksum = "96b4026b97da8281276744741fac7eb385da905f6093c583331fa2953fdd4253"
 dependencies = [
  "ethers-addressbook",
  "ethers-contract",
@@ -3479,7 +3479,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22b3a8269d3df0ed6364bc05b4735b95f4bf830ce3aef87d5e760fb0e93e5b91"
 dependencies = [
  "ethers-core",
- "ethers-solc",
  "reqwest",
  "semver 1.0.12",
  "serde",
@@ -8571,9 +8570,6 @@ name = "phactory"
 version = "0.0.1"
 dependencies = [
  "anyhow",
- "async-executor",
- "async-io",
- "async-std",
  "async-trait",
  "base64 0.13.0",
  "bitcoin",
@@ -8588,7 +8584,6 @@ dependencies = [
  "fixed-macro",
  "fixed-sqrt",
  "frame-system",
- "futures",
  "glob",
  "hash-db",
  "hex",
@@ -8605,7 +8600,6 @@ dependencies = [
  "parity-scale-codec",
  "phactory-api",
  "phactory-pal",
- "phala-async-executor",
  "phala-crypto",
  "phala-mq",
  "phala-node-runtime",
@@ -15360,7 +15354,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.7",
- "rand 0.8.5",
+ "rand 0.4.6",
  "static_assertions",
 ]
 
