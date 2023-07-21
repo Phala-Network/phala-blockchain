@@ -8,7 +8,8 @@ use frame_support::{
     traits::ConstBool,
     weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
 };
-use pallet_contracts::{Config, Frame, Schedule};
+use log::info;
+use pallet_contracts::{Config, Frame, Migration, Schedule};
 use sp_runtime::{generic::Header, traits::IdentityLookup, Perbill};
 
 pub use extension::get_side_effects;
@@ -18,8 +19,10 @@ pub use pink_extension::{EcdhPublicKey, HookPoint, Message, OspMessage, PinkEven
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<PinkRuntime>;
 type Block = frame_system::mocking::MockBlock<PinkRuntime>;
 
+pub type SystemEvents = Vec<frame_system::EventRecord<RuntimeEvent, Hash>>;
+
 frame_support::construct_runtime! {
-    pub enum PinkRuntime where
+    pub struct PinkRuntime where
         Block = Block,
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,
@@ -61,6 +64,10 @@ impl pallet_balances::Config for PinkRuntime {
     type MaxLocks = MaxLocks;
     type MaxReserves = MaxReserves;
     type ReserveIdentifier = [u8; 8];
+    type HoldIdentifier = ();
+    type FreezeIdentifier = ();
+    type MaxHolds = ();
+    type MaxFreezes = ();
 }
 
 impl frame_system::Config for PinkRuntime {
@@ -103,18 +110,12 @@ impl pallet_timestamp::Config for PinkRuntime {
     type WeightInfo = ();
 }
 
-// Workaround for the test failure in runtime_integrity_tests
-// https://github.com/paritytech/substrate/pull/12993/files#diff-67684005af418e25ff88c2ae5b520f0c040371f1d817e03a3652e76b9485224aR1217
-#[cfg(test)]
-const MAX_CODE_LEN: u32 = 64 * 1024;
-#[cfg(not(test))]
 const MAX_CODE_LEN: u32 = 2 * 1024 * 1024;
 
 parameter_types! {
     pub DepositPerStorageByte: Balance = Pink::deposit_per_byte();
     pub DepositPerStorageItem: Balance = Pink::deposit_per_item();
-    pub const DeletionQueueDepth: u32 = 1024;
-    pub const DeletionWeightLimit: Weight = Weight::from_parts(500_000_000_000, 0);
+    pub const DefaultDepositLimit: Balance = Balance::max_value();
     pub const MaxCodeLen: u32 = MAX_CODE_LEN;
     pub const MaxStorageKeyLen: u32 = 128;
     pub const MaxDebugBufferLen: u32 = 128 * 1024;
@@ -126,6 +127,8 @@ parameter_types! {
         // allocate too much here.
         schedule.limits.memory_pages = 4 * MB;
         schedule.instruction_weights.fallback = 8000;
+        schedule.limits.runtime_memory = 2048 * 1024 * 1024; // For unittests
+        schedule.limits.payload_len = 1024 * 1024; // Max size for storage value
         schedule
     };
 }
@@ -141,11 +144,10 @@ impl Config for PinkRuntime {
     type WeightPrice = Pink;
     type WeightInfo = weights::PinkWeights<Self>;
     type ChainExtension = extension::PinkExtension;
-    type DeletionQueueDepth = DeletionQueueDepth;
-    type DeletionWeightLimit = DeletionWeightLimit;
     type Schedule = DefaultSchedule;
     type DepositPerByte = DepositPerStorageByte;
     type DepositPerItem = DepositPerStorageItem;
+    type DefaultDepositLimit = DefaultDepositLimit;
     type AddressGenerator = Pink;
     type MaxCodeLen = MaxCodeLen;
     type MaxStorageKeyLen = MaxStorageKeyLen;
@@ -158,9 +160,22 @@ fn detect_parameter_changes() {
     insta::assert_debug_snapshot!((
         <PinkRuntime as frame_system::Config>::BlockWeights::get(),
         <PinkRuntime as Config>::Schedule::get(),
-        <PinkRuntime as Config>::DeletionQueueDepth::get(),
-        <PinkRuntime as Config>::DeletionWeightLimit::get(),
+        <PinkRuntime as Config>::DefaultDepositLimit::get(),
         <PinkRuntime as Config>::MaxCodeLen::get(),
         <PinkRuntime as Config>::MaxStorageKeyLen::get(),
     ));
+}
+
+/// Call on_genesis for all pallets. This would put the each pallet's storage version into
+/// the frame_support::StorageVersion.
+pub fn on_genesis() {
+    <AllPalletsWithSystem as frame_support::traits::OnGenesis>::on_genesis();
+}
+
+/// Call on_runtime_upgrade for all pallets
+pub fn on_runtime_upgrade() {
+    use frame_support::traits::OnRuntimeUpgrade;
+    type Migrations = (Migration<PinkRuntime>, AllPalletsWithSystem);
+    Migrations::on_runtime_upgrade();
+    info!("Runtime database migration done");
 }

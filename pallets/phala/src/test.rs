@@ -5,6 +5,7 @@ use crate::stake_pool_v2;
 use crate::vault;
 use crate::wrapped_balances;
 use fixed::types::U64F64 as FixedPoint;
+use fixed_macro::types::U64F64 as fp;
 use frame_support::{
 	assert_noop, assert_ok,
 	pallet_prelude::Get,
@@ -18,7 +19,8 @@ use sp_runtime::AccountId32;
 
 use crate::mock::{
 	ecdh_pubkey, elapse_cool_down, elapse_seconds, new_test_ext, set_block_1, setup_workers,
-	setup_workers_linked_operators, worker_pubkey, Balance, RuntimeOrigin, Test, DOLLARS,
+	setup_workers_linked_operators, take_events, worker_pubkey, Balance, RuntimeEvent,
+	RuntimeOrigin, Test, DOLLARS,
 };
 // Pallets
 use crate::mock::{
@@ -46,9 +48,8 @@ fn test_pool_subaccount() {
 fn test_wrap() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		let free = Balances::free_balance(
-			&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get(),
-		);
+		let who: u64 = <Test as wrapped_balances::Config>::WrappedBalancesAccountId::get();
+		let free = Balances::free_balance(who);
 		assert_eq!(free, 0);
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 1000 * DOLLARS);
@@ -56,9 +57,7 @@ fn test_wrap() {
 			RuntimeOrigin::signed(1),
 			100 * DOLLARS
 		));
-		let free = Balances::free_balance(
-			&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get(),
-		);
+		let free = Balances::free_balance(who);
 		assert_eq!(free, 100 * DOLLARS);
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 900 * DOLLARS);
@@ -71,6 +70,7 @@ fn test_wrap() {
 fn test_unwrap() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
+		let who: u64 = <Test as wrapped_balances::Config>::WrappedBalancesAccountId::get();
 		assert_ok!(PhalaWrappedBalances::wrap(
 			RuntimeOrigin::signed(1),
 			100 * DOLLARS
@@ -81,9 +81,7 @@ fn test_unwrap() {
 		));
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 950 * DOLLARS);
-		let free = Balances::free_balance(
-			&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get(),
-		);
+		let free = Balances::free_balance(who);
 		assert_eq!(free, 50 * DOLLARS);
 		let wpha_free = get_balance(1);
 		assert_eq!(wpha_free, 50 * DOLLARS);
@@ -895,6 +893,7 @@ fn test_add_worker() {
 		);
 	});
 }
+
 #[test]
 fn test_start_computing() {
 	new_test_ext().execute_with(|| {
@@ -1008,7 +1007,7 @@ fn test_force_unbind() {
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert!(!pool.workers.contains(&worker_pubkey(1)));
 		// Check the computing is ready
-		let worker = PhalaComputation::sessions(&sub_account).unwrap();
+		let worker = PhalaComputation::sessions(sub_account).unwrap();
 		assert_eq!(worker.state, computation::WorkerState::Ready);
 		let pool = ensure_stake_pool::<Test>(1).unwrap();
 		let balance = get_balance(pool.basepool.pool_account_id);
@@ -1043,7 +1042,7 @@ fn test_force_unbind() {
 		let pool = ensure_stake_pool::<Test>(1).unwrap();
 		assert!(!pool.workers.contains(&worker_pubkey(2)));
 		// Check the computing is stopped
-		let worker = PhalaComputation::sessions(&sub_account).unwrap();
+		let worker = PhalaComputation::sessions(sub_account).unwrap();
 		assert_eq!(worker.state, computation::WorkerState::WorkerCoolingDown);
 	});
 }
@@ -1284,6 +1283,67 @@ fn test_for_cdworkers() {
 }
 
 #[test]
+fn test_on_reward_dust() {
+	use crate::computation::pallet::OnReward;
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		set_block_1();
+		setup_workers(1);
+		setup_stake_pool_with_workers(1, &[1]);
+		assert_ok!(PhalaStakePoolv2::set_payout_pref(
+			RuntimeOrigin::signed(1),
+			0,
+			Some(Permill::from_percent(50))
+		));
+		assert_ok!(PhalaStakePoolv2::contribute(
+			RuntimeOrigin::signed(1),
+			0,
+			100 * DOLLARS,
+			None
+		));
+		assert_ok!(PhalaStakePoolv2::start_computing(
+			RuntimeOrigin::signed(1),
+			0,
+			worker_pubkey(1),
+			100 * DOLLARS
+		));
+		let _ = take_events();
+		PhalaStakePoolv2::on_reward(&[SettleInfo {
+			pubkey: worker_pubkey(1),
+			v: FixedPoint::from_num(1u32).to_bits(),
+			payout: fp!(0.000010000000).to_bits(), // below 1e8
+			treasury: 0,
+		}]);
+		let events = take_events();
+		assert_eq!(
+			events[1],
+			RuntimeEvent::PhalaStakePoolv2(
+				stake_pool_v2::Event::<Test>::RewardToOwnerDismissedDust {
+					pid: 0,
+					amount: 4999999
+				}
+			)
+		);
+		assert_eq!(
+			events[2],
+			RuntimeEvent::PhalaStakePoolv2(
+				stake_pool_v2::Event::<Test>::RewardToDistributionDismissedDust {
+					pid: 0,
+					amount: 5000000
+				}
+			)
+		);
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
+		assert_eq!(get_balance(pool.owner_reward_account), 0);
+		assert_eq!(get_balance(pool.basepool.pool_account_id), 0);
+	});
+}
+
+#[test]
 fn test_on_reward_for_vault() {
 	use crate::computation::pallet::OnReward;
 	new_test_ext().execute_with(|| {
@@ -1351,9 +1411,8 @@ fn test_on_reward_for_vault() {
 			50 * DOLLARS
 		);
 		assert_eq!(vault_info.basepool.total_shares, 100 * DOLLARS);
-		let free = Balances::free_balance(
-			&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get(),
-		);
+		let who: u64 = <Test as wrapped_balances::Config>::WrappedBalancesAccountId::get();
+		let free = Balances::free_balance(who);
 		assert_eq!(free, 1600 * DOLLARS);
 	});
 }
@@ -2034,10 +2093,9 @@ fn setup_vault(owner: u64) -> u64 {
 }
 
 fn set_balance_proposal(value: u128) -> BoundedCallOf<Test> {
-	let inner = pallet_balances::Call::set_balance {
+	let inner = pallet_balances::Call::force_set_balance {
 		who: 42,
 		new_free: value,
-		new_reserved: 0,
 	};
 	let outer = RuntimeCall::Balances(inner);
 	Preimage::bound(outer).unwrap()

@@ -1,5 +1,3 @@
-#![feature(async_closure)]
-
 mod config;
 mod i2pd;
 mod server;

@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::io::Write;
 use std::{
     fmt::Display,
     str::FromStr,
@@ -42,7 +43,57 @@ impl<'a, T, E> DefaultPinkExtension<'a, T, E> {
     }
 }
 
+fn block_on<F: core::future::Future>(f: F) -> F::Output {
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) => handle.block_on(f),
+        Err(_) => tokio::runtime::Runtime::new()
+            .expect("Failed to create tokio runtime")
+            .block_on(f),
+    }
+}
+
+pub fn batch_http_request(requests: Vec<HttpRequest>, timeout_ms: u64) -> ext::BatchHttpResult {
+    const MAX_CONCURRENT_REQUESTS: usize = 5;
+    if requests.len() > MAX_CONCURRENT_REQUESTS {
+        return Err(ext::HttpRequestError::TooManyRequests);
+    }
+    let futs = requests
+        .into_iter()
+        .map(|request| async_http_request(request, timeout_ms));
+    block_on(tokio::time::timeout(
+        Duration::from_millis(timeout_ms + 200),
+        futures::future::join_all(futs),
+    ))
+    .or(Err(ext::HttpRequestError::Timeout))
+}
+
 pub fn http_request(
+    request: HttpRequest,
+    timeout_ms: u64,
+) -> Result<HttpResponse, HttpRequestError> {
+    use HttpRequestError::*;
+    match block_on(async_http_request(request, timeout_ms)) {
+        Ok(resp) => Ok(resp),
+        Err(err) => match err {
+            // runtime v1.0 supported errors
+            InvalidUrl | InvalidMethod | InvalidHeaderName | InvalidHeaderValue
+            | FailedToCreateClient | Timeout => Err(err),
+            _ => {
+                // To be compatible with runtime v1.0, we need to convert the v1.1 extended errors
+                // to an HTTP response with status code 524.
+                log::error!("chain_ext: http request failed: {}", err.display());
+                Ok(HttpResponse {
+                    status_code: 524,
+                    reason_phrase: "IO Error".into(),
+                    body: format!("{err:?}").into_bytes(),
+                    headers: vec![],
+                })
+            }
+        },
+    }
+}
+
+async fn async_http_request(
     request: HttpRequest,
     timeout_ms: u64,
 ) -> Result<HttpResponse, HttpRequestError> {
@@ -51,7 +102,7 @@ pub fn http_request(
     }
     let timeout = Duration::from_millis(timeout_ms);
     let url: reqwest::Url = request.url.parse().or(Err(HttpRequestError::InvalidUrl))?;
-    let client = reqwest::blocking::Client::builder()
+    let client = reqwest::Client::builder()
         .timeout(timeout)
         .env_proxy(url.host_str().unwrap_or_default())
         .build()
@@ -71,7 +122,8 @@ pub fn http_request(
         .request(method, url)
         .headers(headers)
         .body(request.body)
-        .send();
+        .send()
+        .await;
 
     let mut response = match result {
         Ok(response) => response,
@@ -93,20 +145,20 @@ pub fn http_request(
         .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or_default().into()))
         .collect();
 
-    const MAX_BODY_SIZE: usize = 1024 * 16; // 16KB
+    const MAX_BODY_SIZE: usize = 1024 * 1024 * 2; // 2MB
 
     let mut body = Vec::new();
     let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
 
-    if let Err(err) = response.copy_to(&mut writer) {
-        log::info!("Failed to read HTTP body: {err}");
-        return Ok(HttpResponse {
-            status_code: 524,
-            reason_phrase: "IO Error".into(),
-            body: format!("{err:?}").into_bytes(),
-            headers: vec![],
-        });
-    };
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .or(Err(HttpRequestError::NetworkError))?
+    {
+        writer
+            .write_all(&chunk)
+            .or(Err(HttpRequestError::ResponseTooLarge))?;
+    }
 
     let response = HttpResponse {
         status_code: response.status().as_u16(),
@@ -125,6 +177,14 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
     type Error = E;
     fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, Self::Error> {
         http_request(request, 10 * 1000).map_err(|err| err.display().into())
+    }
+
+    fn batch_http_request(
+        &self,
+        requests: Vec<HttpRequest>,
+        timeout_ms: u64,
+    ) -> Result<ext::BatchHttpResult, Self::Error> {
+        Ok(batch_http_request(requests, timeout_ms))
     }
 
     fn sign(
@@ -158,14 +218,20 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
     ) -> Result<bool, Self::Error> {
         macro_rules! verify_with {
             ($sigtype:ident) => {{
-                sp_core::$sigtype::Pair::verify_weak(&signature, &message, &pubkey)
+                let pubkey = sp_core::$sigtype::Public::from_slice(&pubkey)
+                    .map_err(|_| "Invalid public key")?;
+                let signature = sp_core::$sigtype::Signature::from_slice(&signature)
+                    .ok_or("Invalid signature")?;
+                Ok(sp_core::$sigtype::Pair::verify(
+                    &signature, message, &pubkey,
+                ))
             }};
         }
-        Ok(match sigtype {
+        match sigtype {
             SigType::Sr25519 => verify_with!(sr25519),
             SigType::Ed25519 => verify_with!(ed25519),
             SigType::Ecdsa => verify_with!(ecdsa),
-        })
+        }
     }
 
     fn derive_sr25519_key(&self, salt: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
@@ -296,6 +362,10 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
 
     fn runtime_version(&self) -> Result<(u32, u32), Self::Error> {
         Ok((1, 0))
+    }
+
+    fn current_event_chain_head(&self) -> Result<(u64, Hash), Self::Error> {
+        Ok((0, Default::default()))
     }
 }
 

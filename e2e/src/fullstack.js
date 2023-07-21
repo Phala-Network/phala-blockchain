@@ -9,6 +9,7 @@ const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
 const { ContractPromise } = require('@polkadot/api-contract');
 const Phala = require('@phala/sdk');
 const { typeDefinitions } = require('@polkadot/types/bundle');
+const BN = require('bn.js');
 
 const { types, typeAlias, typeOverrides } = require('./utils/typeoverride');
 // TODO: fixit
@@ -486,6 +487,7 @@ describe('A full stack', function () {
         let certBob;
 
         let clusterId;
+        let registry;
 
         before(async () => {
             certAlice = await Phala.signCertificate({ api, pair: alice });
@@ -544,7 +546,12 @@ describe('A full stack', function () {
                 const contractInfo = await api.query.phalaPhatContracts.contracts(systemContract.toHex());
                 return contractInfo.isSome;
             }, 4 * 6000), 'system contract instantiation failed');
-            ContractSystem = await createContractApi(api, pruntime[0].uri, systemContract, systemMetadata);
+            // ContractSystem = await createContractApi(api, pruntime[0].uri, systemContract, systemMetadata);
+            const systemContractId = systemContract
+            registry = await Phala.OnChainRegistry.create(api, { clusterId, pruntimeURL: pruntime[0].uri, systemContractId, workerId: runtime0.system.publicKey, skipCheck: true })
+            registry.clusterInfo = { ...clusterInfo.toJSON(), gasPrice: new BN(1) }
+            const contractKey = await registry.getContractKeyOrFail(systemContractId)
+            ContractSystem = new Phala.PinkContractPromise(api, registry, systemMetadata, systemContractId, contractKey)
         });
 
         it('can generate cluster key', async function () {
@@ -571,7 +578,7 @@ describe('A full stack', function () {
             );
 
             assert.isTrue(await checkUntil(async () => {
-                const { output } = await ContractSystem.query['system::codeExists'](certAlice, {}, codeHash, 'Ink');
+                const { output } = await ContractSystem.query['system::codeExists'](alice.address, { cert: certAlice }, codeHash, 'Ink');
                 return output?.eq({ Ok: true })
             }, 4 * 6000), 'Upload system checker code failed');
 
@@ -608,7 +615,22 @@ describe('A full stack', function () {
                 return clusterContracts.length == 2;
             }, 4 * 6000), 'instantiation failed');
 
-            ContractSystemChecker = await createContractApi(api, pruntime[0].uri, contractId, checkerMetadata);
+            // ContractSystemChecker = await createContractApi(api, pruntime[0].uri, contractId, checkerMetadata);
+            const contractKey = await registry.getContractKeyOrFail(contractId)
+            ContractSystemChecker = new Phala.PinkContractPromise(api, registry, checkerMetadata, contractId, contractKey)
+        });
+
+        it('can upgrade runtime', async function () {
+            const info = await pruntime[0].getInfo();
+            const maxVersion = info.maxSupportedPinkRuntimeVersion.split('.').map(Number);
+            await assert.txAccepted(
+                ContractSystem.tx['system::upgradeRuntime'](txConfig, maxVersion),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                const { output } = await ContractSystemChecker.query['runtimeVersion'](alice.address, { cert: certAlice });
+                return output?.eq({ Ok: maxVersion })
+            }, 4 * 6000), 'Upgrade runtime failed');
         });
 
         it('can not set hook without admin permission', async function () {
@@ -622,7 +644,7 @@ describe('A full stack', function () {
                 alice,
             );
             assert.isFalse(await checkUntil(async () => {
-                const { output } = await ContractSystemChecker.query.onBlockEndCalled(certAlice, {});
+                const { output } = await ContractSystemChecker.query.onBlockEndCalled(alice.address, { cert: certAlice });
                 return output.asOk.valueOf();
             }, 6000 * 2), 'Set hook should not success without granting admin first');
         });
@@ -637,7 +659,7 @@ describe('A full stack', function () {
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
-                const { output } = await ContractSystemChecker.query.onBlockEndCalled(certBob, {});
+                const { output } = await ContractSystemChecker.query.onBlockEndCalled(bob.address, { cert: certBob });
                 return output.asOk.valueOf();
             }, 2 * 6000), 'Set hook should success after granted admin');
         });
@@ -650,7 +672,7 @@ describe('A full stack', function () {
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
-                const { output } = await ContractSystem.query['system::codeExists'](certAlice, {}, codeHash, 'Ink');
+                const { output } = await ContractSystem.query['system::codeExists'](alice.address, { cert: certAlice }, codeHash, 'Ink');
                 return output?.eq({ Ok: true })
             }, 4 * 6000), 'Upload qjs code failed');
             {
@@ -662,7 +684,7 @@ describe('A full stack', function () {
                 })()
                 `;
                 const arg0 = "Powered by QuickJS in ink!";
-                const { output } = await ContractSystemChecker.query.evalJs(certAlice, {}, codeHash, jsCode, [arg0]);
+                const { output } = await ContractSystemChecker.query.evalJs(alice.address, { cert: certAlice }, codeHash, jsCode, [arg0]);
                 assert.isTrue(output?.eq({ Ok: { Ok: { String: arg0 } } }));
             }
 
@@ -673,7 +695,7 @@ describe('A full stack', function () {
                     return new Uint8Array([1, 2, 3]);
                 })()
                 `;
-                const { output } = await ContractSystemChecker.query.evalJs(certAlice, {}, codeHash, jsCode, []);
+                const { output } = await ContractSystemChecker.query.evalJs(alice.address, { cert: certAlice }, codeHash, jsCode, []);
                 assert.isTrue(output?.eq({ Ok: { Ok: { Bytes: "0x010203" } } }), "Failed to return bytes");
             }
         });
@@ -685,17 +707,17 @@ describe('A full stack', function () {
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
-                const { output } = await ContractSystem.query['system::codeExists'](certAlice, {}, codeHash, 'Ink');
+                const { output } = await ContractSystem.query['system::codeExists'](alice.address, { cert: certAlice }, codeHash, 'Ink');
                 return output?.eq({ Ok: true })
             }, 4 * 6000), 'Upload test contract code failed');
-            const { output } = await ContractSystemChecker.query.parseUsd(certAlice, {}, codeHash, '{"usd":1.23}');
+            const { output } = await ContractSystemChecker.query.parseUsd(alice.address, { cert: certAlice }, codeHash, '{"usd":1.23}');
             assert.isTrue(output?.asOk.unwrap()?.usd.eq(123));
         });
 
         it('tokenomic driver works', async function () {
             {
                 // Should be unable to use local cache before staking
-                const { output } = await ContractSystemChecker.query.cacheSet(certAlice, {}, "0xdead", "0xbeef");
+                const { output } = await ContractSystemChecker.query.cacheSet(alice.address, { cert: certAlice }, "0xdead", "0xbeef");
                 assert.isFalse(output.asOk.valueOf());
             }
             await assert.txAccepted(
@@ -714,11 +736,11 @@ describe('A full stack', function () {
             {
                 // Should be able to use local cache after staking
                 {
-                    const { output } = await ContractSystemChecker.query.cacheSet(certAlice, {}, "0xdead", "0xbeef");
+                    const { output } = await ContractSystemChecker.query.cacheSet(alice.address, { cert: certAlice }, "0xdead", "0xbeef");
                     assert.isTrue(output.asOk.valueOf());
                 }
                 {
-                    const { output } = await ContractSystemChecker.query.cacheGet(certAlice, {}, "0xdead");
+                    const { output } = await ContractSystemChecker.query.cacheGet(alice.address, { cert: certAlice }, "0xdead");
                     assert.isTrue(output.asOk.isSome);
                     assert.equal(output.asOk.unwrap(), "0xbeef");
                 }
@@ -726,7 +748,7 @@ describe('A full stack', function () {
         });
 
         it('can set the sidevm as pending state without code uploaded', async function () {
-            const { output } = await ContractSystemChecker.query.startSidevm(certAlice, {});
+            const { output } = await ContractSystemChecker.query.startSidevm(alice.address, { cert: certAlice });
             assert.isTrue(output.asOk.valueOf());
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[0].getContractInfo(ContractSystemChecker.address.toHex());
@@ -738,6 +760,19 @@ describe('A full stack', function () {
             await pruntime[0].uploadSidevmCode(ContractSystemChecker.address, sidevmCode);
             const info = await pruntime[0].getContractInfo(ContractSystemChecker.address.toHex());
             assert.equal(info?.sidevm?.state, 'running');
+        });
+
+        it('can send batch http request', async function () {
+            const info = await pruntime[0].getInfo();
+            const url = `${pruntime[0].uri}/info`;
+            const urls = [url, url];
+            const { output } = await ContractSystemChecker.query.batchHttpGet(alice.address, { cert: certAlice }, urls, 1000);
+            const responses = output.asOk.valueOf();
+            assert.equal(responses.length, urls.length);
+            responses.forEach(([code, body]) => {
+                assert.equal(code, 200);
+                assert.equal(JSON.parse(body).system.public_key, info.system.publicKey);
+            });
         });
 
         it('cannot dup-instantiate', async function () {
@@ -766,7 +801,7 @@ describe('A full stack', function () {
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
-                const { output } = await ContractSystem.query['system::version'](certAlice, {});
+                const { output } = await ContractSystem.query['system::version'](alice.address, { cert: certAlice });
                 return output?.eq({ Ok: [0xffff, 0, 0] })
             }, 4 * 6000), 'Upgrade system failed');
         });
@@ -785,12 +820,26 @@ describe('A full stack', function () {
             assert.isTrue(await checkUntil(async () => {
                 const workerCluster = await api.query.phalaPhatContracts.clusterByWorkers(hex(info.system?.publicKey));
                 return workerCluster.eq(clusterId);
-            }, 4 * 6000), 'cluster not deployed');
+            }, 4 * 6000), 'Failed to add worker to cluster');
             pherry[4].kill();
             const req = await pruntime[4].rpc.generateClusterStateRequest({});
             await sleep(5000);
             console.log(`Saving cluster state`);
-            const state = await pruntime[0].rpc.saveClusterState(req);
+            let state;
+            for (let i = 0; i < 5; i++) {
+                try {
+                    state = await pruntime[0].rpc.saveClusterState(req);
+                    break;
+                } catch (e) {
+                    if (e.message?.includes('RCU in progress')) {
+                        console.log(`RCU in progress, retrying...`);
+                        await sleep(500);
+                    } else {
+                        console.error(e);
+                        break;
+                    }
+                }
+            }
             assert.isTrue(state.filename.startsWith('cluster-'));
             const url = `${pruntime[0].uri}/download/${state.filename}`;
             const destDir = cluster.workers[4].dirs.storageDir;
@@ -1247,13 +1296,13 @@ function waitNodeOutput(p) {
 }
 
 
-function newNode(wsPort, tmpPath, name = 'node') {
+function newNode(rpcPort, tmpPath, name = 'node') {
     const cli = [
         pathNode, [
             '--dev',
             '--block-millisecs=1000',
             '--base-path=' + path.resolve(tmpPath, 'phala-node'),
-            `--ws-port=${wsPort}`,
+            `--rpc-port=${rpcPort}`,
             '--rpc-methods=Unsafe',
             '--pruning=archive',
         ]
@@ -1282,6 +1331,7 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
     }
     const args = [
         '--cores=0',  // Disable benchmark
+        '--checkpoint-interval=5',
         '--port', teePort.toString(),
     ];
     let bin = pRuntimeBin;

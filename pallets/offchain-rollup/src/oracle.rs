@@ -60,7 +60,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Sends a request to the oracle
 		#[pallet::call_index(0)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[transactional]
 		pub fn request(
 			origin: OriginFor<T>,

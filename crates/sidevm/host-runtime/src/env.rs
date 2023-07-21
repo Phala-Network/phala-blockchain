@@ -336,6 +336,17 @@ impl Env {
     pub fn is_stifled(&self, store: &mut impl AsStoreMut) -> bool {
         self.inner.lock().unwrap().is_stifled(store)
     }
+
+    pub fn memory(&self) -> Memory {
+        self.inner
+            .lock()
+            .unwrap()
+            .memory
+            .0
+            .as_ref()
+            .expect("BUG: missing memory in env")
+            .clone()
+    }
 }
 
 impl<'a, 'b> env::OcallEnv for FnEnvMut<'a, &'b mut EnvInner> {
@@ -671,6 +682,31 @@ fn do_ocall(
     let result = set_task_env(env.awake_tasks.clone(), task_id, || {
         let memory = env.memory.unwrap_ref().clone();
         let vm = MemoryView(memory.view(&func_env));
+
+        // Safety:
+        //
+        // Started from wasmer 3.3, the lifetime of MemoryView is bound to the lifetime of the Store
+        // rather than bound to the Memory as before. The behavior before was unsound because the
+        // Memory contents could be changed. Especially when a grow operation happens, the Memory
+        // could be reallocated and the old MemoryView would be invalid.
+        //
+        // Why we need to transmute the lifetime here?
+        // To make the larger chunks of data passings between the host and the guest efficient, we
+        // decided to directly pass the data chunks to ocall functions by reference instead of
+        // copying them. For example, given a ocall defined as `fn tcp_read(fd: i32, data: &mut [u8])`,
+        // the parameter `data` is a reference to the guest memory rather than copied to a owned vec.
+        // Obviously, the lifetime of the reference is bound to the guest memory which stored in the
+        // instance of Store.
+        //
+        // It would be safe only when the following conditions are met:
+        //   1. The referred slice of guest memory is not changed by other codes during the ocall.
+        //   2. The entire guest memory is not reallocated during the ocall function call.
+        // Currently, we can guarantee both conditions are met by carefully implementing the ocall
+        // functions and make sure no guest reentrancy happens during the ocall function call.
+        unsafe fn translife<'b, T>(m: MemoryView<'_>, _l: &'b T) -> MemoryView<'b> {
+            std::mem::transmute(m)
+        }
+        let vm = unsafe { translife(vm, &memory) };
         let mut state = env.make_mut(&mut func_env);
         env::dispatch_ocall(fast_return, &mut state, &vm, func_id, p0, p1, p2, p3)
     });

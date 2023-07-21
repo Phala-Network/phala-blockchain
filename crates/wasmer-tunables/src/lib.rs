@@ -105,11 +105,7 @@ impl<T: Tunables> Tunables for LimitingTunables<T> {
     /// Create a table owned by the host given a [`TableType`] and a [`TableStyle`].
     ///
     /// Delegated to base.
-    fn create_host_table(
-        &self,
-        ty: &TableType,
-        style: &TableStyle,
-    ) -> Result<vm::VMTable, String> {
+    fn create_host_table(&self, ty: &TableType, style: &TableStyle) -> Result<vm::VMTable, String> {
         self.base.create_host_table(ty, style)
     }
 

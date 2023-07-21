@@ -5,16 +5,21 @@ use pink_capi::{types::ExecutionMode, v1::ecall::TransactionArguments};
 use sp_runtime::DispatchError;
 
 use crate::{
-    runtime::{Contracts, Pink as PalletPink},
+    runtime::{Contracts, Pink as PalletPink, PinkRuntime},
     types::{AccountId, Balance, Hash},
 };
 use anyhow::Result;
 
-type ContractExecResult = pallet_contracts_primitives::ContractExecResult<Balance>;
-type ContractInstantiateResult =
-    pallet_contracts_primitives::ContractInstantiateResult<AccountId, Balance>;
-type ContractResult<T> =
-    pallet_contracts_primitives::ContractResult<Result<T, DispatchError>, Balance>;
+type EventRecord = frame_system::EventRecord<
+    <PinkRuntime as frame_system::Config>::RuntimeEvent,
+    <PinkRuntime as frame_system::Config>::Hash,
+>;
+
+pub type ContractExecResult = pallet_contracts_primitives::ContractExecResult<Balance, EventRecord>;
+pub type ContractInstantiateResult =
+    pallet_contracts_primitives::ContractInstantiateResult<AccountId, Balance, EventRecord>;
+pub type ContractResult<T> =
+    pallet_contracts_primitives::ContractResult<Result<T, DispatchError>, Balance, EventRecord>;
 
 macro_rules! define_mask_fn {
     ($name: ident, $bits: expr, $typ: ty) => {
@@ -147,6 +152,7 @@ pub fn instantiate(
         gas_limit,
         storage_deposit_limit,
         gas_free,
+        deposit: _,
     } = args;
     let gas_limit = Weight::from_parts(gas_limit, 0).set_proof_size(u64::MAX);
     let result = contract_tx(origin.clone(), gas_limit, gas_free, move || {
@@ -158,7 +164,8 @@ pub fn instantiate(
             pallet_contracts_primitives::Code::Existing(code_hash),
             input_data,
             salt,
-            true,
+            pallet_contracts::DebugInfo::UnsafeDebug,
+            pallet_contracts::CollectEvents::Skip,
         )
     });
     log::info!("Contract instantiation result: {:?}", &result.result);
@@ -187,12 +194,13 @@ pub fn bare_call(
         gas_limit,
         gas_free,
         storage_deposit_limit,
+        deposit: _,
     } = tx_args;
     let gas_limit = Weight::from_parts(gas_limit, 0).set_proof_size(u64::MAX);
     let determinism = if mode.deterministic_required() {
-        Determinism::Deterministic
+        Determinism::Enforced
     } else {
-        Determinism::AllowIndeterminism
+        Determinism::Relaxed
     };
     let result = contract_tx(origin.clone(), gas_limit, gas_free, move || {
         Contracts::bare_call(
@@ -202,7 +210,8 @@ pub fn bare_call(
             gas_limit,
             storage_deposit_limit,
             input_data,
-            true,
+            pallet_contracts::DebugInfo::UnsafeDebug,
+            pallet_contracts::CollectEvents::Skip,
             determinism,
         )
     });
@@ -226,6 +235,7 @@ fn contract_tx<T>(
             storage_deposit: Default::default(),
             debug_message: Default::default(),
             result: Err(DispatchError::Other("InsufficientBalance")),
+            events: None,
         };
     }
     let result = tx_fn();

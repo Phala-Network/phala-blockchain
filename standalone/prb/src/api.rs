@@ -20,6 +20,7 @@ use phala_pallets::pallet_computation::SessionInfo;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::net::SocketAddr;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -159,7 +160,7 @@ pub async fn start_api_server(
         .into_iter()
         .map(|addr| {
             info!("Listening on {} for management interface.", &addr);
-            let addr = SocketAddr::parse_ascii(addr.as_bytes()).unwrap();
+            let addr = SocketAddr::from_str(&addr).unwrap();
             axum::Server::bind(&addr).serve(app.clone().into_make_service())
         })
         .collect::<Vec<_>>();

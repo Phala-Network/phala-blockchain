@@ -25,7 +25,7 @@ pub mod pallet {
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
-			tokens::fungibles::Transfer, tokens::nonfungibles::InspectEnumerable, StorageVersion,
+			tokens::fungibles::Mutate, tokens::nonfungibles::InspectEnumerable, StorageVersion,
 			UnixTime,
 		},
 	};
@@ -33,6 +33,7 @@ pub mod pallet {
 	use crate::balance_convert::{div as bdiv, mul as bmul, FixedPointConvert};
 	use fixed::types::U64F64 as FixedPoint;
 	use fixed_macro::types::U64F64 as fp;
+	use frame_support::traits::tokens::Preservation;
 	use sp_runtime::{
 		traits::{CheckedSub, Member, TrailingZeroInput, Zero},
 		SaturatedConversion,
@@ -71,7 +72,6 @@ pub mod pallet {
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type MigrationAccountId: Get<Self::AccountId>;
-		type WPhaMinBalance: Get<BalanceOf<Self>>;
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -431,7 +431,7 @@ pub mod pallet {
 		/// If a pool hasn't registed in the wihtelist map, any staker could contribute as what they use to do.
 		/// The whitelist has a lmit len of 100 stakers.
 		#[pallet::call_index(0)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn add_staker_to_whitelist(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -470,7 +470,7 @@ pub mod pallet {
 		///
 		/// The caller must be the owner of the pool.
 		#[pallet::call_index(1)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn set_pool_description(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -490,7 +490,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(2)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn reset_lock_iter_pos(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -500,7 +500,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(3)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn remove_unused_lock(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			Self::ensure_migration_root(who)?;
@@ -543,7 +543,7 @@ pub mod pallet {
 		/// The caller must be the owner of the pool.
 		/// If the last staker in the whitelist is removed, the pool will return back to a normal pool that allow anyone to contribute.
 		#[pallet::call_index(4)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn remove_staker_from_whitelist(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -738,6 +738,7 @@ pub mod pallet {
 			pool: &BasePool<T::AccountId, BalanceOf<T>>,
 			now: u64,
 			grace_period: u64,
+			maybe_vault_queue_period: Option<u64>,
 			releasing_stake: BalanceOf<T>,
 		) -> bool {
 			// If the pool is bankrupt, or there's no share, we just skip this pool.
@@ -747,6 +748,11 @@ pub mod pallet {
 			};
 			let mut budget = pool.get_free_stakes::<T>() + releasing_stake;
 			for request in &pool.withdraw_queue {
+				if let Some(vault_period) = maybe_vault_queue_period {
+					if now - request.start_time > vault_period {
+						return true;
+					}
+				}
 				let nft_guard = Self::get_nft_attr_guard(pool.cid, request.nft_id)
 					.expect("get nftattr should always success; qed.");
 				let withdraw_nft = nft_guard.attr.clone();
@@ -777,12 +783,12 @@ pub mod pallet {
 				.expect("mint should always success; qed.");
 			pool.total_shares += shares;
 			pool.total_value += amount;
-			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
+			<pallet_assets::pallet::Pallet<T> as Mutate<T::AccountId>>::transfer(
 				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&account_id,
 				&pool.pool_account_id,
 				amount,
-				false,
+				Preservation::Expendable,
 			)
 			.expect("transfer should not fail");
 			shares
@@ -808,12 +814,12 @@ pub mod pallet {
 
 			let (total_stake, _) = extract_dust(pool.total_value - amount);
 
-			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
+			<pallet_assets::pallet::Pallet<T> as Mutate<T::AccountId>>::transfer(
 				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&pool.pool_account_id,
 				userid,
 				amount,
-				false,
+				Preservation::Expendable,
 			)
 			.expect("transfer should not fail");
 
@@ -1025,7 +1031,8 @@ pub mod pallet {
 				None => return false,
 			};
 			let current_balance = bmul(nft.shares, &price);
-			if current_balance > T::WPhaMinBalance::get() {
+			let wpha_min = wrapped_balances::Pallet::<T>::min_balance();
+			if current_balance > wpha_min {
 				return false;
 			}
 			pool_info.total_shares -= nft.shares;
@@ -1061,7 +1068,8 @@ pub mod pallet {
 				None => return,
 			};
 
-			while pool_info.get_free_stakes::<T>() > T::WPhaMinBalance::get() {
+			let wpha_min = wrapped_balances::Pallet::<T>::min_balance();
+			while pool_info.get_free_stakes::<T>() > wpha_min {
 				if let Some(withdraw) = pool_info.withdraw_queue.front().cloned() {
 					// Must clear the pending reward before any stake change
 					let mut withdraw_nft_guard =

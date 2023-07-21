@@ -18,10 +18,6 @@ serde_json = { version = "1", default-features = false, features = ["alloc"] }
 [lib]
 name = "indeterministic_functions"
 path = "lib.rs"
-crate-type = [
-	"cdylib",
-	"rlib",
-]
 
 [features]
 default = ["std"]

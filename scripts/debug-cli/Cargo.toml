@@ -8,13 +8,13 @@ edition = "2018"
 base64 = "0.11"
 codec = { package = "parity-scale-codec", version = "3.3" }
 hex = "0.4"
-clap = { version = "4.0.19", features = ["derive"] }
+clap = { version = "4.0.32", features = ["derive"] }
 anyhow = "1.0.69"
 
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41" }
-sc-consensus-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
+sc-consensus-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 
 phala-types = { path = "../../crates/phala-types" }
 phala-pallets = { path = "../../pallets/phala" }

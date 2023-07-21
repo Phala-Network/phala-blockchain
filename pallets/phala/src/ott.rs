@@ -62,7 +62,7 @@ pub mod pallet {
 		/// Distributes some amounts to each specified accounts and mark the sender and destination
 		/// accounts as blacklisted.
 		#[pallet::call_index(0)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[transactional]
 		pub fn distribute(
 			origin: OriginFor<T>,

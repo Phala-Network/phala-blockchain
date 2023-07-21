@@ -25,11 +25,13 @@ impl TxPayload for EncodedPayload {
         metadata: &subxt::Metadata,
         out: &mut Vec<u8>,
     ) -> Result<(), subxt::Error> {
-        let pallet = metadata.pallet(self.pallet_name)?;
-        let call = pallet.call(self.call_name)?;
+        let pallet = metadata.pallet_by_name_err(self.pallet_name)?;
+        let call = pallet.call_variant_by_name(self.call_name).ok_or_else(|| {
+            subxt::error::MetadataError::CallNameNotFound((*self.call_name).to_owned())
+        })?;
 
         let pallet_index = pallet.index();
-        let call_index = call.index();
+        let call_index = call.index;
 
         pallet_index.encode_to(out);
         call_index.encode_to(out);

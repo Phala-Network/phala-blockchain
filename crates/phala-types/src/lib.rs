@@ -6,10 +6,10 @@ pub mod contract;
 use alloc::borrow::Cow;
 use alloc::string::String;
 use alloc::vec::Vec;
+use codec::{Decode, Encode};
 use core::fmt::Debug;
 use scale_info::TypeInfo;
 use sp_core::H256;
-use codec::{Decode, Encode};
 
 #[cfg(feature = "enable_serde")]
 use serde::{Deserialize, Serialize};
@@ -27,9 +27,7 @@ pub mod messaging {
     #[cfg(feature = "enable_serde")]
     use serde::{Deserialize, Serialize};
 
-    use super::{
-        EcdhPublicKey, MasterPublicKey, WorkerIdentity, WorkerPublicKey,
-    };
+    use super::{EcdhPublicKey, MasterPublicKey, WorkerIdentity, WorkerPublicKey};
 
     pub use phala_mq::bind_topic;
     pub use phala_mq::types::*;

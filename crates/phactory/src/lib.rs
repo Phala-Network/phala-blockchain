@@ -48,7 +48,7 @@ use phala_crypto::{
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_mq::{BindTopic, ChannelState, MessageDispatcher, MessageSendQueue, MessageOrigin};
+use phala_mq::{BindTopic, ChannelState, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_scheduler::RequestScheduler;
 use phala_serde_more as more;
 use std::time::Instant;
@@ -150,8 +150,9 @@ fn maybe_remove_checkpoints(basedir: &str) {
         Err(err) => error!("Error globbing checkpoints: {:?}", err),
         Ok(iter) => {
             for filename in iter {
+                info!("Removing {}", filename.display());
                 if let Err(e) = std::fs::remove_file(&filename) {
-                    error!("failed to remove {}: {}", filename.display(), e);
+                    error!("Failed to remove {}: {}", filename.display(), e);
                 }
             }
         }

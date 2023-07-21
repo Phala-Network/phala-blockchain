@@ -94,7 +94,7 @@ pub mod pallet {
 		/// even if the contract is deployed later. User can re-stake with or without changing the amount
 		/// to sync the depoit the the cluster after the contract is actually deployed.
 		#[pallet::call_index(0)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn adjust_stake(
 			origin: OriginFor<T>,
 			contract: ContractId,

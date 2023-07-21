@@ -1,8 +1,10 @@
 use crate::{
-    runtime::{ExecSideEffects, System, Timestamp},
-    types::{Hash, Hashing},
+    capi::OCallImpl,
+    runtime::{ExecSideEffects, Pink as PalletPink, System, SystemEvents, Timestamp},
+    types::{EventsBlock, EventsBlockBody, EventsBlockHeader, Hash, Hashing},
 };
 use pink_capi::v1::ocall::ExecContext;
+use scale::Encode;
 use sp_state_machine::{
     backend::AsTrieBackend, Backend as StorageBackend, Ext, OverlayedChanges,
     StorageTransactionCache,
@@ -43,7 +45,10 @@ where
             Timestamp::set_timestamp(exec_context.now_ms);
             System::set_block_number(exec_context.block_number);
             System::reset_events();
-            (f(), crate::runtime::get_side_effects())
+            let result = f();
+            let (system_events, effects) = crate::runtime::get_side_effects();
+            maybe_emit_system_event_block(system_events);
+            (result, effects)
         });
         overlay
             .commit_transaction()
@@ -90,3 +95,30 @@ where
 }
 
 pub mod external_backend;
+
+pub fn maybe_emit_system_event_block(events: SystemEvents) {
+    use pink_capi::v1::ocall::OCalls;
+    if events.is_empty() {
+        return;
+    }
+    if !OCallImpl.exec_context().mode.is_transaction() {
+        return;
+    }
+    let body = EventsBlockBody {
+        phala_block_number: System::block_number(),
+        contract_call_nonce: OCallImpl.contract_call_nonce(),
+        entry_contract: OCallImpl.entry_contract(),
+        events,
+    };
+    let number = PalletPink::take_next_event_block_number();
+    let header = EventsBlockHeader {
+        parent_hash: PalletPink::last_event_block_hash(),
+        number,
+        runtime_version: crate::version(),
+        body_hash: body.using_encoded(sp_core::hashing::blake2_256).into(),
+    };
+    let header_hash = sp_core::hashing::blake2_256(&header.encode()).into();
+    PalletPink::set_last_event_block_hash(header_hash);
+    let block = EventsBlock { header, body };
+    OCallImpl.emit_system_event_block(number, block.encode());
+}

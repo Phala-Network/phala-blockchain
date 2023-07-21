@@ -1,16 +1,24 @@
 import type { ApiPromise } from "@polkadot/api";
 import type { Signer as InjectedSigner } from "@polkadot/api/types";
-import type { InjectedAccountWithMeta } from "@polkadot/extension-inject/types";
 import type { KeyringPair } from "@polkadot/keyring/types";
 import type { Signer } from "@polkadot/types/types";
 
 import { hexAddPrefix, hexToU8a, u8aToHex } from "@polkadot/util";
 import { decodeAddress } from "@polkadot/util-crypto";
+import { KeypairType } from "@polkadot/util-crypto/types";
 import { sr25519KeypairFromSeed, waitReady } from "@polkadot/wasm-crypto";
 import { randomHex } from "./lib/hex";
 import { pruntime_rpc as pruntimeRpc } from "./proto";
 
+interface InjectedAccount {
+  address: string;
+  genesisHash?: string | null;
+  name?: string
+  type?: KeypairType;
+}
+
 export type CertificateData = {
+  address: string;
   certificate: pruntimeRpc.ICertificate;
   pubkey: Uint8Array;
   secret: Uint8Array;
@@ -23,7 +31,7 @@ interface CertificateBaseParams {
 
 interface CertificateParamsWithSigner extends CertificateBaseParams {
   signer: Signer | InjectedSigner;
-  account: InjectedAccountWithMeta;
+  account: InjectedAccount;
 }
 
 interface CertificateParamsWithPair extends CertificateBaseParams {
@@ -62,9 +70,10 @@ export const signCertificate = async (
   let signerPubkey: string;
   let signatureType = params.signatureType;
   let signature: Uint8Array;
+  let address: string;
   if (isUsingSigner(params)) {
     const { account, signer } = params;
-    const address = account.address;
+    address = account.address;
     signerPubkey = u8aToHex(decodeAddress(address));
     if (!signatureType) {
       signatureType = getSignatureTypeFromAccount(account);
@@ -81,6 +90,7 @@ export const signCertificate = async (
     }
   } else {
     const { pair } = params;
+    address = pair.address;
     signerPubkey = u8aToHex(pair.publicKey);
     if (!signatureType) {
       signatureType = getSignatureTypeFromPair(pair);
@@ -107,13 +117,14 @@ export const signCertificate = async (
   };
 
   return {
+    address,
     certificate,
     pubkey,
     secret,
   };
 };
 
-const getSignatureTypeFromAccount = (account: InjectedAccountWithMeta) => {
+const getSignatureTypeFromAccount = (account: KeyringPair | InjectedAccount) => {
   const keypairType = account.type || "sr25519";
   switch (keypairType) {
     case "sr25519":

@@ -31,8 +31,8 @@ fn balance_of_user(user: &AccountId32) -> u128 {
 
 fn prapare() {
 	mock::System::set_block_number(1);
-	mock::Balances::set_balance(Origin::root(), ALICE, 100 * DOLLARS, 0).unwrap();
-	mock::Balances::set_balance(Origin::root(), BOB, 100 * DOLLARS, 0).unwrap();
+	mock::Balances::force_set_balance(Origin::root(), ALICE, 100 * DOLLARS).unwrap();
+	mock::Balances::force_set_balance(Origin::root(), BOB, 100 * DOLLARS).unwrap();
 	MinStake::<Test>::put(DOLLARS);
 }
 

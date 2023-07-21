@@ -1,7 +1,7 @@
 [workspace]
 [package]
 name = "log_server"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["[your_name] <[your_email]>"]
 edition = "2018"
 resolver = "2"
@@ -21,10 +21,6 @@ sp-core = "7"
 [lib]
 name = "log_server"
 path = "lib.rs"
-crate-type = [
-    # Used for normal contract Wasm blobs.
-    "cdylib",
-]
 
 [features]
 default = ["std"]

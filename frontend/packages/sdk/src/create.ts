@@ -1,8 +1,10 @@
 import type { ApiPromise } from "@polkadot/api";
 import type { SubmittableExtrinsic } from "@polkadot/api/types";
 import type { Bytes, Compact, Option, u64 } from "@polkadot/types-codec";
-import type { AccountId } from "@polkadot/types/interfaces";
+import type { AccountId, ContractInstantiateResult } from "@polkadot/types/interfaces";
 import type { Codec } from "@polkadot/types/types";
+import type { InkResponse, InkQueryError } from "./types";
+
 import {
   BN,
   hexAddPrefix,
@@ -17,8 +19,8 @@ import {
   sr25519Sign,
   waitReady,
 } from "@polkadot/wasm-crypto";
-import axios, { AxiosError } from "axios";
 import { from } from "rxjs";
+import { fetch } from "undici";
 import type { CertificateData } from "./certificate";
 import { decrypt, encrypt } from "./lib/aes-256-gcm";
 import { randomHex } from "./lib/hex";
@@ -29,10 +31,10 @@ export type QueryFn = (
   certificateData: CertificateData
 ) => Promise<string>;
 
-export type SidevmQuery = (
+export type SidevmQuery<T = string> = (
   bytes: Bytes,
   certificateData: CertificateData
-) => Promise<string>;
+) => Promise<T>;
 
 type EncryptedData = {
   iv: string;
@@ -80,7 +82,7 @@ export interface CreateFnOptions {
 export interface CreateFnResult {
   api: ApiPromise;
   sidevmQuery: SidevmQuery;
-  instantiate: SidevmQuery;
+  instantiate: SidevmQuery<ContractInstantiateResult | InkQueryError>;
 }
 
 export interface ContractInfo {
@@ -103,32 +105,34 @@ export interface ClusterInfo {
 
 export const createPruntimeApi = (baseURL: string) => {
   // Create a http client prepared for protobuf
-  const http = axios.create({
-    baseURL,
-    headers: {
-      "Content-Type": "application/octet-stream",
-    },
-    responseType: "arraybuffer",
-  }).post;
-
   const pruntimeApi = pruntimeRpc.PhactoryAPI.create(
     async (method, requestData, callback) => {
       try {
-        const res = await http<ArrayBuffer>(
-          `/prpc/PhactoryAPI.${method.name}`,
-          new Uint8Array(requestData)
-        );
-        callback(null, new Uint8Array(res.data));
-      } catch (err: unknown) {
-        if (
-          err instanceof AxiosError &&
-          err.response?.data instanceof ArrayBuffer
-        ) {
-          const message = new Uint8Array(err.response.data);
-          callback(new Error(prpc.PrpcError.decode(message).message));
-        } else {
-          throw err;
-        }
+        const resp = await fetch(
+          `${baseURL}/prpc/PhactoryAPI.${method.name}`,
+          {
+            method: 'POST',
+            headers:{
+              "Content-Type": "application/octet-stream",
+            },
+            body: new Uint8Array(requestData),
+          }
+        )
+        const buffer = await (await resp.blob()).arrayBuffer()
+        callback(null, new Uint8Array(buffer));
+      } catch (err) {
+        // todo fixme
+        console.log('Error:', err)
+        // if (
+        //   err instanceof AxiosError &&
+        //   err.response?.data instanceof ArrayBuffer
+        // ) {
+        //   const message = new Uint8Array(err.response.data);
+        //   callback(new Error(prpc.PrpcError.decode(message).message));
+        // } else {
+        //   throw err;
+        // }
+        throw err;
       }
     }
   );
@@ -248,8 +252,8 @@ export async function create({
       certificateData
     );
 
-  const instantiate: SidevmQuery = async (payload, certificateData) =>
-    query(
+  const instantiate: SidevmQuery<ContractInstantiateResult | InkQueryError> = async (payload, certificateData) => {
+    const instantiateReturns = await query(
       api
         .createType("InkQuery", {
           head: {
@@ -263,6 +267,16 @@ export async function create({
         .toHex(),
       certificateData
     );
+    const response = api.createType<InkResponse>('InkResponse', instantiateReturns);
+    if (response.result.isErr) {
+      // @FIXME not yet check the branch
+      return api.createType<InkQueryError>('InkQueryError', response.result.asErr.toHex())
+    }
+    return api.createType<ContractInstantiateResult>(
+      'ContractInstantiateResult',
+      response.result.asOk.asInkMessageReturn.toHex()
+    );
+  };
 
   const command: CommandFn = ({ contractId, payload, deposit }) => {
     const encodedPayload = api
@@ -382,4 +396,8 @@ export async function create({
   });
 
   return { api, sidevmQuery, instantiate };
+}
+
+export async function ready() {
+  await waitReady();
 }

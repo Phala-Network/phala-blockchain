@@ -69,6 +69,16 @@ pub mod pallet {
     #[pallet::getter(fn system_contract)]
     pub(crate) type SystemContract<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
 
+    /// The next event chain sequence number
+    #[pallet::storage]
+    #[pallet::getter(fn next_event_block_number)]
+    pub(crate) type NextEventBlockNumber<T: Config> = StorageValue<_, u64, ValueQuery>;
+
+    /// The last emited event block hash
+    #[pallet::storage]
+    #[pallet::getter(fn last_event_block_hash)]
+    pub(crate) type LastEventBlockHash<T: Config> = StorageValue<_, T::Hash, ValueQuery>;
+
     #[pallet::pallet]
     #[pallet::without_storage_info]
     pub struct Pallet<T>(PhantomData<T>);
@@ -166,6 +176,18 @@ pub mod pallet {
 
         pub fn set_treasury_account(account: &T::AccountId) {
             <TreasuryAccount<T>>::put(account);
+        }
+
+        pub fn take_next_event_block_number() -> u64 {
+            <NextEventBlockNumber<T>>::mutate(|n| {
+                let next = *n;
+                *n += 1;
+                next
+            })
+        }
+
+        pub fn set_last_event_block_hash(hash: T::Hash) {
+            <LastEventBlockHash<T>>::put(hash);
         }
     }
 

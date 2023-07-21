@@ -21,6 +21,9 @@ use crate::{capi::OCallImpl, types::AccountId};
 
 use pink_capi::{types::ExecSideEffects, v1::ocall::OCallsRo};
 
+use super::SystemEvents;
+use crate::runtime::Pink as PalletPink;
+
 fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
     let topics = [pink_extension::PinkEvent::event_topic().into()];
     let event = super::RuntimeEvent::Contracts(pallet_contracts::Event::ContractEmitted {
@@ -30,18 +33,20 @@ fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
     super::System::deposit_event_indexed(&topics[..], event);
 }
 
-pub fn get_side_effects() -> ExecSideEffects {
+pub fn get_side_effects() -> (SystemEvents, ExecSideEffects) {
     let mut pink_events = Vec::default();
     let mut ink_events = Vec::default();
     let mut instantiated = Vec::default();
+    let mut system_events = vec![];
     for event in super::System::events() {
-        if let super::RuntimeEvent::Contracts(ink_event) = event.event {
+        let mut is_private_event = false;
+        if let super::RuntimeEvent::Contracts(ink_event) = &event.event {
             use pallet_contracts::Event as ContractEvent;
             match ink_event {
                 ContractEvent::Instantiated {
                     deployer,
                     contract: address,
-                } => instantiated.push((deployer, address)),
+                } => instantiated.push((deployer.clone(), address.clone())),
                 ContractEvent::ContractEmitted {
                     contract: address,
                     data,
@@ -51,25 +56,32 @@ pub fn get_side_effects() -> ExecSideEffects {
                     {
                         match pink_extension::PinkEvent::decode(&mut &data[..]) {
                             Ok(event) => {
-                                pink_events.push((address, event));
+                                pink_events.push((address.clone(), event.clone()));
+                                is_private_event = event.is_private();
                             }
                             Err(_) => {
                                 error!("Contract emitted an invalid pink event");
                             }
                         }
                     } else {
-                        ink_events.push((address, event.topics, data));
+                        ink_events.push((address.clone(), event.topics.clone(), data.clone()));
                     }
                 }
                 _ => (),
             }
         }
+        if !is_private_event {
+            system_events.push(event);
+        }
     }
-    ExecSideEffects::V1 {
-        pink_events,
-        ink_events,
-        instantiated,
-    }
+    (
+        system_events,
+        ExecSideEffects::V1 {
+            pink_events,
+            ink_events,
+            instantiated,
+        },
+    )
 }
 
 /// Contract extension for `pink contracts`
@@ -136,7 +148,7 @@ impl PinkRuntimeEnv for CallInQuery {
 impl CallInQuery {
     fn ensure_system(&self) -> Result<(), DispatchError> {
         let contract: AccountId32 = self.address.convert_to();
-        if Some(contract) != crate::runtime::Pink::system_contract() {
+        if Some(contract) != PalletPink::system_contract() {
             return Err(DispatchError::BadOrigin);
         }
         Ok(())
@@ -153,6 +165,14 @@ impl PinkExtBackend for CallInQuery {
         OCallImpl
             .http_request(self.address.clone(), request)
             .map_err(|err| DispatchError::Other(err.display()))
+    }
+
+    fn batch_http_request(
+        &self,
+        requests: Vec<ext::HttpRequest>,
+        timeout_ms: u64,
+    ) -> Result<ext::BatchHttpResult, Self::Error> {
+        Ok(OCallImpl.batch_http_request(self.address.clone(), requests, timeout_ms))
     }
 
     fn sign(
@@ -175,8 +195,7 @@ impl PinkExtBackend for CallInQuery {
     }
 
     fn derive_sr25519_key(&self, salt: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
-        let privkey =
-            crate::runtime::Pink::key().ok_or(DispatchError::Other("Key seed missing"))?;
+        let privkey = PalletPink::key().ok_or(DispatchError::Other("Key seed missing"))?;
         let privkey = sp_core::sr25519::Pair::restore_from_secret_key(&privkey);
         let contract_address: &[u8] = self.address.as_ref();
         let derived_pair = privkey
@@ -243,7 +262,7 @@ impl PinkExtBackend for CallInQuery {
     }
 
     fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
-        crate::runtime::Pink::system_contract()
+        PalletPink::system_contract()
             .map(|address| address.convert_to())
             .ok_or(DispatchError::Other("No system contract installed"))
     }
@@ -269,7 +288,7 @@ impl PinkExtBackend for CallInQuery {
 
     fn code_exists(&self, code_hash: Hash, sidevm: bool) -> Result<bool, Self::Error> {
         if sidevm {
-            Ok(crate::runtime::Pink::sidevm_code_exists(&code_hash.into()))
+            Ok(PalletPink::sidevm_code_exists(&code_hash.into()))
         } else {
             Ok(crate::storage::external_backend::code_exists(
                 &code_hash.into(),
@@ -292,7 +311,7 @@ impl PinkExtBackend for CallInQuery {
                 payer.convert_to(),
                 system_code,
                 None,
-                pallet_contracts::Determinism::Deterministic,
+                pallet_contracts::Determinism::Enforced,
             )?;
         };
         Ok(Some(code_hash))
@@ -300,6 +319,13 @@ impl PinkExtBackend for CallInQuery {
 
     fn runtime_version(&self) -> Result<(u32, u32), Self::Error> {
         Ok(crate::version())
+    }
+
+    fn current_event_chain_head(&self) -> Result<(u64, Hash), Self::Error> {
+        Ok((
+            PalletPink::next_event_block_number(),
+            PalletPink::last_event_block_hash().into(),
+        ))
     }
 }
 
@@ -320,6 +346,13 @@ impl PinkExtBackend for CallInCommand {
             headers: vec![],
             body: vec![],
         })
+    }
+    fn batch_http_request(
+        &self,
+        _requests: Vec<ext::HttpRequest>,
+        _timeout_ms: u64,
+    ) -> Result<ext::BatchHttpResult, Self::Error> {
+        Ok(Err(ext::HttpRequestError::NotAllowed))
     }
     fn sign(
         &self,
@@ -453,5 +486,9 @@ impl PinkExtBackend for CallInCommand {
 
     fn runtime_version(&self) -> Result<(u32, u32), Self::Error> {
         self.as_in_query.runtime_version()
+    }
+
+    fn current_event_chain_head(&self) -> Result<(u64, Hash), Self::Error> {
+        self.as_in_query.current_event_chain_head()
     }
 }

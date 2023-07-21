@@ -20,6 +20,7 @@ fn tx_args() -> TransactionArguments {
         gas_limit: Weight::MAX,
         gas_free: true,
         storage_deposit_limit: None,
+        deposit: 0,
     }
 }
 
@@ -254,14 +255,17 @@ fn test_qjs() {
 mod test_cluster {
     use pink_capi::v1::{
         ecall::ECalls,
-        ocall::{ExecContext, HttpRequest, HttpRequestError, HttpResponse, OCalls, StorageChanges},
+        ocall::{
+            BatchHttpResult, ExecContext, HttpRequest, HttpRequestError, HttpResponse, OCalls,
+            StorageChanges,
+        },
         CrossCall, CrossCallMut, ECall,
     };
     use pink_runner::{
         local_cache::{self, StorageQuotaExceeded},
         runtimes::v1::{using_ocalls, Runtime},
         storage::ClusterStorage,
-        types::{AccountId, Balance, ExecSideEffects, ExecutionMode, Hash, TransactionArguments},
+        types::{AccountId, ExecSideEffects, ExecutionMode, Hash, TransactionArguments},
     };
     use scale::{Decode, Encode};
     use sp_runtime::DispatchError;
@@ -270,9 +274,8 @@ mod test_cluster {
 
     use super::ALICE;
 
-    pub type ContractExecResult = pallet_contracts_primitives::ContractExecResult<Balance>;
-    pub type ContractInstantiateResult =
-        pallet_contracts_primitives::ContractInstantiateResult<AccountId, Balance>;
+    pub type ContractExecResult = pink::ContractExecResult;
+    pub type ContractInstantiateResult = pink::ContractInstantiateResult;
 
     pub struct TestCluster {
         pub storage: ClusterStorage,
@@ -306,7 +309,7 @@ mod test_cluster {
             let runtime = Runtime::from_fn(
                 pink::capi::__pink_runtime_init,
                 std::ptr::null_mut(),
-                (1, 0),
+                pink::version(),
             );
             let mut me = Self {
                 storage,
@@ -479,6 +482,27 @@ mod test_cluster {
             request: HttpRequest,
         ) -> Result<HttpResponse, HttpRequestError> {
             pink_extension_runtime::http_request(request, 10 * 1000)
+        }
+
+        fn batch_http_request(
+            &self,
+            _: AccountId,
+            requests: Vec<HttpRequest>,
+            timeout_ms: u64,
+        ) -> BatchHttpResult {
+            pink_extension_runtime::batch_http_request(requests, timeout_ms)
+        }
+
+        fn emit_system_event_block(&self, number: u64, _encoded_block: Vec<u8>) {
+            log::info!("emit_system_event_block: number={}", number,);
+        }
+
+        fn contract_call_nonce(&self) -> Option<Vec<u8>> {
+            None
+        }
+
+        fn entry_contract(&self) -> Option<AccountId> {
+            None    
         }
     }
 

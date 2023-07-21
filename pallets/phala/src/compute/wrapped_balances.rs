@@ -9,6 +9,7 @@ pub mod pallet {
 	use crate::registry;
 	use crate::vault;
 	use crate::{BalanceOf, NegativeImbalanceOf, PhalaConfig};
+	use frame_support::traits::tokens::{Fortitude, Precision};
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
@@ -84,9 +85,13 @@ pub mod pallet {
 
 	/// Mapping for users to their asset status proxys
 	#[pallet::storage]
-	#[pallet::getter(fn staker_account)]
 	pub type StakerAccounts<T: Config> =
 		StorageMap<_, Twox64Concat, T::AccountId, FinanceAccount<BalanceOf<T>>>;
+
+	/// Collect the unmintable dust
+	// TODO: since this is the imbalance, consider to mint it in the future.
+	#[pallet::storage]
+	pub type UnmintableDust<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -187,7 +192,7 @@ pub mod pallet {
 		///
 		/// The wrapped pha is stored in `WrappedBalancesAccountId`'s wallet and can not be taken away
 		#[pallet::call_index(0)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn wrap(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
@@ -215,7 +220,7 @@ pub mod pallet {
 		///
 		/// The unwrapped pha is transfered from `WrappedBalancesAccountId` to the user's wallet
 		#[pallet::call_index(1)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn unwrap_all(origin: OriginFor<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
@@ -240,7 +245,7 @@ pub mod pallet {
 		///
 		/// The unwrapped pha is transfered from `WrappedBalancesAccountId` to the user's wallet
 		#[pallet::call_index(2)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn unwrap(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
@@ -274,7 +279,7 @@ pub mod pallet {
 		/// Can both approve and oppose a vote at the same time
 		/// The W-PHA used in vote will be locked until the vote is finished or canceled
 		#[pallet::call_index(3)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn vote(
 			origin: OriginFor<T>,
@@ -314,7 +319,7 @@ pub mod pallet {
 		///
 		/// Must assign the max iterations to avoid computing complexity overwhelm
 		#[pallet::call_index(4)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn unlock(
 			origin: OriginFor<T>,
@@ -344,7 +349,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(5)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn backfill_vote_lock(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -378,9 +383,14 @@ pub mod pallet {
 		pub fn remove_dust(who: &T::AccountId, dust: BalanceOf<T>) {
 			debug_assert!(dust != Zero::zero());
 			if dust != Zero::zero() {
-				let actual_removed =
-					pallet_assets::Pallet::<T>::slash(T::WPhaAssetId::get(), who, dust)
-						.expect("slash should success with correct amount: qed.");
+				let actual_removed = pallet_assets::Pallet::<T>::burn_from(
+					T::WPhaAssetId::get(),
+					who,
+					dust,
+					Precision::BestEffort,
+					Fortitude::Force,
+				)
+				.expect("slash should success with correct amount: qed.");
 				let (imbalance, _remaining) = <T as PhalaConfig>::Currency::slash(
 					&<computation::pallet::Pallet<T>>::account_id(),
 					dust,
@@ -393,15 +403,30 @@ pub mod pallet {
 			}
 		}
 
-		/// Mints some W-PHA
-		pub fn mint_into(target: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
-			pallet_assets::Pallet::<T>::mint_into(T::WPhaAssetId::get(), target, amount)?;
-			Ok(())
+		/// Mints some W-PHA. If the amount is below ED, it returns Ok(false) and adds the dust
+		/// to `UnmintableDust`.
+		pub fn mint_into(
+			target: &T::AccountId,
+			amount: BalanceOf<T>,
+		) -> Result<bool, DispatchError> {
+			let wpha = T::WPhaAssetId::get();
+			let result = pallet_assets::Pallet::<T>::mint_into(wpha, target, amount);
+			if result == Err(sp_runtime::TokenError::BelowMinimum.into()) {
+				UnmintableDust::<T>::mutate(|value| *value += amount);
+				return Ok(false);
+			}
+			result.and(Ok(true))
 		}
 
 		/// Burns some W-PHA
 		pub fn burn_from(target: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
-			pallet_assets::Pallet::<T>::burn_from(T::WPhaAssetId::get(), target, amount)?;
+			pallet_assets::Pallet::<T>::burn_from(
+				T::WPhaAssetId::get(),
+				target,
+				amount,
+				Precision::BestEffort,
+				Fortitude::Force,
+			)?;
 			Ok(())
 		}
 
@@ -491,6 +516,18 @@ pub mod pallet {
 		fn is_ongoing(vote_id: ReferendumIndex) -> bool {
 			let vote_info = pallet_democracy::Pallet::<T>::referendum_info(vote_id);
 			matches!(vote_info, Some(ReferendumInfo::Ongoing(_)))
+		}
+
+		/// Returns the minimum balance of WPHA
+		pub fn min_balance() -> BalanceOf<T> {
+			if !<pallet_assets::pallet::Pallet<T> as Inspect<T::AccountId>>::asset_exists(
+				T::WPhaAssetId::get(),
+			) {
+				panic!("WPHA does not exist");
+			}
+			<pallet_assets::pallet::Pallet<T> as Inspect<T::AccountId>>::minimum_balance(
+				T::WPhaAssetId::get(),
+			)
 		}
 	}
 }

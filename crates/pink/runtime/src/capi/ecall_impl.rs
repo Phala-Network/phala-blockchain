@@ -14,7 +14,10 @@ use scale::Encode;
 
 use crate::{
     contract::check_instantiate_result,
-    runtime::{Balances as PalletBalances, Contracts as PalletContracts, Pink as PalletPink},
+    runtime::{
+        on_genesis, on_runtime_upgrade, Balances as PalletBalances, Contracts as PalletContracts,
+        Pink as PalletPink,
+    },
 };
 
 use super::OCallImpl;
@@ -57,6 +60,7 @@ impl ecall::ECalls for ECallImpl {
         PalletPink::cluster_id()
     }
     fn setup(&mut self, config: ClusterSetupConfig) -> Result<(), String> {
+        on_genesis();
         let ClusterSetupConfig {
             cluster_id,
             owner,
@@ -85,6 +89,7 @@ impl ecall::ECalls for ECallImpl {
             gas_limit: Weight::MAX,
             gas_free: true,
             storage_deposit_limit: None,
+            deposit: 0,
         };
         let result = crate::contract::instantiate(
             code_hash,
@@ -134,8 +139,8 @@ impl ecall::ECalls for ECallImpl {
              = 78MB
         If we allow 8 concurrent calls, the total memory cost would be 78MB * 8 = 624MB.
         */
-        let info = phala_wasm_checker::wasm_info(&code)
-            .map_err(|err| format!("Invalid wasm: {err:?}"))?;
+        let info =
+            phala_wasm_checker::wasm_info(&code).map_err(|err| format!("Invalid wasm: {err:?}"))?;
         let max_wasmi_cost = crate::runtime::MaxCodeLen::get() as usize * 4;
         if info.estimate_wasmi_memory_cost() > max_wasmi_cost {
             return Err("DecompressedCodeTooLarge".into());
@@ -145,9 +150,9 @@ impl ecall::ECalls for ECallImpl {
             code,
             None,
             if deterministic {
-                Determinism::Deterministic
+                Determinism::Enforced
             } else {
-                Determinism::AllowIndeterminism
+                Determinism::Relaxed
             },
         )
         .map(|v| v.code_hash)
@@ -159,7 +164,7 @@ impl ecall::ECalls for ECallImpl {
     }
 
     fn get_sidevm_code(&self, hash: Hash) -> Option<Vec<u8>> {
-        PalletPink::sidevm_codes(&hash).map(|v| v.code)
+        PalletPink::sidevm_codes(hash).map(|v| v.code)
     }
 
     fn system_contract(&self) -> Option<AccountId> {
@@ -167,7 +172,7 @@ impl ecall::ECalls for ECallImpl {
     }
 
     fn free_balance(&self, account: AccountId) -> Balance {
-        PalletBalances::free_balance(&account)
+        PalletBalances::free_balance(account)
     }
 
     fn total_balance(&self, account: AccountId) -> Balance {
@@ -187,6 +192,7 @@ impl ecall::ECalls for ECallImpl {
         tx_args: TransactionArguments,
     ) -> Vec<u8> {
         let tx_args = sanitize_args(tx_args, mode);
+        handle_deposit(&tx_args);
         let address = PalletPink::contract_address(&tx_args.origin, &code_hash, &input_data, &salt);
         let result = crate::contract::instantiate(code_hash, input_data, salt, mode, tx_args);
         if !result.debug_message.is_empty() {
@@ -235,6 +241,7 @@ impl ecall::ECalls for ECallImpl {
         tx_args: TransactionArguments,
     ) -> Vec<u8> {
         let tx_args = sanitize_args(tx_args, mode);
+        handle_deposit(&tx_args);
         let result = crate::contract::bare_call(address.clone(), input_data, mode, tx_args);
         if !result.debug_message.is_empty() {
             let message = String::from_utf8_lossy(&result.debug_message).into_owned();
@@ -270,6 +277,14 @@ impl ecall::ECalls for ECallImpl {
     fn git_revision(&self) -> String {
         phala_git_revision::git_revision().to_string()
     }
+
+    fn on_genesis(&mut self) {
+        on_genesis();
+    }
+
+    fn on_runtime_upgrade(&mut self) {
+        on_runtime_upgrade();
+    }
 }
 
 /// Clip gas limit to 0.5 second for tx, 10 seconds for query
@@ -280,4 +295,10 @@ fn sanitize_args(mut args: TransactionArguments, mode: ExecutionMode) -> Transac
     };
     args.gas_limit = args.gas_limit.min(gas_limit);
     args
+}
+
+fn handle_deposit(args: &TransactionArguments) {
+    if args.deposit > 0 {
+        let _ = PalletBalances::deposit_creating(&args.origin, args.deposit);
+    }
 }

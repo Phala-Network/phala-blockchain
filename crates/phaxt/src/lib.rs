@@ -17,8 +17,8 @@ pub struct ParaId(pub u32);
 
 pub type StorageProof = Vec<Vec<u8>>;
 pub type StorageState = Vec<(Vec<u8>, Vec<u8>)>;
-pub type ExtrinsicParams = PolkadotExtrinsicParams<subxt::SubstrateConfig>;
-pub type ExtrinsicParamsBuilder = PolkadotExtrinsicParamsBuilder<subxt::SubstrateConfig>;
+pub type ExtrinsicParams = PolkadotExtrinsicParams<Config>;
+pub type ExtrinsicParamsBuilder = PolkadotExtrinsicParamsBuilder<Config>;
 pub use subxt::PolkadotConfig as Config;
 pub type RpcClient = subxt::OnlineClient<Config>;
 

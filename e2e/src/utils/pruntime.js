@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { pruntime_rpc } = require('../proto/pruntime_rpc');
+const { prpc } = require('../proto/prpc');
 
 // TODO: make it a library (copied from scripts/js/console.js)
 class PRuntimeApi {
@@ -15,7 +16,15 @@ class PRuntimeApi {
         this.rpc = new pruntime_rpc.PhactoryAPI((method, data, callback) => {
             client.post('/prpc/PhactoryAPI.' + method.name, data)
                 .then((r) => callback(null, r.data))
-                .catch((error) => callback(error))
+                .catch((error) => {
+                    const status = error.response.status;
+                    if (status == 500 || status == 400) {
+                        const pbError = prpc.PrpcError.decode(error.response.data);
+                        return callback(pbError);
+                    } else {
+                        return callback(error);
+                    }
+                })
         });
     }
 

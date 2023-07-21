@@ -87,7 +87,7 @@ class Process {
 }
 
 class TempDir {
-    constructor(prefix = 'phala-e2e-') {
+    constructor(prefix = `phala-e2e-${new Date().toISOString()}-`) {
         this.dir = fs.mkdtempSync(prefix);
     }
     cleanup() {

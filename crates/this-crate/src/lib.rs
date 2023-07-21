@@ -17,12 +17,11 @@
 //! # no_std
 //! This crate is `no_std` compatible, so it can be used in environments without
 //! the Rust standard library.
-//! 
+//!
 #![no_std]
 
 /// A tuple representing the version of the crate as (major, minor, patch).
 pub type VersionTuple = (u16, u16, u16);
-
 
 /// `version_str!` is a macro that returns the version string of the crate.
 ///

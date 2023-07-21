@@ -50,7 +50,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         req_id: u64,
         input: blocks::DispatchBlockReq,
     ) -> Result<Value, Value> {
-        let resp = self.dispatch_blocks(req_id, input.blocks).map_err(display)?;
+        let resp = self
+            .dispatch_blocks(req_id, input.blocks)
+            .map_err(display)?;
         Ok(json!({ "dispatched_to": resp.synced_to }))
     }
 

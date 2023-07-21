@@ -70,11 +70,13 @@ parameter_types! {
 	pub const MinWorkingStaking: Balance = DOLLARS;
 	pub const MinContribution: Balance = CENTS;
 	pub const WorkingGracePeriod: u64 = 7 * 24 * 3600;
+	pub const VaultQueuePeriod: u64 = 21 * 24 * 3600;
 	pub const MinInitP: u32 = 1;
 	pub const MaxPoolWorkers: u32 = 10;
 	pub const NoneAttestationEnabled: bool = true;
 	pub const VerifyPRuntime: bool = false;
 	pub const VerifyRelaychainGenesisBlockHash: bool = true;
+	pub const CheckWorkerRegisterTime: bool = true;
 }
 impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
@@ -126,6 +128,10 @@ impl pallet_balances::Config for Test {
 	type MaxLocks = ();
 	type MaxReserves = ();
 	type ReserveIdentifier = [u8; 8];
+	type HoldIdentifier = ();
+	type FreezeIdentifier = ();
+	type MaxHolds = ConstU32<1>;
+	type MaxFreezes = ConstU32<1>;
 }
 
 impl pallet_timestamp::Config for Test {
@@ -252,6 +258,7 @@ impl computation::Config for Test {
 	type UpdateTokenomicOrigin = EnsureRoot<Self::AccountId>;
 	type SetBudgetOrigins = EnsureSignedBy<SetBudgetMembers, Self::AccountId>;
 	type SetContractRootOrigins = EnsureRoot<Self::AccountId>;
+	type CheckWorkerRegisterTime = CheckWorkerRegisterTime;
 }
 
 parameter_types! {
@@ -391,12 +398,12 @@ parameter_types! {
 impl vault::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type InitialPriceCheckPoint = InitialPriceCheckPoint;
+	type VaultQueuePeriod = VaultQueuePeriod;
 }
 
 impl base_pool::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type MigrationAccountId = ConstU64<1234>;
-	type WPhaMinBalance = WPhaMinBalance;
 }
 
 impl stake_pool::Config for Test {
@@ -467,14 +474,12 @@ pub fn take_events() -> Vec<RuntimeEvent> {
 		.into_iter()
 		.map(|evt| evt.event)
 		.collect::<Vec<_>>();
-	println!("event(): {evt:?}");
 	System::reset_events();
 	evt
 }
 
 pub fn take_messages() -> Vec<Message> {
 	let messages = PhalaMq::messages();
-	println!("messages(): {messages:?}");
 	mq::OutboundMessages::<Test>::kill();
 	messages
 }

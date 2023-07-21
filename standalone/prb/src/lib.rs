@@ -1,5 +1,5 @@
-#![feature(async_closure)]
-#![feature(addr_parse_ascii)]
+// #![feature(async_closure)]
+// #![feature(addr_parse_ascii)]
 
 pub mod api;
 pub mod cli;

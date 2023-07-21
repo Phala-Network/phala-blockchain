@@ -15,6 +15,7 @@ scale = { package = "parity-scale-codec", version = "3", default-features = fals
 scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
 
 pink-extension = { version = "0.4", default-features = false, path = "../../../crates/pink/pink-extension" }
+phat_js = { version = "0.1.1", default-features = false }
 
 [dependencies.indeterministic_functions]
 version = "0.1"
@@ -28,16 +29,13 @@ sp-core = "7"
 [lib]
 name = "check_system"
 path = "lib.rs"
-crate-type = [
-	# Used for normal contract Wasm blobs.
-	"cdylib",
-]
 
 [features]
 default = ["std"]
 std = [
     "ink/std",
     "scale/std",
+    "phat_js/std",
     "scale-info/std",
     "pink-extension/std",
     "indeterministic_functions/std",

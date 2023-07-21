@@ -85,5 +85,8 @@ pruntime/app/src/protos/*.rs
 pruntime/enclave/src/protos/*.rs
 pruntime/protos/tmp
 pruntime/tmp
+e2e
+*.Dockerfile
+.dockerignore
 
 prb-wm-data

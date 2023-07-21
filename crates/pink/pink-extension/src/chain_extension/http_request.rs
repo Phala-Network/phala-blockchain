@@ -1,5 +1,8 @@
 use alloc::string::String;
 use alloc::vec::Vec;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+
+use super::ErrorCode;
 #[derive(scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct HttpRequest {
@@ -7,6 +10,23 @@ pub struct HttpRequest {
     pub method: String,
     pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
+}
+
+impl HttpRequest {
+    /// Create a new http request.
+    pub fn new(
+        url: impl Into<String>,
+        method: impl Into<String>,
+        headers: Vec<(String, String)>,
+        body: Vec<u8>,
+    ) -> Self {
+        Self {
+            url: url.into(),
+            method: method.into(),
+            headers,
+            body,
+        }
+    }
 }
 
 #[derive(scale::Encode, scale::Decode)]
@@ -18,8 +38,9 @@ pub struct HttpResponse {
     pub body: Vec<u8>,
 }
 
-#[derive(scale::Encode, scale::Decode)]
+#[derive(scale::Encode, scale::Decode, TryFromPrimitive, IntoPrimitive, Clone, Copy, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[repr(u32)]
 pub enum HttpRequestError {
     InvalidUrl,
     InvalidMethod,
@@ -27,6 +48,40 @@ pub enum HttpRequestError {
     InvalidHeaderValue,
     FailedToCreateClient,
     Timeout,
+    NotAllowed,
+    TooManyRequests,
+    NetworkError,
+    ResponseTooLarge,
+}
+
+impl super::sealed::Sealed for HttpRequestError {}
+impl super::CodableError for HttpRequestError {
+    fn encode(&self) -> u32 {
+        let code: u32 = (*self).into();
+        code + 1
+    }
+
+    fn decode(code: u32) -> Option<Self> {
+        if code == 0 {
+            return None;
+        }
+        core::convert::TryFrom::try_from(code - 1).ok()
+    }
+}
+
+impl From<ErrorCode> for HttpRequestError {
+    fn from(value: ErrorCode) -> Self {
+        match <Self as super::CodableError>::decode(value.0) {
+            None => crate::panic!("chain extension: invalid HttpRequestError"),
+            Some(err) => err,
+        }
+    }
+}
+
+impl From<scale::Error> for HttpRequestError {
+    fn from(_value: scale::Error) -> Self {
+        crate::panic!("chain_ext: failed to decocde HttpRequestError")
+    }
 }
 
 impl HttpRequestError {
@@ -38,6 +93,10 @@ impl HttpRequestError {
             Self::InvalidHeaderValue => "Invalid header value",
             Self::FailedToCreateClient => "Failed to create client",
             Self::Timeout => "Timeout",
+            Self::NotAllowed => "Not allowed",
+            Self::TooManyRequests => "Too many requests",
+            Self::NetworkError => "Network error",
+            Self::ResponseTooLarge => "Response too large",
         }
     }
 }
@@ -84,8 +143,8 @@ macro_rules! http_req {
 /// Make a simple HTTP GET request
 ///
 /// # Arguments
-/// url: The URL to GET
-/// headers: The headers to send with the request
+/// - url: The URL to GET
+/// - headers: The headers to send with the request
 ///
 /// # Examples
 ///
@@ -114,9 +173,9 @@ macro_rules! http_get {
 /// Make a simple HTTP POST request
 ///
 /// # Arguments
-/// url: The URL to POST
-/// data: The payload to POST
-/// headers: The headers to send with the request
+/// - url: The URL to POST
+/// - data: The payload to POST
+/// - headers: The headers to send with the request
 ///
 /// # Examples
 ///
@@ -145,9 +204,9 @@ macro_rules! http_post {
 /// Make a simple HTTP PUT request
 ///
 /// # Arguments
-/// url: The destination URL
-/// data: The payload to PUT
-/// headers: The headers to send with the request
+/// - url: The destination URL
+/// - data: The payload to PUT
+/// - headers: The headers to send with the request
 ///
 /// # Examples
 ///

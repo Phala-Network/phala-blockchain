@@ -112,6 +112,13 @@ pub struct GetStorageResponse<'a> {
     pub(crate) id: u32,
 }
 
+#[derive(Deserialize, Encode, Clone, Debug, PartialEq)]
+pub struct QueryContractResponse<'a> {
+    pub(crate) jsonrpc: &'a str,
+    pub(crate) result: Option<&'a str>,
+    pub(crate) id: u32,
+}
+
 /// Wraps an already encoded byte vector, prevents being encoded as a raw byte vector as part of
 /// the transaction payload
 #[derive(Clone, Debug, Eq, PartialEq)]

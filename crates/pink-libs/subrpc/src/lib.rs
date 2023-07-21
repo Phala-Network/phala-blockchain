@@ -8,11 +8,21 @@ extern crate alloc;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use pink_extension::chain_extension::{signing, SigType};
 
 use pink_json as json;
+use primitive_types::H256;
 use scale::{Compact, Decode, Encode};
 
+use contracts::objects::ContractQueryResult;
+use objects::*;
+use pink_extension::chain_extension::{signing, SigType};
+pub use primitives::era::Era;
+use rpc::call_rpc;
+pub use ss58::{get_ss58addr_version, Ss58Codec};
+use traits::common::Error;
+use transaction::{MultiAddress, MultiSignature, Signature, UnsignedExtrinsic};
+
+pub mod contracts;
 pub mod hasher;
 mod objects;
 mod primitives;
@@ -20,12 +30,6 @@ mod rpc;
 mod ss58;
 pub mod storage;
 mod transaction;
-
-use objects::*;
-pub use primitives::era::Era;
-use rpc::call_rpc;
-pub use ss58::{get_ss58addr_version, Ss58Codec};
-use transaction::{MultiAddress, MultiSignature, Signature, UnsignedExtrinsic};
 
 pub mod traits {
     pub mod common {
@@ -39,12 +43,12 @@ pub mod traits {
             InvalidSignature,
             Ss58,
             ParseFailed,
+            DecodeFailed,
+            ContractError,
         }
     }
 }
-use traits::common::Error;
 
-use primitive_types::H256;
 pub type Result<T> = core::result::Result<T, Error>;
 
 /// Gets the storage from the give RPC node
@@ -244,7 +248,7 @@ pub fn create_transaction_ext<T: Encode>(
         Signature::try_from(signature.as_slice()).or(Err(Error::InvalidSignature))?;
     let multi_signature = MultiSignature::Sr25519(signature_type);
 
-    let src_account_id: MultiAddress<[u8; 32], u32> = transaction::MultiAddress::Id(*public_key);
+    let src_account_id: MultiAddress<[u8; 32], u32> = MultiAddress::Id(*public_key);
 
     // Encode Extrinsic
     let extrinsic = {
@@ -337,6 +341,33 @@ pub fn send_transaction(rpc_node: &str, signed_tx: &[u8]) -> core::result::Resul
     hex::decode(&resp.result[2..]).or(Err(Error::InvalidBody))
 }
 
+/// Query a wasm smart contract
+pub fn query_contract<E: scale::Decode, B: scale::Decode>(
+    rpc_node: &str,
+    query: &[u8],
+    at: Option<H256>,
+) -> Result<ContractQueryResult<E, B>> {
+    let query_hex = format!("0x{}", hex::encode(query));
+    let maybe_hex_at = at.map_or("null".to_string(), |h| format!("\"0x{h:x}\""));
+
+    let query = format!(
+        r#"{{"id":1,"jsonrpc":"2.0","method":"state_call","params":["ContractsApi_call", "{query_hex}", {maybe_hex_at}]}}"#
+    );
+
+    let resp_body = call_rpc(rpc_node, query.into_bytes())?;
+    let resp: QueryContractResponse = json::from_slice(&resp_body).or(Err(Error::InvalidBody))?;
+
+    let result = match resp.result {
+        Some(h) => hex::decode(&h[2..]).or(Err(Error::InvalidBody))?,
+        None => return Err(Error::InvalidBody),
+    };
+
+    let contract_query_result = <ContractQueryResult<E, B>>::decode(&mut result.as_slice())
+        .map_err(|_| Error::DecodeFailed)?;
+
+    Ok(contract_query_result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -417,7 +448,7 @@ mod tests {
         let public_key: [u8; 32] = signing::get_public_key(&signer, SigType::Sr25519)
             .try_into()
             .unwrap();
-        let account_id: MultiAddress<[u8; 32], u32> = transaction::MultiAddress::Id(public_key);
+        let account_id: MultiAddress<[u8; 32], u32> = MultiAddress::Id(public_key);
         {
             let mut bytes = Vec::new();
             account_id.encode_to(&mut bytes);
@@ -465,7 +496,7 @@ mod tests {
     #[ignore = "this is very expensive so we don't test it often"]
     fn can_call_xtransfer() {
         pink_extension_runtime::mock_ext::mock_all_ext();
-        use xcm::v2::{AssetId, Fungibility, Junction, Junctions, MultiLocation, MultiAsset};
+        use xcm::v2::{AssetId, Fungibility, Junction, Junctions, MultiAsset, MultiLocation};
 
         let rpc_node = "https://rhala-api.phala.network/api";
         let signer: [u8; 32] =
@@ -487,9 +518,9 @@ mod tests {
             ),
         );
 
-        let dest_weight: std::option::Option<u64> = None;
+        let dest_weight: Option<u64> = None;
 
-        let call_data = transaction::UnsignedExtrinsic {
+        let call_data = UnsignedExtrinsic {
             pallet_id: 0x52u8,
             call_id: 0x0u8,
             call: (multi_asset.clone(), dest.clone(), dest_weight),

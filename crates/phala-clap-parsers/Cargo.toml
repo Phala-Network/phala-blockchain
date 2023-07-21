@@ -1,0 +1,10 @@
+[package]
+name = "phala-clap-parsers"
+version = "0.1.0"
+edition = "2021"
+description = "Some custom value parsers for clap"
+license = "MIT"
+repository = "https://github.com/Phala-Network/phala-blockchain"
+authors = ["Kevin Wang <wy721@qq.com>"]
+
+[dependencies]

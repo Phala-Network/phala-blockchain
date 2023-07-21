@@ -818,7 +818,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 &self.identity_key,
                 &self.platform,
             );
-            crate::maybe_remove_checkpoints(&self.sealing_path);
+            crate::maybe_remove_checkpoints(&self.storage_path);
             panic!("Received master key, please restart pRuntime and pherry to sync as Gatekeeper");
         }
 
@@ -1293,16 +1293,17 @@ impl<Platform: pal::Platform> System<Platform> {
                             gas_limit,
                             gas_free: false,
                             storage_deposit_limit,
+                            deposit: 0,
                         };
-                        let mut runtime = cluster.runtime_mut(log_handler.clone());
-                        let _result = runtime.instantiate(
+                        let (_result, effects) = cluster.instantiate(
+                            log_handler.clone(),
                             code_hash,
                             contract_info.instantiate_data,
                             contract_info.salt,
                             ExecutionMode::Transaction,
                             tx_args,
                         );
-                        if let Some(effects) = runtime.effects.take() {
+                        if let Some(effects) = effects {
                             apply_pink_side_effects(
                                 effects,
                                 &mut self.contracts,
@@ -1674,7 +1675,7 @@ pub fn handle_contract_command_result(
 ) {
     let effects = match result {
         Err(err) => {
-            error!("Run contract command failed: {:?}", err);
+            error!("Run contract tx call failed: {:?}", err);
             return;
         }
         Ok(Some(effects)) => effects,
@@ -1865,14 +1866,18 @@ pub(crate) fn apply_pink_events(
             PinkEvent::UpgradeRuntimeTo { version } => {
                 ensure_system!();
                 info!("Try to upgrade runtime to {version:?}");
-                if version == cluster.config.runtime_version {
+                if version <= cluster.config.runtime_version {
                     info!("Runtime version is already {version:?}");
                     continue;
                 }
-                panic!(
-                    "The runtime version {:?} is not supported by this pruntime yet, please upgrade pruntime",
-                    version
-                );
+                if cluster.config.runtime_version == (1, 0) {
+                    // The 1.0 runtime didn't call on_genesis on cluster setup, so we need to call it
+                    // manually to make sure the storage_versions are correct before migration.
+                    cluster.default_runtime_mut().on_genesis();
+                }
+                cluster.config.runtime_version = version;
+                cluster.default_runtime_mut().on_runtime_upgrade();
+                info!("Runtime upgraded to {version:?}");
             }
         }
     }

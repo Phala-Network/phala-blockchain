@@ -1,14 +1,14 @@
 [package]
 edition = "2021"
 name = "pruntime"
-version = "2.0.1"
+version = "2.1.0"
 
 [profile.release]
 panic = "abort"
 
 [dependencies]
 anyhow = "1.0.69"
-clap = { version = "4.0.19", features = ["derive"] }
+clap = { version = "4.0.32", features = ["derive"] }
 reqwest = { version = "0.11", default-features = false, features = [
     "rustls-tls",
     "socks",
@@ -38,6 +38,7 @@ phala-allocator = { path = "../../crates/phala-allocator" }
 phala-rocket-middleware = { path = "../../crates/phala-rocket-middleware" }
 phala-types = { path = "../../crates/phala-types", features = ["enable_serde", "sgx"] }
 phala-git-revision = { path = "../../crates/phala-git-revision" }
+phala-clap-parsers = { path = "../../crates/phala-clap-parsers" }
 sgx-api-lite = { path = "../../crates/sgx-api-lite" }
 tracing = "0.1"
 hex_fmt = "0.3.0"
@@ -47,5 +48,5 @@ hex_fmt = "0.3.0"
 derive_more = { version = "0.99.17", git = "https://github.com/JelteF/derive_more" }
 
 # For pink-extension-runtime, it will introduce Substrate from crates-io which usually different with polkadot-branch
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41" }
-sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
+sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }

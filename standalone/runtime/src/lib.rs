@@ -106,9 +106,9 @@ use sp_runtime::generic::Era;
 mod voter_bags;
 
 pub use phala_pallets::{
-    pallet_base_pool, pallet_computation, pallet_phat, pallet_phat_tokenomic, pallet_mq,
-    pallet_registry, pallet_stake_pool, pallet_stake_pool_v2, pallet_vault, pallet_wrapped_balances,
-    puppets,
+    pallet_base_pool, pallet_computation, pallet_mq, pallet_phat, pallet_phat_tokenomic,
+    pallet_registry, pallet_stake_pool, pallet_stake_pool_v2, pallet_vault,
+    pallet_wrapped_balances, puppets,
 };
 use phat_offchain_rollup::{anchor as pallet_anchor, oracle as pallet_oracle};
 
@@ -216,6 +216,7 @@ parameter_types! {
         .avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
         .build_or_panic();
     pub const SS58Prefix: u16 = 30;
+    pub MaxCollectivesProposalWeight: Weight = Perbill::from_percent(50) * RuntimeBlockWeights::get().max_block;
 }
 
 const_assert!(NORMAL_DISPATCH_RATIO.deconstruct() >= AVERAGE_ON_INITIALIZE_RATIO.deconstruct());
@@ -334,7 +335,8 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
                     | RuntimeCall::Elections(..)
                     | RuntimeCall::Treasury(..)
             ),
-            ProxyType::Staking => matches!(c, RuntimeCall::Staking(..)),
+            ProxyType::Staking =>
+                matches!(c, RuntimeCall::Staking(..) | RuntimeCall::FastUnstake(..)),
             ProxyType::StakePoolManager => matches!(
                 c,
                 RuntimeCall::Utility { .. }
@@ -474,6 +476,10 @@ impl pallet_balances::Config for Runtime {
     type ExistentialDeposit = ExistentialDeposit;
     type AccountStore = frame_system::Pallet<Runtime>;
     type WeightInfo = pallet_balances::weights::SubstrateWeight<Runtime>;
+    type FreezeIdentifier = ();
+    type MaxFreezes = ();
+    type HoldIdentifier = ();
+    type MaxHolds = ();
 }
 
 parameter_types! {
@@ -902,6 +908,7 @@ impl pallet_collective::Config<CouncilCollective> for Runtime {
     type DefaultVote = pallet_collective::PrimeDefaultVote;
     type WeightInfo = pallet_collective::weights::SubstrateWeight<Runtime>;
     type SetMembersOrigin = EnsureRoot<Self::AccountId>;
+    type MaxProposalWeight = MaxCollectivesProposalWeight;
 }
 
 parameter_types! {
@@ -962,6 +969,7 @@ impl pallet_collective::Config<TechnicalCollective> for Runtime {
     type DefaultVote = pallet_collective::PrimeDefaultVote;
     type WeightInfo = pallet_collective::weights::SubstrateWeight<Runtime>;
     type SetMembersOrigin = EnsureRoot<Self::AccountId>;
+    type MaxProposalWeight = MaxCollectivesProposalWeight;
 }
 
 type EnsureRootOrHalfCouncil = EitherOfDiverse<
@@ -1023,7 +1031,8 @@ impl pallet_treasury::Config for Runtime {
             EnsureRoot<AccountId>,
             pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
         >,
-        AccountId, MaxBalance,
+        AccountId,
+        MaxBalance,
     >;
 }
 
@@ -1078,6 +1087,7 @@ impl pallet_tips::Config for Runtime {
 impl pallet_sudo::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
+    type WeightInfo = pallet_sudo::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {
@@ -1303,12 +1313,14 @@ parameter_types! {
     pub const MinWorkingStaking: Balance = 1 * DOLLARS;
     pub const MinContribution: Balance = 1 * CENTS;
     pub const WorkingGracePeriod: u64 = 7 * 24 * 3600;
+    pub const VaultQueuePeriod: u64 = 21 * 24 * 3600;
     pub const MinInitP: u32 = 50;
     pub const MaxPoolWorkers: u32 = 200;
     pub const NoneAttestationEnabled: bool = true;
     pub const VerifyPRuntime: bool = false;
     pub const VerifyRelaychainGenesisBlockHash: bool = false;
     pub ParachainId: u32 = ParachainInfo::parachain_id().0;
+    pub const CheckWorkerRegisterTime: bool = true;
 }
 
 impl pallet_registry::Config for Runtime {
@@ -1347,6 +1359,7 @@ impl pallet_computation::Config for Runtime {
     type UpdateTokenomicOrigin = EnsureRootOrHalfCouncil;
     type SetBudgetOrigins = EnsureSignedBy<SetBudgetMembers, AccountId>;
     type SetContractRootOrigins = EnsureRootOrHalfCouncil;
+    type CheckWorkerRegisterTime = CheckWorkerRegisterTime;
 }
 impl pallet_stake_pool_v2::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
@@ -1366,6 +1379,7 @@ parameter_types! {
 impl pallet_vault::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type InitialPriceCheckPoint = InitialPriceCheckPoint;
+    type VaultQueuePeriod = VaultQueuePeriod;
 }
 parameter_types! {
     pub const CollectionDeposit: Balance = 0; // 1 UNIT deposit to create collection
@@ -1404,7 +1418,6 @@ parameter_types! {
     pub const PropertiesLimit: u32 = 15;
     pub const CollectionSymbolLimit: u32 = 100;
     pub const MaxResourcesOnMint: u32 = 100;
-    pub const WPhaMinBalance: Balance = CENTS;
 }
 impl pallet_rmrk_core::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
@@ -1458,7 +1471,6 @@ impl Get<AccountId32> for MigrationAccount {
 impl pallet_base_pool::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type MigrationAccountId = MigrationAccount;
-    type WPhaMinBalance = WPhaMinBalance;
 }
 
 parameter_types! {
@@ -1665,6 +1677,14 @@ impl_runtime_apis! {
     impl sp_api::Metadata<Block> for Runtime {
         fn metadata() -> OpaqueMetadata {
             OpaqueMetadata::new(Runtime::metadata().into())
+        }
+
+        fn metadata_at_version(version: u32) -> Option<OpaqueMetadata> {
+            Runtime::metadata_at_version(version)
+        }
+
+        fn metadata_versions() -> sp_std::vec::Vec<u32> {
+            Runtime::metadata_versions()
         }
     }
 

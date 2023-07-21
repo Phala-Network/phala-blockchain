@@ -44,7 +44,7 @@ async function deployDriverContract(api, txqueue, system, pair, cert, contract, 
             transfer: u128,
         },
      */
-    const instantiateReturn = await system.instantiate({
+    const instantiateResult = await system.instantiate({
         codeHash: contract.metadata.source.hash,
         salt,
         instantiateData: contract.constructor, // please concat with args if needed
@@ -52,11 +52,11 @@ async function deployDriverContract(api, txqueue, system, pair, cert, contract, 
         transfer: 0,
     }, cert);
 
-    console.log("instantiate result:", instantiateReturn);
-    const queryResponse = api.createType('InkResponse', instantiateReturn);
-    const queryResult = queryResponse.result.toHuman()
-    console.log("InkMessageReturn", queryResult.Ok.InkMessageReturn);
-    const instantiateResult = api.createType('ContractInstantiateResult', queryResult.Ok.InkMessageReturn);
+    // console.log("instantiate result:", instantiateReturn);
+    // const queryResponse = api.createType('InkResponse', instantiateReturn);
+    // const queryResult = queryResponse.result.toHuman()
+    // console.log("InkMessageReturn", queryResult.Ok.InkMessageReturn);
+    // const instantiateResult = api.createType('ContractInstantiateResult', queryResult.Ok.InkMessageReturn);
     console.assert(instantiateResult.result.isOk);
     console.log("gasRequired", instantiateResult.gasRequired);
 

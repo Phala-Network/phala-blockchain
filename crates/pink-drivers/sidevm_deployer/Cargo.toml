@@ -17,10 +17,6 @@ this-crate = { path = "../../this-crate" }
 [lib]
 name = "sidevm_deployer"
 path = "lib.rs"
-crate-type = [
-	# Used for normal contract Wasm blobs.
-	"cdylib",
-]
 
 [features]
 default = ["std"]

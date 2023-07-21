@@ -12,10 +12,13 @@ use phala_types::contract::messaging::ResourceType;
 use pink::{
     capi::v1::{
         ecall::{ECalls, ECallsRo},
-        ocall::{ExecContext, HttpRequest, HttpRequestError, HttpResponse, OCalls, StorageChanges},
+        ocall::{
+            BatchHttpResult, ExecContext, HttpRequest, HttpRequestError, HttpResponse, OCalls,
+            StorageChanges,
+        },
     },
     local_cache::{self, StorageQuotaExceeded},
-    runtimes::v1::using_ocalls,
+    runtimes::v1::{get_runtime, using_ocalls},
     types::ExecutionMode,
 };
 use serde::{Deserialize, Serialize};
@@ -27,6 +30,7 @@ use ::pink::{
     constants::WEIGHT_REF_TIME_PER_SECOND,
     types::{AccountId, Balance, ExecSideEffects, Hash, TransactionArguments},
 };
+use tracing::info;
 
 pub use phala_types::contract::InkCommand;
 
@@ -97,8 +101,9 @@ impl RuntimeHandleMut<'_> {
             logger: self.logger.clone(),
         }
     }
-    fn execute_mut<T>(&mut self, f: impl FnOnce() -> T) -> T {
-        using_ocalls(self, f)
+    fn execute_mut<T>(&mut self, f: impl FnOnce((u32, u32)) -> T) -> T {
+        let ver = self.readonly().runtime_version();
+        using_ocalls(self, || f(ver))
     }
 
     pub fn call(
@@ -116,8 +121,8 @@ impl RuntimeHandleMut<'_> {
     pub fn instantiate(
         &mut self,
         code_hash: Hash,
-        salt: Vec<u8>,
         instantiate_data: Vec<u8>,
+        salt: Vec<u8>,
         mode: ExecutionMode,
         tx_args: TransactionArguments,
     ) -> Vec<u8> {
@@ -129,7 +134,7 @@ impl RuntimeHandleMut<'_> {
         );
         let entry = AccountId::from(blake2_256(&buf));
         context::using_entry_contract(entry, move || {
-            self.contract_instantiate(code_hash, salt, instantiate_data, mode, tx_args)
+            self.contract_instantiate(code_hash, instantiate_data, salt, mode, tx_args)
         })
     }
 }
@@ -146,16 +151,12 @@ impl RuntimeHandle<'_> {
             logger: self.logger.clone(),
         }
     }
-    fn execute<T>(&self, f: impl FnOnce() -> T) -> T {
-        using_ocalls(&mut self.dup(), f)
+    fn execute<T>(&self, f: impl FnOnce((u32, u32)) -> T) -> T {
+        using_ocalls(&mut self.dup(), || f(self.runtime_version()))
     }
-    fn ensure_version(&self, version: (u32, u32)) {
-        if self.cluster.config.runtime_version != version {
-            panic!(
-                "Cross call {version:?} is not supported in runtime version {:?}",
-                self.cluster.config.runtime_version
-            );
-        }
+
+    fn runtime_version(&self) -> (u32, u32) {
+        self.cluster.config.runtime_version
     }
 }
 
@@ -271,6 +272,19 @@ pub(crate) mod context {
             entry_contract::using(&mut contract, f)
         }
     }
+
+    pub(super) use call_nonce::{get_call_nonce, using_call_nonce};
+    mod call_nonce {
+        environmental::environmental!(contract_call_nonce: Vec<u8>);
+
+        pub fn get_call_nonce() -> Option<Vec<u8>> {
+            contract_call_nonce::with(|a| a.clone())
+        }
+
+        pub fn using_call_nonce<T>(mut call_nonce: Vec<u8>, f: impl FnOnce() -> T) -> T {
+            contract_call_nonce::using(&mut call_nonce, f)
+        }
+    }
 }
 
 impl OCalls for RuntimeHandle<'_> {
@@ -375,6 +389,41 @@ impl OCalls for RuntimeHandle<'_> {
         }
         result
     }
+
+    fn batch_http_request(
+        &self,
+        contract: AccountId,
+        requests: Vec<HttpRequest>,
+        timeout_ms: u64,
+    ) -> BatchHttpResult {
+        let results = pink_extension_runtime::batch_http_request(
+            requests,
+            context::time_remaining().min(timeout_ms),
+        )?;
+        for result in &results {
+            match result {
+                Ok(r) => {
+                    http_counters::add(contract.clone(), r.status_code);
+                }
+                Err(_) => {
+                    http_counters::add(contract.clone(), 0);
+                }
+            }
+        }
+        Ok(results)
+    }
+
+    fn emit_system_event_block(&self, _number: u64, _encoded_block: Vec<u8>) {
+        error!("emit_system_event_block called on readonly calls");
+    }
+
+    fn contract_call_nonce(&self) -> Option<Vec<u8>> {
+        context::get_call_nonce()
+    }
+
+    fn entry_contract(&self) -> Option<AccountId> {
+        context::get_entry_contract()
+    }
 }
 
 impl OCalls for RuntimeHandleMut<'_> {
@@ -439,27 +488,46 @@ impl OCalls for RuntimeHandleMut<'_> {
     ) -> Result<HttpResponse, HttpRequestError> {
         self.readonly().http_request(contract, request)
     }
+
+    fn batch_http_request(
+        &self,
+        contract: AccountId,
+        requests: Vec<HttpRequest>,
+        timeout_ms: u64,
+    ) -> BatchHttpResult {
+        self.readonly()
+            .batch_http_request(contract, requests, timeout_ms)
+    }
+
+    fn emit_system_event_block(&self, number: u64, encoded_block: Vec<u8>) {
+        info!(target: "phactory::event_chain", number, payload=%hex_fmt::HexFmt(encoded_block));
+    }
+
+    fn contract_call_nonce(&self) -> Option<Vec<u8>> {
+        self.readonly().contract_call_nonce()
+    }
+
+    fn entry_contract(&self) -> Option<AccountId> {
+        self.readonly().entry_contract()
+    }
 }
 
 impl v1::CrossCall for RuntimeHandle<'_> {
     fn cross_call(&self, call_id: u32, data: &[u8]) -> Vec<u8> {
-        self.ensure_version((1, 0));
-        self.execute(move || ::pink::runtimes::v1::RUNTIME.ecall(call_id, data))
+        self.execute(move |version| get_runtime(version).ecall(call_id, data))
     }
 }
 
 impl v1::CrossCall for RuntimeHandleMut<'_> {
     fn cross_call(&self, call_id: u32, data: &[u8]) -> Vec<u8> {
-        self.readonly().ensure_version((1, 0));
         self.readonly()
-            .execute(move || ::pink::runtimes::v1::RUNTIME.ecall(call_id, data))
+            .execute(move |version| get_runtime(version).ecall(call_id, data))
     }
 }
 
 impl v1::CrossCallMut for RuntimeHandleMut<'_> {
     fn cross_call_mut(&mut self, call_id: u32, data: &[u8]) -> Vec<u8> {
-        self.readonly().ensure_version((1, 0));
-        self.execute_mut(move || ::pink::runtimes::v1::RUNTIME.ecall(call_id, data))
+        self.execute_mut(move |version| get_runtime(version).ecall(call_id, data))
     }
 }
 
@@ -611,15 +679,13 @@ impl Cluster {
                     context::using(&mut ctx, move || {
                         context::using_entry_contract(contract_id.clone(), || {
                             let mut runtime = self.runtime_mut(log_handler);
-                            if deposit > 0 {
-                                runtime.deposit(origin.clone(), deposit);
-                            }
                             let args = TransactionArguments {
                                 origin,
                                 transfer,
                                 gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
                                 gas_free: true,
                                 storage_deposit_limit: None,
+                                deposit,
                             };
                             let ink_result = runtime.call(contract_id, input_data, mode, args);
                             let effects = if mode.is_estimating() {
@@ -691,15 +757,13 @@ impl Cluster {
                 let log_handler = context.log_handler.clone();
                 context::using(&mut ctx, move || {
                     let mut runtime = self.runtime_mut(log_handler);
-                    if deposit > 0 {
-                        runtime.deposit(origin.clone(), deposit);
-                    }
                     let args = TransactionArguments {
                         origin,
                         transfer,
                         gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
                         gas_free: true,
                         storage_deposit_limit: None,
+                        deposit,
                     };
                     let ink_result = runtime.instantiate(
                         code_hash,
@@ -748,15 +812,18 @@ impl Cluster {
                     gas_limit,
                     gas_free,
                     storage_deposit_limit,
+                    deposit: 0,
                 };
 
                 let mut runtime = self.runtime_mut(context.log_handler.clone());
-                let output = runtime.call(
-                    contract_id.clone(),
-                    message,
-                    ExecutionMode::Transaction,
-                    args,
-                );
+                let output = context::using_call_nonce(nonce.clone().into(), || {
+                    runtime.call(
+                        contract_id.clone(),
+                        message,
+                        ExecutionMode::Transaction,
+                        args,
+                    )
+                });
 
                 if let Some(log_handler) = &context.log_handler {
                     let msg = SidevmCommand::PushSystemMessage(SystemMessage::PinkMessageOutput {
@@ -773,6 +840,22 @@ impl Cluster {
                 Ok(runtime.effects)
             }
         }
+    }
+
+    pub(crate) fn instantiate(
+        &mut self,
+        logger: Option<CommandSender>,
+        code_hash: Hash,
+        instantiate_data: Vec<u8>,
+        salt: Vec<u8>,
+        mode: ExecutionMode,
+        tx_args: TransactionArguments,
+    ) -> (Vec<u8>, Option<ExecSideEffects>) {
+        let mut runtime = self.runtime_mut(logger);
+        let result = context::using_call_nonce(salt.clone(), || {
+            runtime.instantiate(code_hash, instantiate_data, salt, mode, tx_args)
+        });
+        (result, runtime.effects.take())
     }
 
     pub(crate) fn snapshot(&self) -> Self {
