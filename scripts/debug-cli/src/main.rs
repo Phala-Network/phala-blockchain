@@ -1,3 +1,4 @@
+mod event_chain;
 mod query;
 
 use clap::{Parser, Subcommand};
@@ -62,6 +63,9 @@ enum Cli {
     Pink {
         #[command(subcommand)]
         command: PinkCommand,
+    },
+    DecodeEventChain {
+        log_file: String,
     },
 }
 
@@ -179,6 +183,16 @@ async fn main() {
         }
         Cli::Pink { command } => {
             handle_pink_command(command).await;
+        }
+        Cli::DecodeEventChain { log_file } => {
+            event_chain::process_log_file(log_file)
+                .expect("Failed to process log file")
+                .filter_map(|result| result.ok())
+                .for_each(|block| {
+                    println!("======= event block start ========");
+                    println!("{:#?}", block);
+                    println!("======= event block end   ========");
+                });
         }
     }
 }

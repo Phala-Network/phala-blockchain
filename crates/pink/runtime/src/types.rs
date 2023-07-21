@@ -22,7 +22,7 @@ pub struct EventsBlockHeader {
 
 // The body layout may change in the future. They should be decoded as type determined by
 // header.runtime_version.
-#[derive(Encode, Decode, Clone)]
+#[derive(Encode, Decode, Clone, Debug)]
 pub struct EventsBlockBody {
     pub phala_block_number: BlockNumber,
     pub contract_call_nonce: Option<Vec<u8>>,
@@ -30,7 +30,7 @@ pub struct EventsBlockBody {
     pub events: SystemEvents,
 }
 
-#[derive(Encode, Decode, Clone)]
+#[derive(Encode, Decode, Clone, Debug)]
 pub struct EventsBlock {
     pub header: EventsBlockHeader,
     pub body: EventsBlockBody,

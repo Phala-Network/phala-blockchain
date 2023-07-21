@@ -22,3 +22,4 @@ phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-clien
 phala-crypto = { path = "../../crates/phala-crypto" }
 
 tokio = { version = "1.24.2", features = ["full"] }
+pink = { path = "../../crates/pink/runtime" }

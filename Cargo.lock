@@ -2459,6 +2459,7 @@ dependencies = [
  "phala-crypto",
  "phala-pallets",
  "phala-types",
+ "pink",
  "sc-consensus-grandpa",
  "sp-core",
  "sp-runtime",
