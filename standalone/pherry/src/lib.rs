@@ -1474,6 +1474,7 @@ pub async fn mk_params(
     } else {
         None
     };
+    // gua: encoding era crashes when period.trailing_zeros() === 0
 
     let params = if let Some((era, checkpoint)) = era {
         phaxt::ExtrinsicParamsBuilder::new()

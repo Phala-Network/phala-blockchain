@@ -37,7 +37,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
 
 static PHALA_SS58_FORMAT_U8: u8 = 30;
-static TX_LONGEVITY: u64 = 25;
+static TX_LONGEVITY: u64 = 16;
 static TX_TIP: u128 = 0;
 
 lazy_static! {
@@ -442,7 +442,9 @@ impl TxManager {
         let params = mk_params(&api, TX_LONGEVITY, TX_TIP).await?;
         let tx = api
             .tx()
-            .sign_and_submit_then_watch(&call, &signer, params)
+            .create_signed(&call, &signer, params)
+            .await?
+            .submit_and_watch()
             .await?;
 
         let tx = tokio::select! {
