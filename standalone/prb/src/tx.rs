@@ -402,19 +402,21 @@ impl TxManager {
             drop(tx);
         }
         let signer = PairSigner::new(po.pair.clone());
-        // let call = if ids.len() == 1 {
-        //     calls.into_iter().next().unwrap()
-        // } else {
-        let mut inner_txs = Vec::new();
-        for c in calls.iter() {
-            let mut b = Vec::new();
-            c.encode_call_data_to(&metadata, &mut b)?;
-            inner_txs.push(Encoded(b));
-        }
-        let inner_txs = inner_txs.encode();
-        // EncodedPayload::new("Utility", "force_batch", inner_txs)
-        let call = EncodedPayload::new("Utility", "force_batch", inner_txs);
-        // };
+
+        let single = ids.len() == 1;
+
+        let call = if single {
+            calls.into_iter().next().unwrap()
+        } else {
+            let mut inner_txs = Vec::new();
+            for c in calls.iter() {
+                let mut b = Vec::new();
+                c.encode_call_data_to(&metadata, &mut b)?;
+                inner_txs.push(Encoded(b));
+            }
+            let inner_txs = inner_txs.encode();
+            EncodedPayload::new("Utility", "force_batch", inner_txs)
+        };
 
         let call = if proxied {
             let mut b = Vec::new();
@@ -471,10 +473,9 @@ impl TxManager {
                 anyhow::bail!("{:?}", &e);
             }
         }
-
-        // if ids.len() == 1 {
-        //     return Ok(vec![Ok(())]);
-        // }
+        if single {
+            return Ok(vec![Ok(())]);
+        }
 
         if tx
             .find_first::<khala::utility::events::BatchCompleted>()?
@@ -485,7 +486,6 @@ impl TxManager {
         tx.find_first::<khala::utility::events::BatchCompletedWithErrors>()?
             .ok_or(anyhow!("BatchCompletedWithErrors event not found!"))?;
 
-        // let metadata = api.metadata();
         let mut ret = Vec::new();
         for i in tx.iter() {
             let i = i?;
