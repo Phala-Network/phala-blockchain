@@ -16,6 +16,7 @@ use parity_scale_codec::{Decode, Encode};
 use phactory_api::prpc::GetEndpointResponse;
 use phala_types::messaging::SignedMessage;
 use phaxt::dynamic::tx::EncodedPayload;
+use pherry::mk_params;
 use rocksdb::{DBCompactionStyle, DBWithThreadMode, MultiThreaded, Options};
 use schnorrkel::keys::Keypair;
 use serde::{Deserialize, Serialize};
@@ -36,6 +37,8 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
 
 static PHALA_SS58_FORMAT_U8: u8 = 30;
+static TX_LONGEVITY: u64 = 25;
+static TX_TIP: u128 = 0;
 
 lazy_static! {
     static ref PHALA_SS58_FORMAT: Ss58AddressFormat = Ss58AddressFormat::from(PHALA_SS58_FORMAT_U8);
@@ -436,9 +439,10 @@ impl TxManager {
         call.encode_call_data_to(&metadata, &mut encoded)?;
         debug!("sending tx: 0x{}", hex::encode(&encoded));
 
+        let params = mk_params(&api, TX_LONGEVITY, TX_TIP).await?;
         let tx = api
             .tx()
-            .sign_and_submit_then_watch_default(&call, &signer)
+            .sign_and_submit_then_watch(&call, &signer, params)
             .await?;
 
         let tx = tokio::select! {

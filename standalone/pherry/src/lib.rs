@@ -1451,7 +1451,7 @@ async fn collect_async_errors(
     }
 }
 
-async fn mk_params(
+pub async fn mk_params(
     api: &ParachainApi,
     longevity: u64,
     tip: u128,
