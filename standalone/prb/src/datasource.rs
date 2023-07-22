@@ -110,6 +110,7 @@ pub type HeadersCacheHttpSourceMap = HashMap<String, WrappedHeadersCacheHttpSour
 pub type WrappedHeadersCacheHttpSourceMap = Arc<RwLock<HeadersCacheHttpSourceMap>>;
 
 pub type DataSourceIdList = Vec<String>;
+pub type CachedHeadersToSync = (HeadersToSync, Option<u32>, Option<Vec<Vec<u8>>>);
 
 #[derive(Clone)]
 pub enum DataSourceCacheItem {
@@ -117,7 +118,7 @@ pub enum DataSourceCacheItem {
     StorageChanges(Blocks),
     ParaHeaderByRelayHeight(Option<(u32, Vec<Vec<u8>>)>),
     ParaHeadersToSyncWithoutProof(ParaHeadersToSync),
-    CachedHeadersToSync(Option<(HeadersToSync, Option<u32>, Option<Vec<Vec<u8>>>)>),
+    CachedHeadersToSync(Option<CachedHeadersToSync>),
     RelayBlock(Block),
     BlockHash(Option<H256>),
     U32(Option<u32>),

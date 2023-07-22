@@ -149,6 +149,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
     }
 }
 
+#[allow(clippy::await_holding_lock)]
 pub async fn set_lifecycle_manager(
     ctx: WrappedWorkerManagerContext,
     reload_tx: WrappedReloadTx,
@@ -185,6 +186,7 @@ pub async fn set_lifecycle_manager(
     Ok(())
 }
 
+#[allow(clippy::await_holding_lock)]
 async fn message_loop(
     ctx: WrappedWorkerManagerContext,
     _tx: WorkerManagerCommandTx,
