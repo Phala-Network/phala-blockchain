@@ -158,7 +158,7 @@ pub async fn api_handler(db: WrappedDb, po_db: Arc<DB>, command: ConfigCommands)
         }
         ConfigCommands::RemovePool { pid } => {
             db::remove_pool(db.clone(), pid)?;
-            return Ok(serde_json::to_string_pretty(&ok)?);
+            Ok(serde_json::to_string_pretty(&ok)?)
         }
         ConfigCommands::UpdatePool { pid, .. } => {
             db::update_pool(db.clone(), command)?;
@@ -188,19 +188,19 @@ pub async fn api_handler(db: WrappedDb, po_db: Arc<DB>, command: ConfigCommands)
         ConfigCommands::GetAllPools => {
             let v = get_all_pools(db)?;
             let v = serde_json::to_string_pretty(&v)?;
-            return Ok(v);
+            Ok(v)
         }
         ConfigCommands::GetAllPoolsWithWorkers => {
             let v = get_all_pools_with_workers(db)?;
             let v = serde_json::to_string_pretty(&v)?;
-            return Ok(v);
+            Ok(v)
         }
         ConfigCommands::AddWorker { name, pid, .. } => {
             add_worker(db.clone(), command)?;
             let mut v = get_worker_by_name(db.clone(), name)?.context("Failed to add!")?;
             v.pid = Some(pid);
             let v = serde_json::to_string_pretty(&v)?;
-            return Ok(v);
+            Ok(v)
         }
         ConfigCommands::UpdateWorker {
             name,
@@ -216,11 +216,11 @@ pub async fn api_handler(db: WrappedDb, po_db: Arc<DB>, command: ConfigCommands)
             let mut v = get_worker_by_name(db.clone(), new_name)?.context("Failed to add!")?;
             v.pid = Some(pid);
             let v = serde_json::to_string_pretty(&v)?;
-            return Ok(v);
+            Ok(v)
         }
         ConfigCommands::RemoveWorker { name } => {
             remove_worker(db, name)?;
-            return Ok(serde_json::to_string_pretty(&ok)?);
+            Ok(serde_json::to_string_pretty(&ok)?)
         }
         ConfigCommands::GetAllPoolOperators => {
             let l = po_db.get_all_po()?;
@@ -229,16 +229,16 @@ pub async fn api_handler(db: WrappedDb, po_db: Arc<DB>, command: ConfigCommands)
                 .map(|i| i.into())
                 .collect::<Vec<PoolOperatorForSerialize>>();
             let l = serde_json::to_string_pretty(&l)?;
-            return Ok(l);
+            Ok(l)
         }
         ConfigCommands::GetPoolOperator { pid } => {
             let po = po_db.get_po(pid)?;
             if po.is_some() {
                 let po = po.unwrap();
                 let po = serde_json::to_string_pretty::<PoolOperatorForSerialize>(&(&po).into())?;
-                return Ok(po);
+                Ok(po)
             } else {
-                return Err(anyhow!("Record not found!"));
+                Err(anyhow!("Record not found!"))
             }
         }
         ConfigCommands::SetPoolOperator {
@@ -266,7 +266,7 @@ pub async fn api_handler(db: WrappedDb, po_db: Arc<DB>, command: ConfigCommands)
             };
             let po = po_db.set_po(pid, po)?;
             let po = serde_json::to_string_pretty::<PoolOperatorForSerialize>(&(&po).into())?;
-            return Ok(po);
+            Ok(po)
         }
-    };
+    }
 }

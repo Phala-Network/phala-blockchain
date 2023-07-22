@@ -585,7 +585,7 @@ impl TxManager {
             "update_worker_endpoint",
             (Encoded(endpoint_payload), signature).encode(),
         );
-        let desc = format!("Update endpoint of worker.");
+        let desc = "Update endpoint of worker.".to_string();
         self.clone().send_to_queue(pid, tx_payload, desc).await
     }
     pub async fn sync_offchain_message(

@@ -680,7 +680,7 @@ impl DataSourceManager {
             false,
             genesis_info.clone(),
             None,
-            genesis_state.clone(),
+            genesis_state,
             None,
             true,
             Some(AttestationProvider::Ias),
@@ -960,7 +960,7 @@ impl DataSourceManager {
             .await
         {
             Ok(ret) => match *ret {
-                DataSourceCacheItem::BlockHash(ref data) => Ok(data.clone()),
+                DataSourceCacheItem::BlockHash(ref data) => Ok(*data),
                 _ => Err(UnknownErrorFromCache.into()),
             },
             Err(e) => Err(anyhow!(e.to_string())),
@@ -1024,7 +1024,7 @@ impl DataSourceManager {
                         cache.invalidate(&key).await;
                         return Ok(None);
                     }
-                    Ok(data.clone())
+                    Ok(*data)
                 }
                 _ => Err(UnknownErrorFromCache.into()),
             },

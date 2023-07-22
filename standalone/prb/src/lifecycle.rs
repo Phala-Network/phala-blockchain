@@ -138,7 +138,7 @@ impl WorkerLifecycleManager {
 
     pub async fn spawn_lifecycle_tasks(&self) -> Result<()> {
         debug!("spawn_lifecycle_tasks start");
-        if self.worker_context_vec.len() > 0 {
+        if !self.worker_context_vec.is_empty() {
             let mut join_set = JoinSet::new();
             for (_, c) in self.worker_context_map.iter() {
                 join_set.spawn(WorkerContext::start(c.clone()));

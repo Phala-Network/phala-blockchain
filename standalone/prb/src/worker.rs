@@ -478,7 +478,7 @@ impl WorkerContext {
         let api =
             use_parachain_api!(lm.dsm, false).ok_or(anyhow!("no online substrate session"))?;
 
-        let registry_query = storage("PhalaRegistry", "Workers", vec![Value::from_bytes(&pubkey)]);
+        let registry_query = storage("PhalaRegistry", "Workers", vec![Value::from_bytes(pubkey)]);
         let registry_info: Option<WorkerInfoV2<subxt::utils::AccountId32>> =
             fetch_storage_bytes(&api, &registry_query).await?;
         if let Some(registry_info) = registry_info {
@@ -500,7 +500,7 @@ impl WorkerContext {
         let worker_binding_query = storage(
             "PhalaComputation",
             "WorkerBindings",
-            vec![Value::from_bytes(&pubkey)],
+            vec![Value::from_bytes(pubkey)],
         );
         let worker_binding: Option<subxt::utils::AccountId32> =
             fetch_storage_bytes(&api, &worker_binding_query).await?;
@@ -596,7 +596,7 @@ impl WorkerContext {
         let worker_binding_query = storage(
             "PhalaComputation",
             "WorkerBindings",
-            vec![Value::from_bytes(&pubkey)],
+            vec![Value::from_bytes(pubkey)],
         );
         let mut worker_binding: Option<subxt::utils::AccountId32> = None;
         let mut session_query = None;
@@ -622,7 +622,7 @@ impl WorkerContext {
                 session_query = Some(storage(
                     "PhalaComputation",
                     "Sessions",
-                    vec![Value::from_bytes(&worker_binding.as_ref().unwrap())],
+                    vec![Value::from_bytes(worker_binding.as_ref().unwrap())],
                 ));
             }
             let session: Option<SessionInfo> =
@@ -726,7 +726,7 @@ impl WorkerContext {
         if !worker.gatekeeper {
             set_worker_message!(c, "Waiting for benchmark...");
             let registry_query =
-                storage("PhalaRegistry", "Workers", vec![Value::from_bytes(&pubkey)]);
+                storage("PhalaRegistry", "Workers", vec![Value::from_bytes(pubkey)]);
             loop {
                 let registry_info: Option<WorkerInfoV2<subxt::utils::AccountId32>> =
                     fetch_storage_bytes(&api, &registry_query).await?;
