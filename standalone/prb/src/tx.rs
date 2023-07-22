@@ -441,6 +441,9 @@ impl TxManager {
         call.encode_call_data_to(&metadata, &mut encoded)?;
         debug!("sending tx: 0x{}", hex::encode(&encoded));
 
+        // In pRBv3, transactions are queued, there is always only 1 running transaction for each pool,
+        // and a dedicate account is always required for each pRB/pherry instance,
+        // hence we should not worry about nonce and use the expected value on the chain storage.
         let params = mk_params(&api, TX_LONGEVITY, TX_TIP).await?;
         let tx = api
             .tx()
