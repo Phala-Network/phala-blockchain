@@ -473,7 +473,15 @@ impl TxManager {
                 .find_first::<khala::proxy::events::ProxyExecuted>()?
                 .ok_or(anyhow!("ProxyExecuted event not found!"))?;
             if let Err(e) = event_proxy.result {
-                anyhow::bail!("{:?}", &e);
+                let e = e.encode();
+                match SubxtDispatchError::decode_from(&e, api.metadata())? {
+                    SubxtDispatchError::Module(e) => {
+                        anyhow::bail!("{:?}", &e);
+                    }
+                    _ => {
+                        anyhow::bail!("NotAModuleError: {:?}", &e);
+                    }
+                };
             }
         }
         if single {
