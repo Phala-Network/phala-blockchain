@@ -488,7 +488,8 @@ pub mod pallet {
 			cluster_id: ContractClusterId,
 		) -> DispatchResult {
 			let origin = ensure_signed(origin)?;
-			let cluster_info = Clusters::<T>::get(cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
+			let mut cluster_info =
+				Clusters::<T>::get(cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
 			ensure!(
 				cluster_info.owner == origin,
 				Error::<T>::ClusterPermissionDenied
@@ -504,6 +505,8 @@ pub mod pallet {
 			// TODO: Do we need to check whether the worker agree to join the cluster?
 			ClusterByWorkers::<T>::insert(worker_pubkey, cluster_id);
 			ClusterWorkers::<T>::append(cluster_id, worker_pubkey);
+			cluster_info.workers.push(worker_pubkey);
+			Clusters::<T>::insert(cluster_id, cluster_info);
 			Self::deposit_event(Event::WorkerAddedToCluster {
 				worker: worker_pubkey,
 				cluster: cluster_id,
