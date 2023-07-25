@@ -317,7 +317,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T>
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
-		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
+		T: pallet_rmrk_core::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: Config + vault::Config,
 	{
@@ -804,7 +804,7 @@ pub mod pallet {
 			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
 			// is called. Or the property of the nft will be overwrote incorrectly.
 			let mut nft_guard =
-				base_pool::Pallet::<T>::get_nft_attr_guard(pool_info.basepool.cid, nft_id)?;
+				base_pool::Pallet::<T>::get_nft_attr_guard(pool_info.basepool.cid, nft_id.into())?;
 			let nft = &mut nft_guard.attr;
 			let in_queue_shares = match pool_info
 				.basepool
@@ -992,7 +992,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T>
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
-		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
+		T: pallet_rmrk_core::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: Config + vault::Config,
 	{
@@ -1204,7 +1204,7 @@ pub mod pallet {
 	impl<T: Config> computation::OnReward for Pallet<T>
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
-		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
+		T: pallet_rmrk_core::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: Config + vault::Config,
 	{
@@ -1237,7 +1237,7 @@ pub mod pallet {
 	impl<T: Config> computation::OnUnbound for Pallet<T>
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
-		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
+		T: pallet_rmrk_core::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: Config + vault::Config,
 	{
@@ -1259,7 +1259,6 @@ pub mod pallet {
 	impl<T: Config> computation::OnStopped<BalanceOf<T>> for Pallet<T>
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
-		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: Config + vault::Config,
 	{

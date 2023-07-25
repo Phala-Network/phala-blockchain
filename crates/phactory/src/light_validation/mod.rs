@@ -41,6 +41,7 @@ mod types;
 
 use im::OrdMap as BTreeMap;
 use std::fmt;
+use std::marker::PhantomData;
 
 use anyhow::Result;
 use error::JustificationError;
@@ -58,22 +59,24 @@ use sp_core::H256;
 use sp_runtime::traits::{Block as BlockT, Header, NumberFor};
 use sp_runtime::EncodedJustification;
 
-pub use types::{AuthoritySet, AuthoritySetChange};
+pub use types::{AuthoritySet, AuthoritySetChange, BlockHeader};
 
 #[derive(Encode, Decode, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BridgeInfo<T: Config> {
+    _marker: PhantomData<T>,
     #[serde(bound(
-        serialize = "T::Header: ::serde::Serialize",
-        deserialize = "T::Header: ::serde::de::DeserializeOwned"
+        serialize = "BlockHeader: ::serde::Serialize",
+        deserialize = "BlockHeader: ::serde::de::DeserializeOwned"
     ))]
-    last_finalized_block_header: T::Header,
+    last_finalized_block_header: BlockHeader,
     #[serde(with = "more::scale_bytes")]
     current_set: AuthoritySet,
 }
 
 impl<T: Config> BridgeInfo<T> {
-    pub fn new(block_header: T::Header, validator_set: AuthoritySet) -> Self {
+    pub fn new(block_header: BlockHeader, validator_set: AuthoritySet) -> Self {
         BridgeInfo {
+            _marker: Default::default(),
             last_finalized_block_header: block_header,
             current_set: validator_set,
         }
@@ -83,7 +86,7 @@ impl<T: Config> BridgeInfo<T> {
 type BridgeId = u64;
 
 pub trait Config: frame_system::Config<Hash = H256> {
-    type Block: BlockT<Hash = H256, Header = Self::Header>;
+    type Block: BlockT<Hash = H256, Header = BlockHeader>;
 }
 
 impl Config for chain::Runtime {
@@ -94,15 +97,15 @@ impl Config for chain::Runtime {
 pub struct LightValidation<T: Config> {
     num_bridges: BridgeId,
     #[serde(bound(
-        serialize = "T::Header: ::serde::Serialize",
-        deserialize = "T::Header: ::serde::de::DeserializeOwned"
+        serialize = "BlockHeader: ::serde::Serialize",
+        deserialize = "BlockHeader: ::serde::de::DeserializeOwned"
     ))]
     tracked_bridges: BTreeMap<BridgeId, BridgeInfo<T>>,
 }
 
 impl<T: Config> LightValidation<T>
 where
-    NumberFor<T::Block>: AsPrimitive<usize>,
+    NumberFor<<T as frame_system::Config>::Block>: AsPrimitive<usize>,
 {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
@@ -114,7 +117,7 @@ where
 
     pub fn initialize_bridge(
         &mut self,
-        block_header: T::Header,
+        block_header: BlockHeader,
         validator_set: AuthoritySet,
         proof: StorageProof,
     ) -> Result<BridgeId> {
@@ -142,8 +145,8 @@ where
     pub fn submit_finalized_headers(
         &mut self,
         bridge_id: BridgeId,
-        header: T::Header,
-        ancestry_proof: Vec<T::Header>,
+        header: BlockHeader,
+        ancestry_proof: Vec<BlockHeader>,
         grandpa_proof: EncodedJustification,
         auhtority_set_change: Option<AuthoritySetChange>,
     ) -> Result<()> {
@@ -163,10 +166,10 @@ where
         let voters = &bridge.current_set;
         let voter_set = VoterSet::new(voters.list.clone()).unwrap();
         let voter_set_id = voters.id;
-        verify_grandpa_proof::<T::Block>(
+        verify_grandpa_proof::<<T as frame_system::Config>::Block>(
             grandpa_proof,
             block_hash,
-            block_num,
+            block_num.into(),
             voter_set_id,
             &voter_set,
         )?;
@@ -268,7 +271,7 @@ impl From<JustificationError> for Error {
 
 impl<T: Config> LightValidation<T>
 where
-    NumberFor<T::Block>: AsPrimitive<usize>,
+    NumberFor<<T as frame_system::Config>::Block>: AsPrimitive<usize>,
 {
     fn check_validator_set_proof(
         state_root: &T::Hash,

@@ -87,7 +87,7 @@ expression: "travel_types::<blocks::SyncCombinedHeadersReq>()"
         },
         {
           "name": "Hash",
-          "type": 3
+          "type": null
         }
       ],
       "def": {

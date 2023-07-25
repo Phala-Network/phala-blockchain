@@ -23,8 +23,8 @@ use hex_literal::hex;
 use node_runtime::constants::{currency::*, time::*};
 use node_runtime::Block;
 use node_runtime::{
-    wasm_binary_unwrap, AssetsConfig, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig,
-    CouncilConfig, DemocracyConfig, ElectionsConfig, GrandpaConfig, ImOnlineConfig, IndicesConfig,
+    wasm_binary_unwrap, AssetsConfig, BabeConfig, BalancesConfig,
+    CouncilConfig, DemocracyConfig, ElectionsConfig, ImOnlineConfig, IndicesConfig,
     NominationPoolsConfig, PhalaRegistryConfig, SessionConfig, SessionKeys, SocietyConfig,
     StakerStatus, StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig,
 };
@@ -42,7 +42,7 @@ use sp_runtime::{
 };
 
 pub use node_primitives::{AccountId, Balance, Signature};
-pub use node_runtime::GenesisConfig;
+pub use node_runtime::RuntimeGenesisConfig;
 
 type AccountPublic = <Signature as Verify>::Signer;
 
@@ -70,7 +70,7 @@ pub type ChainSpec = sc_service::GenericChainSpec<GenesisExt, Extensions>;
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct GenesisExt {
     /// The runtime genesis config.
-    runtime_genesis_config: GenesisConfig,
+    runtime_genesis_config: RuntimeGenesisConfig,
     /// The block duration in milliseconds.
     ///
     /// If `None` is supplied, the default value is used.
@@ -154,7 +154,7 @@ pub fn authority_keys_from_seed(
     )
 }
 
-fn development_config_genesis() -> GenesisConfig {
+fn development_config_genesis() -> RuntimeGenesisConfig {
     testnet_genesis(
         vec![authority_keys_from_seed("Alice")],
         get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -228,7 +228,7 @@ pub fn local_config() -> ChainSpec {
     )
 }
 
-fn local_genesis() -> GenesisConfig {
+fn local_genesis() -> RuntimeGenesisConfig {
     testnet_genesis(
         vec![
             authority_keys_from_seed("Alice"),
@@ -275,7 +275,7 @@ pub fn testnet_local_config() -> ChainSpec {
     )
 }
 
-fn testnet_local_config_genesis() -> GenesisConfig {
+fn testnet_local_config_genesis() -> RuntimeGenesisConfig {
     // stash, controller, session-key
     // generated with secret:
     // for i in 1 2 3 4 ; do for j in stash controller session; do ./phala-node key inspect "$secret"//phat//$j//$i; done; done
@@ -382,7 +382,7 @@ fn testnet_local_config_genesis() -> GenesisConfig {
     testnet_genesis(initial_authorities, root_key, Some(endowed_accounts), false)
 }
 
-/// Helper function to create GenesisConfig for testing
+/// Helper function to create RuntimeGenesisConfig for testing
 pub fn testnet_genesis(
     initial_authorities: Vec<(
         AccountId,
@@ -395,7 +395,7 @@ pub fn testnet_genesis(
     root_key: AccountId,
     endowed_accounts: Option<Vec<AccountId>>,
     dev: bool,
-) -> GenesisConfig {
+) -> RuntimeGenesisConfig {
     let mut endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
         vec![
             get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -445,9 +445,10 @@ pub fn testnet_genesis(
         },
     };
 
-    GenesisConfig {
+	RuntimeGenesisConfig {
         system: SystemConfig {
             code: wasm_binary_unwrap().to_vec(),
+            ..Default::default()
         },
         balances: BalancesConfig {
             balances: endowed_accounts
@@ -506,22 +507,13 @@ pub fn testnet_genesis(
         babe: BabeConfig {
             authorities: vec![],
             epoch_config: Some(node_runtime::BABE_GENESIS_EPOCH_CONFIG),
+            ..Default::default()
         },
         im_online: ImOnlineConfig { keys: vec![] },
-        authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
-        grandpa: GrandpaConfig {
-            authorities: vec![],
-        },
+        authority_discovery: Default::default(),
+        grandpa: Default::default(),
         treasury: Default::default(),
-        society: SocietyConfig {
-            members: endowed_accounts
-                .iter()
-                .take((num_endowed_accounts + 1) / 2)
-                .cloned()
-                .collect(),
-            pot: 0,
-            max_members: 999,
-        },
+		society: SocietyConfig { pot: 0 },
         vesting: Default::default(),
         phala_registry,
         phala_computation: Default::default(),
@@ -542,7 +534,7 @@ pub(crate) mod tests {
     use sc_service_test;
     use sp_runtime::BuildStorage;
 
-    fn local_testnet_genesis_instant_single() -> GenesisConfig {
+    fn local_testnet_genesis_instant_single() -> RuntimeGenesisConfig {
         testnet_genesis(
             vec![authority_keys_from_seed("Alice")],
             get_account_id_from_seed::<sr25519::Public>("Alice"),

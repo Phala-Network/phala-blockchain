@@ -119,7 +119,7 @@ pub mod pallet {
 
 	/// The block number and unix timestamp when the gatekeeper is launched
 	#[pallet::storage]
-	pub type GatekeeperLaunchedAt<T: Config> = StorageValue<_, (T::BlockNumber, u64)>;
+	pub type GatekeeperLaunchedAt<T: Config> = StorageValue<_, (BlockNumberFor<T>, u64)>;
 
 	/// The rotation counter starting from 1, it always equals to the latest rotation id.
 	/// The totation id 0 is reserved for the first master key before we introduce the rotation.
@@ -142,7 +142,7 @@ pub mod pallet {
 	/// The first time registered block number for each worker.
 	#[pallet::storage]
 	pub type WorkerAddedAt<T: Config> =
-		StorageMap<_, Twox64Concat, WorkerPublicKey, T::BlockNumber>;
+		StorageMap<_, Twox64Concat, WorkerPublicKey, BlockNumberFor<T>>;
 
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
@@ -168,7 +168,7 @@ pub mod pallet {
 
 	/// The effective height of pRuntime binary
 	#[pallet::storage]
-	pub type PRuntimeAddedAt<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, T::BlockNumber>;
+	pub type PRuntimeAddedAt<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, BlockNumberFor<T>>;
 
 	/// Allow list of relaychain genesis
 	///
@@ -1032,7 +1032,7 @@ pub mod pallet {
 		}
 
 		#[cfg(test)]
-		pub(crate) fn internal_set_gk_launched_at(block: T::BlockNumber, ts: u64) {
+		pub(crate) fn internal_set_gk_launched_at(block: BlockNumberFor<T>, ts: u64) {
 			GatekeeperLaunchedAt::<T>::put((block, ts));
 		}
 	}
@@ -1049,7 +1049,6 @@ pub mod pallet {
 		pub benchmark_duration: u32,
 	}
 
-	#[cfg(feature = "std")]
 	impl<T: Config> Default for GenesisConfig<T> {
 		fn default() -> Self {
 			Self {
@@ -1061,12 +1060,12 @@ pub mod pallet {
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig<T>
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T>
 	where
 		T: crate::mq::Config,
 	{
 		fn build(&self) {
-			use std::convert::TryInto;
+			use core::convert::TryInto;
 			for (pubkey, ecdh_pubkey, operator) in &self.workers {
 				Workers::<T>::insert(
 					pubkey,

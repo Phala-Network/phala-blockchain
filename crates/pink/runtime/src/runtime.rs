@@ -2,7 +2,7 @@ mod extension;
 mod pallet_pink;
 mod weights;
 
-use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
+use crate::types::{AccountId, Balance, BlockNumber, Nonce, Hash, Hashing};
 use frame_support::{
     parameter_types,
     traits::ConstBool,
@@ -10,23 +10,21 @@ use frame_support::{
 };
 use log::info;
 use pallet_contracts::{Config, Frame, Migration, Schedule};
-use sp_runtime::{generic::Header, traits::IdentityLookup, Perbill};
+use sp_runtime::{traits::IdentityLookup, Perbill};
 
 pub use extension::get_side_effects;
 pub use pink_capi::types::ExecSideEffects;
 pub use pink_extension::{EcdhPublicKey, HookPoint, Message, OspMessage, PinkEvent};
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<PinkRuntime>;
-type Block = frame_system::mocking::MockBlock<PinkRuntime>;
+type Block = sp_runtime::generic::Block<
+    sp_runtime::generic::Header<BlockNumber, Hashing>,
+    frame_system::mocking:: MockUncheckedExtrinsic<PinkRuntime>,
+>;
 
 pub type SystemEvents = Vec<frame_system::EventRecord<RuntimeEvent, Hash>>;
 
 frame_support::construct_runtime! {
-    pub struct PinkRuntime where
-        Block = Block,
-        NodeBlock = Block,
-        UncheckedExtrinsic = UncheckedExtrinsic,
-    {
+    pub struct PinkRuntime {
         System: frame_system,
         Timestamp: pallet_timestamp,
         Balances: pallet_balances,
@@ -64,10 +62,10 @@ impl pallet_balances::Config for PinkRuntime {
     type MaxLocks = MaxLocks;
     type MaxReserves = MaxReserves;
     type ReserveIdentifier = [u8; 8];
-    type HoldIdentifier = ();
     type FreezeIdentifier = ();
     type MaxHolds = ();
     type MaxFreezes = ();
+    type RuntimeHoldReason = ();
 }
 
 impl frame_system::Config for PinkRuntime {
@@ -76,14 +74,13 @@ impl frame_system::Config for PinkRuntime {
     type BlockLength = ();
     type DbWeight = ();
     type RuntimeOrigin = RuntimeOrigin;
-    type Index = Index;
-    type BlockNumber = BlockNumber;
+    type Nonce = Nonce;
     type Hash = Hash;
     type RuntimeCall = RuntimeCall;
     type Hashing = Hashing;
     type AccountId = AccountId;
     type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = Header<Self::BlockNumber, Self::Hashing>;
+    type Block = Block;
     type RuntimeEvent = RuntimeEvent;
     type BlockHashCount = BlockHashCount;
     type Version = ();
@@ -126,7 +123,7 @@ parameter_types! {
         // Each concurrent query would create a VM instance to serve it. We couldn't
         // allocate too much here.
         schedule.limits.memory_pages = 4 * MB;
-        schedule.instruction_weights.fallback = 8000;
+        schedule.instruction_weights.base = 8000;
         schedule.limits.runtime_memory = 2048 * 1024 * 1024; // For unittests
         schedule.limits.payload_len = 1024 * 1024; // Max size for storage value
         schedule
@@ -153,6 +150,7 @@ impl Config for PinkRuntime {
     type MaxStorageKeyLen = MaxStorageKeyLen;
     type UnsafeUnstableInterface = ConstBool<false>;
     type MaxDebugBufferLen = MaxDebugBufferLen;
+    type Migrations = ();
 }
 
 #[test]

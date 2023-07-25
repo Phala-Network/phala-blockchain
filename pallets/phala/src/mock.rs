@@ -11,7 +11,7 @@ use frame_support::{
 	pallet_prelude::ConstU32,
 	parameter_types,
 	traits::{
-		AsEnsureOriginWithArg, ConstU128, ConstU64, EqualPrivilegeOnly, GenesisBuild, SortedMembers,
+		AsEnsureOriginWithArg, ConstU128, ConstU64, EqualPrivilegeOnly, SortedMembers,
 	},
 };
 use frame_support_test::TestRandomness;
@@ -19,24 +19,19 @@ use frame_system::{self as system, EnsureRoot, EnsureSigned, EnsureSignedBy};
 use phala_types::messaging::Message;
 use sp_core::H256;
 use sp_runtime::{
-	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
+	BuildStorage,
 };
 
 pub(crate) type Balance = u128;
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 pub(crate) type BlockNumber = u64;
 
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
-	pub enum Test where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic,
-	{
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+	pub struct Test {
+		System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>},
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Uniques: pallet_uniques::{Pallet, Storage, Event<T>},
@@ -47,7 +42,7 @@ frame_support::construct_runtime!(
 		// Pallets to test
 		PhalaMq: mq::{Pallet, Call},
 		PhalaRegistry: registry::{Pallet, Event<T>, Storage, Config<T>},
-		PhalaComputation: computation::{Pallet, Event<T>, Storage, Config},
+		PhalaComputation: computation::{Pallet, Event<T>, Storage, Config<T>},
 		PhalaStakePoolv2: stake_pool_v2::{Pallet, Event<T>},
 		PhalaVault: vault::{Pallet, Event<T>},
 		PhalaWrappedBalances: wrapped_balances::{Pallet, Event<T>},
@@ -84,13 +79,12 @@ impl system::Config for Test {
 	type BlockLength = ();
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
-	type Index = u64;
-	type BlockNumber = u64;
+	type Nonce = u64;
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
 	type AccountId = u64;
 	type Lookup = IdentityLookup<Self::AccountId>;
-	type Header = Header;
+	type Block = Block;
 	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type DbWeight = ();
@@ -128,10 +122,10 @@ impl pallet_balances::Config for Test {
 	type MaxLocks = ();
 	type MaxReserves = ();
 	type ReserveIdentifier = [u8; 8];
-	type HoldIdentifier = ();
 	type FreezeIdentifier = ();
 	type MaxHolds = ConstU32<1>;
 	type MaxFreezes = ConstU32<1>;
+	type RuntimeHoldReason = ();
 }
 
 impl pallet_timestamp::Config for Test {
@@ -232,8 +226,8 @@ impl pallet_rmrk_core::Config for Test {
 	type MaxResourcesOnMint = MaxResourcesOnMint;
 	type TransferHooks = PhalaWrappedBalances;
 	type WeightInfo = pallet_rmrk_core::weights::SubstrateWeight<Test>;
-	#[cfg(feature = "runtime-benchmarks")]
-	type Helper = pallet_rmrk_core::RmrkBenchmark;
+	type CollectionId = u32;
+	type ItemId = u32;
 }
 
 pub struct SetBudgetMembers;
@@ -378,8 +372,6 @@ impl pallet_assets::Config for Test {
 	type CallbackHandle = ();
 	type WeightInfo = ();
 	type RemoveItemsLimit = ConstU32<1000>;
-	#[cfg(feature = "runtime-benchmarks")]
-	type BenchmarkHelper = ();
 	type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<Self::AccountId>>;
 }
 
@@ -434,9 +426,8 @@ impl AttestationValidator for MockValidator {
 // This function basically just builds a genesis storage key/value store according to
 // our desired mockup.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	let mut t = system::GenesisConfig::default()
-		.build_storage::<Test>()
-		.unwrap();
+	let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
+
 	// Inject genesis storage
 	let zero_pubkey = sp_core::sr25519::Public::from_raw([0u8; 32]);
 	let zero_ecdh_pubkey = Vec::from(&[0u8; 32][..]);
@@ -451,6 +442,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	}
 	.assimilate_storage(&mut t)
 	.unwrap();
+
 	crate::registry::GenesisConfig::<Test> {
 		workers: vec![(zero_pubkey, zero_ecdh_pubkey, None)],
 		gatekeepers: vec![zero_pubkey],
@@ -458,8 +450,11 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	}
 	.assimilate_storage(&mut t)
 	.unwrap();
-	GenesisBuild::<Test>::assimilate_storage(&crate::computation::GenesisConfig::default(), &mut t)
+
+	crate::computation::GenesisConfig::<Test>::default()
+		.assimilate_storage(&mut t)
 		.unwrap();
+
 	sp_io::TestExternalities::new(t)
 }
 

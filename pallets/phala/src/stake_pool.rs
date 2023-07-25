@@ -11,6 +11,7 @@ pub mod pallet {
 	use crate::utils::fixed_point::CodecFixedPoint;
 
 	use super::BalanceOf;
+	use frame_system::pallet_prelude::*;
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{LockableCurrency, StorageVersion},
@@ -46,7 +47,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config + registry::Config + computation::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
+		type Currency: LockableCurrency<Self::AccountId, Moment = BlockNumberFor<Self>>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
