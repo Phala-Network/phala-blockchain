@@ -128,6 +128,7 @@ where
     T::verify(&signature, msg, &public)
 }
 
+/// Dummy "recover" function to verify the Substrate signatures and return the public key
 fn recover<T>(pubkey: &[u8], sig: &[u8], msg: &[u8]) -> Result<Vec<u8>, SignatureVerifyError>
 where
     T: sp_core::crypto::Pair,
