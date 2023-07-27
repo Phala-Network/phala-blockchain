@@ -7,6 +7,8 @@ use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use crate::prpc::{Signature, SignatureType};
 pub use phala_crypto::{aead, ecdh, CryptoError};
 
+mod eip712;
+
 #[derive(Clone, Encode, Decode, Debug)]
 pub struct EncryptedData {
     pub iv: aead::IV,
@@ -47,6 +49,8 @@ pub enum SignatureVerifyError {
     CertificateExpired,
     TooLongCertificateChain,
     DecodeFailed(CodecError),
+    InvalidPublicKey,
+    Eip712EncodingError,
 }
 
 impl From<CodecError> for SignatureVerifyError {
@@ -55,11 +59,17 @@ impl From<CodecError> for SignatureVerifyError {
     }
 }
 
+pub enum MessageType {
+    Certificate { ttl: u32 },
+    ContractQuery,
+}
+
 impl Signature {
     /// Verify signature and return the siger pubkey chain in top-down order.
     pub fn verify(
         &self,
         msg: &[u8],
+        msg_type: MessageType,
         current_block: u32,
         max_depth: u32,
     ) -> Result<Vec<Vec<u8>>, SignatureVerifyError> {
@@ -82,15 +92,19 @@ impl Signature {
                     return Err(SignatureVerifyError::CertificateExpired);
                 }
 
-                body.verify(msg, sig_type, &self.signature)?;
+                let pubkey = body.recover(msg, msg_type, sig_type, &self.signature)?;
 
                 let key_chain = if let Some(cert_sig) = &cert.signature {
-                    let mut key_chain =
-                        cert_sig.verify(&body.encode(), current_block, max_depth - 1)?;
-                    key_chain.push(body.pubkey);
+                    let mut key_chain = cert_sig.verify(
+                        &body.encode(),
+                        MessageType::Certificate { ttl: body.ttl },
+                        current_block,
+                        max_depth - 1,
+                    )?;
+                    key_chain.push(pubkey);
                     key_chain
                 } else {
-                    vec![body.pubkey]
+                    vec![pubkey]
                 };
                 Ok(key_chain)
             }
@@ -114,6 +128,18 @@ where
     T::verify(&signature, msg, &public)
 }
 
+/// Dummy "recover" function to verify the Substrate signatures and return the public key
+fn recover<T>(pubkey: &[u8], sig: &[u8], msg: &[u8]) -> Result<Vec<u8>, SignatureVerifyError>
+where
+    T: sp_core::crypto::Pair,
+    T::Public: for<'a> TryFrom<&'a [u8]>,
+    T::Signature: for<'a> TryFrom<&'a [u8]>,
+{
+    verify::<T>(pubkey, sig, msg)
+        .then_some(pubkey.to_vec())
+        .ok_or(SignatureVerifyError::InvalidSignature)
+}
+
 /// Wraps the message in the same format as it defined in Polkadot.js extension:
 ///   https://github.com/polkadot-js/extension/blob/e4ce268b1cad5e39e75a2195e3aa6d0344de7745/packages/extension-dapp/src/wrapBytes.ts
 fn wrap_bytes(msg: &[u8]) -> Vec<u8> {
@@ -124,6 +150,20 @@ fn wrap_bytes(msg: &[u8]) -> Vec<u8> {
     wrapped
 }
 
+fn evm_ecdsa_recover(
+    mut signature: [u8; 65],
+    message_hash: [u8; 32],
+) -> Result<Vec<u8>, SignatureVerifyError> {
+    if signature[64] >= 27 {
+        signature[64] -= 27;
+    }
+    let signature = sp_core::ecdsa::Signature::from_raw(signature);
+    let recovered_pubkey = signature
+        .recover_prehashed(&message_hash)
+        .ok_or(SignatureVerifyError::InvalidSignature)?;
+    Ok(recovered_pubkey.as_ref().to_vec())
+}
+
 #[derive(Clone, Encode, Decode, Debug)]
 pub struct CertificateBody {
     pub pubkey: Vec<u8>,
@@ -132,37 +172,34 @@ pub struct CertificateBody {
 }
 
 impl CertificateBody {
-    fn verify(
+    fn recover(
         &self,
         msg: &[u8],
+        msg_type: MessageType,
         sig_type: SignatureType,
         signature: &[u8],
-    ) -> Result<(), SignatureVerifyError> {
-        let valid = match sig_type {
+    ) -> Result<Vec<u8>, SignatureVerifyError> {
+        match sig_type {
             SignatureType::Ed25519 => {
-                verify::<sp_core::ed25519::Pair>(&self.pubkey, signature, msg)
+                recover::<sp_core::ed25519::Pair>(&self.pubkey, signature, msg)
             }
             SignatureType::Sr25519 => {
-                verify::<sp_core::sr25519::Pair>(&self.pubkey, signature, msg)
+                recover::<sp_core::sr25519::Pair>(&self.pubkey, signature, msg)
             }
-            SignatureType::Ecdsa => verify::<sp_core::ecdsa::Pair>(&self.pubkey, signature, msg),
+            SignatureType::Ecdsa => recover::<sp_core::ecdsa::Pair>(&self.pubkey, signature, msg),
             SignatureType::Ed25519WrapBytes => {
                 let wrapped = wrap_bytes(msg);
-                verify::<sp_core::ed25519::Pair>(&self.pubkey, signature, &wrapped)
+                recover::<sp_core::ed25519::Pair>(&self.pubkey, signature, &wrapped)
             }
             SignatureType::Sr25519WrapBytes => {
                 let wrapped = wrap_bytes(msg);
-                verify::<sp_core::sr25519::Pair>(&self.pubkey, signature, &wrapped)
+                recover::<sp_core::sr25519::Pair>(&self.pubkey, signature, &wrapped)
             }
             SignatureType::EcdsaWrapBytes => {
                 let wrapped = wrap_bytes(msg);
-                verify::<sp_core::ecdsa::Pair>(&self.pubkey, signature, &wrapped)
+                recover::<sp_core::ecdsa::Pair>(&self.pubkey, signature, &wrapped)
             }
-        };
-        if valid {
-            Ok(())
-        } else {
-            Err(SignatureVerifyError::InvalidSignature)
+            SignatureType::Eip712 => eip712::recover(&self.pubkey, signature, msg, msg_type),
         }
     }
 }
