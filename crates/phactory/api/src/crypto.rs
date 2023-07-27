@@ -150,7 +150,7 @@ fn wrap_bytes(msg: &[u8]) -> Vec<u8> {
     wrapped
 }
 
-pub fn ecdsa_recover(
+fn evm_ecdsa_recover(
     mut signature: [u8; 65],
     message_hash: [u8; 32],
 ) -> Result<Vec<u8>, SignatureVerifyError> {

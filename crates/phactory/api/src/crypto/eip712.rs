@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use super::{ecdsa_recover, MessageType, SignatureVerifyError};
+use super::{evm_ecdsa_recover, MessageType, SignatureVerifyError};
 
 use ethers::{
     contract::{Eip712, EthAbiType},
@@ -52,7 +52,7 @@ pub(crate) fn recover(
         .encode_eip712(),
     }
     .or(Err(SignatureVerifyError::Eip712EncodingError))?;
-    let recovered_pubkey = ecdsa_recover(signature, message_hash)?;
+    let recovered_pubkey = evm_ecdsa_recover(signature, message_hash)?;
     if recovered_pubkey != pubkey {
         return Err(SignatureVerifyError::InvalidSignature);
     }
