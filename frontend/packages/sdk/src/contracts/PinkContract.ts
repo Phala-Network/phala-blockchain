@@ -1,14 +1,12 @@
 import type { Bytes } from '@polkadot/types';
+import type { Codec, IEnum, Registry, ISubmittableResult  } from '@polkadot/types/types';
 import type { SubmittableExtrinsic } from '@polkadot/api/submittable/types';
 import type { AccountId, ContractExecResult, EventRecord } from '@polkadot/types/interfaces';
 import type { ApiPromise } from '@polkadot/api';
 import type { ApiBase } from '@polkadot/api/base';
-import type { ISubmittableResult } from '@polkadot/types/types';
 import type { AbiMessage, ContractOptions, ContractCallOutcome, DecodedEvent } from '@polkadot/api-contract/types';
 import type { ContractCallResult, ContractCallSend, MessageMeta, ContractTx, MapMessageTx } from '@polkadot/api-contract/base/types';
-import type { Registry } from '@polkadot/types/types';
 import type { DecorateMethod, ApiTypes } from '@polkadot/api/types';
-import type { KeyringPair } from '@polkadot/keyring/types';
 
 import type { OnChainRegistry } from '../OnChainRegistry';
 import type { AbiLike } from '../types';
@@ -29,8 +27,21 @@ import { randomHex } from "../lib/hex";
 import assert from '../lib/assert';
 
 
+export type PinkContractCallOutcome<ResultType> = {
+  output: ResultType
+} & Omit<ContractCallOutcome, 'output'>;
+
+export interface ILooseResult<O, E extends Codec = Codec> extends IEnum {
+    readonly asErr: E;
+    readonly asOk: O;
+    readonly isErr: boolean;
+    readonly isOk: boolean;
+}
+
 export interface ContractInkQuery<ApiType extends ApiTypes> extends MessageMeta {
-  (origin: string | AccountId | Uint8Array, ...params: unknown[]): ContractCallResult<ApiType, ContractCallOutcome>;
+  <ResultType = Codec, ErrType extends Codec = Codec>(origin: string | AccountId | Uint8Array, ...params: unknown[]): ContractCallResult<
+    ApiType, PinkContractCallOutcome<ILooseResult<ResultType, ErrType>>
+  >;
 }
 
 export interface MapMessageInkQuery<ApiType extends ApiTypes> {
