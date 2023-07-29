@@ -120,7 +120,7 @@ export class PinkCodePromise {
     return this.api.tx.phalaPhatContracts.clusterUploadResource(
       this.phatRegistry.clusterId,
       'InkCode',
-      this.code.toString()
+      u8aToHex(this.code)
     ).withResultTransform(
       (result: ISubmittableResult) => {
         return new InkCodeSubmittableResult(result, this.abi, this.phatRegistry)
