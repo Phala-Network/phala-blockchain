@@ -36,8 +36,9 @@ async fn query_serve(app: AppState) {
         GetLog {
             #[serde(default)]
             contract: String,
+            /// Negative value means counting from the end back.
             #[serde(default)]
-            from: u64,
+            from: i64,
             #[serde(default)]
             count: u64,
             #[serde(default, rename="blockNumber")]

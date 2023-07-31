@@ -253,7 +253,7 @@ impl Buffer {
     pub fn get_records(
         &mut self,
         contract: &str,
-        from: u64,
+        from: i64,
         count: u64,
         block_number: Option<u32>,
     ) -> String {
@@ -261,6 +261,11 @@ impl Buffer {
         let mut result: String = "{\"records\":[".into();
         let mut n = 0_u64;
         let mut next_seq = 0_u64;
+        let from = if from < 0 {
+            self.next_sequence + from as u64
+        } else {
+            from as u64
+        };
         for rec in self.records.iter_mut() {
             next_seq = rec.sequence + 1;
             if rec.sequence < from {
