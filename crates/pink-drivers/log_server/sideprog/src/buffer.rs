@@ -14,6 +14,7 @@ struct Record {
     message: Message,
     size: usize,
     sequence: u64,
+    block_number: Option<u32>,
 }
 
 enum Message {
@@ -122,6 +123,15 @@ impl SerMessage {
         };
         128 + payload
     }
+
+    fn block_number(&self) -> Option<u32> {
+        match self {
+            SerMessage::Log { block_number, .. }
+            | SerMessage::Event { block_number, .. }
+            | SerMessage::MessageOutput { block_number, .. } => Some(*block_number),
+            SerMessage::TooLarge | SerMessage::QueryIn { .. } => None,
+        }
+    }
 }
 
 impl From<SystemMessage> for SerMessage {
@@ -214,6 +224,7 @@ impl Buffer {
         let entry_contract = entry_of(&message);
         let mut message: SerMessage = message.into();
         let mut size = message.size();
+        let block_number = message.block_number();
         if size > self.capacity {
             message = SerMessage::TooLarge;
             size = message.size();
@@ -228,6 +239,7 @@ impl Buffer {
             message: Message::Origin(message),
             size,
             sequence: self.next_sequence,
+            block_number,
         }));
         self.next_sequence += 1;
     }
@@ -238,7 +250,13 @@ impl Buffer {
         Some(*rec)
     }
 
-    pub fn get_records(&mut self, contract: &str, from: u64, count: u64) -> String {
+    pub fn get_records(
+        &mut self,
+        contract: &str,
+        from: u64,
+        count: u64,
+        block_number: Option<u32>,
+    ) -> String {
         let count = if count == 0 { u64::MAX } else { count };
         let mut result: String = "{\"records\":[".into();
         let mut n = 0_u64;
@@ -247,6 +265,11 @@ impl Buffer {
             next_seq = rec.sequence + 1;
             if rec.sequence < from {
                 continue;
+            }
+            if let Some(block_number) = block_number {
+                if rec.block_number != Some(block_number) {
+                    continue;
+                }
             }
             if contract.is_empty() || rec.contract_id == contract || rec.entry_contract == contract
             {

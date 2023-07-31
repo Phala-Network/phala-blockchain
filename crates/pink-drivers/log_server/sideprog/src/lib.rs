@@ -40,7 +40,9 @@ async fn query_serve(app: AppState) {
             from: u64,
             #[serde(default)]
             count: u64,
-        }
+            #[serde(default, rename="blockNumber")]
+            block_number: Option<u32>,
+        },
     }
 
     loop {
@@ -51,6 +53,7 @@ async fn query_serve(app: AppState) {
                 contract,
                 from,
                 count,
+                block_number,
             } = match serde_json::from_slice(&query.payload) {
                 Err(_) => {
                     info!("Invalid input");
@@ -61,7 +64,7 @@ async fn query_serve(app: AppState) {
             };
             let reply = app.log_buffer
                 .borrow_mut()
-                .get_records(&contract, from, count);
+                .get_records(&contract, from, count, block_number);
             let _ = query.reply_tx.send(reply.as_bytes());
         } else {
             info!("Query channel closed");
