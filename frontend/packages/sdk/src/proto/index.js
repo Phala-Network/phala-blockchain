@@ -1,20 +1,22 @@
 /*eslint-disable block-scoped-var, id-length, no-control-regex, no-magic-numbers, no-prototype-builtins, no-redeclare, no-shadow, no-var, sort-vars*/
-import * as $protobuf from "protobufjs/minimal";
+"use strict";
+
+var $protobuf = require("protobufjs/minimal");
 
 // Common aliases
-const $Reader = $protobuf.Reader, $Writer = $protobuf.Writer, $util = $protobuf.util;
+var $Reader = $protobuf.Reader, $Writer = $protobuf.Writer, $util = $protobuf.util;
 
 // Exported root namespace
-const $root = $protobuf.roots["default"] || ($protobuf.roots["default"] = {});
+var $root = $protobuf.roots["default"] || ($protobuf.roots["default"] = {});
 
-export const prpc = $root.prpc = (() => {
+$root.prpc = (function() {
 
     /**
      * Namespace prpc.
      * @exports prpc
      * @namespace
      */
-    const prpc = {};
+    var prpc = {};
 
     prpc.PrpcError = (function() {
 
@@ -35,7 +37,7 @@ export const prpc = $root.prpc = (() => {
          */
         function PrpcError(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -104,13 +106,14 @@ export const prpc = $root.prpc = (() => {
         PrpcError.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.prpc.PrpcError();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.prpc.PrpcError();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.message = reader.string();
-                    break;
+                case 1: {
+                        message.message = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -163,7 +166,7 @@ export const prpc = $root.prpc = (() => {
         PrpcError.fromObject = function fromObject(object) {
             if (object instanceof $root.prpc.PrpcError)
                 return object;
-            let message = new $root.prpc.PrpcError();
+            var message = new $root.prpc.PrpcError();
             if (object.message != null)
                 message.message = String(object.message);
             return message;
@@ -181,7 +184,7 @@ export const prpc = $root.prpc = (() => {
         PrpcError.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults)
                 object.message = "";
             if (message.message != null && message.hasOwnProperty("message"))
@@ -200,20 +203,35 @@ export const prpc = $root.prpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for PrpcError
+         * @function getTypeUrl
+         * @memberof prpc.PrpcError
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        PrpcError.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/prpc.PrpcError";
+        };
+
         return PrpcError;
     })();
 
     return prpc;
 })();
 
-export const pruntime_rpc = $root.pruntime_rpc = (() => {
+$root.pruntime_rpc = (function() {
 
     /**
      * Namespace pruntime_rpc.
      * @exports pruntime_rpc
      * @namespace
      */
-    const pruntime_rpc = {};
+    var pruntime_rpc = {};
 
     pruntime_rpc.PhactoryAPI = (function() {
 
@@ -1303,6 +1321,105 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          * @variation 2
          */
 
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#generateClusterStateRequest}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef GenerateClusterStateRequestCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.SaveClusterStateArguments} [response] SaveClusterStateArguments
+         */
+
+        /**
+         * Calls GenerateClusterStateRequest.
+         * @function generateClusterStateRequest
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.GenerateClusterStateRequestCallback} callback Node-style callback called with the error, if any, and SaveClusterStateArguments
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.generateClusterStateRequest = function generateClusterStateRequest(request, callback) {
+            return this.rpcCall(generateClusterStateRequest, $root.google.protobuf.Empty, $root.pruntime_rpc.SaveClusterStateArguments, request, callback);
+        }, "name", { value: "GenerateClusterStateRequest" });
+
+        /**
+         * Calls GenerateClusterStateRequest.
+         * @function generateClusterStateRequest
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @returns {Promise<pruntime_rpc.SaveClusterStateArguments>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#saveClusterState}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef SaveClusterStateCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.SaveClusterStateResponse} [response] SaveClusterStateResponse
+         */
+
+        /**
+         * Calls SaveClusterState.
+         * @function saveClusterState
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.ISaveClusterStateArguments} request SaveClusterStateArguments message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.SaveClusterStateCallback} callback Node-style callback called with the error, if any, and SaveClusterStateResponse
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.saveClusterState = function saveClusterState(request, callback) {
+            return this.rpcCall(saveClusterState, $root.pruntime_rpc.SaveClusterStateArguments, $root.pruntime_rpc.SaveClusterStateResponse, request, callback);
+        }, "name", { value: "SaveClusterState" });
+
+        /**
+         * Calls SaveClusterState.
+         * @function saveClusterState
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.ISaveClusterStateArguments} request SaveClusterStateArguments message or plain object
+         * @returns {Promise<pruntime_rpc.SaveClusterStateResponse>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#loadClusterState}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef LoadClusterStateCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {google.protobuf.Empty} [response] Empty
+         */
+
+        /**
+         * Calls LoadClusterState.
+         * @function loadClusterState
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.ISaveClusterStateResponse} request SaveClusterStateResponse message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.LoadClusterStateCallback} callback Node-style callback called with the error, if any, and Empty
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.loadClusterState = function loadClusterState(request, callback) {
+            return this.rpcCall(loadClusterState, $root.pruntime_rpc.SaveClusterStateResponse, $root.google.protobuf.Empty, request, callback);
+        }, "name", { value: "LoadClusterState" });
+
+        /**
+         * Calls LoadClusterState.
+         * @function loadClusterState
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.ISaveClusterStateResponse} request SaveClusterStateResponse message or plain object
+         * @returns {Promise<google.protobuf.Empty>} Promise
+         * @variation 2
+         */
+
         return PhactoryAPI;
     })();
 
@@ -1346,7 +1463,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function PhactoryInfo(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -1528,7 +1645,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         PhactoryInfo.prototype.maxSupportedPinkRuntimeVersion = "";
 
         // OneOf field names bound to virtual getters and setters
-        let $oneOfFields;
+        var $oneOfFields;
 
         /**
          * PhactoryInfo _genesisBlockHash.
@@ -1661,76 +1778,98 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         PhactoryInfo.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.PhactoryInfo();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.PhactoryInfo();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.initialized = reader.bool();
-                    break;
-                case 2:
-                    message.registered = reader.bool();
-                    break;
-                case 4:
-                    message.genesisBlockHash = reader.string();
-                    break;
-                case 5:
-                    message.publicKey = reader.string();
-                    break;
-                case 6:
-                    message.ecdhPublicKey = reader.string();
-                    break;
-                case 7:
-                    message.headernum = reader.uint32();
-                    break;
-                case 8:
-                    message.paraHeadernum = reader.uint32();
-                    break;
-                case 9:
-                    message.blocknum = reader.uint32();
-                    break;
-                case 10:
-                    message.stateRoot = reader.string();
-                    break;
-                case 11:
-                    message.devMode = reader.bool();
-                    break;
-                case 12:
-                    message.pendingMessages = reader.uint64();
-                    break;
-                case 13:
-                    message.score = reader.uint64();
-                    break;
-                case 14:
-                    message.gatekeeper = $root.pruntime_rpc.GatekeeperStatus.decode(reader, reader.uint32());
-                    break;
-                case 15:
-                    message.version = reader.string();
-                    break;
-                case 16:
-                    message.gitRevision = reader.string();
-                    break;
-                case 18:
-                    message.memoryUsage = $root.pruntime_rpc.MemoryUsage.decode(reader, reader.uint32());
-                    break;
-                case 21:
-                    message.waitingForParaheaders = reader.bool();
-                    break;
-                case 23:
-                    message.system = $root.pruntime_rpc.SystemInfo.decode(reader, reader.uint32());
-                    break;
-                case 24:
-                    message.canLoadChainState = reader.bool();
-                    break;
-                case 25:
-                    message.safeModeLevel = reader.uint32();
-                    break;
-                case 26:
-                    message.currentBlockTime = reader.uint64();
-                    break;
-                case 27:
-                    message.maxSupportedPinkRuntimeVersion = reader.string();
-                    break;
+                case 1: {
+                        message.initialized = reader.bool();
+                        break;
+                    }
+                case 2: {
+                        message.registered = reader.bool();
+                        break;
+                    }
+                case 4: {
+                        message.genesisBlockHash = reader.string();
+                        break;
+                    }
+                case 5: {
+                        message.publicKey = reader.string();
+                        break;
+                    }
+                case 6: {
+                        message.ecdhPublicKey = reader.string();
+                        break;
+                    }
+                case 7: {
+                        message.headernum = reader.uint32();
+                        break;
+                    }
+                case 8: {
+                        message.paraHeadernum = reader.uint32();
+                        break;
+                    }
+                case 9: {
+                        message.blocknum = reader.uint32();
+                        break;
+                    }
+                case 10: {
+                        message.stateRoot = reader.string();
+                        break;
+                    }
+                case 11: {
+                        message.devMode = reader.bool();
+                        break;
+                    }
+                case 12: {
+                        message.pendingMessages = reader.uint64();
+                        break;
+                    }
+                case 13: {
+                        message.score = reader.uint64();
+                        break;
+                    }
+                case 14: {
+                        message.gatekeeper = $root.pruntime_rpc.GatekeeperStatus.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 15: {
+                        message.version = reader.string();
+                        break;
+                    }
+                case 16: {
+                        message.gitRevision = reader.string();
+                        break;
+                    }
+                case 18: {
+                        message.memoryUsage = $root.pruntime_rpc.MemoryUsage.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 21: {
+                        message.waitingForParaheaders = reader.bool();
+                        break;
+                    }
+                case 23: {
+                        message.system = $root.pruntime_rpc.SystemInfo.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 24: {
+                        message.canLoadChainState = reader.bool();
+                        break;
+                    }
+                case 25: {
+                        message.safeModeLevel = reader.uint32();
+                        break;
+                    }
+                case 26: {
+                        message.currentBlockTime = reader.uint64();
+                        break;
+                    }
+                case 27: {
+                        message.maxSupportedPinkRuntimeVersion = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -1766,7 +1905,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         PhactoryInfo.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            let properties = {};
+            var properties = {};
             if (message.initialized != null && message.hasOwnProperty("initialized"))
                 if (typeof message.initialized !== "boolean")
                     return "initialized: boolean expected";
@@ -1810,7 +1949,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (!$util.isInteger(message.score) && !(message.score && $util.isInteger(message.score.low) && $util.isInteger(message.score.high)))
                     return "score: integer|Long expected";
             if (message.gatekeeper != null && message.hasOwnProperty("gatekeeper")) {
-                let error = $root.pruntime_rpc.GatekeeperStatus.verify(message.gatekeeper);
+                var error = $root.pruntime_rpc.GatekeeperStatus.verify(message.gatekeeper);
                 if (error)
                     return "gatekeeper." + error;
             }
@@ -1821,7 +1960,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (!$util.isString(message.gitRevision))
                     return "gitRevision: string expected";
             if (message.memoryUsage != null && message.hasOwnProperty("memoryUsage")) {
-                let error = $root.pruntime_rpc.MemoryUsage.verify(message.memoryUsage);
+                var error = $root.pruntime_rpc.MemoryUsage.verify(message.memoryUsage);
                 if (error)
                     return "memoryUsage." + error;
             }
@@ -1829,7 +1968,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (typeof message.waitingForParaheaders !== "boolean")
                     return "waitingForParaheaders: boolean expected";
             if (message.system != null && message.hasOwnProperty("system")) {
-                let error = $root.pruntime_rpc.SystemInfo.verify(message.system);
+                var error = $root.pruntime_rpc.SystemInfo.verify(message.system);
                 if (error)
                     return "system." + error;
             }
@@ -1859,7 +1998,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         PhactoryInfo.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.PhactoryInfo)
                 return object;
-            let message = new $root.pruntime_rpc.PhactoryInfo();
+            var message = new $root.pruntime_rpc.PhactoryInfo();
             if (object.initialized != null)
                 message.initialized = Boolean(object.initialized);
             if (object.registered != null)
@@ -1949,7 +2088,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         PhactoryInfo.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.initialized = false;
                 object.registered = false;
@@ -1959,12 +2098,12 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 object.stateRoot = "";
                 object.devMode = false;
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.pendingMessages = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.pendingMessages = options.longs === String ? "0" : 0;
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.score = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.score = options.longs === String ? "0" : 0;
@@ -1977,7 +2116,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 object.canLoadChainState = false;
                 object.safeModeLevel = 0;
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.currentBlockTime = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.currentBlockTime = options.longs === String ? "0" : 0;
@@ -2059,6 +2198,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for PhactoryInfo
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.PhactoryInfo
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        PhactoryInfo.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.PhactoryInfo";
+        };
+
         return PhactoryInfo;
     })();
 
@@ -2088,7 +2242,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function SystemInfo(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -2227,34 +2381,42 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         SystemInfo.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SystemInfo();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SystemInfo();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.registered = reader.bool();
-                    break;
-                case 2:
-                    message.publicKey = reader.string();
-                    break;
-                case 3:
-                    message.ecdhPublicKey = reader.string();
-                    break;
-                case 4:
-                    message.gatekeeper = $root.pruntime_rpc.GatekeeperStatus.decode(reader, reader.uint32());
-                    break;
-                case 5:
-                    message.numberOfClusters = reader.uint64();
-                    break;
-                case 6:
-                    message.numberOfContracts = reader.uint64();
-                    break;
-                case 7:
-                    message.maxSupportedConsensusVersion = reader.uint32();
-                    break;
-                case 8:
-                    message.genesisBlock = reader.uint32();
-                    break;
+                case 1: {
+                        message.registered = reader.bool();
+                        break;
+                    }
+                case 2: {
+                        message.publicKey = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.ecdhPublicKey = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.gatekeeper = $root.pruntime_rpc.GatekeeperStatus.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 5: {
+                        message.numberOfClusters = reader.uint64();
+                        break;
+                    }
+                case 6: {
+                        message.numberOfContracts = reader.uint64();
+                        break;
+                    }
+                case 7: {
+                        message.maxSupportedConsensusVersion = reader.uint32();
+                        break;
+                    }
+                case 8: {
+                        message.genesisBlock = reader.uint32();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -2300,7 +2462,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (!$util.isString(message.ecdhPublicKey))
                     return "ecdhPublicKey: string expected";
             if (message.gatekeeper != null && message.hasOwnProperty("gatekeeper")) {
-                let error = $root.pruntime_rpc.GatekeeperStatus.verify(message.gatekeeper);
+                var error = $root.pruntime_rpc.GatekeeperStatus.verify(message.gatekeeper);
                 if (error)
                     return "gatekeeper." + error;
             }
@@ -2330,7 +2492,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         SystemInfo.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.SystemInfo)
                 return object;
-            let message = new $root.pruntime_rpc.SystemInfo();
+            var message = new $root.pruntime_rpc.SystemInfo();
             if (object.registered != null)
                 message.registered = Boolean(object.registered);
             if (object.publicKey != null)
@@ -2379,19 +2541,19 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         SystemInfo.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.registered = false;
                 object.publicKey = "";
                 object.ecdhPublicKey = "";
                 object.gatekeeper = null;
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.numberOfClusters = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.numberOfClusters = options.longs === String ? "0" : 0;
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.numberOfContracts = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.numberOfContracts = options.longs === String ? "0" : 0;
@@ -2434,6 +2596,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for SystemInfo
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.SystemInfo
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        SystemInfo.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.SystemInfo";
+        };
+
         return SystemInfo;
     })();
 
@@ -2446,7 +2623,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
      * @property {number} Active=2 Active value
      */
     pruntime_rpc.GatekeeperRole = (function() {
-        const valuesById = {}, values = Object.create(valuesById);
+        var valuesById = {}, values = Object.create(valuesById);
         values[valuesById[0] = "None"] = 0;
         values[valuesById[1] = "Dummy"] = 1;
         values[valuesById[2] = "Active"] = 2;
@@ -2473,7 +2650,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function GatekeeperStatus(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -2552,16 +2729,18 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GatekeeperStatus.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GatekeeperStatus();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GatekeeperStatus();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.role = reader.int32();
-                    break;
-                case 2:
-                    message.masterPublicKey = reader.string();
-                    break;
+                case 1: {
+                        message.role = reader.int32();
+                        break;
+                    }
+                case 2: {
+                        message.masterPublicKey = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -2623,8 +2802,14 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GatekeeperStatus.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.GatekeeperStatus)
                 return object;
-            let message = new $root.pruntime_rpc.GatekeeperStatus();
+            var message = new $root.pruntime_rpc.GatekeeperStatus();
             switch (object.role) {
+            default:
+                if (typeof object.role === "number") {
+                    message.role = object.role;
+                    break;
+                }
+                break;
             case "None":
             case 0:
                 message.role = 0;
@@ -2655,13 +2840,13 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GatekeeperStatus.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.role = options.enums === String ? "None" : 0;
                 object.masterPublicKey = "";
             }
             if (message.role != null && message.hasOwnProperty("role"))
-                object.role = options.enums === String ? $root.pruntime_rpc.GatekeeperRole[message.role] : message.role;
+                object.role = options.enums === String ? $root.pruntime_rpc.GatekeeperRole[message.role] === undefined ? message.role : $root.pruntime_rpc.GatekeeperRole[message.role] : message.role;
             if (message.masterPublicKey != null && message.hasOwnProperty("masterPublicKey"))
                 object.masterPublicKey = message.masterPublicKey;
             return object;
@@ -2676,6 +2861,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         GatekeeperStatus.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for GatekeeperStatus
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.GatekeeperStatus
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        GatekeeperStatus.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.GatekeeperStatus";
         };
 
         return GatekeeperStatus;
@@ -2703,7 +2903,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function MemoryUsage(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -2802,22 +3002,26 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         MemoryUsage.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.MemoryUsage();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.MemoryUsage();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.rustUsed = reader.uint64();
-                    break;
-                case 2:
-                    message.rustPeakUsed = reader.uint64();
-                    break;
-                case 3:
-                    message.totalPeakUsed = reader.uint64();
-                    break;
-                case 4:
-                    message.free = reader.uint64();
-                    break;
+                case 1: {
+                        message.rustUsed = reader.uint64();
+                        break;
+                    }
+                case 2: {
+                        message.rustPeakUsed = reader.uint64();
+                        break;
+                    }
+                case 3: {
+                        message.totalPeakUsed = reader.uint64();
+                        break;
+                    }
+                case 4: {
+                        message.free = reader.uint64();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -2879,7 +3083,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         MemoryUsage.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.MemoryUsage)
                 return object;
-            let message = new $root.pruntime_rpc.MemoryUsage();
+            var message = new $root.pruntime_rpc.MemoryUsage();
             if (object.rustUsed != null)
                 if ($util.Long)
                     (message.rustUsed = $util.Long.fromValue(object.rustUsed)).unsigned = true;
@@ -2931,25 +3135,25 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         MemoryUsage.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.rustUsed = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.rustUsed = options.longs === String ? "0" : 0;
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.rustPeakUsed = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.rustPeakUsed = options.longs === String ? "0" : 0;
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.totalPeakUsed = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.totalPeakUsed = options.longs === String ? "0" : 0;
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.free = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.free = options.longs === String ? "0" : 0;
@@ -2988,6 +3192,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for MemoryUsage
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.MemoryUsage
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        MemoryUsage.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.MemoryUsage";
+        };
+
         return MemoryUsage;
     })();
 
@@ -3010,7 +3229,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function SyncedTo(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -3079,13 +3298,14 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         SyncedTo.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SyncedTo();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SyncedTo();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.syncedTo = reader.uint32();
-                    break;
+                case 1: {
+                        message.syncedTo = reader.uint32();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -3138,7 +3358,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         SyncedTo.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.SyncedTo)
                 return object;
-            let message = new $root.pruntime_rpc.SyncedTo();
+            var message = new $root.pruntime_rpc.SyncedTo();
             if (object.syncedTo != null)
                 message.syncedTo = object.syncedTo >>> 0;
             return message;
@@ -3156,7 +3376,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         SyncedTo.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults)
                 object.syncedTo = 0;
             if (message.syncedTo != null && message.hasOwnProperty("syncedTo"))
@@ -3173,6 +3393,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         SyncedTo.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for SyncedTo
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.SyncedTo
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        SyncedTo.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.SyncedTo";
         };
 
         return SyncedTo;
@@ -3198,7 +3433,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function HeadersToSync(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -3220,7 +3455,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HeadersToSync.prototype.encodedAuthoritySetChange = null;
 
         // OneOf field names bound to virtual getters and setters
-        let $oneOfFields;
+        var $oneOfFields;
 
         /**
          * HeadersToSync _encodedAuthoritySetChange.
@@ -3291,16 +3526,18 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HeadersToSync.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HeadersToSync();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HeadersToSync();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.encodedHeaders = reader.bytes();
-                    break;
-                case 2:
-                    message.encodedAuthoritySetChange = reader.bytes();
-                    break;
+                case 1: {
+                        message.encodedHeaders = reader.bytes();
+                        break;
+                    }
+                case 2: {
+                        message.encodedAuthoritySetChange = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -3336,7 +3573,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HeadersToSync.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            let properties = {};
+            var properties = {};
             if (message.encodedHeaders != null && message.hasOwnProperty("encodedHeaders"))
                 if (!(message.encodedHeaders && typeof message.encodedHeaders.length === "number" || $util.isString(message.encodedHeaders)))
                     return "encodedHeaders: buffer expected";
@@ -3359,16 +3596,16 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HeadersToSync.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.HeadersToSync)
                 return object;
-            let message = new $root.pruntime_rpc.HeadersToSync();
+            var message = new $root.pruntime_rpc.HeadersToSync();
             if (object.encodedHeaders != null)
                 if (typeof object.encodedHeaders === "string")
                     $util.base64.decode(object.encodedHeaders, message.encodedHeaders = $util.newBuffer($util.base64.length(object.encodedHeaders)), 0);
-                else if (object.encodedHeaders.length)
+                else if (object.encodedHeaders.length >= 0)
                     message.encodedHeaders = object.encodedHeaders;
             if (object.encodedAuthoritySetChange != null)
                 if (typeof object.encodedAuthoritySetChange === "string")
                     $util.base64.decode(object.encodedAuthoritySetChange, message.encodedAuthoritySetChange = $util.newBuffer($util.base64.length(object.encodedAuthoritySetChange)), 0);
-                else if (object.encodedAuthoritySetChange.length)
+                else if (object.encodedAuthoritySetChange.length >= 0)
                     message.encodedAuthoritySetChange = object.encodedAuthoritySetChange;
             return message;
         };
@@ -3385,7 +3622,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HeadersToSync.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults)
                 if (options.bytes === String)
                     object.encodedHeaders = "";
@@ -3415,6 +3652,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for HeadersToSync
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.HeadersToSync
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        HeadersToSync.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.HeadersToSync";
+        };
+
         return HeadersToSync;
     })();
 
@@ -3439,7 +3691,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         function ParaHeadersToSync(properties) {
             this.proof = [];
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -3487,7 +3739,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.encodedHeaders != null && Object.hasOwnProperty.call(message, "encodedHeaders"))
                 writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.encodedHeaders);
             if (message.proof != null && message.proof.length)
-                for (let i = 0; i < message.proof.length; ++i)
+                for (var i = 0; i < message.proof.length; ++i)
                     writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.proof[i]);
             return writer;
         };
@@ -3519,18 +3771,20 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ParaHeadersToSync.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ParaHeadersToSync();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ParaHeadersToSync();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.encodedHeaders = reader.bytes();
-                    break;
-                case 2:
-                    if (!(message.proof && message.proof.length))
-                        message.proof = [];
-                    message.proof.push(reader.bytes());
-                    break;
+                case 1: {
+                        message.encodedHeaders = reader.bytes();
+                        break;
+                    }
+                case 2: {
+                        if (!(message.proof && message.proof.length))
+                            message.proof = [];
+                        message.proof.push(reader.bytes());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -3572,7 +3826,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.proof != null && message.hasOwnProperty("proof")) {
                 if (!Array.isArray(message.proof))
                     return "proof: array expected";
-                for (let i = 0; i < message.proof.length; ++i)
+                for (var i = 0; i < message.proof.length; ++i)
                     if (!(message.proof[i] && typeof message.proof[i].length === "number" || $util.isString(message.proof[i])))
                         return "proof: buffer[] expected";
             }
@@ -3590,20 +3844,20 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ParaHeadersToSync.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.ParaHeadersToSync)
                 return object;
-            let message = new $root.pruntime_rpc.ParaHeadersToSync();
+            var message = new $root.pruntime_rpc.ParaHeadersToSync();
             if (object.encodedHeaders != null)
                 if (typeof object.encodedHeaders === "string")
                     $util.base64.decode(object.encodedHeaders, message.encodedHeaders = $util.newBuffer($util.base64.length(object.encodedHeaders)), 0);
-                else if (object.encodedHeaders.length)
+                else if (object.encodedHeaders.length >= 0)
                     message.encodedHeaders = object.encodedHeaders;
             if (object.proof) {
                 if (!Array.isArray(object.proof))
                     throw TypeError(".pruntime_rpc.ParaHeadersToSync.proof: array expected");
                 message.proof = [];
-                for (let i = 0; i < object.proof.length; ++i)
+                for (var i = 0; i < object.proof.length; ++i)
                     if (typeof object.proof[i] === "string")
                         $util.base64.decode(object.proof[i], message.proof[i] = $util.newBuffer($util.base64.length(object.proof[i])), 0);
-                    else if (object.proof[i].length)
+                    else if (object.proof[i].length >= 0)
                         message.proof[i] = object.proof[i];
             }
             return message;
@@ -3621,7 +3875,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ParaHeadersToSync.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.arrays || options.defaults)
                 object.proof = [];
             if (options.defaults)
@@ -3636,7 +3890,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 object.encodedHeaders = options.bytes === String ? $util.base64.encode(message.encodedHeaders, 0, message.encodedHeaders.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedHeaders) : message.encodedHeaders;
             if (message.proof && message.proof.length) {
                 object.proof = [];
-                for (let j = 0; j < message.proof.length; ++j)
+                for (var j = 0; j < message.proof.length; ++j)
                     object.proof[j] = options.bytes === String ? $util.base64.encode(message.proof[j], 0, message.proof[j].length) : options.bytes === Array ? Array.prototype.slice.call(message.proof[j]) : message.proof[j];
             }
             return object;
@@ -3651,6 +3905,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         ParaHeadersToSync.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for ParaHeadersToSync
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.ParaHeadersToSync
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ParaHeadersToSync.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.ParaHeadersToSync";
         };
 
         return ParaHeadersToSync;
@@ -3679,7 +3948,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         function CombinedHeadersToSync(properties) {
             this.proof = [];
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -3717,7 +3986,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         CombinedHeadersToSync.prototype.proof = $util.emptyArray;
 
         // OneOf field names bound to virtual getters and setters
-        let $oneOfFields;
+        var $oneOfFields;
 
         /**
          * CombinedHeadersToSync _authoritySetChange.
@@ -3761,7 +4030,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.encodedParachainHeaders != null && Object.hasOwnProperty.call(message, "encodedParachainHeaders"))
                 writer.uint32(/* id 3, wireType 2 =*/26).bytes(message.encodedParachainHeaders);
             if (message.proof != null && message.proof.length)
-                for (let i = 0; i < message.proof.length; ++i)
+                for (var i = 0; i < message.proof.length; ++i)
                     writer.uint32(/* id 4, wireType 2 =*/34).bytes(message.proof[i]);
             return writer;
         };
@@ -3793,24 +4062,28 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         CombinedHeadersToSync.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.CombinedHeadersToSync();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.CombinedHeadersToSync();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.encodedRelaychainHeaders = reader.bytes();
-                    break;
-                case 2:
-                    message.authoritySetChange = reader.bytes();
-                    break;
-                case 3:
-                    message.encodedParachainHeaders = reader.bytes();
-                    break;
-                case 4:
-                    if (!(message.proof && message.proof.length))
-                        message.proof = [];
-                    message.proof.push(reader.bytes());
-                    break;
+                case 1: {
+                        message.encodedRelaychainHeaders = reader.bytes();
+                        break;
+                    }
+                case 2: {
+                        message.authoritySetChange = reader.bytes();
+                        break;
+                    }
+                case 3: {
+                        message.encodedParachainHeaders = reader.bytes();
+                        break;
+                    }
+                case 4: {
+                        if (!(message.proof && message.proof.length))
+                            message.proof = [];
+                        message.proof.push(reader.bytes());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -3846,7 +4119,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         CombinedHeadersToSync.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            let properties = {};
+            var properties = {};
             if (message.encodedRelaychainHeaders != null && message.hasOwnProperty("encodedRelaychainHeaders"))
                 if (!(message.encodedRelaychainHeaders && typeof message.encodedRelaychainHeaders.length === "number" || $util.isString(message.encodedRelaychainHeaders)))
                     return "encodedRelaychainHeaders: buffer expected";
@@ -3861,7 +4134,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.proof != null && message.hasOwnProperty("proof")) {
                 if (!Array.isArray(message.proof))
                     return "proof: array expected";
-                for (let i = 0; i < message.proof.length; ++i)
+                for (var i = 0; i < message.proof.length; ++i)
                     if (!(message.proof[i] && typeof message.proof[i].length === "number" || $util.isString(message.proof[i])))
                         return "proof: buffer[] expected";
             }
@@ -3879,30 +4152,30 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         CombinedHeadersToSync.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.CombinedHeadersToSync)
                 return object;
-            let message = new $root.pruntime_rpc.CombinedHeadersToSync();
+            var message = new $root.pruntime_rpc.CombinedHeadersToSync();
             if (object.encodedRelaychainHeaders != null)
                 if (typeof object.encodedRelaychainHeaders === "string")
                     $util.base64.decode(object.encodedRelaychainHeaders, message.encodedRelaychainHeaders = $util.newBuffer($util.base64.length(object.encodedRelaychainHeaders)), 0);
-                else if (object.encodedRelaychainHeaders.length)
+                else if (object.encodedRelaychainHeaders.length >= 0)
                     message.encodedRelaychainHeaders = object.encodedRelaychainHeaders;
             if (object.authoritySetChange != null)
                 if (typeof object.authoritySetChange === "string")
                     $util.base64.decode(object.authoritySetChange, message.authoritySetChange = $util.newBuffer($util.base64.length(object.authoritySetChange)), 0);
-                else if (object.authoritySetChange.length)
+                else if (object.authoritySetChange.length >= 0)
                     message.authoritySetChange = object.authoritySetChange;
             if (object.encodedParachainHeaders != null)
                 if (typeof object.encodedParachainHeaders === "string")
                     $util.base64.decode(object.encodedParachainHeaders, message.encodedParachainHeaders = $util.newBuffer($util.base64.length(object.encodedParachainHeaders)), 0);
-                else if (object.encodedParachainHeaders.length)
+                else if (object.encodedParachainHeaders.length >= 0)
                     message.encodedParachainHeaders = object.encodedParachainHeaders;
             if (object.proof) {
                 if (!Array.isArray(object.proof))
                     throw TypeError(".pruntime_rpc.CombinedHeadersToSync.proof: array expected");
                 message.proof = [];
-                for (let i = 0; i < object.proof.length; ++i)
+                for (var i = 0; i < object.proof.length; ++i)
                     if (typeof object.proof[i] === "string")
                         $util.base64.decode(object.proof[i], message.proof[i] = $util.newBuffer($util.base64.length(object.proof[i])), 0);
-                    else if (object.proof[i].length)
+                    else if (object.proof[i].length >= 0)
                         message.proof[i] = object.proof[i];
             }
             return message;
@@ -3920,7 +4193,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         CombinedHeadersToSync.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.arrays || options.defaults)
                 object.proof = [];
             if (options.defaults) {
@@ -3950,7 +4223,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 object.encodedParachainHeaders = options.bytes === String ? $util.base64.encode(message.encodedParachainHeaders, 0, message.encodedParachainHeaders.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedParachainHeaders) : message.encodedParachainHeaders;
             if (message.proof && message.proof.length) {
                 object.proof = [];
-                for (let j = 0; j < message.proof.length; ++j)
+                for (var j = 0; j < message.proof.length; ++j)
                     object.proof[j] = options.bytes === String ? $util.base64.encode(message.proof[j], 0, message.proof[j].length) : options.bytes === Array ? Array.prototype.slice.call(message.proof[j]) : message.proof[j];
             }
             return object;
@@ -3965,6 +4238,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         CombinedHeadersToSync.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for CombinedHeadersToSync
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.CombinedHeadersToSync
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        CombinedHeadersToSync.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.CombinedHeadersToSync";
         };
 
         return CombinedHeadersToSync;
@@ -3990,7 +4278,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function HeadersSyncedTo(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -4069,16 +4357,18 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HeadersSyncedTo.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HeadersSyncedTo();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HeadersSyncedTo();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.relaychainSyncedTo = reader.uint32();
-                    break;
-                case 2:
-                    message.parachainSyncedTo = reader.uint32();
-                    break;
+                case 1: {
+                        message.relaychainSyncedTo = reader.uint32();
+                        break;
+                    }
+                case 2: {
+                        message.parachainSyncedTo = reader.uint32();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -4134,7 +4424,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HeadersSyncedTo.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.HeadersSyncedTo)
                 return object;
-            let message = new $root.pruntime_rpc.HeadersSyncedTo();
+            var message = new $root.pruntime_rpc.HeadersSyncedTo();
             if (object.relaychainSyncedTo != null)
                 message.relaychainSyncedTo = object.relaychainSyncedTo >>> 0;
             if (object.parachainSyncedTo != null)
@@ -4154,7 +4444,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HeadersSyncedTo.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.relaychainSyncedTo = 0;
                 object.parachainSyncedTo = 0;
@@ -4175,6 +4465,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         HeadersSyncedTo.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for HeadersSyncedTo
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.HeadersSyncedTo
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        HeadersSyncedTo.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.HeadersSyncedTo";
         };
 
         return HeadersSyncedTo;
@@ -4199,7 +4504,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function Blocks(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -4268,13 +4573,14 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         Blocks.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.Blocks();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.Blocks();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.encodedBlocks = reader.bytes();
-                    break;
+                case 1: {
+                        message.encodedBlocks = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -4327,11 +4633,11 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         Blocks.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.Blocks)
                 return object;
-            let message = new $root.pruntime_rpc.Blocks();
+            var message = new $root.pruntime_rpc.Blocks();
             if (object.encodedBlocks != null)
                 if (typeof object.encodedBlocks === "string")
                     $util.base64.decode(object.encodedBlocks, message.encodedBlocks = $util.newBuffer($util.base64.length(object.encodedBlocks)), 0);
-                else if (object.encodedBlocks.length)
+                else if (object.encodedBlocks.length >= 0)
                     message.encodedBlocks = object.encodedBlocks;
             return message;
         };
@@ -4348,7 +4654,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         Blocks.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults)
                 if (options.bytes === String)
                     object.encodedBlocks = "";
@@ -4371,6 +4677,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         Blocks.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for Blocks
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.Blocks
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        Blocks.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.Blocks";
         };
 
         return Blocks;
@@ -4401,7 +4722,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function InitRuntimeRequest(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -4463,7 +4784,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         InitRuntimeRequest.prototype.attestationProvider = null;
 
         // OneOf field names bound to virtual getters and setters
-        let $oneOfFields;
+        var $oneOfFields;
 
         /**
          * InitRuntimeRequest _debugSetKey.
@@ -4566,31 +4887,38 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         InitRuntimeRequest.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.InitRuntimeRequest();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.InitRuntimeRequest();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.skipRa = reader.bool();
-                    break;
-                case 2:
-                    message.encodedGenesisInfo = reader.bytes();
-                    break;
-                case 3:
-                    message.debugSetKey = reader.bytes();
-                    break;
-                case 4:
-                    message.encodedGenesisState = reader.bytes();
-                    break;
-                case 5:
-                    message.encodedOperator = reader.bytes();
-                    break;
-                case 6:
-                    message.isParachain = reader.bool();
-                    break;
-                case 7:
-                    message.attestationProvider = reader.bytes();
-                    break;
+                case 1: {
+                        message.skipRa = reader.bool();
+                        break;
+                    }
+                case 2: {
+                        message.encodedGenesisInfo = reader.bytes();
+                        break;
+                    }
+                case 3: {
+                        message.debugSetKey = reader.bytes();
+                        break;
+                    }
+                case 4: {
+                        message.encodedGenesisState = reader.bytes();
+                        break;
+                    }
+                case 5: {
+                        message.encodedOperator = reader.bytes();
+                        break;
+                    }
+                case 6: {
+                        message.isParachain = reader.bool();
+                        break;
+                    }
+                case 7: {
+                        message.attestationProvider = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -4626,7 +4954,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         InitRuntimeRequest.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            let properties = {};
+            var properties = {};
             if (message.skipRa != null && message.hasOwnProperty("skipRa"))
                 if (typeof message.skipRa !== "boolean")
                     return "skipRa: boolean expected";
@@ -4668,35 +4996,35 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         InitRuntimeRequest.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.InitRuntimeRequest)
                 return object;
-            let message = new $root.pruntime_rpc.InitRuntimeRequest();
+            var message = new $root.pruntime_rpc.InitRuntimeRequest();
             if (object.skipRa != null)
                 message.skipRa = Boolean(object.skipRa);
             if (object.encodedGenesisInfo != null)
                 if (typeof object.encodedGenesisInfo === "string")
                     $util.base64.decode(object.encodedGenesisInfo, message.encodedGenesisInfo = $util.newBuffer($util.base64.length(object.encodedGenesisInfo)), 0);
-                else if (object.encodedGenesisInfo.length)
+                else if (object.encodedGenesisInfo.length >= 0)
                     message.encodedGenesisInfo = object.encodedGenesisInfo;
             if (object.debugSetKey != null)
                 if (typeof object.debugSetKey === "string")
                     $util.base64.decode(object.debugSetKey, message.debugSetKey = $util.newBuffer($util.base64.length(object.debugSetKey)), 0);
-                else if (object.debugSetKey.length)
+                else if (object.debugSetKey.length >= 0)
                     message.debugSetKey = object.debugSetKey;
             if (object.encodedGenesisState != null)
                 if (typeof object.encodedGenesisState === "string")
                     $util.base64.decode(object.encodedGenesisState, message.encodedGenesisState = $util.newBuffer($util.base64.length(object.encodedGenesisState)), 0);
-                else if (object.encodedGenesisState.length)
+                else if (object.encodedGenesisState.length >= 0)
                     message.encodedGenesisState = object.encodedGenesisState;
             if (object.encodedOperator != null)
                 if (typeof object.encodedOperator === "string")
                     $util.base64.decode(object.encodedOperator, message.encodedOperator = $util.newBuffer($util.base64.length(object.encodedOperator)), 0);
-                else if (object.encodedOperator.length)
+                else if (object.encodedOperator.length >= 0)
                     message.encodedOperator = object.encodedOperator;
             if (object.isParachain != null)
                 message.isParachain = Boolean(object.isParachain);
             if (object.attestationProvider != null)
                 if (typeof object.attestationProvider === "string")
                     $util.base64.decode(object.attestationProvider, message.attestationProvider = $util.newBuffer($util.base64.length(object.attestationProvider)), 0);
-                else if (object.attestationProvider.length)
+                else if (object.attestationProvider.length >= 0)
                     message.attestationProvider = object.attestationProvider;
             return message;
         };
@@ -4713,7 +5041,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         InitRuntimeRequest.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.skipRa = false;
                 if (options.bytes === String)
@@ -4769,6 +5097,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for InitRuntimeRequest
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.InitRuntimeRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        InitRuntimeRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.InitRuntimeRequest";
+        };
+
         return InitRuntimeRequest;
     })();
 
@@ -4792,7 +5135,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function GetRuntimeInfoRequest(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -4814,7 +5157,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetRuntimeInfoRequest.prototype.encodedOperator = null;
 
         // OneOf field names bound to virtual getters and setters
-        let $oneOfFields;
+        var $oneOfFields;
 
         /**
          * GetRuntimeInfoRequest _encodedOperator.
@@ -4885,16 +5228,18 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetRuntimeInfoRequest.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetRuntimeInfoRequest();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetRuntimeInfoRequest();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.forceRefreshRa = reader.bool();
-                    break;
-                case 2:
-                    message.encodedOperator = reader.bytes();
-                    break;
+                case 1: {
+                        message.forceRefreshRa = reader.bool();
+                        break;
+                    }
+                case 2: {
+                        message.encodedOperator = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -4930,7 +5275,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetRuntimeInfoRequest.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            let properties = {};
+            var properties = {};
             if (message.forceRefreshRa != null && message.hasOwnProperty("forceRefreshRa"))
                 if (typeof message.forceRefreshRa !== "boolean")
                     return "forceRefreshRa: boolean expected";
@@ -4953,13 +5298,13 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetRuntimeInfoRequest.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.GetRuntimeInfoRequest)
                 return object;
-            let message = new $root.pruntime_rpc.GetRuntimeInfoRequest();
+            var message = new $root.pruntime_rpc.GetRuntimeInfoRequest();
             if (object.forceRefreshRa != null)
                 message.forceRefreshRa = Boolean(object.forceRefreshRa);
             if (object.encodedOperator != null)
                 if (typeof object.encodedOperator === "string")
                     $util.base64.decode(object.encodedOperator, message.encodedOperator = $util.newBuffer($util.base64.length(object.encodedOperator)), 0);
-                else if (object.encodedOperator.length)
+                else if (object.encodedOperator.length >= 0)
                     message.encodedOperator = object.encodedOperator;
             return message;
         };
@@ -4976,7 +5321,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetRuntimeInfoRequest.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults)
                 object.forceRefreshRa = false;
             if (message.forceRefreshRa != null && message.hasOwnProperty("forceRefreshRa"))
@@ -4998,6 +5343,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         GetRuntimeInfoRequest.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for GetRuntimeInfoRequest
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        GetRuntimeInfoRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.GetRuntimeInfoRequest";
         };
 
         return GetRuntimeInfoRequest;
@@ -5026,7 +5386,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function InitRuntimeResponse(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -5072,7 +5432,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         InitRuntimeResponse.prototype.attestation = null;
 
         // OneOf field names bound to virtual getters and setters
-        let $oneOfFields;
+        var $oneOfFields;
 
         /**
          * InitRuntimeResponse _attestation.
@@ -5149,25 +5509,30 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         InitRuntimeResponse.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.InitRuntimeResponse();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.InitRuntimeResponse();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.encodedRuntimeInfo = reader.bytes();
-                    break;
-                case 2:
-                    message.encodedGenesisBlockHash = reader.bytes();
-                    break;
-                case 3:
-                    message.encodedPublicKey = reader.bytes();
-                    break;
-                case 4:
-                    message.encodedEcdhPublicKey = reader.bytes();
-                    break;
-                case 5:
-                    message.attestation = $root.pruntime_rpc.Attestation.decode(reader, reader.uint32());
-                    break;
+                case 1: {
+                        message.encodedRuntimeInfo = reader.bytes();
+                        break;
+                    }
+                case 2: {
+                        message.encodedGenesisBlockHash = reader.bytes();
+                        break;
+                    }
+                case 3: {
+                        message.encodedPublicKey = reader.bytes();
+                        break;
+                    }
+                case 4: {
+                        message.encodedEcdhPublicKey = reader.bytes();
+                        break;
+                    }
+                case 5: {
+                        message.attestation = $root.pruntime_rpc.Attestation.decode(reader, reader.uint32());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -5203,7 +5568,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         InitRuntimeResponse.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            let properties = {};
+            var properties = {};
             if (message.encodedRuntimeInfo != null && message.hasOwnProperty("encodedRuntimeInfo"))
                 if (!(message.encodedRuntimeInfo && typeof message.encodedRuntimeInfo.length === "number" || $util.isString(message.encodedRuntimeInfo)))
                     return "encodedRuntimeInfo: buffer expected";
@@ -5219,7 +5584,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.attestation != null && message.hasOwnProperty("attestation")) {
                 properties._attestation = 1;
                 {
-                    let error = $root.pruntime_rpc.Attestation.verify(message.attestation);
+                    var error = $root.pruntime_rpc.Attestation.verify(message.attestation);
                     if (error)
                         return "attestation." + error;
                 }
@@ -5238,26 +5603,26 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         InitRuntimeResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.InitRuntimeResponse)
                 return object;
-            let message = new $root.pruntime_rpc.InitRuntimeResponse();
+            var message = new $root.pruntime_rpc.InitRuntimeResponse();
             if (object.encodedRuntimeInfo != null)
                 if (typeof object.encodedRuntimeInfo === "string")
                     $util.base64.decode(object.encodedRuntimeInfo, message.encodedRuntimeInfo = $util.newBuffer($util.base64.length(object.encodedRuntimeInfo)), 0);
-                else if (object.encodedRuntimeInfo.length)
+                else if (object.encodedRuntimeInfo.length >= 0)
                     message.encodedRuntimeInfo = object.encodedRuntimeInfo;
             if (object.encodedGenesisBlockHash != null)
                 if (typeof object.encodedGenesisBlockHash === "string")
                     $util.base64.decode(object.encodedGenesisBlockHash, message.encodedGenesisBlockHash = $util.newBuffer($util.base64.length(object.encodedGenesisBlockHash)), 0);
-                else if (object.encodedGenesisBlockHash.length)
+                else if (object.encodedGenesisBlockHash.length >= 0)
                     message.encodedGenesisBlockHash = object.encodedGenesisBlockHash;
             if (object.encodedPublicKey != null)
                 if (typeof object.encodedPublicKey === "string")
                     $util.base64.decode(object.encodedPublicKey, message.encodedPublicKey = $util.newBuffer($util.base64.length(object.encodedPublicKey)), 0);
-                else if (object.encodedPublicKey.length)
+                else if (object.encodedPublicKey.length >= 0)
                     message.encodedPublicKey = object.encodedPublicKey;
             if (object.encodedEcdhPublicKey != null)
                 if (typeof object.encodedEcdhPublicKey === "string")
                     $util.base64.decode(object.encodedEcdhPublicKey, message.encodedEcdhPublicKey = $util.newBuffer($util.base64.length(object.encodedEcdhPublicKey)), 0);
-                else if (object.encodedEcdhPublicKey.length)
+                else if (object.encodedEcdhPublicKey.length >= 0)
                     message.encodedEcdhPublicKey = object.encodedEcdhPublicKey;
             if (object.attestation != null) {
                 if (typeof object.attestation !== "object")
@@ -5279,7 +5644,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         InitRuntimeResponse.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 if (options.bytes === String)
                     object.encodedRuntimeInfo = "";
@@ -5337,6 +5702,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for InitRuntimeResponse
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.InitRuntimeResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        InitRuntimeResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.InitRuntimeResponse";
+        };
+
         return InitRuntimeResponse;
     })();
 
@@ -5363,7 +5743,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function Attestation(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -5472,25 +5852,30 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         Attestation.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.Attestation();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.Attestation();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.version = reader.int32();
-                    break;
-                case 2:
-                    message.provider = reader.string();
-                    break;
-                case 3:
-                    message.payload = $root.pruntime_rpc.AttestationReport.decode(reader, reader.uint32());
-                    break;
-                case 5:
-                    message.encodedReport = reader.bytes();
-                    break;
-                case 4:
-                    message.timestamp = reader.uint64();
-                    break;
+                case 1: {
+                        message.version = reader.int32();
+                        break;
+                    }
+                case 2: {
+                        message.provider = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.payload = $root.pruntime_rpc.AttestationReport.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 5: {
+                        message.encodedReport = reader.bytes();
+                        break;
+                    }
+                case 4: {
+                        message.timestamp = reader.uint64();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -5533,7 +5918,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (!$util.isString(message.provider))
                     return "provider: string expected";
             if (message.payload != null && message.hasOwnProperty("payload")) {
-                let error = $root.pruntime_rpc.AttestationReport.verify(message.payload);
+                var error = $root.pruntime_rpc.AttestationReport.verify(message.payload);
                 if (error)
                     return "payload." + error;
             }
@@ -5557,7 +5942,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         Attestation.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.Attestation)
                 return object;
-            let message = new $root.pruntime_rpc.Attestation();
+            var message = new $root.pruntime_rpc.Attestation();
             if (object.version != null)
                 message.version = object.version | 0;
             if (object.provider != null)
@@ -5570,7 +5955,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (object.encodedReport != null)
                 if (typeof object.encodedReport === "string")
                     $util.base64.decode(object.encodedReport, message.encodedReport = $util.newBuffer($util.base64.length(object.encodedReport)), 0);
-                else if (object.encodedReport.length)
+                else if (object.encodedReport.length >= 0)
                     message.encodedReport = object.encodedReport;
             if (object.timestamp != null)
                 if ($util.Long)
@@ -5596,13 +5981,13 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         Attestation.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.version = 0;
                 object.provider = "";
                 object.payload = null;
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.timestamp = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.timestamp = options.longs === String ? "0" : 0;
@@ -5641,6 +6026,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for Attestation
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.Attestation
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        Attestation.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.Attestation";
+        };
+
         return Attestation;
     })();
 
@@ -5665,7 +6065,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function AttestationReport(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -5754,19 +6154,22 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         AttestationReport.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.AttestationReport();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.AttestationReport();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.report = reader.string();
-                    break;
-                case 2:
-                    message.signature = reader.bytes();
-                    break;
-                case 3:
-                    message.signingCert = reader.bytes();
-                    break;
+                case 1: {
+                        message.report = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.signature = reader.bytes();
+                        break;
+                    }
+                case 3: {
+                        message.signingCert = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -5825,18 +6228,18 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         AttestationReport.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.AttestationReport)
                 return object;
-            let message = new $root.pruntime_rpc.AttestationReport();
+            var message = new $root.pruntime_rpc.AttestationReport();
             if (object.report != null)
                 message.report = String(object.report);
             if (object.signature != null)
                 if (typeof object.signature === "string")
                     $util.base64.decode(object.signature, message.signature = $util.newBuffer($util.base64.length(object.signature)), 0);
-                else if (object.signature.length)
+                else if (object.signature.length >= 0)
                     message.signature = object.signature;
             if (object.signingCert != null)
                 if (typeof object.signingCert === "string")
                     $util.base64.decode(object.signingCert, message.signingCert = $util.newBuffer($util.base64.length(object.signingCert)), 0);
-                else if (object.signingCert.length)
+                else if (object.signingCert.length >= 0)
                     message.signingCert = object.signingCert;
             return message;
         };
@@ -5853,7 +6256,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         AttestationReport.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.report = "";
                 if (options.bytes === String)
@@ -5891,6 +6294,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for AttestationReport
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.AttestationReport
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        AttestationReport.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.AttestationReport";
+        };
+
         return AttestationReport;
     })();
 
@@ -5913,7 +6331,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function GetEgressMessagesResponse(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -5982,13 +6400,14 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetEgressMessagesResponse.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetEgressMessagesResponse();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetEgressMessagesResponse();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.encodedMessages = reader.bytes();
-                    break;
+                case 1: {
+                        message.encodedMessages = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -6041,11 +6460,11 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetEgressMessagesResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.GetEgressMessagesResponse)
                 return object;
-            let message = new $root.pruntime_rpc.GetEgressMessagesResponse();
+            var message = new $root.pruntime_rpc.GetEgressMessagesResponse();
             if (object.encodedMessages != null)
                 if (typeof object.encodedMessages === "string")
                     $util.base64.decode(object.encodedMessages, message.encodedMessages = $util.newBuffer($util.base64.length(object.encodedMessages)), 0);
-                else if (object.encodedMessages.length)
+                else if (object.encodedMessages.length >= 0)
                     message.encodedMessages = object.encodedMessages;
             return message;
         };
@@ -6062,7 +6481,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetEgressMessagesResponse.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults)
                 if (options.bytes === String)
                     object.encodedMessages = "";
@@ -6085,6 +6504,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         GetEgressMessagesResponse.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for GetEgressMessagesResponse
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.GetEgressMessagesResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        GetEgressMessagesResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.GetEgressMessagesResponse";
         };
 
         return GetEgressMessagesResponse;
@@ -6110,7 +6544,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function ContractQueryRequest(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -6189,16 +6623,18 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ContractQueryRequest.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ContractQueryRequest();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ContractQueryRequest();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.encodedEncryptedData = reader.bytes();
-                    break;
-                case 2:
-                    message.signature = $root.pruntime_rpc.Signature.decode(reader, reader.uint32());
-                    break;
+                case 1: {
+                        message.encodedEncryptedData = reader.bytes();
+                        break;
+                    }
+                case 2: {
+                        message.signature = $root.pruntime_rpc.Signature.decode(reader, reader.uint32());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -6238,7 +6674,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (!(message.encodedEncryptedData && typeof message.encodedEncryptedData.length === "number" || $util.isString(message.encodedEncryptedData)))
                     return "encodedEncryptedData: buffer expected";
             if (message.signature != null && message.hasOwnProperty("signature")) {
-                let error = $root.pruntime_rpc.Signature.verify(message.signature);
+                var error = $root.pruntime_rpc.Signature.verify(message.signature);
                 if (error)
                     return "signature." + error;
             }
@@ -6256,11 +6692,11 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ContractQueryRequest.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.ContractQueryRequest)
                 return object;
-            let message = new $root.pruntime_rpc.ContractQueryRequest();
+            var message = new $root.pruntime_rpc.ContractQueryRequest();
             if (object.encodedEncryptedData != null)
                 if (typeof object.encodedEncryptedData === "string")
                     $util.base64.decode(object.encodedEncryptedData, message.encodedEncryptedData = $util.newBuffer($util.base64.length(object.encodedEncryptedData)), 0);
-                else if (object.encodedEncryptedData.length)
+                else if (object.encodedEncryptedData.length >= 0)
                     message.encodedEncryptedData = object.encodedEncryptedData;
             if (object.signature != null) {
                 if (typeof object.signature !== "object")
@@ -6282,7 +6718,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ContractQueryRequest.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 if (options.bytes === String)
                     object.encodedEncryptedData = "";
@@ -6311,6 +6747,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for ContractQueryRequest
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.ContractQueryRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ContractQueryRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.ContractQueryRequest";
+        };
+
         return ContractQueryRequest;
     })();
 
@@ -6335,7 +6786,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function Signature(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -6424,19 +6875,22 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         Signature.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.Signature();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.Signature();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.signedBy = $root.pruntime_rpc.Certificate.decode(reader, reader.uint32());
-                    break;
-                case 2:
-                    message.signatureType = reader.int32();
-                    break;
-                case 3:
-                    message.signature = reader.bytes();
-                    break;
+                case 1: {
+                        message.signedBy = $root.pruntime_rpc.Certificate.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 2: {
+                        message.signatureType = reader.int32();
+                        break;
+                    }
+                case 3: {
+                        message.signature = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -6473,7 +6927,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (typeof message !== "object" || message === null)
                 return "object expected";
             if (message.signedBy != null && message.hasOwnProperty("signedBy")) {
-                let error = $root.pruntime_rpc.Certificate.verify(message.signedBy);
+                var error = $root.pruntime_rpc.Certificate.verify(message.signedBy);
                 if (error)
                     return "signedBy." + error;
             }
@@ -6506,13 +6960,19 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         Signature.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.Signature)
                 return object;
-            let message = new $root.pruntime_rpc.Signature();
+            var message = new $root.pruntime_rpc.Signature();
             if (object.signedBy != null) {
                 if (typeof object.signedBy !== "object")
                     throw TypeError(".pruntime_rpc.Signature.signedBy: object expected");
                 message.signedBy = $root.pruntime_rpc.Certificate.fromObject(object.signedBy);
             }
             switch (object.signatureType) {
+            default:
+                if (typeof object.signatureType === "number") {
+                    message.signatureType = object.signatureType;
+                    break;
+                }
+                break;
             case "Ed25519":
             case 0:
                 message.signatureType = 0;
@@ -6541,7 +7001,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (object.signature != null)
                 if (typeof object.signature === "string")
                     $util.base64.decode(object.signature, message.signature = $util.newBuffer($util.base64.length(object.signature)), 0);
-                else if (object.signature.length)
+                else if (object.signature.length >= 0)
                     message.signature = object.signature;
             return message;
         };
@@ -6558,7 +7018,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         Signature.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.signedBy = null;
                 object.signatureType = options.enums === String ? "Ed25519" : 0;
@@ -6573,7 +7033,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.signedBy != null && message.hasOwnProperty("signedBy"))
                 object.signedBy = $root.pruntime_rpc.Certificate.toObject(message.signedBy, options);
             if (message.signatureType != null && message.hasOwnProperty("signatureType"))
-                object.signatureType = options.enums === String ? $root.pruntime_rpc.SignatureType[message.signatureType] : message.signatureType;
+                object.signatureType = options.enums === String ? $root.pruntime_rpc.SignatureType[message.signatureType] === undefined ? message.signatureType : $root.pruntime_rpc.SignatureType[message.signatureType] : message.signatureType;
             if (message.signature != null && message.hasOwnProperty("signature"))
                 object.signature = options.bytes === String ? $util.base64.encode(message.signature, 0, message.signature.length) : options.bytes === Array ? Array.prototype.slice.call(message.signature) : message.signature;
             return object;
@@ -6588,6 +7048,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         Signature.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for Signature
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.Signature
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        Signature.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.Signature";
         };
 
         return Signature;
@@ -6613,7 +7088,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function Certificate(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -6692,16 +7167,18 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         Certificate.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.Certificate();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.Certificate();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.encodedBody = reader.bytes();
-                    break;
-                case 2:
-                    message.signature = $root.pruntime_rpc.Signature.decode(reader, reader.uint32());
-                    break;
+                case 1: {
+                        message.encodedBody = reader.bytes();
+                        break;
+                    }
+                case 2: {
+                        message.signature = $root.pruntime_rpc.Signature.decode(reader, reader.uint32());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -6741,7 +7218,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (!(message.encodedBody && typeof message.encodedBody.length === "number" || $util.isString(message.encodedBody)))
                     return "encodedBody: buffer expected";
             if (message.signature != null && message.hasOwnProperty("signature")) {
-                let error = $root.pruntime_rpc.Signature.verify(message.signature);
+                var error = $root.pruntime_rpc.Signature.verify(message.signature);
                 if (error)
                     return "signature." + error;
             }
@@ -6759,11 +7236,11 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         Certificate.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.Certificate)
                 return object;
-            let message = new $root.pruntime_rpc.Certificate();
+            var message = new $root.pruntime_rpc.Certificate();
             if (object.encodedBody != null)
                 if (typeof object.encodedBody === "string")
                     $util.base64.decode(object.encodedBody, message.encodedBody = $util.newBuffer($util.base64.length(object.encodedBody)), 0);
-                else if (object.encodedBody.length)
+                else if (object.encodedBody.length >= 0)
                     message.encodedBody = object.encodedBody;
             if (object.signature != null) {
                 if (typeof object.signature !== "object")
@@ -6785,7 +7262,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         Certificate.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 if (options.bytes === String)
                     object.encodedBody = "";
@@ -6814,6 +7291,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for Certificate
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.Certificate
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        Certificate.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.Certificate";
+        };
+
         return Certificate;
     })();
 
@@ -6829,7 +7321,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
      * @property {number} EcdsaWrapBytes=5 EcdsaWrapBytes value
      */
     pruntime_rpc.SignatureType = (function() {
-        const valuesById = {}, values = Object.create(valuesById);
+        var valuesById = {}, values = Object.create(valuesById);
         values[valuesById[0] = "Ed25519"] = 0;
         values[valuesById[1] = "Sr25519"] = 1;
         values[valuesById[2] = "Ecdsa"] = 2;
@@ -6858,7 +7350,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function ContractQueryResponse(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -6927,13 +7419,14 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ContractQueryResponse.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ContractQueryResponse();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ContractQueryResponse();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.encodedEncryptedData = reader.bytes();
-                    break;
+                case 1: {
+                        message.encodedEncryptedData = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -6986,11 +7479,11 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ContractQueryResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.ContractQueryResponse)
                 return object;
-            let message = new $root.pruntime_rpc.ContractQueryResponse();
+            var message = new $root.pruntime_rpc.ContractQueryResponse();
             if (object.encodedEncryptedData != null)
                 if (typeof object.encodedEncryptedData === "string")
                     $util.base64.decode(object.encodedEncryptedData, message.encodedEncryptedData = $util.newBuffer($util.base64.length(object.encodedEncryptedData)), 0);
-                else if (object.encodedEncryptedData.length)
+                else if (object.encodedEncryptedData.length >= 0)
                     message.encodedEncryptedData = object.encodedEncryptedData;
             return message;
         };
@@ -7007,7 +7500,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ContractQueryResponse.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults)
                 if (options.bytes === String)
                     object.encodedEncryptedData = "";
@@ -7032,6 +7525,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for ContractQueryResponse
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.ContractQueryResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ContractQueryResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.ContractQueryResponse";
+        };
+
         return ContractQueryResponse;
     })();
 
@@ -7054,7 +7562,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function GetWorkerStateRequest(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -7123,13 +7631,14 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetWorkerStateRequest.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetWorkerStateRequest();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetWorkerStateRequest();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.publicKey = reader.bytes();
-                    break;
+                case 1: {
+                        message.publicKey = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -7182,11 +7691,11 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetWorkerStateRequest.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.GetWorkerStateRequest)
                 return object;
-            let message = new $root.pruntime_rpc.GetWorkerStateRequest();
+            var message = new $root.pruntime_rpc.GetWorkerStateRequest();
             if (object.publicKey != null)
                 if (typeof object.publicKey === "string")
                     $util.base64.decode(object.publicKey, message.publicKey = $util.newBuffer($util.base64.length(object.publicKey)), 0);
-                else if (object.publicKey.length)
+                else if (object.publicKey.length >= 0)
                     message.publicKey = object.publicKey;
             return message;
         };
@@ -7203,7 +7712,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetWorkerStateRequest.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults)
                 if (options.bytes === String)
                     object.publicKey = "";
@@ -7226,6 +7735,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         GetWorkerStateRequest.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for GetWorkerStateRequest
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.GetWorkerStateRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        GetWorkerStateRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.GetWorkerStateRequest";
         };
 
         return GetWorkerStateRequest;
@@ -7253,7 +7777,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function WorkerStat(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -7352,22 +7876,26 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         WorkerStat.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.WorkerStat();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.WorkerStat();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.lastHeartbeatForBlock = reader.uint32();
-                    break;
-                case 2:
-                    message.lastHeartbeatAtBlock = reader.uint32();
-                    break;
-                case 3:
-                    message.lastGkResponsiveEvent = reader.int32();
-                    break;
-                case 4:
-                    message.lastGkResponsiveEventAtBlock = reader.uint32();
-                    break;
+                case 1: {
+                        message.lastHeartbeatForBlock = reader.uint32();
+                        break;
+                    }
+                case 2: {
+                        message.lastHeartbeatAtBlock = reader.uint32();
+                        break;
+                    }
+                case 3: {
+                        message.lastGkResponsiveEvent = reader.int32();
+                        break;
+                    }
+                case 4: {
+                        message.lastGkResponsiveEventAtBlock = reader.uint32();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -7435,12 +7963,18 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         WorkerStat.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.WorkerStat)
                 return object;
-            let message = new $root.pruntime_rpc.WorkerStat();
+            var message = new $root.pruntime_rpc.WorkerStat();
             if (object.lastHeartbeatForBlock != null)
                 message.lastHeartbeatForBlock = object.lastHeartbeatForBlock >>> 0;
             if (object.lastHeartbeatAtBlock != null)
                 message.lastHeartbeatAtBlock = object.lastHeartbeatAtBlock >>> 0;
             switch (object.lastGkResponsiveEvent) {
+            default:
+                if (typeof object.lastGkResponsiveEvent === "number") {
+                    message.lastGkResponsiveEvent = object.lastGkResponsiveEvent;
+                    break;
+                }
+                break;
             case "NoEvent":
             case 0:
                 message.lastGkResponsiveEvent = 0;
@@ -7471,7 +8005,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         WorkerStat.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.lastHeartbeatForBlock = 0;
                 object.lastHeartbeatAtBlock = 0;
@@ -7483,7 +8017,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.lastHeartbeatAtBlock != null && message.hasOwnProperty("lastHeartbeatAtBlock"))
                 object.lastHeartbeatAtBlock = message.lastHeartbeatAtBlock;
             if (message.lastGkResponsiveEvent != null && message.hasOwnProperty("lastGkResponsiveEvent"))
-                object.lastGkResponsiveEvent = options.enums === String ? $root.pruntime_rpc.ResponsiveEvent[message.lastGkResponsiveEvent] : message.lastGkResponsiveEvent;
+                object.lastGkResponsiveEvent = options.enums === String ? $root.pruntime_rpc.ResponsiveEvent[message.lastGkResponsiveEvent] === undefined ? message.lastGkResponsiveEvent : $root.pruntime_rpc.ResponsiveEvent[message.lastGkResponsiveEvent] : message.lastGkResponsiveEvent;
             if (message.lastGkResponsiveEventAtBlock != null && message.hasOwnProperty("lastGkResponsiveEventAtBlock"))
                 object.lastGkResponsiveEventAtBlock = message.lastGkResponsiveEventAtBlock;
             return object;
@@ -7498,6 +8032,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         WorkerStat.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for WorkerStat
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.WorkerStat
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        WorkerStat.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.WorkerStat";
         };
 
         return WorkerStat;
@@ -7529,7 +8078,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         function WorkerState(properties) {
             this.waitingHeartbeats = [];
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -7624,7 +8173,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 $root.pruntime_rpc.WorkingState.encode(message.workingState, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
             if (message.waitingHeartbeats != null && message.waitingHeartbeats.length) {
                 writer.uint32(/* id 5, wireType 2 =*/42).fork();
-                for (let i = 0; i < message.waitingHeartbeats.length; ++i)
+                for (var i = 0; i < message.waitingHeartbeats.length; ++i)
                     writer.uint32(message.waitingHeartbeats[i]);
                 writer.ldelim();
             }
@@ -7662,38 +8211,45 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         WorkerState.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.WorkerState();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.WorkerState();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.registered = reader.bool();
-                    break;
-                case 2:
-                    message.unresponsive = reader.bool();
-                    break;
-                case 3:
-                    message.benchState = $root.pruntime_rpc.BenchState.decode(reader, reader.uint32());
-                    break;
-                case 4:
-                    message.workingState = $root.pruntime_rpc.WorkingState.decode(reader, reader.uint32());
-                    break;
-                case 5:
-                    if (!(message.waitingHeartbeats && message.waitingHeartbeats.length))
-                        message.waitingHeartbeats = [];
-                    if ((tag & 7) === 2) {
-                        let end2 = reader.uint32() + reader.pos;
-                        while (reader.pos < end2)
+                case 1: {
+                        message.registered = reader.bool();
+                        break;
+                    }
+                case 2: {
+                        message.unresponsive = reader.bool();
+                        break;
+                    }
+                case 3: {
+                        message.benchState = $root.pruntime_rpc.BenchState.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 4: {
+                        message.workingState = $root.pruntime_rpc.WorkingState.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 5: {
+                        if (!(message.waitingHeartbeats && message.waitingHeartbeats.length))
+                            message.waitingHeartbeats = [];
+                        if ((tag & 7) === 2) {
+                            var end2 = reader.uint32() + reader.pos;
+                            while (reader.pos < end2)
+                                message.waitingHeartbeats.push(reader.uint32());
+                        } else
                             message.waitingHeartbeats.push(reader.uint32());
-                    } else
-                        message.waitingHeartbeats.push(reader.uint32());
-                    break;
-                case 10:
-                    message.tokenomicInfo = $root.pruntime_rpc.TokenomicInfo.decode(reader, reader.uint32());
-                    break;
-                case 11:
-                    message.stat = $root.pruntime_rpc.WorkerStat.decode(reader, reader.uint32());
-                    break;
+                        break;
+                    }
+                case 10: {
+                        message.tokenomicInfo = $root.pruntime_rpc.TokenomicInfo.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 11: {
+                        message.stat = $root.pruntime_rpc.WorkerStat.decode(reader, reader.uint32());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -7736,29 +8292,29 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (typeof message.unresponsive !== "boolean")
                     return "unresponsive: boolean expected";
             if (message.benchState != null && message.hasOwnProperty("benchState")) {
-                let error = $root.pruntime_rpc.BenchState.verify(message.benchState);
+                var error = $root.pruntime_rpc.BenchState.verify(message.benchState);
                 if (error)
                     return "benchState." + error;
             }
             if (message.workingState != null && message.hasOwnProperty("workingState")) {
-                let error = $root.pruntime_rpc.WorkingState.verify(message.workingState);
+                var error = $root.pruntime_rpc.WorkingState.verify(message.workingState);
                 if (error)
                     return "workingState." + error;
             }
             if (message.waitingHeartbeats != null && message.hasOwnProperty("waitingHeartbeats")) {
                 if (!Array.isArray(message.waitingHeartbeats))
                     return "waitingHeartbeats: array expected";
-                for (let i = 0; i < message.waitingHeartbeats.length; ++i)
+                for (var i = 0; i < message.waitingHeartbeats.length; ++i)
                     if (!$util.isInteger(message.waitingHeartbeats[i]))
                         return "waitingHeartbeats: integer[] expected";
             }
             if (message.tokenomicInfo != null && message.hasOwnProperty("tokenomicInfo")) {
-                let error = $root.pruntime_rpc.TokenomicInfo.verify(message.tokenomicInfo);
+                var error = $root.pruntime_rpc.TokenomicInfo.verify(message.tokenomicInfo);
                 if (error)
                     return "tokenomicInfo." + error;
             }
             if (message.stat != null && message.hasOwnProperty("stat")) {
-                let error = $root.pruntime_rpc.WorkerStat.verify(message.stat);
+                var error = $root.pruntime_rpc.WorkerStat.verify(message.stat);
                 if (error)
                     return "stat." + error;
             }
@@ -7776,7 +8332,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         WorkerState.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.WorkerState)
                 return object;
-            let message = new $root.pruntime_rpc.WorkerState();
+            var message = new $root.pruntime_rpc.WorkerState();
             if (object.registered != null)
                 message.registered = Boolean(object.registered);
             if (object.unresponsive != null)
@@ -7795,7 +8351,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (!Array.isArray(object.waitingHeartbeats))
                     throw TypeError(".pruntime_rpc.WorkerState.waitingHeartbeats: array expected");
                 message.waitingHeartbeats = [];
-                for (let i = 0; i < object.waitingHeartbeats.length; ++i)
+                for (var i = 0; i < object.waitingHeartbeats.length; ++i)
                     message.waitingHeartbeats[i] = object.waitingHeartbeats[i] >>> 0;
             }
             if (object.tokenomicInfo != null) {
@@ -7823,7 +8379,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         WorkerState.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.arrays || options.defaults)
                 object.waitingHeartbeats = [];
             if (options.defaults) {
@@ -7844,7 +8400,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 object.workingState = $root.pruntime_rpc.WorkingState.toObject(message.workingState, options);
             if (message.waitingHeartbeats && message.waitingHeartbeats.length) {
                 object.waitingHeartbeats = [];
-                for (let j = 0; j < message.waitingHeartbeats.length; ++j)
+                for (var j = 0; j < message.waitingHeartbeats.length; ++j)
                     object.waitingHeartbeats[j] = message.waitingHeartbeats[j];
             }
             if (message.tokenomicInfo != null && message.hasOwnProperty("tokenomicInfo"))
@@ -7863,6 +8419,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         WorkerState.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for WorkerState
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.WorkerState
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        WorkerState.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.WorkerState";
         };
 
         return WorkerState;
@@ -7887,7 +8458,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function HandoverChallenge(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -7956,13 +8527,14 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HandoverChallenge.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HandoverChallenge();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HandoverChallenge();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.encodedChallenge = reader.bytes();
-                    break;
+                case 1: {
+                        message.encodedChallenge = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -8015,11 +8587,11 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HandoverChallenge.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.HandoverChallenge)
                 return object;
-            let message = new $root.pruntime_rpc.HandoverChallenge();
+            var message = new $root.pruntime_rpc.HandoverChallenge();
             if (object.encodedChallenge != null)
                 if (typeof object.encodedChallenge === "string")
                     $util.base64.decode(object.encodedChallenge, message.encodedChallenge = $util.newBuffer($util.base64.length(object.encodedChallenge)), 0);
-                else if (object.encodedChallenge.length)
+                else if (object.encodedChallenge.length >= 0)
                     message.encodedChallenge = object.encodedChallenge;
             return message;
         };
@@ -8036,7 +8608,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HandoverChallenge.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults)
                 if (options.bytes === String)
                     object.encodedChallenge = "";
@@ -8059,6 +8631,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         HandoverChallenge.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for HandoverChallenge
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.HandoverChallenge
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        HandoverChallenge.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.HandoverChallenge";
         };
 
         return HandoverChallenge;
@@ -8084,7 +8671,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function HandoverChallengeResponse(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -8163,16 +8750,18 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HandoverChallengeResponse.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HandoverChallengeResponse();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HandoverChallengeResponse();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.encodedChallengeHandler = reader.bytes();
-                    break;
-                case 2:
-                    message.attestation = $root.pruntime_rpc.Attestation.decode(reader, reader.uint32());
-                    break;
+                case 1: {
+                        message.encodedChallengeHandler = reader.bytes();
+                        break;
+                    }
+                case 2: {
+                        message.attestation = $root.pruntime_rpc.Attestation.decode(reader, reader.uint32());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -8212,7 +8801,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (!(message.encodedChallengeHandler && typeof message.encodedChallengeHandler.length === "number" || $util.isString(message.encodedChallengeHandler)))
                     return "encodedChallengeHandler: buffer expected";
             if (message.attestation != null && message.hasOwnProperty("attestation")) {
-                let error = $root.pruntime_rpc.Attestation.verify(message.attestation);
+                var error = $root.pruntime_rpc.Attestation.verify(message.attestation);
                 if (error)
                     return "attestation." + error;
             }
@@ -8230,11 +8819,11 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HandoverChallengeResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.HandoverChallengeResponse)
                 return object;
-            let message = new $root.pruntime_rpc.HandoverChallengeResponse();
+            var message = new $root.pruntime_rpc.HandoverChallengeResponse();
             if (object.encodedChallengeHandler != null)
                 if (typeof object.encodedChallengeHandler === "string")
                     $util.base64.decode(object.encodedChallengeHandler, message.encodedChallengeHandler = $util.newBuffer($util.base64.length(object.encodedChallengeHandler)), 0);
-                else if (object.encodedChallengeHandler.length)
+                else if (object.encodedChallengeHandler.length >= 0)
                     message.encodedChallengeHandler = object.encodedChallengeHandler;
             if (object.attestation != null) {
                 if (typeof object.attestation !== "object")
@@ -8256,7 +8845,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HandoverChallengeResponse.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 if (options.bytes === String)
                     object.encodedChallengeHandler = "";
@@ -8285,6 +8874,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for HandoverChallengeResponse
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.HandoverChallengeResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        HandoverChallengeResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.HandoverChallengeResponse";
+        };
+
         return HandoverChallengeResponse;
     })();
 
@@ -8308,7 +8912,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function HandoverWorkerKey(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -8387,16 +8991,18 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HandoverWorkerKey.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HandoverWorkerKey();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HandoverWorkerKey();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.encodedWorkerKey = reader.bytes();
-                    break;
-                case 2:
-                    message.attestation = $root.pruntime_rpc.Attestation.decode(reader, reader.uint32());
-                    break;
+                case 1: {
+                        message.encodedWorkerKey = reader.bytes();
+                        break;
+                    }
+                case 2: {
+                        message.attestation = $root.pruntime_rpc.Attestation.decode(reader, reader.uint32());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -8436,7 +9042,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (!(message.encodedWorkerKey && typeof message.encodedWorkerKey.length === "number" || $util.isString(message.encodedWorkerKey)))
                     return "encodedWorkerKey: buffer expected";
             if (message.attestation != null && message.hasOwnProperty("attestation")) {
-                let error = $root.pruntime_rpc.Attestation.verify(message.attestation);
+                var error = $root.pruntime_rpc.Attestation.verify(message.attestation);
                 if (error)
                     return "attestation." + error;
             }
@@ -8454,11 +9060,11 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HandoverWorkerKey.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.HandoverWorkerKey)
                 return object;
-            let message = new $root.pruntime_rpc.HandoverWorkerKey();
+            var message = new $root.pruntime_rpc.HandoverWorkerKey();
             if (object.encodedWorkerKey != null)
                 if (typeof object.encodedWorkerKey === "string")
                     $util.base64.decode(object.encodedWorkerKey, message.encodedWorkerKey = $util.newBuffer($util.base64.length(object.encodedWorkerKey)), 0);
-                else if (object.encodedWorkerKey.length)
+                else if (object.encodedWorkerKey.length >= 0)
                     message.encodedWorkerKey = object.encodedWorkerKey;
             if (object.attestation != null) {
                 if (typeof object.attestation !== "object")
@@ -8480,7 +9086,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HandoverWorkerKey.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 if (options.bytes === String)
                     object.encodedWorkerKey = "";
@@ -8509,6 +9115,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for HandoverWorkerKey
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.HandoverWorkerKey
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        HandoverWorkerKey.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.HandoverWorkerKey";
+        };
+
         return HandoverWorkerKey;
     })();
 
@@ -8533,7 +9154,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function BenchState(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -8622,19 +9243,22 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         BenchState.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.BenchState();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.BenchState();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.startBlock = reader.uint32();
-                    break;
-                case 2:
-                    message.startTime = reader.uint64();
-                    break;
-                case 4:
-                    message.duration = reader.uint32();
-                    break;
+                case 1: {
+                        message.startBlock = reader.uint32();
+                        break;
+                    }
+                case 2: {
+                        message.startTime = reader.uint64();
+                        break;
+                    }
+                case 4: {
+                        message.duration = reader.uint32();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -8693,7 +9317,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         BenchState.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.BenchState)
                 return object;
-            let message = new $root.pruntime_rpc.BenchState();
+            var message = new $root.pruntime_rpc.BenchState();
             if (object.startBlock != null)
                 message.startBlock = object.startBlock >>> 0;
             if (object.startTime != null)
@@ -8722,11 +9346,11 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         BenchState.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.startBlock = 0;
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.startTime = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.startTime = options.longs === String ? "0" : 0;
@@ -8755,6 +9379,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for BenchState
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.BenchState
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        BenchState.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.BenchState";
+        };
+
         return BenchState;
     })();
 
@@ -8779,7 +9418,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function WorkingState(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -8868,19 +9507,22 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         WorkingState.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.WorkingState();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.WorkingState();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.sessionId = reader.uint32();
-                    break;
-                case 2:
-                    message.paused = reader.bool();
-                    break;
-                case 3:
-                    message.startTime = reader.uint64();
-                    break;
+                case 1: {
+                        message.sessionId = reader.uint32();
+                        break;
+                    }
+                case 2: {
+                        message.paused = reader.bool();
+                        break;
+                    }
+                case 3: {
+                        message.startTime = reader.uint64();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -8939,7 +9581,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         WorkingState.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.WorkingState)
                 return object;
-            let message = new $root.pruntime_rpc.WorkingState();
+            var message = new $root.pruntime_rpc.WorkingState();
             if (object.sessionId != null)
                 message.sessionId = object.sessionId >>> 0;
             if (object.paused != null)
@@ -8968,12 +9610,12 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         WorkingState.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.sessionId = 0;
                 object.paused = false;
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.startTime = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.startTime = options.longs === String ? "0" : 0;
@@ -9001,6 +9643,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for WorkingState
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.WorkingState
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        WorkingState.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.WorkingState";
+        };
+
         return WorkingState;
     })();
 
@@ -9023,7 +9680,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function EchoMessage(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -9092,13 +9749,14 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         EchoMessage.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.EchoMessage();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.EchoMessage();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.echoMsg = reader.bytes();
-                    break;
+                case 1: {
+                        message.echoMsg = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -9151,11 +9809,11 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         EchoMessage.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.EchoMessage)
                 return object;
-            let message = new $root.pruntime_rpc.EchoMessage();
+            var message = new $root.pruntime_rpc.EchoMessage();
             if (object.echoMsg != null)
                 if (typeof object.echoMsg === "string")
                     $util.base64.decode(object.echoMsg, message.echoMsg = $util.newBuffer($util.base64.length(object.echoMsg)), 0);
-                else if (object.echoMsg.length)
+                else if (object.echoMsg.length >= 0)
                     message.echoMsg = object.echoMsg;
             return message;
         };
@@ -9172,7 +9830,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         EchoMessage.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults)
                 if (options.bytes === String)
                     object.echoMsg = "";
@@ -9197,6 +9855,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for EchoMessage
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.EchoMessage
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        EchoMessage.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.EchoMessage";
+        };
+
         return EchoMessage;
     })();
 
@@ -9209,7 +9882,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
      * @property {number} ExitUnresponsive=2 ExitUnresponsive value
      */
     pruntime_rpc.ResponsiveEvent = (function() {
-        const valuesById = {}, values = Object.create(valuesById);
+        var valuesById = {}, values = Object.create(valuesById);
         values[valuesById[0] = "NoEvent"] = 0;
         values[valuesById[1] = "EnterUnresponsive"] = 1;
         values[valuesById[2] = "ExitUnresponsive"] = 2;
@@ -9236,7 +9909,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function AddEndpointRequest(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -9315,16 +9988,18 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         AddEndpointRequest.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.AddEndpointRequest();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.AddEndpointRequest();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.encodedEndpointType = reader.bytes();
-                    break;
-                case 2:
-                    message.endpoint = reader.string();
-                    break;
+                case 1: {
+                        message.encodedEndpointType = reader.bytes();
+                        break;
+                    }
+                case 2: {
+                        message.endpoint = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -9380,11 +10055,11 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         AddEndpointRequest.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.AddEndpointRequest)
                 return object;
-            let message = new $root.pruntime_rpc.AddEndpointRequest();
+            var message = new $root.pruntime_rpc.AddEndpointRequest();
             if (object.encodedEndpointType != null)
                 if (typeof object.encodedEndpointType === "string")
                     $util.base64.decode(object.encodedEndpointType, message.encodedEndpointType = $util.newBuffer($util.base64.length(object.encodedEndpointType)), 0);
-                else if (object.encodedEndpointType.length)
+                else if (object.encodedEndpointType.length >= 0)
                     message.encodedEndpointType = object.encodedEndpointType;
             if (object.endpoint != null)
                 message.endpoint = String(object.endpoint);
@@ -9403,7 +10078,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         AddEndpointRequest.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 if (options.bytes === String)
                     object.encodedEndpointType = "";
@@ -9432,6 +10107,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for AddEndpointRequest
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.AddEndpointRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        AddEndpointRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.AddEndpointRequest";
+        };
+
         return AddEndpointRequest;
     })();
 
@@ -9455,7 +10145,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function GetEndpointResponse(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -9477,7 +10167,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetEndpointResponse.prototype.signature = null;
 
         // OneOf field names bound to virtual getters and setters
-        let $oneOfFields;
+        var $oneOfFields;
 
         /**
          * GetEndpointResponse _encodedEndpointPayload.
@@ -9559,16 +10249,18 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetEndpointResponse.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetEndpointResponse();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetEndpointResponse();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.encodedEndpointPayload = reader.bytes();
-                    break;
-                case 2:
-                    message.signature = reader.bytes();
-                    break;
+                case 1: {
+                        message.encodedEndpointPayload = reader.bytes();
+                        break;
+                    }
+                case 2: {
+                        message.signature = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -9604,7 +10296,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetEndpointResponse.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            let properties = {};
+            var properties = {};
             if (message.encodedEndpointPayload != null && message.hasOwnProperty("encodedEndpointPayload")) {
                 properties._encodedEndpointPayload = 1;
                 if (!(message.encodedEndpointPayload && typeof message.encodedEndpointPayload.length === "number" || $util.isString(message.encodedEndpointPayload)))
@@ -9629,16 +10321,16 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetEndpointResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.GetEndpointResponse)
                 return object;
-            let message = new $root.pruntime_rpc.GetEndpointResponse();
+            var message = new $root.pruntime_rpc.GetEndpointResponse();
             if (object.encodedEndpointPayload != null)
                 if (typeof object.encodedEndpointPayload === "string")
                     $util.base64.decode(object.encodedEndpointPayload, message.encodedEndpointPayload = $util.newBuffer($util.base64.length(object.encodedEndpointPayload)), 0);
-                else if (object.encodedEndpointPayload.length)
+                else if (object.encodedEndpointPayload.length >= 0)
                     message.encodedEndpointPayload = object.encodedEndpointPayload;
             if (object.signature != null)
                 if (typeof object.signature === "string")
                     $util.base64.decode(object.signature, message.signature = $util.newBuffer($util.base64.length(object.signature)), 0);
-                else if (object.signature.length)
+                else if (object.signature.length >= 0)
                     message.signature = object.signature;
             return message;
         };
@@ -9655,7 +10347,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetEndpointResponse.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (message.encodedEndpointPayload != null && message.hasOwnProperty("encodedEndpointPayload")) {
                 object.encodedEndpointPayload = options.bytes === String ? $util.base64.encode(message.encodedEndpointPayload, 0, message.encodedEndpointPayload.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedEndpointPayload) : message.encodedEndpointPayload;
                 if (options.oneofs)
@@ -9680,6 +10372,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for GetEndpointResponse
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.GetEndpointResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        GetEndpointResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.GetEndpointResponse";
+        };
+
         return GetEndpointResponse;
     })();
 
@@ -9702,7 +10409,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function SignEndpointsRequest(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -9771,13 +10478,14 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         SignEndpointsRequest.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SignEndpointsRequest();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SignEndpointsRequest();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.encodedEndpoints = reader.bytes();
-                    break;
+                case 1: {
+                        message.encodedEndpoints = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -9830,11 +10538,11 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         SignEndpointsRequest.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.SignEndpointsRequest)
                 return object;
-            let message = new $root.pruntime_rpc.SignEndpointsRequest();
+            var message = new $root.pruntime_rpc.SignEndpointsRequest();
             if (object.encodedEndpoints != null)
                 if (typeof object.encodedEndpoints === "string")
                     $util.base64.decode(object.encodedEndpoints, message.encodedEndpoints = $util.newBuffer($util.base64.length(object.encodedEndpoints)), 0);
-                else if (object.encodedEndpoints.length)
+                else if (object.encodedEndpoints.length >= 0)
                     message.encodedEndpoints = object.encodedEndpoints;
             return message;
         };
@@ -9851,7 +10559,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         SignEndpointsRequest.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults)
                 if (options.bytes === String)
                     object.encodedEndpoints = "";
@@ -9876,6 +10584,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for SignEndpointsRequest
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.SignEndpointsRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        SignEndpointsRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.SignEndpointsRequest";
+        };
+
         return SignEndpointsRequest;
     })();
 
@@ -9898,7 +10621,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function DerivePhalaI2pKeyResponse(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -9967,13 +10690,14 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         DerivePhalaI2pKeyResponse.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.DerivePhalaI2pKeyResponse();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.DerivePhalaI2pKeyResponse();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.phalaI2pKey = reader.bytes();
-                    break;
+                case 1: {
+                        message.phalaI2pKey = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -10026,11 +10750,11 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         DerivePhalaI2pKeyResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.DerivePhalaI2pKeyResponse)
                 return object;
-            let message = new $root.pruntime_rpc.DerivePhalaI2pKeyResponse();
+            var message = new $root.pruntime_rpc.DerivePhalaI2pKeyResponse();
             if (object.phalaI2pKey != null)
                 if (typeof object.phalaI2pKey === "string")
                     $util.base64.decode(object.phalaI2pKey, message.phalaI2pKey = $util.newBuffer($util.base64.length(object.phalaI2pKey)), 0);
-                else if (object.phalaI2pKey.length)
+                else if (object.phalaI2pKey.length >= 0)
                     message.phalaI2pKey = object.phalaI2pKey;
             return message;
         };
@@ -10047,7 +10771,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         DerivePhalaI2pKeyResponse.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults)
                 if (options.bytes === String)
                     object.phalaI2pKey = "";
@@ -10070,6 +10794,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         DerivePhalaI2pKeyResponse.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for DerivePhalaI2pKeyResponse
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.DerivePhalaI2pKeyResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        DerivePhalaI2pKeyResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.DerivePhalaI2pKeyResponse";
         };
 
         return DerivePhalaI2pKeyResponse;
@@ -10101,7 +10840,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function TokenomicStat(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -10240,34 +10979,42 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         TokenomicStat.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.TokenomicStat();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.TokenomicStat();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.lastPayout = reader.string();
-                    break;
-                case 2:
-                    message.lastPayoutAtBlock = reader.uint32();
-                    break;
-                case 3:
-                    message.totalPayout = reader.string();
-                    break;
-                case 4:
-                    message.totalPayoutCount = reader.uint32();
-                    break;
-                case 5:
-                    message.lastSlash = reader.string();
-                    break;
-                case 6:
-                    message.lastSlashAtBlock = reader.uint32();
-                    break;
-                case 7:
-                    message.totalSlash = reader.string();
-                    break;
-                case 8:
-                    message.totalSlashCount = reader.uint32();
-                    break;
+                case 1: {
+                        message.lastPayout = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.lastPayoutAtBlock = reader.uint32();
+                        break;
+                    }
+                case 3: {
+                        message.totalPayout = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.totalPayoutCount = reader.uint32();
+                        break;
+                    }
+                case 5: {
+                        message.lastSlash = reader.string();
+                        break;
+                    }
+                case 6: {
+                        message.lastSlashAtBlock = reader.uint32();
+                        break;
+                    }
+                case 7: {
+                        message.totalSlash = reader.string();
+                        break;
+                    }
+                case 8: {
+                        message.totalSlashCount = reader.uint32();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -10341,7 +11088,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         TokenomicStat.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.TokenomicStat)
                 return object;
-            let message = new $root.pruntime_rpc.TokenomicStat();
+            var message = new $root.pruntime_rpc.TokenomicStat();
             if (object.lastPayout != null)
                 message.lastPayout = String(object.lastPayout);
             if (object.lastPayoutAtBlock != null)
@@ -10373,7 +11120,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         TokenomicStat.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.lastPayout = "";
                 object.lastPayoutAtBlock = 0;
@@ -10414,6 +11161,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for TokenomicStat
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.TokenomicStat
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        TokenomicStat.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.TokenomicStat";
+        };
+
         return TokenomicStat;
     })();
 
@@ -10447,7 +11209,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function TokenomicInfo(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -10626,46 +11388,58 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         TokenomicInfo.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.TokenomicInfo();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.TokenomicInfo();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.v = reader.string();
-                    break;
-                case 2:
-                    message.vInit = reader.string();
-                    break;
-                case 19:
-                    message.vDeductible = reader.string();
-                    break;
-                case 20:
-                    message.share = reader.string();
-                    break;
-                case 4:
-                    message.vUpdateAt = reader.uint64();
-                    break;
-                case 5:
-                    message.vUpdateBlock = reader.uint32();
-                    break;
-                case 6:
-                    message.iterationLast = reader.uint64();
-                    break;
-                case 7:
-                    message.challengeTimeLast = reader.uint64();
-                    break;
-                case 8:
-                    message.pBench = reader.string();
-                    break;
-                case 9:
-                    message.pInstant = reader.string();
-                    break;
-                case 10:
-                    message.confidenceLevel = reader.uint32();
-                    break;
-                case 21:
-                    message.stat = $root.pruntime_rpc.TokenomicStat.decode(reader, reader.uint32());
-                    break;
+                case 1: {
+                        message.v = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.vInit = reader.string();
+                        break;
+                    }
+                case 19: {
+                        message.vDeductible = reader.string();
+                        break;
+                    }
+                case 20: {
+                        message.share = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.vUpdateAt = reader.uint64();
+                        break;
+                    }
+                case 5: {
+                        message.vUpdateBlock = reader.uint32();
+                        break;
+                    }
+                case 6: {
+                        message.iterationLast = reader.uint64();
+                        break;
+                    }
+                case 7: {
+                        message.challengeTimeLast = reader.uint64();
+                        break;
+                    }
+                case 8: {
+                        message.pBench = reader.string();
+                        break;
+                    }
+                case 9: {
+                        message.pInstant = reader.string();
+                        break;
+                    }
+                case 10: {
+                        message.confidenceLevel = reader.uint32();
+                        break;
+                    }
+                case 21: {
+                        message.stat = $root.pruntime_rpc.TokenomicStat.decode(reader, reader.uint32());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -10735,7 +11509,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (!$util.isInteger(message.confidenceLevel))
                     return "confidenceLevel: integer expected";
             if (message.stat != null && message.hasOwnProperty("stat")) {
-                let error = $root.pruntime_rpc.TokenomicStat.verify(message.stat);
+                var error = $root.pruntime_rpc.TokenomicStat.verify(message.stat);
                 if (error)
                     return "stat." + error;
             }
@@ -10753,7 +11527,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         TokenomicInfo.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.TokenomicInfo)
                 return object;
-            let message = new $root.pruntime_rpc.TokenomicInfo();
+            var message = new $root.pruntime_rpc.TokenomicInfo();
             if (object.v != null)
                 message.v = String(object.v);
             if (object.vInit != null)
@@ -10817,23 +11591,23 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         TokenomicInfo.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.v = "";
                 object.vInit = "";
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.vUpdateAt = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.vUpdateAt = options.longs === String ? "0" : 0;
                 object.vUpdateBlock = 0;
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.iterationLast = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.iterationLast = options.longs === String ? "0" : 0;
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.challengeTimeLast = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.challengeTimeLast = options.longs === String ? "0" : 0;
@@ -10891,6 +11665,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for TokenomicInfo
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        TokenomicInfo.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.TokenomicInfo";
+        };
+
         return TokenomicInfo;
     })();
 
@@ -10914,7 +11703,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function NetworkConfigResponse(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -10936,7 +11725,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         NetworkConfigResponse.prototype.config = null;
 
         // OneOf field names bound to virtual getters and setters
-        let $oneOfFields;
+        var $oneOfFields;
 
         /**
          * NetworkConfigResponse _publicRpcPort.
@@ -11018,16 +11807,18 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         NetworkConfigResponse.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.NetworkConfigResponse();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.NetworkConfigResponse();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.publicRpcPort = reader.uint32();
-                    break;
-                case 2:
-                    message.config = $root.pruntime_rpc.NetworkConfig.decode(reader, reader.uint32());
-                    break;
+                case 1: {
+                        message.publicRpcPort = reader.uint32();
+                        break;
+                    }
+                case 2: {
+                        message.config = $root.pruntime_rpc.NetworkConfig.decode(reader, reader.uint32());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -11063,7 +11854,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         NetworkConfigResponse.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            let properties = {};
+            var properties = {};
             if (message.publicRpcPort != null && message.hasOwnProperty("publicRpcPort")) {
                 properties._publicRpcPort = 1;
                 if (!$util.isInteger(message.publicRpcPort))
@@ -11072,7 +11863,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.config != null && message.hasOwnProperty("config")) {
                 properties._config = 1;
                 {
-                    let error = $root.pruntime_rpc.NetworkConfig.verify(message.config);
+                    var error = $root.pruntime_rpc.NetworkConfig.verify(message.config);
                     if (error)
                         return "config." + error;
                 }
@@ -11091,7 +11882,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         NetworkConfigResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.NetworkConfigResponse)
                 return object;
-            let message = new $root.pruntime_rpc.NetworkConfigResponse();
+            var message = new $root.pruntime_rpc.NetworkConfigResponse();
             if (object.publicRpcPort != null)
                 message.publicRpcPort = object.publicRpcPort >>> 0;
             if (object.config != null) {
@@ -11114,7 +11905,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         NetworkConfigResponse.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (message.publicRpcPort != null && message.hasOwnProperty("publicRpcPort")) {
                 object.publicRpcPort = message.publicRpcPort;
                 if (options.oneofs)
@@ -11137,6 +11928,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         NetworkConfigResponse.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for NetworkConfigResponse
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.NetworkConfigResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        NetworkConfigResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.NetworkConfigResponse";
         };
 
         return NetworkConfigResponse;
@@ -11162,7 +11968,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function NetworkConfig(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -11241,16 +12047,18 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         NetworkConfig.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.NetworkConfig();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.NetworkConfig();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 2:
-                    message.allProxy = reader.string();
-                    break;
-                case 3:
-                    message.i2pProxy = reader.string();
-                    break;
+                case 2: {
+                        message.allProxy = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.i2pProxy = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -11306,7 +12114,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         NetworkConfig.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.NetworkConfig)
                 return object;
-            let message = new $root.pruntime_rpc.NetworkConfig();
+            var message = new $root.pruntime_rpc.NetworkConfig();
             if (object.allProxy != null)
                 message.allProxy = String(object.allProxy);
             if (object.i2pProxy != null)
@@ -11326,7 +12134,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         NetworkConfig.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.allProxy = "";
                 object.i2pProxy = "";
@@ -11347,6 +12155,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         NetworkConfig.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for NetworkConfig
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.NetworkConfig
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        NetworkConfig.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.NetworkConfig";
         };
 
         return NetworkConfig;
@@ -11372,7 +12195,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function HttpHeader(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -11451,16 +12274,18 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HttpHeader.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HttpHeader();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HttpHeader();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.name = reader.string();
-                    break;
-                case 2:
-                    message.value = reader.string();
-                    break;
+                case 1: {
+                        message.name = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.value = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -11516,7 +12341,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HttpHeader.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.HttpHeader)
                 return object;
-            let message = new $root.pruntime_rpc.HttpHeader();
+            var message = new $root.pruntime_rpc.HttpHeader();
             if (object.name != null)
                 message.name = String(object.name);
             if (object.value != null)
@@ -11536,7 +12361,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HttpHeader.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.name = "";
                 object.value = "";
@@ -11557,6 +12382,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         HttpHeader.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for HttpHeader
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.HttpHeader
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        HttpHeader.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.HttpHeader";
         };
 
         return HttpHeader;
@@ -11585,7 +12425,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         function HttpRequest(properties) {
             this.headers = [];
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -11651,7 +12491,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.method != null && Object.hasOwnProperty.call(message, "method"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.method);
             if (message.headers != null && message.headers.length)
-                for (let i = 0; i < message.headers.length; ++i)
+                for (var i = 0; i < message.headers.length; ++i)
                     $root.pruntime_rpc.HttpHeader.encode(message.headers[i], writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
             if (message.body != null && Object.hasOwnProperty.call(message, "body"))
                 writer.uint32(/* id 4, wireType 2 =*/34).bytes(message.body);
@@ -11685,24 +12525,28 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HttpRequest.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HttpRequest();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HttpRequest();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.url = reader.string();
-                    break;
-                case 2:
-                    message.method = reader.string();
-                    break;
-                case 3:
-                    if (!(message.headers && message.headers.length))
-                        message.headers = [];
-                    message.headers.push($root.pruntime_rpc.HttpHeader.decode(reader, reader.uint32()));
-                    break;
-                case 4:
-                    message.body = reader.bytes();
-                    break;
+                case 1: {
+                        message.url = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.method = reader.string();
+                        break;
+                    }
+                case 3: {
+                        if (!(message.headers && message.headers.length))
+                            message.headers = [];
+                        message.headers.push($root.pruntime_rpc.HttpHeader.decode(reader, reader.uint32()));
+                        break;
+                    }
+                case 4: {
+                        message.body = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -11747,8 +12591,8 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.headers != null && message.hasOwnProperty("headers")) {
                 if (!Array.isArray(message.headers))
                     return "headers: array expected";
-                for (let i = 0; i < message.headers.length; ++i) {
-                    let error = $root.pruntime_rpc.HttpHeader.verify(message.headers[i]);
+                for (var i = 0; i < message.headers.length; ++i) {
+                    var error = $root.pruntime_rpc.HttpHeader.verify(message.headers[i]);
                     if (error)
                         return "headers." + error;
                 }
@@ -11770,7 +12614,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HttpRequest.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.HttpRequest)
                 return object;
-            let message = new $root.pruntime_rpc.HttpRequest();
+            var message = new $root.pruntime_rpc.HttpRequest();
             if (object.url != null)
                 message.url = String(object.url);
             if (object.method != null)
@@ -11779,7 +12623,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (!Array.isArray(object.headers))
                     throw TypeError(".pruntime_rpc.HttpRequest.headers: array expected");
                 message.headers = [];
-                for (let i = 0; i < object.headers.length; ++i) {
+                for (var i = 0; i < object.headers.length; ++i) {
                     if (typeof object.headers[i] !== "object")
                         throw TypeError(".pruntime_rpc.HttpRequest.headers: object expected");
                     message.headers[i] = $root.pruntime_rpc.HttpHeader.fromObject(object.headers[i]);
@@ -11788,7 +12632,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (object.body != null)
                 if (typeof object.body === "string")
                     $util.base64.decode(object.body, message.body = $util.newBuffer($util.base64.length(object.body)), 0);
-                else if (object.body.length)
+                else if (object.body.length >= 0)
                     message.body = object.body;
             return message;
         };
@@ -11805,7 +12649,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HttpRequest.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.arrays || options.defaults)
                 object.headers = [];
             if (options.defaults) {
@@ -11825,7 +12669,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 object.method = message.method;
             if (message.headers && message.headers.length) {
                 object.headers = [];
-                for (let j = 0; j < message.headers.length; ++j)
+                for (var j = 0; j < message.headers.length; ++j)
                     object.headers[j] = $root.pruntime_rpc.HttpHeader.toObject(message.headers[j], options);
             }
             if (message.body != null && message.hasOwnProperty("body"))
@@ -11842,6 +12686,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         HttpRequest.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for HttpRequest
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.HttpRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        HttpRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.HttpRequest";
         };
 
         return HttpRequest;
@@ -11869,7 +12728,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         function HttpResponse(properties) {
             this.headers = [];
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -11925,7 +12784,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.statusCode != null && Object.hasOwnProperty.call(message, "statusCode"))
                 writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.statusCode);
             if (message.headers != null && message.headers.length)
-                for (let i = 0; i < message.headers.length; ++i)
+                for (var i = 0; i < message.headers.length; ++i)
                     $root.pruntime_rpc.HttpHeader.encode(message.headers[i], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
             if (message.body != null && Object.hasOwnProperty.call(message, "body"))
                 writer.uint32(/* id 3, wireType 2 =*/26).bytes(message.body);
@@ -11959,21 +12818,24 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HttpResponse.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HttpResponse();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HttpResponse();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.statusCode = reader.uint32();
-                    break;
-                case 2:
-                    if (!(message.headers && message.headers.length))
-                        message.headers = [];
-                    message.headers.push($root.pruntime_rpc.HttpHeader.decode(reader, reader.uint32()));
-                    break;
-                case 3:
-                    message.body = reader.bytes();
-                    break;
+                case 1: {
+                        message.statusCode = reader.uint32();
+                        break;
+                    }
+                case 2: {
+                        if (!(message.headers && message.headers.length))
+                            message.headers = [];
+                        message.headers.push($root.pruntime_rpc.HttpHeader.decode(reader, reader.uint32()));
+                        break;
+                    }
+                case 3: {
+                        message.body = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -12015,8 +12877,8 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.headers != null && message.hasOwnProperty("headers")) {
                 if (!Array.isArray(message.headers))
                     return "headers: array expected";
-                for (let i = 0; i < message.headers.length; ++i) {
-                    let error = $root.pruntime_rpc.HttpHeader.verify(message.headers[i]);
+                for (var i = 0; i < message.headers.length; ++i) {
+                    var error = $root.pruntime_rpc.HttpHeader.verify(message.headers[i]);
                     if (error)
                         return "headers." + error;
                 }
@@ -12038,14 +12900,14 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HttpResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.HttpResponse)
                 return object;
-            let message = new $root.pruntime_rpc.HttpResponse();
+            var message = new $root.pruntime_rpc.HttpResponse();
             if (object.statusCode != null)
                 message.statusCode = object.statusCode >>> 0;
             if (object.headers) {
                 if (!Array.isArray(object.headers))
                     throw TypeError(".pruntime_rpc.HttpResponse.headers: array expected");
                 message.headers = [];
-                for (let i = 0; i < object.headers.length; ++i) {
+                for (var i = 0; i < object.headers.length; ++i) {
                     if (typeof object.headers[i] !== "object")
                         throw TypeError(".pruntime_rpc.HttpResponse.headers: object expected");
                     message.headers[i] = $root.pruntime_rpc.HttpHeader.fromObject(object.headers[i]);
@@ -12054,7 +12916,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (object.body != null)
                 if (typeof object.body === "string")
                     $util.base64.decode(object.body, message.body = $util.newBuffer($util.base64.length(object.body)), 0);
-                else if (object.body.length)
+                else if (object.body.length >= 0)
                     message.body = object.body;
             return message;
         };
@@ -12071,7 +12933,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HttpResponse.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.arrays || options.defaults)
                 object.headers = [];
             if (options.defaults) {
@@ -12088,7 +12950,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 object.statusCode = message.statusCode;
             if (message.headers && message.headers.length) {
                 object.headers = [];
-                for (let j = 0; j < message.headers.length; ++j)
+                for (var j = 0; j < message.headers.length; ++j)
                     object.headers[j] = $root.pruntime_rpc.HttpHeader.toObject(message.headers[j], options);
             }
             if (message.body != null && message.hasOwnProperty("body"))
@@ -12105,6 +12967,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         HttpResponse.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for HttpResponse
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.HttpResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        HttpResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.HttpResponse";
         };
 
         return HttpResponse;
@@ -12130,7 +13007,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         function GetContractInfoRequest(properties) {
             this.contracts = [];
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -12168,7 +13045,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (!writer)
                 writer = $Writer.create();
             if (message.contracts != null && message.contracts.length)
-                for (let i = 0; i < message.contracts.length; ++i)
+                for (var i = 0; i < message.contracts.length; ++i)
                     writer.uint32(/* id 1, wireType 2 =*/10).string(message.contracts[i]);
             return writer;
         };
@@ -12200,15 +13077,16 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetContractInfoRequest.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetContractInfoRequest();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetContractInfoRequest();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    if (!(message.contracts && message.contracts.length))
-                        message.contracts = [];
-                    message.contracts.push(reader.string());
-                    break;
+                case 1: {
+                        if (!(message.contracts && message.contracts.length))
+                            message.contracts = [];
+                        message.contracts.push(reader.string());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -12247,7 +13125,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.contracts != null && message.hasOwnProperty("contracts")) {
                 if (!Array.isArray(message.contracts))
                     return "contracts: array expected";
-                for (let i = 0; i < message.contracts.length; ++i)
+                for (var i = 0; i < message.contracts.length; ++i)
                     if (!$util.isString(message.contracts[i]))
                         return "contracts: string[] expected";
             }
@@ -12265,12 +13143,12 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetContractInfoRequest.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.GetContractInfoRequest)
                 return object;
-            let message = new $root.pruntime_rpc.GetContractInfoRequest();
+            var message = new $root.pruntime_rpc.GetContractInfoRequest();
             if (object.contracts) {
                 if (!Array.isArray(object.contracts))
                     throw TypeError(".pruntime_rpc.GetContractInfoRequest.contracts: array expected");
                 message.contracts = [];
-                for (let i = 0; i < object.contracts.length; ++i)
+                for (var i = 0; i < object.contracts.length; ++i)
                     message.contracts[i] = String(object.contracts[i]);
             }
             return message;
@@ -12288,12 +13166,12 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetContractInfoRequest.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.arrays || options.defaults)
                 object.contracts = [];
             if (message.contracts && message.contracts.length) {
                 object.contracts = [];
-                for (let j = 0; j < message.contracts.length; ++j)
+                for (var j = 0; j < message.contracts.length; ++j)
                     object.contracts[j] = message.contracts[j];
             }
             return object;
@@ -12308,6 +13186,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         GetContractInfoRequest.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for GetContractInfoRequest
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        GetContractInfoRequest.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.GetContractInfoRequest";
         };
 
         return GetContractInfoRequest;
@@ -12333,7 +13226,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         function GetContractInfoResponse(properties) {
             this.contracts = [];
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -12371,7 +13264,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (!writer)
                 writer = $Writer.create();
             if (message.contracts != null && message.contracts.length)
-                for (let i = 0; i < message.contracts.length; ++i)
+                for (var i = 0; i < message.contracts.length; ++i)
                     $root.pruntime_rpc.ContractInfo.encode(message.contracts[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
             return writer;
         };
@@ -12403,15 +13296,16 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetContractInfoResponse.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetContractInfoResponse();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetContractInfoResponse();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    if (!(message.contracts && message.contracts.length))
-                        message.contracts = [];
-                    message.contracts.push($root.pruntime_rpc.ContractInfo.decode(reader, reader.uint32()));
-                    break;
+                case 1: {
+                        if (!(message.contracts && message.contracts.length))
+                            message.contracts = [];
+                        message.contracts.push($root.pruntime_rpc.ContractInfo.decode(reader, reader.uint32()));
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -12450,8 +13344,8 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.contracts != null && message.hasOwnProperty("contracts")) {
                 if (!Array.isArray(message.contracts))
                     return "contracts: array expected";
-                for (let i = 0; i < message.contracts.length; ++i) {
-                    let error = $root.pruntime_rpc.ContractInfo.verify(message.contracts[i]);
+                for (var i = 0; i < message.contracts.length; ++i) {
+                    var error = $root.pruntime_rpc.ContractInfo.verify(message.contracts[i]);
                     if (error)
                         return "contracts." + error;
                 }
@@ -12470,12 +13364,12 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetContractInfoResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.GetContractInfoResponse)
                 return object;
-            let message = new $root.pruntime_rpc.GetContractInfoResponse();
+            var message = new $root.pruntime_rpc.GetContractInfoResponse();
             if (object.contracts) {
                 if (!Array.isArray(object.contracts))
                     throw TypeError(".pruntime_rpc.GetContractInfoResponse.contracts: array expected");
                 message.contracts = [];
-                for (let i = 0; i < object.contracts.length; ++i) {
+                for (var i = 0; i < object.contracts.length; ++i) {
                     if (typeof object.contracts[i] !== "object")
                         throw TypeError(".pruntime_rpc.GetContractInfoResponse.contracts: object expected");
                     message.contracts[i] = $root.pruntime_rpc.ContractInfo.fromObject(object.contracts[i]);
@@ -12496,12 +13390,12 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetContractInfoResponse.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.arrays || options.defaults)
                 object.contracts = [];
             if (message.contracts && message.contracts.length) {
                 object.contracts = [];
-                for (let j = 0; j < message.contracts.length; ++j)
+                for (var j = 0; j < message.contracts.length; ++j)
                     object.contracts[j] = $root.pruntime_rpc.ContractInfo.toObject(message.contracts[j], options);
             }
             return object;
@@ -12516,6 +13410,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         GetContractInfoResponse.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for GetContractInfoResponse
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        GetContractInfoResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.GetContractInfoResponse";
         };
 
         return GetContractInfoResponse;
@@ -12543,7 +13452,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function ContractInfo(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -12642,22 +13551,26 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ContractInfo.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ContractInfo();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ContractInfo();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.id = reader.string();
-                    break;
-                case 2:
-                    message.codeHash = reader.string();
-                    break;
-                case 3:
-                    message.weight = reader.uint32();
-                    break;
-                case 4:
-                    message.sidevm = $root.pruntime_rpc.SidevmInfo.decode(reader, reader.uint32());
-                    break;
+                case 1: {
+                        message.id = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.codeHash = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.weight = reader.uint32();
+                        break;
+                    }
+                case 4: {
+                        message.sidevm = $root.pruntime_rpc.SidevmInfo.decode(reader, reader.uint32());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -12703,7 +13616,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (!$util.isInteger(message.weight))
                     return "weight: integer expected";
             if (message.sidevm != null && message.hasOwnProperty("sidevm")) {
-                let error = $root.pruntime_rpc.SidevmInfo.verify(message.sidevm);
+                var error = $root.pruntime_rpc.SidevmInfo.verify(message.sidevm);
                 if (error)
                     return "sidevm." + error;
             }
@@ -12721,7 +13634,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ContractInfo.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.ContractInfo)
                 return object;
-            let message = new $root.pruntime_rpc.ContractInfo();
+            var message = new $root.pruntime_rpc.ContractInfo();
             if (object.id != null)
                 message.id = String(object.id);
             if (object.codeHash != null)
@@ -12748,7 +13661,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ContractInfo.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.id = "";
                 object.codeHash = "";
@@ -12777,6 +13690,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for ContractInfo
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.ContractInfo
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ContractInfo.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.ContractInfo";
+        };
+
         return ContractInfo;
     })();
 
@@ -12802,7 +13730,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function SidevmInfo(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -12901,22 +13829,26 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         SidevmInfo.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SidevmInfo();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SidevmInfo();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.state = reader.string();
-                    break;
-                case 2:
-                    message.codeHash = reader.string();
-                    break;
-                case 3:
-                    message.startTime = reader.string();
-                    break;
-                case 4:
-                    message.stopReason = reader.string();
-                    break;
+                case 1: {
+                        message.state = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.codeHash = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.startTime = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.stopReason = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -12978,7 +13910,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         SidevmInfo.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.SidevmInfo)
                 return object;
-            let message = new $root.pruntime_rpc.SidevmInfo();
+            var message = new $root.pruntime_rpc.SidevmInfo();
             if (object.state != null)
                 message.state = String(object.state);
             if (object.codeHash != null)
@@ -13002,7 +13934,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         SidevmInfo.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.state = "";
                 object.codeHash = "";
@@ -13031,6 +13963,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for SidevmInfo
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.SidevmInfo
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        SidevmInfo.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.SidevmInfo";
+        };
+
         return SidevmInfo;
     })();
 
@@ -13053,7 +14000,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function GetClusterInfoResponse(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -13122,13 +14069,14 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetClusterInfoResponse.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetClusterInfoResponse();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetClusterInfoResponse();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.info = $root.pruntime_rpc.ClusterInfo.decode(reader, reader.uint32());
-                    break;
+                case 1: {
+                        message.info = $root.pruntime_rpc.ClusterInfo.decode(reader, reader.uint32());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -13165,7 +14113,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (typeof message !== "object" || message === null)
                 return "object expected";
             if (message.info != null && message.hasOwnProperty("info")) {
-                let error = $root.pruntime_rpc.ClusterInfo.verify(message.info);
+                var error = $root.pruntime_rpc.ClusterInfo.verify(message.info);
                 if (error)
                     return "info." + error;
             }
@@ -13183,7 +14131,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetClusterInfoResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.GetClusterInfoResponse)
                 return object;
-            let message = new $root.pruntime_rpc.GetClusterInfoResponse();
+            var message = new $root.pruntime_rpc.GetClusterInfoResponse();
             if (object.info != null) {
                 if (typeof object.info !== "object")
                     throw TypeError(".pruntime_rpc.GetClusterInfoResponse.info: object expected");
@@ -13204,7 +14152,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         GetClusterInfoResponse.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults)
                 object.info = null;
             if (message.info != null && message.hasOwnProperty("info"))
@@ -13221,6 +14169,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         GetClusterInfoResponse.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for GetClusterInfoResponse
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        GetClusterInfoResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.GetClusterInfoResponse";
         };
 
         return GetClusterInfoResponse;
@@ -13249,7 +14212,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         function ClusterInfo(properties) {
             this.contracts = [];
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -13317,7 +14280,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.stateRoot != null && Object.hasOwnProperty.call(message, "stateRoot"))
                 writer.uint32(/* id 3, wireType 2 =*/26).string(message.stateRoot);
             if (message.contracts != null && message.contracts.length)
-                for (let i = 0; i < message.contracts.length; ++i)
+                for (var i = 0; i < message.contracts.length; ++i)
                     writer.uint32(/* id 4, wireType 2 =*/34).string(message.contracts[i]);
             return writer;
         };
@@ -13349,24 +14312,28 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ClusterInfo.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ClusterInfo();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ClusterInfo();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.id = reader.string();
-                    break;
-                case 2:
-                    message.runtimeVersion = reader.string();
-                    break;
-                case 3:
-                    message.stateRoot = reader.string();
-                    break;
-                case 4:
-                    if (!(message.contracts && message.contracts.length))
-                        message.contracts = [];
-                    message.contracts.push(reader.string());
-                    break;
+                case 1: {
+                        message.id = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.runtimeVersion = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.stateRoot = reader.string();
+                        break;
+                    }
+                case 4: {
+                        if (!(message.contracts && message.contracts.length))
+                            message.contracts = [];
+                        message.contracts.push(reader.string());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -13414,7 +14381,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.contracts != null && message.hasOwnProperty("contracts")) {
                 if (!Array.isArray(message.contracts))
                     return "contracts: array expected";
-                for (let i = 0; i < message.contracts.length; ++i)
+                for (var i = 0; i < message.contracts.length; ++i)
                     if (!$util.isString(message.contracts[i]))
                         return "contracts: string[] expected";
             }
@@ -13432,7 +14399,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ClusterInfo.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.ClusterInfo)
                 return object;
-            let message = new $root.pruntime_rpc.ClusterInfo();
+            var message = new $root.pruntime_rpc.ClusterInfo();
             if (object.id != null)
                 message.id = String(object.id);
             if (object.runtimeVersion != null)
@@ -13443,7 +14410,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (!Array.isArray(object.contracts))
                     throw TypeError(".pruntime_rpc.ClusterInfo.contracts: array expected");
                 message.contracts = [];
-                for (let i = 0; i < object.contracts.length; ++i)
+                for (var i = 0; i < object.contracts.length; ++i)
                     message.contracts[i] = String(object.contracts[i]);
             }
             return message;
@@ -13461,7 +14428,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ClusterInfo.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.arrays || options.defaults)
                 object.contracts = [];
             if (options.defaults) {
@@ -13477,7 +14444,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 object.stateRoot = message.stateRoot;
             if (message.contracts && message.contracts.length) {
                 object.contracts = [];
-                for (let j = 0; j < message.contracts.length; ++j)
+                for (var j = 0; j < message.contracts.length; ++j)
                     object.contracts[j] = message.contracts[j];
             }
             return object;
@@ -13492,6 +14459,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         ClusterInfo.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for ClusterInfo
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ClusterInfo.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.ClusterInfo";
         };
 
         return ClusterInfo;
@@ -13517,7 +14499,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function SidevmCode(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -13596,16 +14578,18 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         SidevmCode.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SidevmCode();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SidevmCode();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.contract = reader.bytes();
-                    break;
-                case 2:
-                    message.code = reader.bytes();
-                    break;
+                case 1: {
+                        message.contract = reader.bytes();
+                        break;
+                    }
+                case 2: {
+                        message.code = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -13661,16 +14645,16 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         SidevmCode.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.SidevmCode)
                 return object;
-            let message = new $root.pruntime_rpc.SidevmCode();
+            var message = new $root.pruntime_rpc.SidevmCode();
             if (object.contract != null)
                 if (typeof object.contract === "string")
                     $util.base64.decode(object.contract, message.contract = $util.newBuffer($util.base64.length(object.contract)), 0);
-                else if (object.contract.length)
+                else if (object.contract.length >= 0)
                     message.contract = object.contract;
             if (object.code != null)
                 if (typeof object.code === "string")
                     $util.base64.decode(object.code, message.code = $util.newBuffer($util.base64.length(object.code)), 0);
-                else if (object.code.length)
+                else if (object.code.length >= 0)
                     message.code = object.code;
             return message;
         };
@@ -13687,7 +14671,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         SidevmCode.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 if (options.bytes === String)
                     object.contract = "";
@@ -13722,6 +14706,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for SidevmCode
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.SidevmCode
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        SidevmCode.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.SidevmCode";
+        };
+
         return SidevmCode;
     })();
 
@@ -13747,7 +14746,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function ContractParameters(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -13846,22 +14845,26 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ContractParameters.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ContractParameters();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ContractParameters();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.deployer = reader.string();
-                    break;
-                case 2:
-                    message.clusterId = reader.string();
-                    break;
-                case 3:
-                    message.codeHash = reader.string();
-                    break;
-                case 4:
-                    message.salt = reader.string();
-                    break;
+                case 1: {
+                        message.deployer = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.clusterId = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.codeHash = reader.string();
+                        break;
+                    }
+                case 4: {
+                        message.salt = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -13923,7 +14926,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ContractParameters.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.ContractParameters)
                 return object;
-            let message = new $root.pruntime_rpc.ContractParameters();
+            var message = new $root.pruntime_rpc.ContractParameters();
             if (object.deployer != null)
                 message.deployer = String(object.deployer);
             if (object.clusterId != null)
@@ -13947,7 +14950,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ContractParameters.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.deployer = "";
                 object.clusterId = "";
@@ -13976,6 +14979,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for ContractParameters
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.ContractParameters
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ContractParameters.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.ContractParameters";
+        };
+
         return ContractParameters;
     })();
 
@@ -13998,7 +15016,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function ContractId(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -14067,13 +15085,14 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ContractId.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ContractId();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ContractId();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.id = reader.string();
-                    break;
+                case 1: {
+                        message.id = reader.string();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -14126,7 +15145,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ContractId.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.ContractId)
                 return object;
-            let message = new $root.pruntime_rpc.ContractId();
+            var message = new $root.pruntime_rpc.ContractId();
             if (object.id != null)
                 message.id = String(object.id);
             return message;
@@ -14144,7 +15163,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ContractId.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults)
                 object.id = "";
             if (message.id != null && message.hasOwnProperty("id"))
@@ -14161,6 +15180,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         ContractId.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for ContractId
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.ContractId
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ContractId.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.ContractId";
         };
 
         return ContractId;
@@ -14186,7 +15220,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function ChainState(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -14265,16 +15299,18 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ChainState.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ChainState();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ChainState();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.blockNumber = reader.uint32();
-                    break;
-                case 2:
-                    message.encodedState = reader.bytes();
-                    break;
+                case 1: {
+                        message.blockNumber = reader.uint32();
+                        break;
+                    }
+                case 2: {
+                        message.encodedState = reader.bytes();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -14330,13 +15366,13 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ChainState.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.ChainState)
                 return object;
-            let message = new $root.pruntime_rpc.ChainState();
+            var message = new $root.pruntime_rpc.ChainState();
             if (object.blockNumber != null)
                 message.blockNumber = object.blockNumber >>> 0;
             if (object.encodedState != null)
                 if (typeof object.encodedState === "string")
                     $util.base64.decode(object.encodedState, message.encodedState = $util.newBuffer($util.base64.length(object.encodedState)), 0);
-                else if (object.encodedState.length)
+                else if (object.encodedState.length >= 0)
                     message.encodedState = object.encodedState;
             return message;
         };
@@ -14353,7 +15389,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         ChainState.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 object.blockNumber = 0;
                 if (options.bytes === String)
@@ -14382,6 +15418,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for ChainState
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.ChainState
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ChainState.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.ChainState";
+        };
+
         return ChainState;
     })();
 
@@ -14404,7 +15455,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function StopOptions(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -14473,13 +15524,14 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         StopOptions.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.StopOptions();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.StopOptions();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.removeCheckpoints = reader.bool();
-                    break;
+                case 1: {
+                        message.removeCheckpoints = reader.bool();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -14532,7 +15584,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         StopOptions.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.StopOptions)
                 return object;
-            let message = new $root.pruntime_rpc.StopOptions();
+            var message = new $root.pruntime_rpc.StopOptions();
             if (object.removeCheckpoints != null)
                 message.removeCheckpoints = Boolean(object.removeCheckpoints);
             return message;
@@ -14550,7 +15602,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         StopOptions.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults)
                 object.removeCheckpoints = false;
             if (message.removeCheckpoints != null && message.hasOwnProperty("removeCheckpoints"))
@@ -14567,6 +15619,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         StopOptions.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for StopOptions
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.StopOptions
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        StopOptions.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.StopOptions";
         };
 
         return StopOptions;
@@ -14592,7 +15659,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         function StorageProof(properties) {
             this.proof = [];
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -14630,7 +15697,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (!writer)
                 writer = $Writer.create();
             if (message.proof != null && message.proof.length)
-                for (let i = 0; i < message.proof.length; ++i)
+                for (var i = 0; i < message.proof.length; ++i)
                     writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.proof[i]);
             return writer;
         };
@@ -14662,15 +15729,16 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         StorageProof.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.StorageProof();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.StorageProof();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    if (!(message.proof && message.proof.length))
-                        message.proof = [];
-                    message.proof.push(reader.bytes());
-                    break;
+                case 1: {
+                        if (!(message.proof && message.proof.length))
+                            message.proof = [];
+                        message.proof.push(reader.bytes());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -14709,7 +15777,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.proof != null && message.hasOwnProperty("proof")) {
                 if (!Array.isArray(message.proof))
                     return "proof: array expected";
-                for (let i = 0; i < message.proof.length; ++i)
+                for (var i = 0; i < message.proof.length; ++i)
                     if (!(message.proof[i] && typeof message.proof[i].length === "number" || $util.isString(message.proof[i])))
                         return "proof: buffer[] expected";
             }
@@ -14727,15 +15795,15 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         StorageProof.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.StorageProof)
                 return object;
-            let message = new $root.pruntime_rpc.StorageProof();
+            var message = new $root.pruntime_rpc.StorageProof();
             if (object.proof) {
                 if (!Array.isArray(object.proof))
                     throw TypeError(".pruntime_rpc.StorageProof.proof: array expected");
                 message.proof = [];
-                for (let i = 0; i < object.proof.length; ++i)
+                for (var i = 0; i < object.proof.length; ++i)
                     if (typeof object.proof[i] === "string")
                         $util.base64.decode(object.proof[i], message.proof[i] = $util.newBuffer($util.base64.length(object.proof[i])), 0);
-                    else if (object.proof[i].length)
+                    else if (object.proof[i].length >= 0)
                         message.proof[i] = object.proof[i];
             }
             return message;
@@ -14753,12 +15821,12 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         StorageProof.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.arrays || options.defaults)
                 object.proof = [];
             if (message.proof && message.proof.length) {
                 object.proof = [];
-                for (let j = 0; j < message.proof.length; ++j)
+                for (var j = 0; j < message.proof.length; ++j)
                     object.proof[j] = options.bytes === String ? $util.base64.encode(message.proof[j], 0, message.proof[j].length) : options.bytes === Array ? Array.prototype.slice.call(message.proof[j]) : message.proof[j];
             }
             return object;
@@ -14773,6 +15841,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         StorageProof.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for StorageProof
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.StorageProof
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        StorageProof.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.StorageProof";
         };
 
         return StorageProof;
@@ -14799,7 +15882,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         function StatisticsReqeust(properties) {
             this.contracts = [];
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -14845,7 +15928,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (!writer)
                 writer = $Writer.create();
             if (message.contracts != null && message.contracts.length)
-                for (let i = 0; i < message.contracts.length; ++i)
+                for (var i = 0; i < message.contracts.length; ++i)
                     writer.uint32(/* id 1, wireType 2 =*/10).string(message.contracts[i]);
             if (message.all != null && Object.hasOwnProperty.call(message, "all"))
                 writer.uint32(/* id 2, wireType 0 =*/16).bool(message.all);
@@ -14879,18 +15962,20 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         StatisticsReqeust.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.StatisticsReqeust();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.StatisticsReqeust();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    if (!(message.contracts && message.contracts.length))
-                        message.contracts = [];
-                    message.contracts.push(reader.string());
-                    break;
-                case 2:
-                    message.all = reader.bool();
-                    break;
+                case 1: {
+                        if (!(message.contracts && message.contracts.length))
+                            message.contracts = [];
+                        message.contracts.push(reader.string());
+                        break;
+                    }
+                case 2: {
+                        message.all = reader.bool();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -14929,7 +16014,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.contracts != null && message.hasOwnProperty("contracts")) {
                 if (!Array.isArray(message.contracts))
                     return "contracts: array expected";
-                for (let i = 0; i < message.contracts.length; ++i)
+                for (var i = 0; i < message.contracts.length; ++i)
                     if (!$util.isString(message.contracts[i]))
                         return "contracts: string[] expected";
             }
@@ -14950,12 +16035,12 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         StatisticsReqeust.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.StatisticsReqeust)
                 return object;
-            let message = new $root.pruntime_rpc.StatisticsReqeust();
+            var message = new $root.pruntime_rpc.StatisticsReqeust();
             if (object.contracts) {
                 if (!Array.isArray(object.contracts))
                     throw TypeError(".pruntime_rpc.StatisticsReqeust.contracts: array expected");
                 message.contracts = [];
-                for (let i = 0; i < object.contracts.length; ++i)
+                for (var i = 0; i < object.contracts.length; ++i)
                     message.contracts[i] = String(object.contracts[i]);
             }
             if (object.all != null)
@@ -14975,14 +16060,14 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         StatisticsReqeust.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.arrays || options.defaults)
                 object.contracts = [];
             if (options.defaults)
                 object.all = false;
             if (message.contracts && message.contracts.length) {
                 object.contracts = [];
-                for (let j = 0; j < message.contracts.length; ++j)
+                for (var j = 0; j < message.contracts.length; ++j)
                     object.contracts[j] = message.contracts[j];
             }
             if (message.all != null && message.hasOwnProperty("all"))
@@ -14999,6 +16084,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         StatisticsReqeust.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for StatisticsReqeust
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.StatisticsReqeust
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        StatisticsReqeust.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.StatisticsReqeust";
         };
 
         return StatisticsReqeust;
@@ -15026,7 +16126,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function StatisticsResponse(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -15125,22 +16225,26 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         StatisticsResponse.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.StatisticsResponse();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.StatisticsResponse();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.uptime = reader.uint64();
-                    break;
-                case 2:
-                    message.cores = reader.uint32();
-                    break;
-                case 3:
-                    message.query = $root.pruntime_rpc.QueryStats.decode(reader, reader.uint32());
-                    break;
-                case 4:
-                    message.httpEgress = $root.pruntime_rpc.HttpEgressStats.decode(reader, reader.uint32());
-                    break;
+                case 1: {
+                        message.uptime = reader.uint64();
+                        break;
+                    }
+                case 2: {
+                        message.cores = reader.uint32();
+                        break;
+                    }
+                case 3: {
+                        message.query = $root.pruntime_rpc.QueryStats.decode(reader, reader.uint32());
+                        break;
+                    }
+                case 4: {
+                        message.httpEgress = $root.pruntime_rpc.HttpEgressStats.decode(reader, reader.uint32());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -15183,12 +16287,12 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (!$util.isInteger(message.cores))
                     return "cores: integer expected";
             if (message.query != null && message.hasOwnProperty("query")) {
-                let error = $root.pruntime_rpc.QueryStats.verify(message.query);
+                var error = $root.pruntime_rpc.QueryStats.verify(message.query);
                 if (error)
                     return "query." + error;
             }
             if (message.httpEgress != null && message.hasOwnProperty("httpEgress")) {
-                let error = $root.pruntime_rpc.HttpEgressStats.verify(message.httpEgress);
+                var error = $root.pruntime_rpc.HttpEgressStats.verify(message.httpEgress);
                 if (error)
                     return "httpEgress." + error;
             }
@@ -15206,7 +16310,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         StatisticsResponse.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.StatisticsResponse)
                 return object;
-            let message = new $root.pruntime_rpc.StatisticsResponse();
+            var message = new $root.pruntime_rpc.StatisticsResponse();
             if (object.uptime != null)
                 if ($util.Long)
                     (message.uptime = $util.Long.fromValue(object.uptime)).unsigned = true;
@@ -15243,10 +16347,10 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         StatisticsResponse.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.uptime = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.uptime = options.longs === String ? "0" : 0;
@@ -15279,6 +16383,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for StatisticsResponse
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.StatisticsResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        StatisticsResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.StatisticsResponse";
+        };
+
         return StatisticsResponse;
     })();
 
@@ -15303,7 +16422,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         function QueryStats(properties) {
             this.byContract = {};
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -15351,7 +16470,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.global != null && Object.hasOwnProperty.call(message, "global"))
                 $root.pruntime_rpc.QueryCounters.encode(message.global, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
             if (message.byContract != null && Object.hasOwnProperty.call(message, "byContract"))
-                for (let keys = Object.keys(message.byContract), i = 0; i < keys.length; ++i) {
+                for (var keys = Object.keys(message.byContract), i = 0; i < keys.length; ++i) {
                     writer.uint32(/* id 2, wireType 2 =*/18).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
                     $root.pruntime_rpc.QueryCounters.encode(message.byContract[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
                 }
@@ -15385,35 +16504,37 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         QueryStats.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.QueryStats(), key, value;
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.QueryStats(), key, value;
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.global = $root.pruntime_rpc.QueryCounters.decode(reader, reader.uint32());
-                    break;
-                case 2:
-                    if (message.byContract === $util.emptyObject)
-                        message.byContract = {};
-                    let end2 = reader.uint32() + reader.pos;
-                    key = "";
-                    value = null;
-                    while (reader.pos < end2) {
-                        let tag2 = reader.uint32();
-                        switch (tag2 >>> 3) {
-                        case 1:
-                            key = reader.string();
-                            break;
-                        case 2:
-                            value = $root.pruntime_rpc.QueryCounters.decode(reader, reader.uint32());
-                            break;
-                        default:
-                            reader.skipType(tag2 & 7);
-                            break;
-                        }
+                case 1: {
+                        message.global = $root.pruntime_rpc.QueryCounters.decode(reader, reader.uint32());
+                        break;
                     }
-                    message.byContract[key] = value;
-                    break;
+                case 2: {
+                        if (message.byContract === $util.emptyObject)
+                            message.byContract = {};
+                        var end2 = reader.uint32() + reader.pos;
+                        key = "";
+                        value = null;
+                        while (reader.pos < end2) {
+                            var tag2 = reader.uint32();
+                            switch (tag2 >>> 3) {
+                            case 1:
+                                key = reader.string();
+                                break;
+                            case 2:
+                                value = $root.pruntime_rpc.QueryCounters.decode(reader, reader.uint32());
+                                break;
+                            default:
+                                reader.skipType(tag2 & 7);
+                                break;
+                            }
+                        }
+                        message.byContract[key] = value;
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -15450,16 +16571,16 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (typeof message !== "object" || message === null)
                 return "object expected";
             if (message.global != null && message.hasOwnProperty("global")) {
-                let error = $root.pruntime_rpc.QueryCounters.verify(message.global);
+                var error = $root.pruntime_rpc.QueryCounters.verify(message.global);
                 if (error)
                     return "global." + error;
             }
             if (message.byContract != null && message.hasOwnProperty("byContract")) {
                 if (!$util.isObject(message.byContract))
                     return "byContract: object expected";
-                let key = Object.keys(message.byContract);
-                for (let i = 0; i < key.length; ++i) {
-                    let error = $root.pruntime_rpc.QueryCounters.verify(message.byContract[key[i]]);
+                var key = Object.keys(message.byContract);
+                for (var i = 0; i < key.length; ++i) {
+                    var error = $root.pruntime_rpc.QueryCounters.verify(message.byContract[key[i]]);
                     if (error)
                         return "byContract." + error;
                 }
@@ -15478,7 +16599,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         QueryStats.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.QueryStats)
                 return object;
-            let message = new $root.pruntime_rpc.QueryStats();
+            var message = new $root.pruntime_rpc.QueryStats();
             if (object.global != null) {
                 if (typeof object.global !== "object")
                     throw TypeError(".pruntime_rpc.QueryStats.global: object expected");
@@ -15488,7 +16609,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (typeof object.byContract !== "object")
                     throw TypeError(".pruntime_rpc.QueryStats.byContract: object expected");
                 message.byContract = {};
-                for (let keys = Object.keys(object.byContract), i = 0; i < keys.length; ++i) {
+                for (var keys = Object.keys(object.byContract), i = 0; i < keys.length; ++i) {
                     if (typeof object.byContract[keys[i]] !== "object")
                         throw TypeError(".pruntime_rpc.QueryStats.byContract: object expected");
                     message.byContract[keys[i]] = $root.pruntime_rpc.QueryCounters.fromObject(object.byContract[keys[i]]);
@@ -15509,17 +16630,17 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         QueryStats.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.objects || options.defaults)
                 object.byContract = {};
             if (options.defaults)
                 object.global = null;
             if (message.global != null && message.hasOwnProperty("global"))
                 object.global = $root.pruntime_rpc.QueryCounters.toObject(message.global, options);
-            let keys2;
+            var keys2;
             if (message.byContract && (keys2 = Object.keys(message.byContract)).length) {
                 object.byContract = {};
-                for (let j = 0; j < keys2.length; ++j)
+                for (var j = 0; j < keys2.length; ++j)
                     object.byContract[keys2[j]] = $root.pruntime_rpc.QueryCounters.toObject(message.byContract[keys2[j]], options);
             }
             return object;
@@ -15534,6 +16655,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         QueryStats.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for QueryStats
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.QueryStats
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        QueryStats.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.QueryStats";
         };
 
         return QueryStats;
@@ -15560,7 +16696,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         function QueryCounters(properties) {
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -15649,19 +16785,22 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         QueryCounters.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.QueryCounters();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.QueryCounters();
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.total = reader.uint64();
-                    break;
-                case 2:
-                    message.dropped = reader.uint64();
-                    break;
-                case 3:
-                    message.time = reader.uint64();
-                    break;
+                case 1: {
+                        message.total = reader.uint64();
+                        break;
+                    }
+                case 2: {
+                        message.dropped = reader.uint64();
+                        break;
+                    }
+                case 3: {
+                        message.time = reader.uint64();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -15720,7 +16859,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         QueryCounters.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.QueryCounters)
                 return object;
-            let message = new $root.pruntime_rpc.QueryCounters();
+            var message = new $root.pruntime_rpc.QueryCounters();
             if (object.total != null)
                 if ($util.Long)
                     (message.total = $util.Long.fromValue(object.total)).unsigned = true;
@@ -15763,20 +16902,20 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         QueryCounters.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.defaults) {
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.total = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.total = options.longs === String ? "0" : 0;
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.dropped = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.dropped = options.longs === String ? "0" : 0;
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.time = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.time = options.longs === String ? "0" : 0;
@@ -15810,6 +16949,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for QueryCounters
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.QueryCounters
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        QueryCounters.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.QueryCounters";
+        };
+
         return QueryCounters;
     })();
 
@@ -15834,7 +16988,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         function HttpEgressStats(properties) {
             this.byContract = {};
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -15882,7 +17036,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.global != null && Object.hasOwnProperty.call(message, "global"))
                 $root.pruntime_rpc.HttpCounters.encode(message.global, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
             if (message.byContract != null && Object.hasOwnProperty.call(message, "byContract"))
-                for (let keys = Object.keys(message.byContract), i = 0; i < keys.length; ++i) {
+                for (var keys = Object.keys(message.byContract), i = 0; i < keys.length; ++i) {
                     writer.uint32(/* id 2, wireType 2 =*/18).fork().uint32(/* id 1, wireType 2 =*/10).string(keys[i]);
                     $root.pruntime_rpc.HttpCounters.encode(message.byContract[keys[i]], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim().ldelim();
                 }
@@ -15916,35 +17070,37 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HttpEgressStats.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HttpEgressStats(), key, value;
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HttpEgressStats(), key, value;
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.global = $root.pruntime_rpc.HttpCounters.decode(reader, reader.uint32());
-                    break;
-                case 2:
-                    if (message.byContract === $util.emptyObject)
-                        message.byContract = {};
-                    let end2 = reader.uint32() + reader.pos;
-                    key = "";
-                    value = null;
-                    while (reader.pos < end2) {
-                        let tag2 = reader.uint32();
-                        switch (tag2 >>> 3) {
-                        case 1:
-                            key = reader.string();
-                            break;
-                        case 2:
-                            value = $root.pruntime_rpc.HttpCounters.decode(reader, reader.uint32());
-                            break;
-                        default:
-                            reader.skipType(tag2 & 7);
-                            break;
-                        }
+                case 1: {
+                        message.global = $root.pruntime_rpc.HttpCounters.decode(reader, reader.uint32());
+                        break;
                     }
-                    message.byContract[key] = value;
-                    break;
+                case 2: {
+                        if (message.byContract === $util.emptyObject)
+                            message.byContract = {};
+                        var end2 = reader.uint32() + reader.pos;
+                        key = "";
+                        value = null;
+                        while (reader.pos < end2) {
+                            var tag2 = reader.uint32();
+                            switch (tag2 >>> 3) {
+                            case 1:
+                                key = reader.string();
+                                break;
+                            case 2:
+                                value = $root.pruntime_rpc.HttpCounters.decode(reader, reader.uint32());
+                                break;
+                            default:
+                                reader.skipType(tag2 & 7);
+                                break;
+                            }
+                        }
+                        message.byContract[key] = value;
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -15981,16 +17137,16 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (typeof message !== "object" || message === null)
                 return "object expected";
             if (message.global != null && message.hasOwnProperty("global")) {
-                let error = $root.pruntime_rpc.HttpCounters.verify(message.global);
+                var error = $root.pruntime_rpc.HttpCounters.verify(message.global);
                 if (error)
                     return "global." + error;
             }
             if (message.byContract != null && message.hasOwnProperty("byContract")) {
                 if (!$util.isObject(message.byContract))
                     return "byContract: object expected";
-                let key = Object.keys(message.byContract);
-                for (let i = 0; i < key.length; ++i) {
-                    let error = $root.pruntime_rpc.HttpCounters.verify(message.byContract[key[i]]);
+                var key = Object.keys(message.byContract);
+                for (var i = 0; i < key.length; ++i) {
+                    var error = $root.pruntime_rpc.HttpCounters.verify(message.byContract[key[i]]);
                     if (error)
                         return "byContract." + error;
                 }
@@ -16009,7 +17165,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HttpEgressStats.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.HttpEgressStats)
                 return object;
-            let message = new $root.pruntime_rpc.HttpEgressStats();
+            var message = new $root.pruntime_rpc.HttpEgressStats();
             if (object.global != null) {
                 if (typeof object.global !== "object")
                     throw TypeError(".pruntime_rpc.HttpEgressStats.global: object expected");
@@ -16019,7 +17175,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (typeof object.byContract !== "object")
                     throw TypeError(".pruntime_rpc.HttpEgressStats.byContract: object expected");
                 message.byContract = {};
-                for (let keys = Object.keys(object.byContract), i = 0; i < keys.length; ++i) {
+                for (var keys = Object.keys(object.byContract), i = 0; i < keys.length; ++i) {
                     if (typeof object.byContract[keys[i]] !== "object")
                         throw TypeError(".pruntime_rpc.HttpEgressStats.byContract: object expected");
                     message.byContract[keys[i]] = $root.pruntime_rpc.HttpCounters.fromObject(object.byContract[keys[i]]);
@@ -16040,17 +17196,17 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HttpEgressStats.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.objects || options.defaults)
                 object.byContract = {};
             if (options.defaults)
                 object.global = null;
             if (message.global != null && message.hasOwnProperty("global"))
                 object.global = $root.pruntime_rpc.HttpCounters.toObject(message.global, options);
-            let keys2;
+            var keys2;
             if (message.byContract && (keys2 = Object.keys(message.byContract)).length) {
                 object.byContract = {};
-                for (let j = 0; j < keys2.length; ++j)
+                for (var j = 0; j < keys2.length; ++j)
                     object.byContract[keys2[j]] = $root.pruntime_rpc.HttpCounters.toObject(message.byContract[keys2[j]], options);
             }
             return object;
@@ -16065,6 +17221,21 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
          */
         HttpEgressStats.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for HttpEgressStats
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.HttpEgressStats
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        HttpEgressStats.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.HttpEgressStats";
         };
 
         return HttpEgressStats;
@@ -16092,7 +17263,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         function HttpCounters(properties) {
             this.byStatusCode = {};
             if (properties)
-                for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
@@ -16150,7 +17321,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.failures != null && Object.hasOwnProperty.call(message, "failures"))
                 writer.uint32(/* id 2, wireType 0 =*/16).uint64(message.failures);
             if (message.byStatusCode != null && Object.hasOwnProperty.call(message, "byStatusCode"))
-                for (let keys = Object.keys(message.byStatusCode), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(message.byStatusCode), i = 0; i < keys.length; ++i)
                     writer.uint32(/* id 3, wireType 2 =*/26).fork().uint32(/* id 1, wireType 0 =*/8).uint32(keys[i]).uint32(/* id 2, wireType 0 =*/16).uint64(message.byStatusCode[keys[i]]).ldelim();
             return writer;
         };
@@ -16182,38 +17353,41 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HttpCounters.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            let end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HttpCounters(), key, value;
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HttpCounters(), key, value;
             while (reader.pos < end) {
-                let tag = reader.uint32();
+                var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.requests = reader.uint64();
-                    break;
-                case 2:
-                    message.failures = reader.uint64();
-                    break;
-                case 3:
-                    if (message.byStatusCode === $util.emptyObject)
-                        message.byStatusCode = {};
-                    let end2 = reader.uint32() + reader.pos;
-                    key = 0;
-                    value = 0;
-                    while (reader.pos < end2) {
-                        let tag2 = reader.uint32();
-                        switch (tag2 >>> 3) {
-                        case 1:
-                            key = reader.uint32();
-                            break;
-                        case 2:
-                            value = reader.uint64();
-                            break;
-                        default:
-                            reader.skipType(tag2 & 7);
-                            break;
-                        }
+                case 1: {
+                        message.requests = reader.uint64();
+                        break;
                     }
-                    message.byStatusCode[key] = value;
-                    break;
+                case 2: {
+                        message.failures = reader.uint64();
+                        break;
+                    }
+                case 3: {
+                        if (message.byStatusCode === $util.emptyObject)
+                            message.byStatusCode = {};
+                        var end2 = reader.uint32() + reader.pos;
+                        key = 0;
+                        value = 0;
+                        while (reader.pos < end2) {
+                            var tag2 = reader.uint32();
+                            switch (tag2 >>> 3) {
+                            case 1:
+                                key = reader.uint32();
+                                break;
+                            case 2:
+                                value = reader.uint64();
+                                break;
+                            default:
+                                reader.skipType(tag2 & 7);
+                                break;
+                            }
+                        }
+                        message.byStatusCode[key] = value;
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -16258,8 +17432,8 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             if (message.byStatusCode != null && message.hasOwnProperty("byStatusCode")) {
                 if (!$util.isObject(message.byStatusCode))
                     return "byStatusCode: object expected";
-                let key = Object.keys(message.byStatusCode);
-                for (let i = 0; i < key.length; ++i) {
+                var key = Object.keys(message.byStatusCode);
+                for (var i = 0; i < key.length; ++i) {
                     if (!$util.key32Re.test(key[i]))
                         return "byStatusCode: integer key{k:uint32} expected";
                     if (!$util.isInteger(message.byStatusCode[key[i]]) && !(message.byStatusCode[key[i]] && $util.isInteger(message.byStatusCode[key[i]].low) && $util.isInteger(message.byStatusCode[key[i]].high)))
@@ -16280,7 +17454,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HttpCounters.fromObject = function fromObject(object) {
             if (object instanceof $root.pruntime_rpc.HttpCounters)
                 return object;
-            let message = new $root.pruntime_rpc.HttpCounters();
+            var message = new $root.pruntime_rpc.HttpCounters();
             if (object.requests != null)
                 if ($util.Long)
                     (message.requests = $util.Long.fromValue(object.requests)).unsigned = true;
@@ -16303,7 +17477,7 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                 if (typeof object.byStatusCode !== "object")
                     throw TypeError(".pruntime_rpc.HttpCounters.byStatusCode: object expected");
                 message.byStatusCode = {};
-                for (let keys = Object.keys(object.byStatusCode), i = 0; i < keys.length; ++i)
+                for (var keys = Object.keys(object.byStatusCode), i = 0; i < keys.length; ++i)
                     if ($util.Long)
                         (message.byStatusCode[keys[i]] = $util.Long.fromValue(object.byStatusCode[keys[i]])).unsigned = true;
                     else if (typeof object.byStatusCode[keys[i]] === "string")
@@ -16328,17 +17502,17 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
         HttpCounters.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
-            let object = {};
+            var object = {};
             if (options.objects || options.defaults)
                 object.byStatusCode = {};
             if (options.defaults) {
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.requests = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.requests = options.longs === String ? "0" : 0;
                 if ($util.Long) {
-                    let long = new $util.Long(0, 0, true);
+                    var long = new $util.Long(0, 0, true);
                     object.failures = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.failures = options.longs === String ? "0" : 0;
@@ -16353,10 +17527,10 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
                     object.failures = options.longs === String ? String(message.failures) : message.failures;
                 else
                     object.failures = options.longs === String ? $util.Long.prototype.toString.call(message.failures) : options.longs === Number ? new $util.LongBits(message.failures.low >>> 0, message.failures.high >>> 0).toNumber(true) : message.failures;
-            let keys2;
+            var keys2;
             if (message.byStatusCode && (keys2 = Object.keys(message.byStatusCode)).length) {
                 object.byStatusCode = {};
-                for (let j = 0; j < keys2.length; ++j)
+                for (var j = 0; j < keys2.length; ++j)
                     if (typeof message.byStatusCode[keys2[j]] === "number")
                         object.byStatusCode[keys2[j]] = options.longs === String ? String(message.byStatusCode[keys2[j]]) : message.byStatusCode[keys2[j]];
                     else
@@ -16376,20 +17550,512 @@ export const pruntime_rpc = $root.pruntime_rpc = (() => {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
+        /**
+         * Gets the default type url for HttpCounters
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.HttpCounters
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        HttpCounters.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.HttpCounters";
+        };
+
         return HttpCounters;
+    })();
+
+    pruntime_rpc.SaveClusterStateArguments = (function() {
+
+        /**
+         * Properties of a SaveClusterStateArguments.
+         * @memberof pruntime_rpc
+         * @interface ISaveClusterStateArguments
+         * @property {string|null} [receiver] SaveClusterStateArguments receiver
+         * @property {number|null} [minBlockNumber] SaveClusterStateArguments minBlockNumber
+         * @property {string|null} [signature] SaveClusterStateArguments signature
+         */
+
+        /**
+         * Constructs a new SaveClusterStateArguments.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a SaveClusterStateArguments.
+         * @implements ISaveClusterStateArguments
+         * @constructor
+         * @param {pruntime_rpc.ISaveClusterStateArguments=} [properties] Properties to set
+         */
+        function SaveClusterStateArguments(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * SaveClusterStateArguments receiver.
+         * @member {string} receiver
+         * @memberof pruntime_rpc.SaveClusterStateArguments
+         * @instance
+         */
+        SaveClusterStateArguments.prototype.receiver = "";
+
+        /**
+         * SaveClusterStateArguments minBlockNumber.
+         * @member {number} minBlockNumber
+         * @memberof pruntime_rpc.SaveClusterStateArguments
+         * @instance
+         */
+        SaveClusterStateArguments.prototype.minBlockNumber = 0;
+
+        /**
+         * SaveClusterStateArguments signature.
+         * @member {string} signature
+         * @memberof pruntime_rpc.SaveClusterStateArguments
+         * @instance
+         */
+        SaveClusterStateArguments.prototype.signature = "";
+
+        /**
+         * Creates a new SaveClusterStateArguments instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.SaveClusterStateArguments
+         * @static
+         * @param {pruntime_rpc.ISaveClusterStateArguments=} [properties] Properties to set
+         * @returns {pruntime_rpc.SaveClusterStateArguments} SaveClusterStateArguments instance
+         */
+        SaveClusterStateArguments.create = function create(properties) {
+            return new SaveClusterStateArguments(properties);
+        };
+
+        /**
+         * Encodes the specified SaveClusterStateArguments message. Does not implicitly {@link pruntime_rpc.SaveClusterStateArguments.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.SaveClusterStateArguments
+         * @static
+         * @param {pruntime_rpc.ISaveClusterStateArguments} message SaveClusterStateArguments message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SaveClusterStateArguments.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.receiver != null && Object.hasOwnProperty.call(message, "receiver"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.receiver);
+            if (message.minBlockNumber != null && Object.hasOwnProperty.call(message, "minBlockNumber"))
+                writer.uint32(/* id 2, wireType 0 =*/16).uint32(message.minBlockNumber);
+            if (message.signature != null && Object.hasOwnProperty.call(message, "signature"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.signature);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified SaveClusterStateArguments message, length delimited. Does not implicitly {@link pruntime_rpc.SaveClusterStateArguments.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.SaveClusterStateArguments
+         * @static
+         * @param {pruntime_rpc.ISaveClusterStateArguments} message SaveClusterStateArguments message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SaveClusterStateArguments.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a SaveClusterStateArguments message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.SaveClusterStateArguments
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.SaveClusterStateArguments} SaveClusterStateArguments
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SaveClusterStateArguments.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SaveClusterStateArguments();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1: {
+                        message.receiver = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.minBlockNumber = reader.uint32();
+                        break;
+                    }
+                case 3: {
+                        message.signature = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a SaveClusterStateArguments message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.SaveClusterStateArguments
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.SaveClusterStateArguments} SaveClusterStateArguments
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SaveClusterStateArguments.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a SaveClusterStateArguments message.
+         * @function verify
+         * @memberof pruntime_rpc.SaveClusterStateArguments
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        SaveClusterStateArguments.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.receiver != null && message.hasOwnProperty("receiver"))
+                if (!$util.isString(message.receiver))
+                    return "receiver: string expected";
+            if (message.minBlockNumber != null && message.hasOwnProperty("minBlockNumber"))
+                if (!$util.isInteger(message.minBlockNumber))
+                    return "minBlockNumber: integer expected";
+            if (message.signature != null && message.hasOwnProperty("signature"))
+                if (!$util.isString(message.signature))
+                    return "signature: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a SaveClusterStateArguments message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.SaveClusterStateArguments
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.SaveClusterStateArguments} SaveClusterStateArguments
+         */
+        SaveClusterStateArguments.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.SaveClusterStateArguments)
+                return object;
+            var message = new $root.pruntime_rpc.SaveClusterStateArguments();
+            if (object.receiver != null)
+                message.receiver = String(object.receiver);
+            if (object.minBlockNumber != null)
+                message.minBlockNumber = object.minBlockNumber >>> 0;
+            if (object.signature != null)
+                message.signature = String(object.signature);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a SaveClusterStateArguments message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.SaveClusterStateArguments
+         * @static
+         * @param {pruntime_rpc.SaveClusterStateArguments} message SaveClusterStateArguments
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        SaveClusterStateArguments.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.receiver = "";
+                object.minBlockNumber = 0;
+                object.signature = "";
+            }
+            if (message.receiver != null && message.hasOwnProperty("receiver"))
+                object.receiver = message.receiver;
+            if (message.minBlockNumber != null && message.hasOwnProperty("minBlockNumber"))
+                object.minBlockNumber = message.minBlockNumber;
+            if (message.signature != null && message.hasOwnProperty("signature"))
+                object.signature = message.signature;
+            return object;
+        };
+
+        /**
+         * Converts this SaveClusterStateArguments to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.SaveClusterStateArguments
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        SaveClusterStateArguments.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for SaveClusterStateArguments
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.SaveClusterStateArguments
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        SaveClusterStateArguments.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.SaveClusterStateArguments";
+        };
+
+        return SaveClusterStateArguments;
+    })();
+
+    pruntime_rpc.SaveClusterStateResponse = (function() {
+
+        /**
+         * Properties of a SaveClusterStateResponse.
+         * @memberof pruntime_rpc
+         * @interface ISaveClusterStateResponse
+         * @property {number|null} [blockNumber] SaveClusterStateResponse blockNumber
+         * @property {string|null} [filename] SaveClusterStateResponse filename
+         */
+
+        /**
+         * Constructs a new SaveClusterStateResponse.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a SaveClusterStateResponse.
+         * @implements ISaveClusterStateResponse
+         * @constructor
+         * @param {pruntime_rpc.ISaveClusterStateResponse=} [properties] Properties to set
+         */
+        function SaveClusterStateResponse(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * SaveClusterStateResponse blockNumber.
+         * @member {number} blockNumber
+         * @memberof pruntime_rpc.SaveClusterStateResponse
+         * @instance
+         */
+        SaveClusterStateResponse.prototype.blockNumber = 0;
+
+        /**
+         * SaveClusterStateResponse filename.
+         * @member {string} filename
+         * @memberof pruntime_rpc.SaveClusterStateResponse
+         * @instance
+         */
+        SaveClusterStateResponse.prototype.filename = "";
+
+        /**
+         * Creates a new SaveClusterStateResponse instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.SaveClusterStateResponse
+         * @static
+         * @param {pruntime_rpc.ISaveClusterStateResponse=} [properties] Properties to set
+         * @returns {pruntime_rpc.SaveClusterStateResponse} SaveClusterStateResponse instance
+         */
+        SaveClusterStateResponse.create = function create(properties) {
+            return new SaveClusterStateResponse(properties);
+        };
+
+        /**
+         * Encodes the specified SaveClusterStateResponse message. Does not implicitly {@link pruntime_rpc.SaveClusterStateResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.SaveClusterStateResponse
+         * @static
+         * @param {pruntime_rpc.ISaveClusterStateResponse} message SaveClusterStateResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SaveClusterStateResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.blockNumber != null && Object.hasOwnProperty.call(message, "blockNumber"))
+                writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.blockNumber);
+            if (message.filename != null && Object.hasOwnProperty.call(message, "filename"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.filename);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified SaveClusterStateResponse message, length delimited. Does not implicitly {@link pruntime_rpc.SaveClusterStateResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.SaveClusterStateResponse
+         * @static
+         * @param {pruntime_rpc.ISaveClusterStateResponse} message SaveClusterStateResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SaveClusterStateResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a SaveClusterStateResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.SaveClusterStateResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.SaveClusterStateResponse} SaveClusterStateResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SaveClusterStateResponse.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SaveClusterStateResponse();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1: {
+                        message.blockNumber = reader.uint32();
+                        break;
+                    }
+                case 2: {
+                        message.filename = reader.string();
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a SaveClusterStateResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.SaveClusterStateResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.SaveClusterStateResponse} SaveClusterStateResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SaveClusterStateResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a SaveClusterStateResponse message.
+         * @function verify
+         * @memberof pruntime_rpc.SaveClusterStateResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        SaveClusterStateResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.blockNumber != null && message.hasOwnProperty("blockNumber"))
+                if (!$util.isInteger(message.blockNumber))
+                    return "blockNumber: integer expected";
+            if (message.filename != null && message.hasOwnProperty("filename"))
+                if (!$util.isString(message.filename))
+                    return "filename: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a SaveClusterStateResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.SaveClusterStateResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.SaveClusterStateResponse} SaveClusterStateResponse
+         */
+        SaveClusterStateResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.SaveClusterStateResponse)
+                return object;
+            var message = new $root.pruntime_rpc.SaveClusterStateResponse();
+            if (object.blockNumber != null)
+                message.blockNumber = object.blockNumber >>> 0;
+            if (object.filename != null)
+                message.filename = String(object.filename);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a SaveClusterStateResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.SaveClusterStateResponse
+         * @static
+         * @param {pruntime_rpc.SaveClusterStateResponse} message SaveClusterStateResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        SaveClusterStateResponse.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.blockNumber = 0;
+                object.filename = "";
+            }
+            if (message.blockNumber != null && message.hasOwnProperty("blockNumber"))
+                object.blockNumber = message.blockNumber;
+            if (message.filename != null && message.hasOwnProperty("filename"))
+                object.filename = message.filename;
+            return object;
+        };
+
+        /**
+         * Converts this SaveClusterStateResponse to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.SaveClusterStateResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        SaveClusterStateResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for SaveClusterStateResponse
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.SaveClusterStateResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        SaveClusterStateResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.SaveClusterStateResponse";
+        };
+
+        return SaveClusterStateResponse;
     })();
 
     return pruntime_rpc;
 })();
 
-export const google = $root.google = (() => {
+$root.google = (function() {
 
     /**
      * Namespace google.
      * @exports google
      * @namespace
      */
-    const google = {};
+    var google = {};
 
     google.protobuf = (function() {
 
@@ -16398,7 +18064,7 @@ export const google = $root.google = (() => {
          * @memberof google
          * @namespace
          */
-        const protobuf = {};
+        var protobuf = {};
 
         protobuf.Empty = (function() {
 
@@ -16418,7 +18084,7 @@ export const google = $root.google = (() => {
              */
             function Empty(properties) {
                 if (properties)
-                    for (let keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                         if (properties[keys[i]] != null)
                             this[keys[i]] = properties[keys[i]];
             }
@@ -16477,9 +18143,9 @@ export const google = $root.google = (() => {
             Empty.decode = function decode(reader, length) {
                 if (!(reader instanceof $Reader))
                     reader = $Reader.create(reader);
-                let end = length === undefined ? reader.len : reader.pos + length, message = new $root.google.protobuf.Empty();
+                var end = length === undefined ? reader.len : reader.pos + length, message = new $root.google.protobuf.Empty();
                 while (reader.pos < end) {
-                    let tag = reader.uint32();
+                    var tag = reader.uint32();
                     switch (tag >>> 3) {
                     default:
                         reader.skipType(tag & 7);
@@ -16557,6 +18223,21 @@ export const google = $root.google = (() => {
                 return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
             };
 
+            /**
+             * Gets the default type url for Empty
+             * @function getTypeUrl
+             * @memberof google.protobuf.Empty
+             * @static
+             * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns {string} The default type url
+             */
+            Empty.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+                if (typeUrlPrefix === undefined) {
+                    typeUrlPrefix = "type.googleapis.com";
+                }
+                return typeUrlPrefix + "/google.protobuf.Empty";
+            };
+
             return Empty;
         })();
 
@@ -16566,4 +18247,4 @@ export const google = $root.google = (() => {
     return google;
 })();
 
-export { $root as default };
+module.exports = $root;
