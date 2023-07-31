@@ -1,7 +1,7 @@
 ---
 source: src/buffer.rs
-assertion_line: 310
-expression: "pretty(&buffer.get_records(\"\".into(), 0, 1))"
+assertion_line: 385
+expression: "pretty(&buffer.get_records(\"\".into(), 0, 1, None))"
 ---
 {
   "next": 1,
@@ -9,7 +9,8 @@ expression: "pretty(&buffer.get_records(\"\".into(), 0, 1))"
     {
       "blockNumber": 0,
       "contract": "0x0101010101010101010101010101010101010101010101010101010101010101",
-      "inQuery": true,
+      "entry": "0x0101010101010101010101010101010101010101010101010101010101010101",
+      "execMode": "query",
       "level": 0,
       "message": "hello",
       "sequence": 0,

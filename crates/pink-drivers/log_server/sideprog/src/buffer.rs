@@ -274,7 +274,7 @@ impl Buffer {
         let mut n = 0_u64;
         let mut next_seq = 0_u64;
         let from = if from < 0 {
-            self.next_sequence + from as u64
+            self.next_sequence.saturating_sub((-from) as u64)
         } else {
             from as u64
         };
@@ -355,7 +355,7 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let mut buffer = test_buffer(1024);
+        let mut buffer = test_buffer(102400);
         insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 0, 0, None)));
     }
 
@@ -367,27 +367,27 @@ mod tests {
 
     #[test]
     fn it_can_filter_by_contract_id() {
-        let mut buffer = test_buffer(1024);
+        let mut buffer = test_buffer(102400);
         let contract = [1; 32];
         insta::assert_display_snapshot!(pretty(&buffer.get_records(&hex(&contract), 0, 0, None)));
     }
 
     #[test]
     fn it_can_query_with_from() {
-        let mut buffer = test_buffer(1024);
+        let mut buffer = test_buffer(102400);
         insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 1, 0, None)));
         insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 4, 0, None)));
     }
 
     #[test]
     fn it_can_query_with_count_limit() {
-        let mut buffer = test_buffer(1024);
+        let mut buffer = test_buffer(102400);
         insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 0, 1, None)));
     }
 
     #[test]
     fn it_can_query_with_all_conditions() {
-        let mut buffer = test_buffer(1024);
+        let mut buffer = test_buffer(102400);
         buffer.push(SystemMessage::PinkEvent {
             block_number: 1,
             contract: [1; 32],
@@ -395,5 +395,41 @@ mod tests {
             payload: vec![1],
         });
         insta::assert_display_snapshot!(pretty(&buffer.get_records(&hex(&[1; 32]), 1, 1, None)));
+    }
+
+    #[test]
+    fn it_can_query_with_block_number() {
+        let mut buffer = test_buffer(102400);
+        buffer.push(SystemMessage::PinkEvent {
+            block_number: 42,
+            contract: [1; 32],
+            topics: vec![],
+            payload: vec![1],
+        });
+        buffer.push(SystemMessage::PinkEvent {
+            block_number: 42,
+            contract: [2; 32],
+            topics: vec![],
+            payload: vec![2],
+        });
+        insta::assert_display_snapshot!(pretty(&buffer.get_records("", 1, 10, Some(42))));
+    }
+
+    #[test]
+    fn it_can_query_with_negative_from() {
+        let mut buffer = test_buffer(102400);
+        buffer.push(SystemMessage::PinkEvent {
+            block_number: 42,
+            contract: [1; 32],
+            topics: vec![],
+            payload: vec![1],
+        });
+        buffer.push(SystemMessage::PinkEvent {
+            block_number: 42,
+            contract: [2; 32],
+            topics: vec![],
+            payload: vec![2],
+        });
+        insta::assert_display_snapshot!(pretty(&buffer.get_records("", -1, 10, Some(42))));
     }
 }
