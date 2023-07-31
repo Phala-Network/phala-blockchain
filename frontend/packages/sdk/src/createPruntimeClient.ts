@@ -1,4 +1,5 @@
-import { pruntime_rpc as pruntimeRpc } from "./proto";
+import { pruntime_rpc as pruntimeRpc } from "./proto"
+import { fetch } from 'undici'
 
 /**
  * Create a http client prepared for protobuf
