@@ -4,7 +4,6 @@ import logServer from './abis/log_server.json';
 
 export * from "./lib/types";
 export * from "./lib/hex";
-export * from "./create";
 export * from "./certificate";
 export * from "./contracts/PinkCode";
 export * from "./contracts/PinkContract";

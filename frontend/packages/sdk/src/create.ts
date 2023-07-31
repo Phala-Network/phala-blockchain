@@ -20,11 +20,11 @@ import {
   waitReady,
 } from "@polkadot/wasm-crypto";
 import { from } from "rxjs";
-import { fetch } from "undici";
 import type { CertificateData } from "./certificate";
 import { decrypt, encrypt } from "./lib/aes-256-gcm";
 import { randomHex } from "./lib/hex";
-import { prpc, pruntime_rpc as pruntimeRpc } from "./proto";
+import { pruntime_rpc as pruntimeRpc } from "./proto";
+import createPruntimeClient from './createPruntimeClient'
 
 export type QueryFn = (
   encodedQuery: string,
@@ -103,43 +103,6 @@ export interface ClusterInfo {
   gasPrice: BN;
 }
 
-export const createPruntimeApi = (baseURL: string) => {
-  // Create a http client prepared for protobuf
-  const pruntimeApi = pruntimeRpc.PhactoryAPI.create(
-    async (method, requestData, callback) => {
-      try {
-        const resp = await fetch(
-          `${baseURL}/prpc/PhactoryAPI.${method.name}`,
-          {
-            method: 'POST',
-            headers:{
-              "Content-Type": "application/octet-stream",
-            },
-            body: new Uint8Array(requestData),
-          }
-        )
-        const buffer = await (await resp.blob()).arrayBuffer()
-        callback(null, new Uint8Array(buffer));
-      } catch (err) {
-        // todo fixme
-        console.log('Error:', err)
-        // if (
-        //   err instanceof AxiosError &&
-        //   err.response?.data instanceof ArrayBuffer
-        // ) {
-        //   const message = new Uint8Array(err.response.data);
-        //   callback(new Error(prpc.PrpcError.decode(message).message));
-        // } else {
-        //   throw err;
-        // }
-        throw err;
-      }
-    }
-  );
-
-  return pruntimeApi;
-};
-
 export async function create({
   api,
   baseURL,
@@ -147,9 +110,11 @@ export async function create({
   remotePubkey,
   autoDeposit = false,
 }: CreateFnOptions): Promise<CreateFnResult> {
+  console.warn('create() is deprecated, please check our docs and migrate to the lastest API: https://npmjs.com/package/@phala/sdk')
+
   await waitReady();
 
-  const pruntimeApi = createPruntimeApi(baseURL);
+  const pruntimeApi = createPruntimeClient(baseURL);
 
   if (!remotePubkey) {
     // Get public key from remote for encrypting
