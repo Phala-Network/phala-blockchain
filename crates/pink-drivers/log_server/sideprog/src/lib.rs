@@ -31,27 +31,26 @@ fn log_buffer_size() -> u32 {
 
 async fn query_serve(app: AppState) {
     #[derive(serde::Deserialize)]
-    #[serde(tag="action")]
+    #[serde(tag = "action")]
     enum Query {
         GetLog {
             #[serde(default)]
             contract: String,
+            /// Negative value means counting from the end back.
             #[serde(default)]
-            from: u64,
+            from: i64,
             #[serde(default)]
             count: u64,
-        }
+            #[serde(default, rename = "blockNumber")]
+            block_number: Option<u32>,
+        },
+        GetInfo,
     }
 
     loop {
         let query = sidevm::channel::incoming_queries().next().await;
         if let Some(query) = query {
-            // todo: use `let else`
-            let Query::GetLog {
-                contract,
-                from,
-                count,
-            } = match serde_json::from_slice(&query.payload) {
+            let payload = match serde_json::from_slice(&query.payload) {
                 Err(_) => {
                     info!("Invalid input");
                     _ = query.reply_tx.send(b"{\"error\": \"Invalid input\"}");
@@ -59,10 +58,26 @@ async fn query_serve(app: AppState) {
                 }
                 Ok(query) => query,
             };
-            let reply = app.log_buffer
-                .borrow_mut()
-                .get_records(&contract, from, count);
-            let _ = query.reply_tx.send(reply.as_bytes());
+            match payload {
+                Query::GetLog {
+                    contract,
+                    from,
+                    count,
+                    block_number,
+                } => {
+                    let reply = app.log_buffer.borrow_mut().get_records(
+                        &contract,
+                        from,
+                        count,
+                        block_number,
+                    );
+                    let _ = query.reply_tx.send(reply.as_bytes());
+                }
+                Query::GetInfo => {
+                    let reply = app.log_buffer.borrow().get_info();
+                    let _ = query.reply_tx.send(reply.as_bytes());
+                }
+            };
         } else {
             info!("Query channel closed");
             break;

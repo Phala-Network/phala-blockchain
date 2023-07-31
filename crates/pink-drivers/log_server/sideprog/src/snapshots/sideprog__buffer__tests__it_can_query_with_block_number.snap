@@ -1,0 +1,26 @@
+---
+source: src/buffer.rs
+assertion_line: 415
+expression: "pretty(&buffer.get_records(\"\", 1, 10, Some(42)))"
+---
+{
+  "next": 5,
+  "records": [
+    {
+      "blockNumber": 42,
+      "contract": "0x0101010101010101010101010101010101010101010101010101010101010101",
+      "payload": "0x01",
+      "sequence": 3,
+      "topics": [],
+      "type": "Event"
+    },
+    {
+      "blockNumber": 42,
+      "contract": "0x0202020202020202020202020202020202020202020202020202020202020202",
+      "payload": "0x02",
+      "sequence": 4,
+      "topics": [],
+      "type": "Event"
+    }
+  ]
+}

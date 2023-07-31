@@ -1,5 +1,6 @@
 use sidevm::env::messages::{AccountId, Metric, SystemMessage, H256};
 use std::{collections::VecDeque, ops::Deref};
+use this_crate::VersionTuple;
 
 pub struct Buffer {
     next_sequence: u64,
@@ -14,6 +15,7 @@ struct Record {
     message: Message,
     size: usize,
     sequence: u64,
+    block_number: Option<u32>,
 }
 
 enum Message {
@@ -42,6 +44,17 @@ impl Record {
             Message::Origin(_) => unreachable!(),
         }
     }
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SerInfo {
+    program_version: VersionTuple,
+    next_sequence: u64,
+    memory_capacity: usize,
+    memory_usage: usize,
+    current_number_of_records: usize,
+    estimated_current_size: usize,
 }
 
 struct HexSer<T>(T);
@@ -121,6 +134,15 @@ impl SerMessage {
             SerMessage::QueryIn { user } => user.len() * 2,
         };
         128 + payload
+    }
+
+    fn block_number(&self) -> Option<u32> {
+        match self {
+            SerMessage::Log { block_number, .. }
+            | SerMessage::Event { block_number, .. }
+            | SerMessage::MessageOutput { block_number, .. } => Some(*block_number),
+            SerMessage::TooLarge | SerMessage::QueryIn { .. } => None,
+        }
     }
 }
 
@@ -214,11 +236,12 @@ impl Buffer {
         let entry_contract = entry_of(&message);
         let mut message: SerMessage = message.into();
         let mut size = message.size();
+        let block_number = message.block_number();
         if size > self.capacity {
             message = SerMessage::TooLarge;
             size = message.size();
         }
-        while self.capacity < crate::allocator::mem_usage() + size {
+        while self.capacity < crate::allocator::mem_usage() + size && !self.records.is_empty() {
             self.pop();
         }
         self.current_size += size;
@@ -228,6 +251,7 @@ impl Buffer {
             message: Message::Origin(message),
             size,
             sequence: self.next_sequence,
+            block_number,
         }));
         self.next_sequence += 1;
     }
@@ -238,15 +262,31 @@ impl Buffer {
         Some(*rec)
     }
 
-    pub fn get_records(&mut self, contract: &str, from: u64, count: u64) -> String {
+    pub fn get_records(
+        &mut self,
+        contract: &str,
+        from: i64,
+        count: u64,
+        block_number: Option<u32>,
+    ) -> String {
         let count = if count == 0 { u64::MAX } else { count };
         let mut result: String = "{\"records\":[".into();
         let mut n = 0_u64;
         let mut next_seq = 0_u64;
+        let from = if from < 0 {
+            self.next_sequence.saturating_sub((-from) as u64)
+        } else {
+            from as u64
+        };
         for rec in self.records.iter_mut() {
             next_seq = rec.sequence + 1;
             if rec.sequence < from {
                 continue;
+            }
+            if let Some(block_number) = block_number {
+                if rec.block_number != Some(block_number) {
+                    continue;
+                }
             }
             if contract.is_empty() || rec.contract_id == contract || rec.entry_contract == contract
             {
@@ -262,6 +302,18 @@ impl Buffer {
         }
         result.push_str(&format!(r#"],"next":{next_seq}}}"#));
         result
+    }
+
+    pub fn get_info(&self) -> String {
+        let info = SerInfo {
+            next_sequence: self.next_sequence,
+            program_version: this_crate::version_tuple!(),
+            memory_capacity: self.capacity,
+            memory_usage: crate::allocator::mem_usage(),
+            current_number_of_records: self.records.len(),
+            estimated_current_size: self.current_size,
+        };
+        serde_json::to_string(&info).unwrap_or_default()
     }
 }
 
@@ -303,45 +355,81 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let mut buffer = test_buffer(1024);
-        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 0, 0)));
+        let mut buffer = test_buffer(102400);
+        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 0, 0, None)));
     }
 
     #[test]
     fn it_can_rotate() {
         let mut buffer = test_buffer(256);
-        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 0, 0)));
+        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 0, 0, None)));
     }
 
     #[test]
     fn it_can_filter_by_contract_id() {
-        let mut buffer = test_buffer(1024);
+        let mut buffer = test_buffer(102400);
         let contract = [1; 32];
-        insta::assert_display_snapshot!(pretty(&buffer.get_records(&hex(&contract), 0, 0)));
+        insta::assert_display_snapshot!(pretty(&buffer.get_records(&hex(&contract), 0, 0, None)));
     }
 
     #[test]
     fn it_can_query_with_from() {
-        let mut buffer = test_buffer(1024);
-        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 1, 0)));
-        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 4, 0)));
+        let mut buffer = test_buffer(102400);
+        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 1, 0, None)));
+        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 4, 0, None)));
     }
 
     #[test]
     fn it_can_query_with_count_limit() {
-        let mut buffer = test_buffer(1024);
-        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 0, 1)));
+        let mut buffer = test_buffer(102400);
+        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 0, 1, None)));
     }
 
     #[test]
     fn it_can_query_with_all_conditions() {
-        let mut buffer = test_buffer(1024);
+        let mut buffer = test_buffer(102400);
         buffer.push(SystemMessage::PinkEvent {
             block_number: 1,
             contract: [1; 32],
             topics: vec![],
             payload: vec![1],
         });
-        insta::assert_display_snapshot!(pretty(&buffer.get_records(&hex(&[1; 32]), 1, 1)));
+        insta::assert_display_snapshot!(pretty(&buffer.get_records(&hex(&[1; 32]), 1, 1, None)));
+    }
+
+    #[test]
+    fn it_can_query_with_block_number() {
+        let mut buffer = test_buffer(102400);
+        buffer.push(SystemMessage::PinkEvent {
+            block_number: 42,
+            contract: [1; 32],
+            topics: vec![],
+            payload: vec![1],
+        });
+        buffer.push(SystemMessage::PinkEvent {
+            block_number: 42,
+            contract: [2; 32],
+            topics: vec![],
+            payload: vec![2],
+        });
+        insta::assert_display_snapshot!(pretty(&buffer.get_records("", 1, 10, Some(42))));
+    }
+
+    #[test]
+    fn it_can_query_with_negative_from() {
+        let mut buffer = test_buffer(102400);
+        buffer.push(SystemMessage::PinkEvent {
+            block_number: 42,
+            contract: [1; 32],
+            topics: vec![],
+            payload: vec![1],
+        });
+        buffer.push(SystemMessage::PinkEvent {
+            block_number: 42,
+            contract: [2; 32],
+            topics: vec![],
+            payload: vec![2],
+        });
+        insta::assert_display_snapshot!(pretty(&buffer.get_records("", -1, 10, Some(42))));
     }
 }
