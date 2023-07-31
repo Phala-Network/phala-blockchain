@@ -20,6 +20,7 @@ import { randomHex } from '../lib/hex'
 export class PinkLoggerContractPromise extends PinkContractPromise {
 
   #pair: KeyringPair
+  #systemContractId: string | undefined
 
   static async create(api: ApiPromise, registry: OnChainRegistry, systemContract: PinkContractPromise, pair?: KeyringPair): Promise<PinkLoggerContractPromise> {
     let _pair: KeyringPair | undefined = pair
@@ -37,10 +38,11 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
     if (!contractKey) {
       throw new ContractInitialError('PinkLogger contract ID is incorrect and not found in the cluster.')
     }
-    return new PinkLoggerContractPromise(api, registry, logServerAbi, contractId, contractKey, pair)
+    const systemContractId = systemContract.address?.toHex()
+    return new PinkLoggerContractPromise(api, registry, logServerAbi, contractId, contractKey, pair, systemContractId)
   }
 
-  constructor(api: ApiPromise, registry: OnChainRegistry, abi: any, contractId: string, contractKey: string, pair?: KeyringPair) {
+  constructor(api: ApiPromise, registry: OnChainRegistry, abi: any, contractId: string, contractKey: string, pair?: KeyringPair, systemContractId?: string) {
     super(api, registry, abi, contractId, contractKey)
     if (!pair) {
       const keyring = new Keyring({ type: 'sr25519' });
@@ -48,6 +50,7 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
     } else {
       this.#pair = pair
     }
+    this.#systemContractId = systemContractId
   }
 
   async getLog(contractId: AccountId | string, from: number = 0, counts: number = 100) {
@@ -95,5 +98,20 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
       return JSON.parse(hexToString(payload))
     }
     return JSON.parse(payload)
+  }
+
+  setSystemContract(contract: PinkContractPromise | string) {
+    if (typeof contract === 'string') {
+      this.#systemContractId = contract
+    } else {
+      this.#systemContractId = contract.address?.toHex()
+    }
+  }
+
+  async getSystemLog(counts: number = 100, from: number = 0) {
+    if (!this.#systemContractId) {
+      throw new Error('System contract ID is not set.')
+    }
+    return this.getLog(this.#systemContractId, from, counts)
   }
 }
