@@ -1,5 +1,6 @@
 use sidevm::env::messages::{AccountId, Metric, SystemMessage, H256};
 use std::{collections::VecDeque, ops::Deref};
+use this_crate::VersionTuple;
 
 pub struct Buffer {
     next_sequence: u64,
@@ -43,6 +44,17 @@ impl Record {
             Message::Origin(_) => unreachable!(),
         }
     }
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SerInfo {
+    program_version: VersionTuple,
+    next_sequence: u64,
+    memory_capacity: usize,
+    memory_usage: usize,
+    current_number_of_records: usize,
+    estimated_current_size: usize,
 }
 
 struct HexSer<T>(T);
@@ -229,7 +241,7 @@ impl Buffer {
             message = SerMessage::TooLarge;
             size = message.size();
         }
-        while self.capacity < crate::allocator::mem_usage() + size {
+        while self.capacity < crate::allocator::mem_usage() + size && !self.records.is_empty() {
             self.pop();
         }
         self.current_size += size;
@@ -291,6 +303,18 @@ impl Buffer {
         result.push_str(&format!(r#"],"next":{next_seq}}}"#));
         result
     }
+
+    pub fn get_info(&self) -> String {
+        let info = SerInfo {
+            next_sequence: self.next_sequence,
+            program_version: this_crate::version_tuple!(),
+            memory_capacity: self.capacity,
+            memory_usage: crate::allocator::mem_usage(),
+            current_number_of_records: self.records.len(),
+            estimated_current_size: self.current_size,
+        };
+        serde_json::to_string(&info).unwrap_or_default()
+    }
 }
 
 #[cfg(test)]
@@ -332,33 +356,33 @@ mod tests {
     #[test]
     fn it_works() {
         let mut buffer = test_buffer(1024);
-        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 0, 0)));
+        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 0, 0, None)));
     }
 
     #[test]
     fn it_can_rotate() {
         let mut buffer = test_buffer(256);
-        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 0, 0)));
+        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 0, 0, None)));
     }
 
     #[test]
     fn it_can_filter_by_contract_id() {
         let mut buffer = test_buffer(1024);
         let contract = [1; 32];
-        insta::assert_display_snapshot!(pretty(&buffer.get_records(&hex(&contract), 0, 0)));
+        insta::assert_display_snapshot!(pretty(&buffer.get_records(&hex(&contract), 0, 0, None)));
     }
 
     #[test]
     fn it_can_query_with_from() {
         let mut buffer = test_buffer(1024);
-        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 1, 0)));
-        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 4, 0)));
+        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 1, 0, None)));
+        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 4, 0, None)));
     }
 
     #[test]
     fn it_can_query_with_count_limit() {
         let mut buffer = test_buffer(1024);
-        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 0, 1)));
+        insta::assert_display_snapshot!(pretty(&buffer.get_records("".into(), 0, 1, None)));
     }
 
     #[test]
@@ -370,6 +394,6 @@ mod tests {
             topics: vec![],
             payload: vec![1],
         });
-        insta::assert_display_snapshot!(pretty(&buffer.get_records(&hex(&[1; 32]), 1, 1)));
+        insta::assert_display_snapshot!(pretty(&buffer.get_records(&hex(&[1; 32]), 1, 1, None)));
     }
 }
