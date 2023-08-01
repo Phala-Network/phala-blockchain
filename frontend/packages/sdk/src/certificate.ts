@@ -7,8 +7,11 @@ import { hexAddPrefix, hexToU8a, u8aToHex } from "@polkadot/util";
 import { decodeAddress } from "@polkadot/util-crypto";
 import { KeypairType } from "@polkadot/util-crypto/types";
 import { sr25519KeypairFromSeed, waitReady } from "@polkadot/wasm-crypto";
+import { TypeRegistry } from "@polkadot/types";
+
 import { randomHex } from "./lib/hex";
 import { pruntime_rpc as pruntimeRpc } from "./proto";
+import { phalaRegistryTypes } from './options';
 
 interface InjectedAccount {
   address: string;
@@ -25,7 +28,7 @@ export type CertificateData = {
 };
 
 interface CertificateBaseParams {
-  api: ApiPromise;
+  api?: ApiPromise;
   signatureType?: pruntimeRpc.SignatureType;
 }
 
@@ -42,16 +45,25 @@ type CertificateParams =
   | CertificateParamsWithSigner
   | CertificateParamsWithPair;
 
+
 const isUsingSigner = (
   params: CertificateParams
 ): params is CertificateParamsWithSigner =>
   (params as CertificateParamsWithSigner).signer !== undefined;
 
-export const signCertificate = async (
-  params: CertificateParams
-): Promise<CertificateData> => {
+
+const builtInRegistry = new TypeRegistry()
+
+builtInRegistry.register(phalaRegistryTypes)
+
+
+export async function signCertificate(params: CertificateParams): Promise<CertificateData> {
   await waitReady();
-  const { api } = params;
+
+  if (params.api) {
+    console.warn('signCertificate not longer need pass the ApiPromise as parameter, it will remove from type hint in the next.')
+  }
+
   const generatedSeed = hexToU8a(hexAddPrefix(randomHex(32)));
   const generatedPair = sr25519KeypairFromSeed(generatedSeed);
   const [secret, pubkey] = [
@@ -59,7 +71,7 @@ export const signCertificate = async (
     generatedPair.slice(64),
   ];
 
-  const encodedCertificateBody = api
+  const encodedCertificateBody = builtInRegistry
     .createType("CertificateBody", {
       pubkey: u8aToHex(pubkey),
       ttl: 0x7fffffff, // FIXME: max ttl is not safe
@@ -67,8 +79,8 @@ export const signCertificate = async (
     })
     .toU8a();
 
+  let { signatureType } = params;
   let signerPubkey: string;
-  let signatureType = params.signatureType;
   let signature: Uint8Array;
   let address: string;
   if (isUsingSigner(params)) {
@@ -102,7 +114,7 @@ export const signCertificate = async (
     encodedBody: encodedCertificateBody,
     signature: {
       signedBy: {
-        encodedBody: api
+        encodedBody: builtInRegistry
           .createType("CertificateBody", {
             pubkey: signerPubkey,
             ttl: 0x7fffffff, // FIXME: max ttl is not safe
