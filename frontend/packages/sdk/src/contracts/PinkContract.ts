@@ -140,17 +140,15 @@ export async function pinkQuery(
     encodedEncryptedData,
     signature,
   };
-  return pruntimeApi.contractQuery(requestData).then((res) => {
-    const { encodedEncryptedData } = res;
-    const { data: encryptedData, iv } = api
-      .createType("EncryptedData", encodedEncryptedData)
-      .toJSON() as {
-      iv: string;
-      data: string;
-    };
-    const data = decrypt(encryptedData, queryAgreementKey, iv);
-    return hexAddPrefix(data);
-  });
+
+  const res = await pruntimeApi.contractQuery(requestData)
+
+  const { data: encryptedResult, iv } = api.createType("EncryptedData", res.encodedEncryptedData).toJSON() as {
+    iv: string;
+    data: string;
+  };
+  const data = decrypt(encryptedResult, queryAgreementKey, iv);
+  return hexAddPrefix(data);
 };
 
 
