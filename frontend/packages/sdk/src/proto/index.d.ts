@@ -1358,6 +1358,9 @@ export namespace pruntime_rpc {
 
         /** MemoryUsage free */
         free?: (number|Long|null);
+
+        /** MemoryUsage rustSpike */
+        rustSpike?: (number|Long|null);
     }
 
     /** Represents a MemoryUsage. */
@@ -1380,6 +1383,9 @@ export namespace pruntime_rpc {
 
         /** MemoryUsage free. */
         public free: (number|Long);
+
+        /** MemoryUsage rustSpike. */
+        public rustSpike: (number|Long);
 
         /**
          * Creates a new MemoryUsage instance using the specified properties.
@@ -3104,7 +3110,8 @@ export namespace pruntime_rpc {
         Ecdsa = 2,
         Ed25519WrapBytes = 3,
         Sr25519WrapBytes = 4,
-        EcdsaWrapBytes = 5
+        EcdsaWrapBytes = 5,
+        Eip712 = 6
     }
 
     /** Properties of a ContractQueryResponse. */

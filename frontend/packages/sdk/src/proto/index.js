@@ -2891,6 +2891,7 @@ $root.pruntime_rpc = (function() {
          * @property {number|Long|null} [rustPeakUsed] MemoryUsage rustPeakUsed
          * @property {number|Long|null} [totalPeakUsed] MemoryUsage totalPeakUsed
          * @property {number|Long|null} [free] MemoryUsage free
+         * @property {number|Long|null} [rustSpike] MemoryUsage rustSpike
          */
 
         /**
@@ -2941,6 +2942,14 @@ $root.pruntime_rpc = (function() {
         MemoryUsage.prototype.free = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
 
         /**
+         * MemoryUsage rustSpike.
+         * @member {number|Long} rustSpike
+         * @memberof pruntime_rpc.MemoryUsage
+         * @instance
+         */
+        MemoryUsage.prototype.rustSpike = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
          * Creates a new MemoryUsage instance using the specified properties.
          * @function create
          * @memberof pruntime_rpc.MemoryUsage
@@ -2972,6 +2981,8 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 3, wireType 0 =*/24).uint64(message.totalPeakUsed);
             if (message.free != null && Object.hasOwnProperty.call(message, "free"))
                 writer.uint32(/* id 4, wireType 0 =*/32).uint64(message.free);
+            if (message.rustSpike != null && Object.hasOwnProperty.call(message, "rustSpike"))
+                writer.uint32(/* id 5, wireType 0 =*/40).uint64(message.rustSpike);
             return writer;
         };
 
@@ -3022,6 +3033,10 @@ $root.pruntime_rpc = (function() {
                         message.free = reader.uint64();
                         break;
                     }
+                case 5: {
+                        message.rustSpike = reader.uint64();
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -3069,6 +3084,9 @@ $root.pruntime_rpc = (function() {
             if (message.free != null && message.hasOwnProperty("free"))
                 if (!$util.isInteger(message.free) && !(message.free && $util.isInteger(message.free.low) && $util.isInteger(message.free.high)))
                     return "free: integer|Long expected";
+            if (message.rustSpike != null && message.hasOwnProperty("rustSpike"))
+                if (!$util.isInteger(message.rustSpike) && !(message.rustSpike && $util.isInteger(message.rustSpike.low) && $util.isInteger(message.rustSpike.high)))
+                    return "rustSpike: integer|Long expected";
             return null;
         };
 
@@ -3120,6 +3138,15 @@ $root.pruntime_rpc = (function() {
                     message.free = object.free;
                 else if (typeof object.free === "object")
                     message.free = new $util.LongBits(object.free.low >>> 0, object.free.high >>> 0).toNumber(true);
+            if (object.rustSpike != null)
+                if ($util.Long)
+                    (message.rustSpike = $util.Long.fromValue(object.rustSpike)).unsigned = true;
+                else if (typeof object.rustSpike === "string")
+                    message.rustSpike = parseInt(object.rustSpike, 10);
+                else if (typeof object.rustSpike === "number")
+                    message.rustSpike = object.rustSpike;
+                else if (typeof object.rustSpike === "object")
+                    message.rustSpike = new $util.LongBits(object.rustSpike.low >>> 0, object.rustSpike.high >>> 0).toNumber(true);
             return message;
         };
 
@@ -3157,6 +3184,11 @@ $root.pruntime_rpc = (function() {
                     object.free = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.free = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.rustSpike = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.rustSpike = options.longs === String ? "0" : 0;
             }
             if (message.rustUsed != null && message.hasOwnProperty("rustUsed"))
                 if (typeof message.rustUsed === "number")
@@ -3178,6 +3210,11 @@ $root.pruntime_rpc = (function() {
                     object.free = options.longs === String ? String(message.free) : message.free;
                 else
                     object.free = options.longs === String ? $util.Long.prototype.toString.call(message.free) : options.longs === Number ? new $util.LongBits(message.free.low >>> 0, message.free.high >>> 0).toNumber(true) : message.free;
+            if (message.rustSpike != null && message.hasOwnProperty("rustSpike"))
+                if (typeof message.rustSpike === "number")
+                    object.rustSpike = options.longs === String ? String(message.rustSpike) : message.rustSpike;
+                else
+                    object.rustSpike = options.longs === String ? $util.Long.prototype.toString.call(message.rustSpike) : options.longs === Number ? new $util.LongBits(message.rustSpike.low >>> 0, message.rustSpike.high >>> 0).toNumber(true) : message.rustSpike;
             return object;
         };
 
@@ -6941,6 +6978,7 @@ $root.pruntime_rpc = (function() {
                 case 3:
                 case 4:
                 case 5:
+                case 6:
                     break;
                 }
             if (message.signature != null && message.hasOwnProperty("signature"))
@@ -6996,6 +7034,10 @@ $root.pruntime_rpc = (function() {
             case "EcdsaWrapBytes":
             case 5:
                 message.signatureType = 5;
+                break;
+            case "Eip712":
+            case 6:
+                message.signatureType = 6;
                 break;
             }
             if (object.signature != null)
@@ -7319,6 +7361,7 @@ $root.pruntime_rpc = (function() {
      * @property {number} Ed25519WrapBytes=3 Ed25519WrapBytes value
      * @property {number} Sr25519WrapBytes=4 Sr25519WrapBytes value
      * @property {number} EcdsaWrapBytes=5 EcdsaWrapBytes value
+     * @property {number} Eip712=6 Eip712 value
      */
     pruntime_rpc.SignatureType = (function() {
         var valuesById = {}, values = Object.create(valuesById);
@@ -7328,6 +7371,7 @@ $root.pruntime_rpc = (function() {
         values[valuesById[3] = "Ed25519WrapBytes"] = 3;
         values[valuesById[4] = "Sr25519WrapBytes"] = 4;
         values[valuesById[5] = "EcdsaWrapBytes"] = 5;
+        values[valuesById[6] = "Eip712"] = 6;
         return values;
     })();
 
