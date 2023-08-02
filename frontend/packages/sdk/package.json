@@ -48,7 +48,8 @@
     "@polkadot/util-crypto": "^12.3.2",
     "crypto-browserify": "^3.12.0",
     "protobufjs": "^7.2.4",
-    "undici": "^5.22.1"
+    "undici": "^5.22.1",
+    "viem": "^1.5.0"
   },
   "devDependencies": {
     "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
