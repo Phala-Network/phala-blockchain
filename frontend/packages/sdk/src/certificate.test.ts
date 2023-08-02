@@ -4,10 +4,13 @@ import { TypeRegistry, typeDefinitions } from '@polkadot/types'
 import type { KeyringPair } from '@polkadot/keyring/types'
 import type { Registry, RegistryTypes, SignerPayloadJSON, SignerPayloadRaw } from '@polkadot/types/types'
 import type { Signer, SignerResult } from '@polkadot/types/types'
-import { hexToU8a, objectSpread, u8aToHex } from '@polkadot/util';
+import { hexToU8a, objectSpread, u8aToHex } from '@polkadot/util'
+import { createTestClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+import { privateKeyToAccount } from 'viem/accounts'
 
 import { types } from './lib/types'
-import { signCertificate } from './certificate'
+import { signCertificate, unstable_signEip712Certificate } from './certificate'
 
 
 let id = 0;
@@ -63,11 +66,18 @@ describe('sign certificate', async function() {
   const pair = keyring.addFromUri('//Alice')
 
   it('smoking test for sign certificate with keyring pair', async function() {
-    await signCertificate({ pair, api: (registry as unknown as ApiPromise) })
+    await signCertificate({ pair })
   })
 
   it('smoking test for sign certificate with signer', async function() {
     const mockSigner = new SingleAccountSigner(registry, pair)
-    await signCertificate({ account: pair, signer: mockSigner, api: (registry as unknown as ApiPromise) })
+    await signCertificate({ account: pair, signer: mockSigner })
+  })
+
+  it('smoking test for sign certificate with eip712 wallet client', async function() {
+    const account = privateKeyToAccount('0x415ac5b1b9c3742f85f2536b1eb60a03bf64a590ea896b087182f9c92f41ea12')
+    const client = createTestClient({ account, chain: mainnet, mode: 'anvil', transport: http(), })
+    const cert = await unstable_signEip712Certificate({ client, account })
+    console.log('cert', cert)
   })
 })
