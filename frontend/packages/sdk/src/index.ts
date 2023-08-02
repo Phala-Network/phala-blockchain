@@ -12,6 +12,8 @@ export * from "./contracts/PinkLoggerContract";
 export * from './OnChainRegistry';
 export * from './options';
 export * from './metadata';
+export * from './eip712';
 
 export const PhactoryAPI = pruntime_rpc.PhactoryAPI;
+export const pruntimeRpc = pruntime_rpc;
 export const abis = { system, logServer };
