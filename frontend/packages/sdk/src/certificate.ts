@@ -92,36 +92,6 @@ function getSignatureTypeFromPair(pair: KeyringPair) {
 }
 
 
-function createEip712StructedDataQueryCertificate(ttl: number, encodedCert: string, account: Account, salt: `0x${string}`): Parameters<typeof signTypedData>[1] {
-  return {
-    domain: {
-      name: "Phat Query Certificate",
-      version: '1',
-      salt,
-    },
-    message: {
-      description: "You are signing a Certificate that can be used to query Phat contracts using your identity without further prompts.",
-      timeToLive: `The Certificate will be valid till block ${ttl}.`,
-      encodedCert,
-    },
-    primaryType: 'IssueQueryCertificate',
-    types: {
-      EIP712Domain: [
-        { name: 'name', type: 'string' },
-        { name: 'version', type: 'string' },
-        { name: 'salt', type: 'bytes32' },
-      ],
-      IssueQueryCertificate: [
-        { name: 'description', type: 'string' },
-        { name: 'timeToLive', type: 'string' },
-        { name: 'encodedCert', type: 'bytes' },
-      ],
-    },
-    account,
-  }
-}
-
-
 function CertificateBody(pubkey: string, ttl: number, config_bits: number = 0) {
   const created = phalaTypes.createType(
     "CertificateBody",
