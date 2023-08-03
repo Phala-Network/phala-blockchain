@@ -42,7 +42,7 @@ export function createEip712StructedDataSignCertificate(account: Account, encode
       salt: SALT,
     },
     message: {
-      description: "You are signing a Certificate that can be used to query Phat Contract using your identity without further prompts.",
+      description: "You are signing a Certificate that can be used to query Phat Contracts using your identity without further prompts.",
       timeToLive: `The Certificate will be valid till block ${ttl}.`,
       encodedCert,
     },
