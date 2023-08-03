@@ -8,11 +8,10 @@ import type { InkResponse } from '../types'
 
 import { Keyring } from '@polkadot/api'
 import { hexAddPrefix, hexToU8a, stringToHex, hexToString } from '@polkadot/util'
-import { sr25519Agree, sr25519KeypairFromSeed } from "@polkadot/wasm-crypto";
+import { sr25519Agree } from "@polkadot/wasm-crypto";
 
 import { PinkContractPromise, pinkQuery } from './PinkContract'
 import { ContractInitialError } from './Errors'
-import logServerAbi from '../abis/log_server.json'
 import { type CertificateData, generatePair, signCertificate } from '../certificate'
 import { randomHex } from '../lib/hex'
 import { phalaTypes } from '../options'
@@ -24,6 +23,58 @@ interface GetLogRequest {
   from: number
   count: number
   block_number?: number
+}
+
+export interface SerMessageLog {
+  type: 'Log'
+  sequence: number
+  blockNumber: number
+  contract: string
+  entry: string
+  execMode: string
+  timestamp: number
+  level: number
+  message: string
+}
+
+export interface SerMessageEvent {
+  type: 'Event'
+  sequence: number
+  blockNumber: number
+  contract: string
+  topics: string[]
+  payload: string
+}
+
+export interface SerMessageMessageOutput {
+  type: 'MessageOutput'
+  sequence: number
+  blockNumber: number
+  origin: string
+  contract: string
+  nonce: string
+  output: string
+}
+
+export interface SerMessageQueryIn {
+  type: 'QueryIn'
+  sequence: number
+  user: string
+}
+
+export interface SerMessageTooLarge {
+  type: 'TooLarge'
+}
+
+export type SerMessage = SerMessageLog | SerMessageEvent | SerMessageMessageOutput | SerMessageQueryIn | SerMessageTooLarge
+
+export interface LogServerInfo {
+  programVersion: [ number, number, number ]
+  nextSequence: number
+  memoryCapacity: number
+  memoryUsage: number
+  currentNumberOfRecords: number
+  estimatedCurrentSize: number
 }
 
 
@@ -72,8 +123,10 @@ function sidevmQueryWithReader({ api, phactory, remotePubkey, address, cert }: S
 }
 
 
-export class PinkLoggerContractPromise extends PinkContractPromise {
-
+export class PinkLoggerContractPromise {
+  #api: ApiPromise
+  #phatRegistry: OnChainRegistry
+  #address: AccountId;
   #pair: KeyringPair
   #systemContractId: string | undefined
 
@@ -89,16 +142,14 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
     if (!contractId) {
       throw new ContractInitialError('No PinkLogger contract registered in the cluster.')
     }
-    const contractKey = await registry.getContractKey(contractId)
-    if (!contractKey) {
-      throw new ContractInitialError('PinkLogger contract ID is incorrect and not found in the cluster.')
-    }
     const systemContractId = systemContract.address?.toHex()
-    return new PinkLoggerContractPromise(api, registry, logServerAbi, contractId, contractKey, pair, systemContractId)
+    return new PinkLoggerContractPromise(api, registry, contractId, pair, systemContractId)
   }
 
-  constructor(api: ApiPromise, registry: OnChainRegistry, abi: any, contractId: string, contractKey: string, pair?: KeyringPair, systemContractId?: string) {
-    super(api, registry, abi, contractId, contractKey)
+  constructor(api: ApiPromise, registry: OnChainRegistry, contractId: string | AccountId, pair?: KeyringPair, systemContractId?: string) {
+    this.#api = api
+    this.#phatRegistry = registry
+    this.#address = api.createType('AccountId', contractId);
     if (!pair) {
       const keyring = new Keyring({ type: 'sr25519' });
       this.#pair = keyring.addFromUri('//Alice')
@@ -109,35 +160,35 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
   }
 
   protected async getSidevmQueryContext(): Promise<SidevmQueryContext> {
-    if (!this.phatRegistry.phactory || !this.phatRegistry.remotePubkey) {
+    if (!this.#phatRegistry.phactory || !this.#phatRegistry.remotePubkey) {
       throw new Error('No Pruntime connection found.')
     }
     const cert = await signCertificate({ pair: this.#pair });
-    const api = this.api as ApiPromise
-    const address = this.address as AccountId
-    const phactory = this.phatRegistry.phactory
-    const remotePubkey = this.phatRegistry.remotePubkey
+    const api = this.#api as ApiPromise
+    const address = this.#address as AccountId
+    const phactory = this.#phatRegistry.phactory
+    const remotePubkey = this.#phatRegistry.remotePubkey
     return { api, phactory, remotePubkey, address, cert } as const
   }
 
-  async getLog(contract: AccountId | string, from: number = 0, count: number = 100) {
+  async getLog(contract: AccountId | string, from: number = 0, count: number = 100): Promise<SerMessage[]> {
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
     return await unsafeRunSidevmQuery({ action: 'GetLog', contract, from, count })
   }
 
-  async getInfo() {
+  async getInfo(): Promise<LogServerInfo> {
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
     return await unsafeRunSidevmQuery({ action: 'GetInfo' })
   }
 
-  async tail(): Promise<any[]>;
-  async tail(counts: number): Promise<any[]>;
-  async tail(filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<any[]>;
-  async tail(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<any[]>;
-  async tail(counts: number, from: number, filters?: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<any[]>;
-  async tail(...params: any[]): Promise<any[]> {
+  async tail(): Promise<SerMessage[]>;
+  async tail(counts: number): Promise<SerMessage[]>;
+  async tail(filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<SerMessage[]>;
+  async tail(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<SerMessage[]>;
+  async tail(counts: number, from: number, filters?: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<SerMessage[]>;
+  async tail(...params: any[]): Promise<SerMessage[]> {
     let request: GetLogRequest = { from: -10, count: 10 }
 
     switch (params.length) {
