@@ -8,12 +8,12 @@ import { hexAddPrefix, hexToU8a, u8aToHex } from "@polkadot/util";
 import { decodeAddress } from "@polkadot/util-crypto";
 import { KeypairType } from "@polkadot/util-crypto/types";
 import { sr25519KeypairFromSeed, waitReady } from "@polkadot/wasm-crypto";
-import { TypeRegistry } from "@polkadot/types";
 import { signTypedData } from 'viem/wallet';
 
 import { randomHex } from "./lib/hex";
 import { pruntime_rpc as pruntimeRpc } from "./proto";
-import { phalaRegistryTypes } from './options';
+import { phalaTypes } from './options';
+import { createEip712StructedDataSignCertificate } from "./eip712";
 
 interface InjectedAccount {
   address: string;
@@ -55,11 +55,6 @@ const isUsingSigner = (
   (params as CertificateParamsWithSigner).signer !== undefined;
 
 
-const phalaTypes = new TypeRegistry()
-
-phalaTypes.register(phalaRegistryTypes)
-
-
 function generatePair(): [Uint8Array, Uint8Array] {
   const generatedSeed = hexToU8a(hexAddPrefix(randomHex(32)));
   const generatedPair = sr25519KeypairFromSeed(generatedSeed);
@@ -97,7 +92,7 @@ function getSignatureTypeFromPair(pair: KeyringPair) {
 }
 
 
-function createEip712StructedDataQueryCertificate(finalValidBlock: number, encodedCert: string, account: Account, salt: `0x${string}`): Parameters<typeof signTypedData>[1] {
+function createEip712StructedDataQueryCertificate(ttl: number, encodedCert: string, account: Account, salt: `0x${string}`): Parameters<typeof signTypedData>[1] {
   return {
     domain: {
       name: "Phat Query Certificate",
@@ -105,7 +100,8 @@ function createEip712StructedDataQueryCertificate(finalValidBlock: number, encod
       salt,
     },
     message: {
-      finalValidBlock,
+      description: "You are signing a Certificate that can be used to query Phat contracts using your identity without further prompts.",
+      timeToLive: `The Certificate will be valid till block ${ttl}.`,
       encodedCert,
     },
     primaryType: 'IssueQueryCertificate',
@@ -116,7 +112,8 @@ function createEip712StructedDataQueryCertificate(finalValidBlock: number, encod
         { name: 'salt', type: 'bytes32' },
       ],
       IssueQueryCertificate: [
-        { name: 'finalValidBlock', type: 'uint32' },
+        { name: 'description', type: 'string' },
+        { name: 'timeToLive', type: 'string' },
         { name: 'encodedCert', type: 'bytes' },
       ],
     },
@@ -192,14 +189,11 @@ export async function signCertificate(params: CertificateParams): Promise<Certif
 
 export async function unstable_signEip712Certificate({ client, account, compactPubkey, ttl = 0x7fffffff }: { client: Client, account: Account, compactPubkey: string, ttl?: number }): Promise<CertificateData> {
   await waitReady();
-  // const salt = `0x${randomHex(32)}` as `0x${string}`
-  // console.log('salt', salt, salt.length)
-  const salt = '0x0ea813d1592526d672ea2576d7a07914cef2ca301b35c5eed941f7c897512a00'
   const [secret, pubkey] = generatePair()
   const address = account.address || account
   const eip712Cert = CertificateBody(u8aToHex(pubkey), ttl)
   // It will pop up a window to ask for confirm, so it might failed.
-  const signature = await signTypedData(client, createEip712StructedDataQueryCertificate(ttl, u8aToHex(eip712Cert), account, salt))
+  const signature = await signTypedData(client, createEip712StructedDataSignCertificate(account, u8aToHex(eip712Cert), ttl))
   const rootCert = CertificateBody(compactPubkey, ttl)
   const certificate: pruntimeRpc.ICertificate = {
     encodedBody: eip712Cert,
