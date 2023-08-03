@@ -15,7 +15,18 @@ use ethers::{
 )]
 #[allow(non_snake_case)]
 pub struct PhatContractQuery {
+    pub description: String,
     pub encodedQuery: Bytes,
+}
+
+impl PhatContractQuery {
+    pub fn new(encoded_query: Bytes) -> Self {
+        Self {
+            description: "You are signing a query request that would be sent to a Phat contract."
+                .into(),
+            encodedQuery: encoded_query,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Eip712, EthAbiType)]
@@ -26,8 +37,19 @@ pub struct PhatContractQuery {
 )]
 #[allow(non_snake_case)]
 pub struct IssueQueryCertificate {
-    pub finalValidBlock: u32,
+    pub description: String,
+    pub timeToLive: String,
     pub encodedCert: Bytes,
+}
+
+impl IssueQueryCertificate {
+    pub fn new(cert_bytes: Bytes, ttl: u32) -> Self {
+        Self {
+            description: "You are signing a Certificate that can be used to query Phat contracts using your identity without further prompts.".into(),
+            timeToLive: format!("The Certificate will be valid till block {ttl}."),
+            encodedCert: cert_bytes,
+        }
+    }
 }
 
 pub(crate) fn recover(
@@ -41,15 +63,10 @@ pub(crate) fn recover(
         .or(Err(SignatureVerifyError::InvalidSignature))?;
     let message: Bytes = msg.to_vec().into();
     let message_hash = match msg_type {
-        MessageType::Certificate { ttl } => IssueQueryCertificate {
-            finalValidBlock: ttl,
-            encodedCert: message,
+        MessageType::Certificate { ttl } => {
+            IssueQueryCertificate::new(message, ttl).encode_eip712()
         }
-        .encode_eip712(),
-        MessageType::ContractQuery => PhatContractQuery {
-            encodedQuery: message,
-        }
-        .encode_eip712(),
+        MessageType::ContractQuery => PhatContractQuery::new(message).encode_eip712(),
     }
     .or(Err(SignatureVerifyError::Eip712EncodingError))?;
     let recovered_pubkey = evm_ecdsa_recover(signature, message_hash)?;
@@ -64,7 +81,7 @@ fn signing_cert_works() {
     let message = b"Hello".to_vec();
     let pubkey =
         hex::decode("029df1e69b8b7c2da2efe0069dc141c2cec0317bf3fd135abaeb69ee33801f5970").unwrap();
-    let mm_signature = hex::decode("92127c7a62eaaa4e7af9039bb749d250e638a861d36703ae21267e338346fef57bce4f115ac1a517844966ba46caa64305e6acf48db2b6372f558e1a3c9663db1c").unwrap();
+    let mm_signature = hex::decode("878fc9275582e02c0bba158d201bdedcf2adbe3979dbd642a1f23a04ea98d2094a248fa53997d4529d3c0cbd805461f672b37bd76018740b20c868e0f4569c3e1c").unwrap();
     assert!(recover(
         &pubkey,
         &mm_signature,
@@ -79,6 +96,6 @@ fn signing_query_works() {
     let message = b"Hello".to_vec();
     let pubkey =
         hex::decode("029df1e69b8b7c2da2efe0069dc141c2cec0317bf3fd135abaeb69ee33801f5970").unwrap();
-    let mm_signature = hex::decode("5b7a4c7db4889547d4cff51d928b95a2a86737d301a0bed7337c112467b138eb704c15d174df08424d4ec5eba50c7335c9a43db8f95f1ad03805d172a8f53b621c").unwrap();
+    let mm_signature = hex::decode("f4f8cd7c6dc211f29d6df58617acf6d0f206a55f5c77f101f2af310204dbf82d5573cf067a2e119642341d185cd646b34ad84f98d27e8835b40812fabd2d94131b").unwrap();
     assert!(recover(&pubkey, &mm_signature, &message, MessageType::ContractQuery).is_ok());
 }
