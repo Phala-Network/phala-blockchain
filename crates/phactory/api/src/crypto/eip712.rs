@@ -22,7 +22,7 @@ pub struct PhatContractQuery {
 impl PhatContractQuery {
     pub fn new(encoded_query: Bytes) -> Self {
         Self {
-            description: "You are signing a query request that would be sent to a Phat contract."
+            description: "You are signing a query request that would be sent to a Phat Contract."
                 .into(),
             encodedQuery: encoded_query,
         }
@@ -45,7 +45,7 @@ pub struct IssueQueryCertificate {
 impl IssueQueryCertificate {
     pub fn new(cert_bytes: Bytes, ttl: u32) -> Self {
         Self {
-            description: "You are signing a Certificate that can be used to query Phat contracts using your identity without further prompts.".into(),
+            description: "You are signing a Certificate that can be used to query Phat Contracts using your identity without further prompts.".into(),
             timeToLive: format!("The Certificate will be valid till block {ttl}."),
             encodedCert: cert_bytes,
         }
@@ -81,7 +81,7 @@ fn signing_cert_works() {
     let message = b"Hello".to_vec();
     let pubkey =
         hex::decode("029df1e69b8b7c2da2efe0069dc141c2cec0317bf3fd135abaeb69ee33801f5970").unwrap();
-    let mm_signature = hex::decode("878fc9275582e02c0bba158d201bdedcf2adbe3979dbd642a1f23a04ea98d2094a248fa53997d4529d3c0cbd805461f672b37bd76018740b20c868e0f4569c3e1c").unwrap();
+    let mm_signature = hex::decode("885074f9b49de7bb73d23a801a69fb160f7cfef50cbf710c7aaff70c5581d7ab63bb7a80e4d8b3983498a9ffb10130fdcb98d5d5c49b7f84e3f99f194c26dcdf1b").unwrap();
     assert!(recover(
         &pubkey,
         &mm_signature,
@@ -96,6 +96,6 @@ fn signing_query_works() {
     let message = b"Hello".to_vec();
     let pubkey =
         hex::decode("029df1e69b8b7c2da2efe0069dc141c2cec0317bf3fd135abaeb69ee33801f5970").unwrap();
-    let mm_signature = hex::decode("f4f8cd7c6dc211f29d6df58617acf6d0f206a55f5c77f101f2af310204dbf82d5573cf067a2e119642341d185cd646b34ad84f98d27e8835b40812fabd2d94131b").unwrap();
+    let mm_signature = hex::decode("b0ba4176ef624a71837c1a63e9c502c02314414883413913c126e05bfb3fda60474e0758b49c91647cd735c11d2a9575647509bdd2aef4eb5c5eba0019463a681c").unwrap();
     assert!(recover(&pubkey, &mm_signature, &message, MessageType::ContractQuery).is_ok());
 }
