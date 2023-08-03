@@ -146,3 +146,44 @@ TODO
 ### Cluster tokenomics & staking for computations
 
 TODO
+
+
+## Experimental Features
+
+Some experimental features may change in the future, we will prefix the function name with `unstable_`.
+
+### Sign certificate with Ethereum Wallets (EIP-712 compatible)
+
+It means you can sign a certificate for Phat Contract off-chain query with any Ethereum Wallet. The feature built on-top
+of [viem](https://viem.sh/).
+
+Node.js code snippet example:
+
+```javascript
+import { createTestClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+import { privateKeyToAccount } from 'viem/accounts'
+import { etherAddressToCompactPubkey, unstable_signEip712Certificate } from '@phala/sdk'
+
+const account = privateKeyToAccount('<YOUR_PRIVATE_KEY>')
+const client = createTestClient({ account, chain: mainnet, mode: 'anvil', transport: http(), })
+const compactPubkey = await etherAddressToCompactPubkey(client, account)
+const cert = await unstable_signEip712Certificate({ client, account, compactPubkey })
+// init & create your own PinkContractPromise instance.
+const result = await contract.query.version(address, { cert })
+```
+
+Browser code snippet example (tested with MetaMask):
+
+```javascript
+import { createWalletClient, custom } from 'viem'
+import { mainnet } from 'viem/chains'
+import { etherAddressToCompactPubkey, unstable_signEip712Certificate } from '@phala/sdk'
+
+const client = createWalletClient({ chain: mainnet, transport: custom(window.ethereum) })
+const [address] = await client.requestAddresses()
+const compactPubkey = await etherAddressToCompactPubkey(client, address)
+const cert = await unstable_signEip712Certificate({ client, account: address, compactPubkey })
+// init & create your own PinkContractPromise instance.
+const result = await contract.query.version(address, { cert })
+```
