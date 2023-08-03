@@ -55,7 +55,7 @@ const isUsingSigner = (
   (params as CertificateParamsWithSigner).signer !== undefined;
 
 
-function generatePair(): [Uint8Array, Uint8Array] {
+export function generatePair(): [Uint8Array, Uint8Array] {
   const generatedSeed = hexToU8a(hexAddPrefix(randomHex(32)));
   const generatedPair = sr25519KeypairFromSeed(generatedSeed);
   return [

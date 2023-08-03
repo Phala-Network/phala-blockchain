@@ -13,8 +13,63 @@ import { sr25519Agree, sr25519KeypairFromSeed } from "@polkadot/wasm-crypto";
 import { PinkContractPromise, pinkQuery } from './PinkContract'
 import { ContractInitialError } from './Errors'
 import logServerAbi from '../abis/log_server.json'
-import { signCertificate } from '../certificate'
+import { type CertificateData, generatePair, signCertificate } from '../certificate'
 import { randomHex } from '../lib/hex'
+import { phalaTypes } from '../options'
+import { type pruntime_rpc } from '../proto'
+
+
+interface GetLogRequest {
+  contract?: string
+  from: number
+  count: number
+  block_number?: number
+}
+
+
+function InkQuery(contractId: AccountId, { sidevmMessage }: { sidevmMessage?: Record<string, any> } = {}) {
+  const head = {
+    nonce: hexAddPrefix(randomHex(32)),
+    id: contractId,
+  }
+  let data: Record<string, string> = {}
+  if (sidevmMessage) {
+    data['SidevmMessage'] = stringToHex(JSON.stringify(sidevmMessage))
+  } else {
+    throw new Error('InkQuery construction failed: sidevmMessage is required.')
+  }
+  return phalaTypes.createType('InkQuery', { head, data })
+}
+
+interface SidevmQueryContext {
+  api: ApiPromise
+  phactory: pruntime_rpc.PhactoryAPI
+  remotePubkey: string
+  address: AccountId
+  cert: CertificateData
+}
+
+function sidevmQueryWithReader({ api, phactory, remotePubkey, address, cert }: SidevmQueryContext) {
+  return async function unsafeRunSidevmQuery<T>(sidevmMessage: Record<string, any>): Promise<T> {
+    const [sk, pk] = generatePair()
+    const encodedQuery = InkQuery(address, { sidevmMessage })
+    const queryAgreementKey = sr25519Agree(hexToU8a(hexAddPrefix(remotePubkey)), sk)
+    const response = await pinkQuery(api, phactory, pk, queryAgreementKey, encodedQuery.toHex(), cert)
+    const inkResponse = api.createType<InkResponse>('InkResponse', response)
+    if (inkResponse.result.isErr) {
+      let error = `[${inkResponse.result.asErr.index}] ${inkResponse.result.asErr.type}`
+      if (inkResponse.result.asErr.type === 'RuntimeError') {
+        error = `${error}: ${inkResponse.result.asErr.value}`
+      }
+      throw new Error(error)
+    }
+    const payload = inkResponse.result.asOk.asInkMessageReturn.toString()
+    if (payload.substring(0, 2) === '0x') {
+      return JSON.parse(hexToString(payload))
+    }
+    return JSON.parse(payload)
+  }
+}
 
 
 export class PinkLoggerContractPromise extends PinkContractPromise {
@@ -28,7 +83,7 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
       const keyring = new Keyring({ type: 'sr25519' });
       _pair = keyring.addFromUri('//Alice')
     }
-    const cert = await signCertificate({ api, pair: _pair })
+    const cert = await signCertificate({ pair: _pair })
     const { output } = await systemContract.query['system::getDriver'](_pair.address, { cert }, 'PinkLogger')
     const contractId = (output as Result<Text, any>).asOk.toHex()
     if (!contractId) {
@@ -53,51 +108,72 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
     this.#systemContractId = systemContractId
   }
 
-  async getLog(contractId: AccountId | string, from: number = 0, counts: number = 100) {
+  protected async getSidevmQueryContext(): Promise<SidevmQueryContext> {
+    if (!this.phatRegistry.phactory || !this.phatRegistry.remotePubkey) {
+      throw new Error('No Pruntime connection found.')
+    }
+    const cert = await signCertificate({ pair: this.#pair });
     const api = this.api as ApiPromise
+    const address = this.address as AccountId
+    const phactory = this.phatRegistry.phactory
+    const remotePubkey = this.phatRegistry.remotePubkey
+    return { api, phactory, remotePubkey, address, cert } as const
+  }
 
-    // Generate a keypair for encryption
-    // NOTE: each instance only has a pre-generated pair now, it maybe better to generate a new keypair every time encrypting
-    const seed = hexToU8a(hexAddPrefix(randomHex(32)));
-    const pair = sr25519KeypairFromSeed(seed);
-    const [sk, pk] = [pair.slice(0, 64), pair.slice(64)];
+  async getLog(contract: AccountId | string, from: number = 0, count: number = 100) {
+    const ctx = await this.getSidevmQueryContext()
+    const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
+    return await unsafeRunSidevmQuery({ action: 'GetLog', contract, from, count })
+  }
 
-    const encodedQuery = api.createType('InkQuery', {
-      head: {
-        nonce: hexAddPrefix(randomHex(32)),
-        id: this.address,
-      },
-      data: {
-        SidevmMessage: stringToHex(JSON.stringify({
-          action: 'GetLog',
-          contract: contractId,
-          from,
-          count: counts,
-        })),
-      },
-    })
+  async getInfo() {
+    const ctx = await this.getSidevmQueryContext()
+    const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
+    return await unsafeRunSidevmQuery({ action: 'GetInfo' })
+  }
 
-    const queryAgreementKey = sr25519Agree(
-      hexToU8a(hexAddPrefix(this.phatRegistry.remotePubkey)),
-      sk
-    );
+  async tail(): Promise<any[]>;
+  async tail(counts: number): Promise<any[]>;
+  async tail(filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<any[]>;
+  async tail(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<any[]>;
+  async tail(counts: number, from: number, filters?: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<any[]>;
+  async tail(...params: any[]): Promise<any[]> {
+    let request: GetLogRequest = { from: -10, count: 10 }
 
-    const cert = await signCertificate({ pair: this.#pair, api });
+    switch (params.length) {
+      case 0:
+        break
 
-    const response = await pinkQuery(api, this.phatRegistry.phactory, pk, queryAgreementKey, encodedQuery.toHex(), cert)
-    const inkResponse = api.createType<InkResponse>('InkResponse', response)
-    if (inkResponse.result.isErr) {
-      let error = `[${inkResponse.result.asErr.index}] ${inkResponse.result.asErr.type}`
-      if (inkResponse.result.asErr.type === 'RuntimeError') {
-        error = `${error}: ${inkResponse.result.asErr.value}`
-      }
-      throw new Error(error)
+      case 1:
+        if (typeof params[0] === 'number') {
+          request.count = params[0]
+          request.from = -params[0]
+        } else {
+          request = { ...params[0], ...request, }
+        }
+        break
+
+      case 2:
+        request.count = params[0]
+        request.from = -params[0]
+        if (typeof params[1] === 'number') {
+          request.from = params[1]
+        } else {
+          request = { ...params[0], ...request, }
+        }
+        break
+
+      case 3:
+        request = { ...params[2], count: params[0], from: params[1] }
+        break
+
+      default:
+        throw new Error('Unexpected parameters.')
     }
-    const payload = inkResponse.result.asOk.asInkMessageReturn.toString()
-    if (payload.substring(0, 2) === '0x') {
-      return JSON.parse(hexToString(payload))
-    }
-    return JSON.parse(payload)
+
+    const ctx = await this.getSidevmQueryContext()
+    const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
+    return await unsafeRunSidevmQuery({ action: 'GetLog', ...request })
   }
 
   setSystemContract(contract: PinkContractPromise | string) {
