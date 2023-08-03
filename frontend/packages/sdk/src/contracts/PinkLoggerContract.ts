@@ -122,6 +122,41 @@ function sidevmQueryWithReader({ api, phactory, remotePubkey, address, cert }: S
   }
 }
 
+function buildGetLogRequest(params: any[], getFrom: (x: Partial<GetLogRequest>) => number, getDefaults: () => Partial<GetLogRequest>): GetLogRequest {
+  let request = getDefaults()
+  switch (params.length) {
+    case 0:
+      break
+
+    case 1:
+      if (typeof params[0] === 'number') {
+        request.count = params[0]
+        request.from = getFrom(request)
+      } else {
+        request = { ...params[0], ...request, }
+      }
+      break
+
+    case 2:
+      request.count = params[0]
+      request.from = getFrom(request)
+      if (typeof params[1] === 'number') {
+        request.from = params[1]
+      } else {
+        request = { ...params[0], ...request, }
+      }
+      break
+
+    case 3:
+      request = { ...params[2], count: params[0], from: params[1] }
+      break
+
+    default:
+      throw new Error('Unexpected parameters.')
+  }
+  return request as GetLogRequest
+}
+
 
 export class PinkLoggerContractPromise {
   #api: ApiPromise
@@ -189,39 +224,23 @@ export class PinkLoggerContractPromise {
   async tail(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<SerMessage[]>;
   async tail(counts: number, from: number, filters?: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<SerMessage[]>;
   async tail(...params: any[]): Promise<SerMessage[]> {
-    let request: GetLogRequest = { from: -10, count: 10 }
+    const request: GetLogRequest = buildGetLogRequest(
+      params,
+      (x) => x.count ? -x.count : -10,
+      () => ({ from: -10, count: 10 })
+    )
+    const ctx = await this.getSidevmQueryContext()
+    const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
+    return await unsafeRunSidevmQuery({ action: 'GetLog', ...request })
+  }
 
-    switch (params.length) {
-      case 0:
-        break
-
-      case 1:
-        if (typeof params[0] === 'number') {
-          request.count = params[0]
-          request.from = -params[0]
-        } else {
-          request = { ...params[0], ...request, }
-        }
-        break
-
-      case 2:
-        request.count = params[0]
-        request.from = -params[0]
-        if (typeof params[1] === 'number') {
-          request.from = params[1]
-        } else {
-          request = { ...params[0], ...request, }
-        }
-        break
-
-      case 3:
-        request = { ...params[2], count: params[0], from: params[1] }
-        break
-
-      default:
-        throw new Error('Unexpected parameters.')
-    }
-
+  async head(): Promise<SerMessage[]>;
+  async head(counts: number): Promise<SerMessage[]>;
+  async head(filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<SerMessage[]>;
+  async head(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<SerMessage[]>;
+  async head(counts: number, from: number, filters?: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<SerMessage[]>;
+  async head(...params: any[]): Promise<SerMessage[]> {
+    const request: GetLogRequest = buildGetLogRequest(params, () => 0, () => ({ from: 0, count: 10 }))
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
     return await unsafeRunSidevmQuery({ action: 'GetLog', ...request })
@@ -235,10 +254,17 @@ export class PinkLoggerContractPromise {
     }
   }
 
-  async getSystemLog(counts: number = 100, from: number = 0) {
+  async headSystemLog(counts: number = 10, from: number = 0) {
     if (!this.#systemContractId) {
       throw new Error('System contract ID is not set.')
     }
-    return this.getLog(this.#systemContractId, from, counts)
+    return this.head(counts, from, { contract: this.#systemContractId })
+  }
+
+  async tailSystemLog(counts: number = 10, from: number = -10) {
+    if (!this.#systemContractId) {
+      throw new Error('System contract ID is not set.')
+    }
+    return this.tail(counts, from, { contract: this.#systemContractId })
   }
 }
