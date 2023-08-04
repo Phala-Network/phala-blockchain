@@ -65,7 +65,7 @@ In the original version of polkadot.js, `tx` refer to the `write` operation and 
 We also need sign a certificate when using Phat Contract. Unlike signing for a transaction, the certificate is reusable. We recommended you cache it for a period of time.
 
 ```javascript
-const cert = await signCertificate({ pair, api });
+const cert = await signCertificate({ pair });
 ```
 
 For off-chain computations (or `query` calls), we don't need set `gasLimit` and `storageDepositLimit` like what we did in the original polkadot contract, we use `cert` instead:
@@ -112,7 +112,7 @@ const account = availableAccounts[0]; // assume you choice the first visible acc
 const injector = await web3FromSource(account.meta.source);
 const signer = injector.signer;
 
-const cert = await signCertificate({ api, signer, account });
+const cert = await signCertificate({ signer, account });
 ```
 
 The second one is less document but more progressive one. You can access the `window.injectedWeb3` object and inspect which Wallet Extension has been installed, let the user pick the one already in used, and interact with it directly.
@@ -129,7 +129,79 @@ const accounts = await extension.accounts.get(true);
 const account = availableAccounts[0]; // assume you choice the first visible account.
 const signer = extension.signer;
 
-const cert = await signCertificate({ api, signer, account });
+const cert = await signCertificate({ signer, account });
+```
+
+### Fetch Logs
+
+We provide `PinkLoggerContractPromise` which can fetch logs from specified Pruntime node. You can use it fetching logs:
+
+```javascript
+const pinkLogger = await PinkLoggerContractPromise.create(api, phatRegistry, phatRegistry.systemContract)
+```
+
+The `PinkLoggerContractPromise` provides `head` and `tail` function like the command line utility `head` and `tail`:
+
+- `head`: Fetch first N records from logserver.
+- `tail`: Fetch last N records from logserver.
+
+NOTE: logserver won't keep full log records, it only keep a small size of records for logs prevent consumes too much memory.
+
+Let said we have 70 records in logserver:
+
+- `pinkLogger.head()` / `pinkLogger.tail()`: fetch first/last 10 records.
+- `pinkLogger.head(20)` / `pinkLogger.tail(20)`: fetch first/last 20 records.
+- `pinkLogger.head(20, 15)`: fetch from starts but skip the first 15 records then returns next 20 records, so the
+  records with sequence number between 15 and 35 will returns.
+- `pinkLogger.tail(20, 15)`: fetch from ends but skip last 15 records, so the records with sequence number between 35
+  and 55 will returns.
+- `pinkLoger.head(10, { contract, block_number })` / `pinkLogger.tail(10, { contract, block_number })`: fetch first/last
+  10 records which satisfied the specified filter conditions. Either `contract` and `block_number` are optional, but if
+  you want use the filtering, you need at least provide one. `contract` is refer to the contract ID here.
+- `pinkLogger.head(number, skip, filter)` / `pinkLogger.tail(number, skip, filter)`: fetching `number` log records and
+  omit first/last `skip` records, and it should matched specified filter conditions.
+
+You can check out a simple example (here)[https://github.com/Leechael/phat-contract-cli-upload/blob/main/tail.js]
+
+
+### Retrieving Contract Information
+
+We divide into multiple scenarios.
+
+1. Get contract key by contract ID
+
+You can fetch it from on-chain storage:
+
+```javascript
+const contractKey = await this.api.query.phalaRegistry.contractKeys(contractId);
+```
+
+We also provides it with `OnChainRegistry`:
+
+```javascript
+const contractKey = await phatRegistry.getContractKey(contractId)
+```
+
+Or use `getContractKeyOrFail`, which will throws error when no contract key found:
+
+```javascript
+const contractKey = await phatRegistry.getContractKeyOrFail(contractId)
+```
+
+2. Get code hash by Contract ID
+
+You can query code hash by Contract ID via the phactory object:
+
+```javascript
+const contractInfo = await phatRegistry.phactory.getContractInfo({ contracts: [contractId] })
+const codeHash = contractInfo.contracts[0].codeHash
+```
+
+3. Check code exists on the cluster or not
+
+```typescript
+const { output } = await systemContract.query['system::codeExists']<Bool>(account.address, { cert }, codeHash, 'Ink')
+const hasExists = output && output.isOk && output.asOk.isTrue
 ```
 
 
