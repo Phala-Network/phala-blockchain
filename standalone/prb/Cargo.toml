@@ -32,7 +32,7 @@ jsonrpsee = { version = "0.16", features = ["full"] }
 paste = "1.0.12"
 axum = { version = "0.6.17", features = ["macros"] }
 chrono = "0.4.24"
-hex = { version = "*" }
+hex = "0.4.3"
 phala-types = { path = "../../crates/phala-types" }
 phala-git-revision = { path = "../../crates/phala-git-revision" }
 rand = "0.8.5"
