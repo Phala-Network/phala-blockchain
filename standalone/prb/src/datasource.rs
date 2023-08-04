@@ -459,22 +459,16 @@ impl DataSourceManager {
         loop {
             if let Ok(()) = client.ping().await {
                 if !online {
-                    let m = map.clone();
-                    let mut m = m.write().await;
-                    m.insert(uuid_str.clone(), instance.clone());
+                    map.write().await.insert(uuid_str.clone(), instance.clone());
                     online = true;
                     fail_count = 0;
-                    drop(m);
                     info!("Headers cache {}({}) online!", &uuid_str, &config.endpoint);
                 }
             } else if online {
                 fail_count += 1;
                 if fail_count >= 3 {
-                    let m = map.clone();
-                    let mut m = m.write().await;
-                    m.remove(&uuid_str);
+                    map.write().await.remove(&uuid_str);
                     online = false;
-                    drop(m);
                     warn!("Headers cache {}({}) down!", &uuid_str, &config.endpoint);
                 } else {
                     warn!(
@@ -508,10 +502,7 @@ impl DataSourceManager {
                     );
                 }
             };
-            let map = map.clone();
-            let mut map = map.write().await;
-            map.remove(&uuid_str);
-            drop(map);
+            map.write().await.remove(&uuid_str);
             warn!(
                 "Reconnecting SubstrateWebSocketSource {}({}) in 30s...",
                 uuid_str.as_str(),
@@ -562,7 +553,7 @@ impl DataSourceManager {
         let update_client = client.updater();
         tokio::spawn(async move {
             let result = update_client.perform_runtime_updates().await;
-            eprintln!("Runtime update failed with result={result:?}");
+            error!("Runtime update failed with result={result:?}");
         });
 
         let client = ChainApi(client);
@@ -574,9 +565,7 @@ impl DataSourceManager {
             pruned: config.pruned,
         };
 
-        let mut map = map.write().await;
-        map.insert(uuid_str, Arc::new(instance));
-        drop(map);
+        map.write().await.insert(uuid_str, Arc::new(instance));
 
         ws_client.on_disconnect().await;
         Ok(())
@@ -859,26 +848,27 @@ impl DataSourceManager {
         self: Arc<Self>,
         relay_header_height: u32,
     ) -> Result<Arc<DataSourceCacheItem>> {
-        let hc = use_relaychain_hc!(self);
-        if hc.is_none() {
+        let Some(hc) = use_relaychain_hc!(self) else {
             return Ok(Arc::new(DataSourceCacheItem::CachedHeadersToSync(None)));
-        }
-        let hc = hc.unwrap();
-        let ret = if let Ok(mut headers) = hc.get_headers(relay_header_height).await {
-            let last_header = match headers.last_mut() {
-                Some(header) => header,
-                None => return Ok(Arc::new(DataSourceCacheItem::CachedHeadersToSync(None))),
-            };
-            let authority_set_change = last_header.authority_set_change.take();
-            let para_header = last_header.para_header.take();
-            let headers = headers
-                .into_iter()
-                .map(|info| HeaderToSync {
-                    header: info.header,
-                    justification: info.justification,
-                })
-                .collect::<Vec<_>>();
-            let headers = HeadersToSync::new(headers, authority_set_change);
+        };
+        let Ok(mut headers) = hc.get_headers(relay_header_height).await else {
+            return Ok(Arc::new(DataSourceCacheItem::CachedHeadersToSync(None)));
+        };
+
+        let Some(last_header) = headers.last_mut() else {
+            return Ok(Arc::new(DataSourceCacheItem::CachedHeadersToSync(None)));
+        };
+        let authority_set_change = last_header.authority_set_change.take();
+        let para_header = last_header.para_header.take();
+        let headers = headers
+            .into_iter()
+            .map(|info| HeaderToSync {
+                header: info.header,
+                justification: info.justification,
+            })
+            .collect::<Vec<_>>();
+        let headers = HeadersToSync::new(headers, authority_set_change);
+        Ok(Arc::new(DataSourceCacheItem::CachedHeadersToSync(
             match para_header {
                 None => Some((headers, None, None)),
                 Some(para_header) => Some((
@@ -886,11 +876,8 @@ impl DataSourceManager {
                     Some(para_header.fin_header_num),
                     Some(para_header.proof),
                 )),
-            }
-        } else {
-            None
-        };
-        Ok(Arc::new(DataSourceCacheItem::CachedHeadersToSync(ret)))
+            },
+        )))
     }
     pub async fn get_cached_headers(
         self: Arc<Self>,
