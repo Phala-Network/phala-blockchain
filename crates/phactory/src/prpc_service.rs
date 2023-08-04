@@ -604,7 +604,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let origin = if let Some(sig) = &request.signature {
             let current_block = self.get_info().blocknum - 1;
             // At most two level cert chain supported
-            match sig.verify(&request.encoded_encrypted_data, current_block, 2) {
+            match sig.verify(
+                &request.encoded_encrypted_data,
+                crypto::MessageType::ContractQuery,
+                current_block,
+                2,
+            ) {
                 Ok(key_chain) => match &key_chain[..] {
                     [root_pubkey, ..] => Some(root_pubkey.clone()),
                     _ => {

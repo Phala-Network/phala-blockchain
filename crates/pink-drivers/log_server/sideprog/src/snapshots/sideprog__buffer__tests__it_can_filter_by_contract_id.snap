@@ -1,7 +1,7 @@
 ---
 source: src/buffer.rs
-assertion_line: 297
-expression: "pretty(&buffer.get_records(&hex(&contract), 0, 0))"
+assertion_line: 372
+expression: "pretty(&buffer.get_records(&hex(&contract), 0, 0, None))"
 ---
 {
   "next": 3,
@@ -9,7 +9,8 @@ expression: "pretty(&buffer.get_records(&hex(&contract), 0, 0))"
     {
       "blockNumber": 0,
       "contract": "0x0101010101010101010101010101010101010101010101010101010101010101",
-      "inQuery": true,
+      "entry": "0x0101010101010101010101010101010101010101010101010101010101010101",
+      "execMode": "query",
       "level": 0,
       "message": "hello",
       "sequence": 0,

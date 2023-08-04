@@ -13,7 +13,7 @@ import { SubmittableResult, toPromiseMethod } from '@polkadot/api';
 import { ApiBase } from '@polkadot/api/base';
 import { Abi } from '@polkadot/api-contract/Abi';
 import { createBluePrintTx } from '@polkadot/api-contract/base/util';
-import { isUndefined, isWasm, u8aToU8a } from '@polkadot/util';
+import { hexToU8a, isU8a, isUndefined, isWasm, u8aToHex } from '@polkadot/util';
 
 import { PinkBlueprintPromise } from './PinkBlueprint';
 
@@ -22,7 +22,7 @@ export class InkCodeSubmittableResult extends SubmittableResult {
   readonly registry: OnChainRegistry;
   readonly abi: Abi;
   readonly blueprint?: PinkBlueprintPromise;
-  
+
   #isFinalized: boolean = false
 
   constructor (result: ISubmittableResult, abi: Abi, registry: OnChainRegistry) {
@@ -71,7 +71,7 @@ export class PinkCodePromise {
 
   readonly #tx: MapConstructorExec<'promise'> = {};
 
-  constructor (api: ApiBase<'promise'>, phatRegistry: OnChainRegistry, abi: AbiLike, wasm: WasmLike) {
+  constructor (api: ApiBase<'promise'>, phatRegistry: OnChainRegistry, abi: AbiLike, wasm: Uint8Array | string | Buffer | null | undefined) {
     if (!api || !api.isConnected || !api.tx) {
       throw new Error('Your API has not been initialized correctly and is not connected to a chain');
     }
@@ -86,9 +86,16 @@ export class PinkCodePromise {
     this._decorateMethod = toPromiseMethod;
     this.phatRegistry = phatRegistry
 
-    this.code = isWasm(this.abi.info.source.wasm)
-      ? this.abi.info.source.wasm
-      : u8aToU8a(wasm);
+    // NOTE: we only tested with the .contract file & wasm in Uint8Array.
+    if (isWasm(this.abi.info.source.wasm)) {
+        this.code = this.abi.info.source.wasm;
+    } else if (isU8a(wasm)) {
+        this.code = wasm;
+    } else if (typeof wasm === 'string' && wasm.substring(0, 2) === '0x') {
+        this.code = hexToU8a(wasm);
+    } else {
+        throw new Error('`wasm` should hex encoded string or Uint8Array.');
+    }
 
     if (!isWasm(this.code)) {
       throw new Error('No WASM code provided');

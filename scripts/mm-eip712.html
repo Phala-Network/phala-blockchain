@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MetaMask Signing Test</title>
+    <script src="https://c0f4f41c-2f55-4863-921b-sdk-docs.github.io/cdn/metamask-sdk.js"></script>
+</head>
+<body>
+    <h1>MetaMask Signing Test</h1>
+    <input id="message" value="0x48656c6c6f">
+    <button id="sign-cert">Sign a Cert</button>
+    <button id="sign-query">Sign a Query</button>
+    <p id="signature"></p>
+    <p id="pubkey"></p>
+
+    <script>
+        async function phalaSign(message, messageType) {
+            const salt = '0x0ea813d1592526d672ea2576d7a07914cef2ca301b35c5eed941f7c897512a00'; // keccak256(b"phala/phat-contract")
+            const ttl = 42;
+            switch (messageType) {
+                case "cert": {
+                    return await signEip712({
+                      domain: {
+                        name: "Phat Query Certificate",
+                        version: '1',
+                        salt,
+                      },
+                      message: {
+                        description: "You are signing a Certificate that can be used to query Phat Contracts using your identity without further prompts.",
+                        timeToLive: `The Certificate will be valid till block ${ttl}.`,
+                        encodedCert: message,
+                      },
+                      primaryType: 'IssueQueryCertificate',
+                      types: {
+                        EIP712Domain: [
+                          { name: 'name', type: 'string' },
+                          { name: 'version', type: 'string' },
+                          { name: 'salt', type: 'bytes32' },
+                        ],
+                        IssueQueryCertificate: [
+                          { name: 'description', type: 'string' },
+                          { name: 'timeToLive', type: 'string' },
+                          { name: 'encodedCert', type: 'bytes' },
+                        ],
+                      },
+                    });
+                }
+                case "query": {
+                    return await signEip712({
+                        domain: {
+                          name: "Phat Contract Query",
+                          version: '1',
+                          salt,
+                        },
+                        message: {
+                          description: "You are signing a query request that would be sent to a Phat Contract.",
+                          encodedQuery: message,
+                        },
+                        primaryType: 'PhatContractQuery',
+                        types: {
+                          EIP712Domain: [
+                            { name: 'name', type: 'string' },
+                            { name: 'version', type: 'string' },
+                            { name: 'salt', type: 'bytes32' },
+                          ],
+                          PhatContractQuery: [
+                            { name: 'description', type: 'string' },
+                            { name: 'encodedQuery', type: 'bytes' },
+                          ],
+                        },
+                    });
+                }
+            }
+        }
+        async function signEip712(params) {
+            const ethereum = window.ethereum;
+            const account = (await ethereum.request({ method: 'eth_requestAccounts' }))[0];
+            return await ethereum.request({
+                method: 'eth_signTypedData_v4',
+                params: [account, JSON.stringify(params)],
+                from: account,
+            });
+        }
+        function showSignature(sig) {
+            document.getElementById('signature').innerHTML = `<div>Signature: ${sig}</div>`;
+        }
+
+        document.getElementById('sign-cert').addEventListener('click', async function (event) {
+            const signature = await phalaSign(document.getElementById('message').value, 'cert');
+            showSignature(signature);
+        });
+        document.getElementById('sign-query').addEventListener('click', async function (event) {
+            const signature = await phalaSign(document.getElementById('message').value, 'query');
+            showSignature(signature);
+        });
+    </script>
+</body>
+</html>

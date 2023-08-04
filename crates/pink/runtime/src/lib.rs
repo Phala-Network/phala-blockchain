@@ -4,7 +4,7 @@ pub mod capi;
 mod contract;
 mod runtime;
 mod storage;
-mod types;
+pub mod types;
 
 pub use crate::contract::{ContractResult, ContractInstantiateResult, ContractExecResult};
 
