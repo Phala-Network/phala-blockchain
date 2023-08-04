@@ -127,6 +127,7 @@ function buildGetLogRequest(params: any[], getFrom: (x: Partial<GetLogRequest>) 
   let request = getDefaults()
   switch (params.length) {
     case 0:
+      request.from = getFrom(request)
       break
 
     case 1:
@@ -140,10 +141,11 @@ function buildGetLogRequest(params: any[], getFrom: (x: Partial<GetLogRequest>) 
 
     case 2:
       request.count = params[0]
-      request.from = getFrom(request)
       if (typeof params[1] === 'number') {
         request.from = params[1]
+        request.from = getFrom(request)
       } else {
+        request.from = getFrom(request)
         request = { ...params[0], ...request, }
       }
       break
@@ -227,8 +229,13 @@ export class PinkLoggerContractPromise {
   async tail(...params: any[]): Promise<SerMessage[]> {
     const request: GetLogRequest = buildGetLogRequest(
       params,
-      (x) => x.count ? -x.count : -10,
-      () => ({ from: -10, count: 10 })
+      (x) => {
+        if (!x.from) {
+          return x.count ? -x.count : -10
+        }
+        return -(x.from + (x.count || 10))
+      },
+      () => ({ count: 10 })
     )
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
@@ -241,7 +248,7 @@ export class PinkLoggerContractPromise {
   async head(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<SerMessage[]>;
   async head(counts: number, from: number, filters?: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<SerMessage[]>;
   async head(...params: any[]): Promise<SerMessage[]> {
-    const request: GetLogRequest = buildGetLogRequest(params, () => 0, () => ({ from: 0, count: 10 }))
+    const request: GetLogRequest = buildGetLogRequest(params, (x) => x.from || 0, () => ({ from: 0, count: 10 }))
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
     return await unsafeRunSidevmQuery({ action: 'GetLog', ...request })
