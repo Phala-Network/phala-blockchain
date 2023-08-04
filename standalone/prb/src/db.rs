@@ -220,14 +220,15 @@ pub fn get_raw_pool_by_pid(db: WrappedDb, pid: u64) -> Result<Option<VertexPrope
 }
 
 pub fn get_all_pools(db: WrappedDb) -> Result<Vec<Pool>> {
-    let v = get_all_raw_pools(db)?;
-    let v = v.into_iter().map(|v| v.into()).collect::<Vec<_>>();
+    let v = get_all_raw_pools(db)?
+        .into_iter()
+        .map(|v| v.into())
+        .collect::<Vec<_>>();
     Ok(v)
 }
 
 pub fn get_all_pools_with_workers(db: WrappedDb) -> Result<Vec<Pool>> {
-    let v = get_all_raw_pools(db.clone())?;
-    let v = v
+    let v = get_all_raw_pools(db.clone())?
         .into_iter()
         .map(|v| {
             let mut v: Pool = v.into();
@@ -257,8 +258,7 @@ pub fn get_all_raw_pools(db: WrappedDb) -> Result<Vec<VertexProperties>> {
 }
 
 pub fn get_all_workers(db: WrappedDb) -> Result<Vec<Worker>> {
-    let pools = get_all_pools_with_workers(db)?;
-    let workers = pools
+    let workers = get_all_pools_with_workers(db)?
         .into_iter()
         .flat_map(|p| p.workers.unwrap_or(vec![]))
         .collect::<Vec<_>>();
@@ -274,44 +274,41 @@ pub fn add_pool(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
             sync_only,
         } => {
             let p = get_pool_by_pid(db.clone(), pid)?;
-            match p {
-                Some(_v) => Err(anyhow!("Pool already exists!")),
-                None => {
-                    let id = db.create_vertex_from_type(
-                        Identifier::new(ID_VERTEX_INVENTORY_POOL).unwrap(),
-                    )?;
-                    let uq: VertexQuery = SpecificVertexQuery { ids: vec![id] }.into();
-                    db.set_vertex_properties(
-                        VertexPropertyQuery {
-                            inner: uq.clone(),
-                            name: Identifier::new(ID_PROP_POOL_NAME).unwrap(),
-                        },
-                        serde_json::Value::String(name),
-                    )?;
-                    db.set_vertex_properties(
-                        VertexPropertyQuery {
-                            inner: uq.clone(),
-                            name: Identifier::new(ID_PROP_POOL_PID).unwrap(),
-                        },
-                        serde_json::Value::Number(serde_json::Number::from(pid)),
-                    )?;
-                    db.set_vertex_properties(
-                        VertexPropertyQuery {
-                            inner: uq.clone(),
-                            name: Identifier::new(ID_PROP_POOL_ENABLED).unwrap(),
-                        },
-                        serde_json::Value::Bool(!disabled),
-                    )?;
-                    db.set_vertex_properties(
-                        VertexPropertyQuery {
-                            inner: uq,
-                            name: Identifier::new(ID_PROP_POOL_SYNC_ONLY).unwrap(),
-                        },
-                        serde_json::Value::Bool(sync_only),
-                    )?;
-                    Ok(id)
-                }
+            if p.is_some() {
+                anyhow::bail!("Pool already exists!")
             }
+            let id =
+                db.create_vertex_from_type(Identifier::new(ID_VERTEX_INVENTORY_POOL).unwrap())?;
+            let uq: VertexQuery = SpecificVertexQuery { ids: vec![id] }.into();
+            db.set_vertex_properties(
+                VertexPropertyQuery {
+                    inner: uq.clone(),
+                    name: Identifier::new(ID_PROP_POOL_NAME).unwrap(),
+                },
+                serde_json::Value::String(name),
+            )?;
+            db.set_vertex_properties(
+                VertexPropertyQuery {
+                    inner: uq.clone(),
+                    name: Identifier::new(ID_PROP_POOL_PID).unwrap(),
+                },
+                serde_json::Value::Number(serde_json::Number::from(pid)),
+            )?;
+            db.set_vertex_properties(
+                VertexPropertyQuery {
+                    inner: uq.clone(),
+                    name: Identifier::new(ID_PROP_POOL_ENABLED).unwrap(),
+                },
+                serde_json::Value::Bool(!disabled),
+            )?;
+            db.set_vertex_properties(
+                VertexPropertyQuery {
+                    inner: uq,
+                    name: Identifier::new(ID_PROP_POOL_SYNC_ONLY).unwrap(),
+                },
+                serde_json::Value::Bool(sync_only),
+            )?;
+            Ok(id)
         }
         _ => Err(anyhow!("Invalid command!")),
     }
@@ -326,42 +323,41 @@ pub fn update_pool(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
             sync_only,
         } => {
             let p = get_raw_pool_by_pid(db.clone(), pid)?;
-            match p {
-                Some(v) => {
-                    let id = v.vertex.id;
-                    let uq: VertexQuery = SpecificVertexQuery { ids: vec![id] }.into();
-                    db.set_vertex_properties(
-                        VertexPropertyQuery {
-                            inner: uq.clone(),
-                            name: Identifier::new(ID_PROP_POOL_NAME).unwrap(),
-                        },
-                        serde_json::Value::String(name),
-                    )?;
-                    db.set_vertex_properties(
-                        VertexPropertyQuery {
-                            inner: uq.clone(),
-                            name: Identifier::new(ID_PROP_POOL_ENABLED).unwrap(),
-                        },
-                        serde_json::Value::Bool(!disabled),
-                    )?;
-                    db.set_vertex_properties(
-                        VertexPropertyQuery {
-                            inner: uq.clone(),
-                            name: Identifier::new(ID_PROP_POOL_SYNC_ONLY).unwrap(),
-                        },
-                        serde_json::Value::Bool(sync_only),
-                    )?;
-                    db.set_vertex_properties(
-                        VertexPropertyQuery {
-                            inner: uq,
-                            name: Identifier::new(ID_PROP_POOL_SYNC_ONLY).unwrap(),
-                        },
-                        serde_json::Value::Bool(sync_only),
-                    )?;
-                    Ok(id)
-                }
-                None => Err(anyhow!("Pool not found!")),
-            }
+            let Some(v) = p else {
+                anyhow::bail!("Pool not found!")
+
+            };
+            let id = v.vertex.id;
+            let uq: VertexQuery = SpecificVertexQuery { ids: vec![id] }.into();
+            db.set_vertex_properties(
+                VertexPropertyQuery {
+                    inner: uq.clone(),
+                    name: Identifier::new(ID_PROP_POOL_NAME).unwrap(),
+                },
+                serde_json::Value::String(name),
+            )?;
+            db.set_vertex_properties(
+                VertexPropertyQuery {
+                    inner: uq.clone(),
+                    name: Identifier::new(ID_PROP_POOL_ENABLED).unwrap(),
+                },
+                serde_json::Value::Bool(!disabled),
+            )?;
+            db.set_vertex_properties(
+                VertexPropertyQuery {
+                    inner: uq.clone(),
+                    name: Identifier::new(ID_PROP_POOL_SYNC_ONLY).unwrap(),
+                },
+                serde_json::Value::Bool(sync_only),
+            )?;
+            db.set_vertex_properties(
+                VertexPropertyQuery {
+                    inner: uq,
+                    name: Identifier::new(ID_PROP_POOL_SYNC_ONLY).unwrap(),
+                },
+                serde_json::Value::Bool(sync_only),
+            )?;
+            Ok(id)
         }
         _ => Err(anyhow!("Invalid command!")),
     }
@@ -371,19 +367,17 @@ pub fn remove_pool(db: WrappedDb, pid: u64) -> Result<()> {
     let p = get_raw_pool_by_pid(db.clone(), pid)?;
     let workers = get_raw_workers_by_pid(db.clone(), pid)?;
     if !workers.is_empty() {
-        return Err(anyhow!("Pool not empty!"));
+        anyhow::bail!("Pool not empty!")
+    };
+    let Some(p) = p else {
+        anyhow::bail!("Pool not found!")
+    };
+    let q = SpecificVertexQuery {
+        ids: vec![p.vertex.id],
     }
-    match p {
-        Some(p) => {
-            let q = SpecificVertexQuery {
-                ids: vec![p.vertex.id],
-            }
-            .into();
-            db.delete_vertices(q)?;
-            Ok(())
-        }
-        None => Err(anyhow!("Pool not found!")),
-    }
+    .into();
+    db.delete_vertices(q)?;
+    Ok(())
 }
 
 pub fn get_raw_worker_by_name(db: WrappedDb, name: String) -> Result<Option<VertexProperties>> {
@@ -392,23 +386,11 @@ pub fn get_raw_worker_by_name(db: WrappedDb, name: String) -> Result<Option<Vert
         value: serde_json::Value::String(name),
     }
     .into();
-    let v: Vec<VertexProperties> = db.get_all_vertex_properties(q)?;
-    let v = v.get(0);
-    match v {
-        Some(v) => Ok(Some(v.clone())),
-        None => Ok(None),
-    }
+    Ok(db.get_all_vertex_properties(q)?.first().cloned())
 }
 
 pub fn get_worker_by_name(db: WrappedDb, name: String) -> Result<Option<Worker>> {
-    let w = get_raw_worker_by_name(db, name)?;
-    match w {
-        None => Ok(None),
-        Some(e) => {
-            let e: Worker = e.into();
-            Ok(Some(e))
-        }
-    }
+    Ok(get_raw_worker_by_name(db, name)?.map(Into::into))
 }
 
 pub fn get_raw_workers_by_pid(db: WrappedDb, pid: u64) -> Result<Vec<VertexProperties>> {
@@ -425,8 +407,8 @@ pub fn get_raw_workers_by_pid(db: WrappedDb, pid: u64) -> Result<Vec<VertexPrope
         low: None,
     }
     .into();
-    let edges = db.get_edges(edges)?;
-    let edges = edges
+    let edges = db
+        .get_edges(edges)?
         .into_iter()
         .map(|e| e.key.outbound_id)
         .collect::<Vec<_>>();
@@ -438,8 +420,7 @@ pub fn get_raw_workers_by_pid(db: WrappedDb, pid: u64) -> Result<Vec<VertexPrope
 }
 
 pub fn get_workers_by_pid(db: WrappedDb, pid: u64) -> Result<Vec<Worker>> {
-    let workers = get_raw_workers_by_pid(db, pid)?;
-    let workers = workers
+    let workers = get_raw_workers_by_pid(db, pid)?
         .into_iter()
         .map(|w| {
             let mut w: Worker = w.into();
