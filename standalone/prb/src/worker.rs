@@ -81,23 +81,6 @@ macro_rules! use_lm_with_ctx {
     }};
 }
 
-macro_rules! lifecycle_loop_state_handle_error {
-    ($f:expr, $c:expr) => {{
-        if let Err(e) = $f($c.clone()).await {
-            let (_, worker, _) = extract_essential_values!($c);
-            let cc = $c.clone();
-            let mut cc = cc.write().await;
-            cc.set_last_message(&e.to_string());
-            drop(cc);
-            info!(
-                "Worker {}({}, {}) stopped.",
-                &worker.name, &worker.id, &worker.endpoint
-            );
-            Self::set_state($c.clone(), WorkerLifecycleState::HasError(e.to_string())).await;
-        }
-    }};
-}
-
 macro_rules! set_worker_message {
     ($c:expr, $m:expr) => {{
         let cc = $c.clone();
@@ -300,6 +283,24 @@ impl WorkerContext {
     }
 
     async fn lifecycle_loop(c: WrappedWorkerContext, mut sm_rx: WorkerLifecycleStateRx) {
+        macro_rules! lifecycle_loop_state_handle_error {
+            ($f:expr, $c:expr) => {{
+                if let Err(e) = $f($c.clone()).await {
+                    let (_, worker, _) = extract_essential_values!($c);
+                    let cc = $c.clone();
+                    let mut cc = cc.write().await;
+                    cc.set_last_message(&e.to_string());
+                    drop(cc);
+                    info!(
+                        "Worker {}({}, {}) stopped.",
+                        &worker.name, &worker.id, &worker.endpoint
+                    );
+                    Self::set_state($c.clone(), WorkerLifecycleState::HasError(e.to_string()))
+                        .await;
+                }
+            }};
+        }
+
         let (lm, worker, _pr) = extract_essential_values!(c);
 
         Self::set_state(c.clone(), WorkerLifecycleState::Starting).await;
