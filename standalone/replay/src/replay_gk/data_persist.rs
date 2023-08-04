@@ -1,6 +1,6 @@
 use super::EventRecord;
 use anyhow::Result;
-use chrono::TimeZone as _;
+use chrono::{LocalResult, TimeZone as _, Utc};
 use phactory::gk;
 use sqlx::types::Decimal;
 use sqlx::{postgres::PgPoolOptions, Row};
@@ -100,7 +100,10 @@ async fn insert_records(pool: &sqlx::Pool<sqlx::Postgres>, records: &[EventRecor
         sequences.push(rec.sequence);
         pubkeys.push(rec.pubkey.0.to_vec());
         block_numbers.push(rec.block_number);
-        timestamps.push(chrono::Utc.timestamp_millis(rec.time_ms as _));
+        timestamps.push(match Utc.timestamp_millis_opt(rec.time_ms as _) {
+            LocalResult::Single(ts) => ts,
+            _ => anyhow::bail!("Incorrect timestamp_millis"),
+        });
         events.push(rec.event.event_string());
         vs.push(cvt_fp(rec.v));
         ps.push(cvt_fp(rec.p));

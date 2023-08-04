@@ -264,13 +264,13 @@ struct RunningFlags {
     restart_failure_count: u32,
 }
 
-struct BlockSyncState {
-    blocks: Vec<Block>,
+pub struct BlockSyncState {
+    pub blocks: Vec<Block>,
     /// Tracks the latest known authority set id at a certain block.
-    authory_set_state: Option<(BlockNumber, SetId)>,
+    pub authory_set_state: Option<(BlockNumber, SetId)>,
 }
 
-async fn get_header_hash(client: &phaxt::RpcClient, h: Option<u32>) -> Result<Hash> {
+pub async fn get_header_hash(client: &phaxt::RpcClient, h: Option<u32>) -> Result<Hash> {
     let pos = h.map(|h| subxt::rpc::types::BlockNumber::from(NumberOrHex::Number(h.into())));
     let hash = match pos {
         Some(_) => client
@@ -283,7 +283,7 @@ async fn get_header_hash(client: &phaxt::RpcClient, h: Option<u32>) -> Result<Ha
     Ok(hash)
 }
 
-async fn get_block_at(client: &phaxt::RpcClient, h: Option<u32>) -> Result<(Block, Hash)> {
+pub async fn get_block_at(client: &phaxt::RpcClient, h: Option<u32>) -> Result<(Block, Hash)> {
     let hash = get_header_hash(client, h).await?;
     let block = client
         .rpc()
@@ -305,7 +305,10 @@ pub async fn get_header_at(client: &phaxt::RpcClient, h: Option<u32>) -> Result<
     Ok((header.convert_to(), hash))
 }
 
-async fn get_block_without_storage_changes(api: &RelaychainApi, h: Option<u32>) -> Result<Block> {
+pub async fn get_block_without_storage_changes(
+    api: &RelaychainApi,
+    h: Option<u32>,
+) -> Result<Block> {
     let (block, hash) = get_block_at(api, h).await?;
     info!("get_block: Got block {:?} hash {}", h, hash.to_string());
     Ok(block)
@@ -378,7 +381,7 @@ pub async fn batch_sync_storage_changes(
     Ok(())
 }
 
-async fn get_authority_with_proof_at(
+pub async fn get_authority_with_proof_at(
     api: &RelaychainApi,
     hash: Hash,
 ) -> Result<AuthoritySetChange> {
@@ -694,7 +697,7 @@ async fn batch_sync_block(
     Ok(synced_blocks)
 }
 
-async fn get_finalized_header(
+pub async fn get_finalized_header(
     api: &RelaychainApi,
     para_api: &ParachainApi,
     last_header_hash: Hash,
@@ -1448,7 +1451,7 @@ async fn collect_async_errors(
     }
 }
 
-async fn mk_params(
+pub async fn mk_params(
     api: &ParachainApi,
     longevity: u64,
     tip: u128,
@@ -1471,6 +1474,7 @@ async fn mk_params(
     } else {
         None
     };
+    // gua: encoding era crashes when period.trailing_zeros() === 0
 
     let params = if let Some((era, checkpoint)) = era {
         phaxt::ExtrinsicParamsBuilder::new()

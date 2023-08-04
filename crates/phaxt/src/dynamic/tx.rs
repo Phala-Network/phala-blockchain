@@ -2,6 +2,7 @@ use parity_scale_codec::Encode;
 use phala_types::messaging::SignedMessage;
 use subxt::{tx::TxPayload, utils::Encoded};
 
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EncodedPayload {
     pallet_name: &'static str,
     call_name: &'static str,

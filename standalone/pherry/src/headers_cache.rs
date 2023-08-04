@@ -6,11 +6,12 @@ use phaxt::{
     subxt::{self, rpc::types::NumberOrHex},
     BlockNumber, ParachainApi, RelaychainApi,
 };
+use reqwest::Response;
 use std::borrow::Cow;
 use std::io::{self, Read, Write};
 
 use futures::stream::Stream;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use tokio::io::{AsyncRead, AsyncReadExt};
 
 pub use phactory_api::blocks::{AuthoritySetChange, BlockHeaderWithChanges, GenesisBlockInfo};
@@ -453,7 +454,7 @@ impl Client {
         }
     }
 
-    async fn request<T: Decode>(&self, url: &str) -> Result<T> {
+    async fn request(&self, url: &str) -> Result<Response> {
         let response = self.http_client.get(url).send().await.map_err(|err| {
             warn!("Failed to fetch data from cache: {err}");
             err
@@ -466,6 +467,11 @@ impl Client {
                 status.as_u16()
             );
         }
+        Ok(response)
+    }
+
+    async fn request_scale<T: Decode>(&self, url: &str) -> Result<T> {
+        let response = self.request(url).await?;
         let body = response.bytes().await.map_err(|err| {
             error!("Failed to read cache response: {err}");
             err
@@ -477,9 +483,23 @@ impl Client {
         Ok(decoded)
     }
 
+    pub async fn ping(&self) -> Result<()> {
+        let url = format!("{}/state", self.base_uri);
+        let res = self.request(&url).await?;
+        if let Ok(t) = res.text().await {
+            debug!("Pinging headers cache {}:\n{}", self.base_uri, t);
+        } else {
+            warn!(
+                "Pinging headers cache {} and got unexcepted response.",
+                self.base_uri
+            );
+        }
+        Ok(())
+    }
+
     pub async fn get_headers(&self, block_number: BlockNumber) -> Result<Vec<BlockInfo>> {
         let url = format!("{}/headers/{block_number}", self.base_uri);
-        self.request(&url).await
+        self.request_scale(&url).await
     }
 
     pub async fn get_parachain_headers(
@@ -488,7 +508,7 @@ impl Client {
         count: BlockNumber,
     ) -> Result<Vec<Header>> {
         let url = format!("{}/parachain-headers/{start_number}/{count}", self.base_uri);
-        self.request(&url).await
+        self.request_scale(&url).await
     }
 
     pub async fn get_storage_changes(
@@ -497,11 +517,11 @@ impl Client {
         count: BlockNumber,
     ) -> Result<Vec<BlockHeaderWithChanges>> {
         let url = format!("{}/storage-changes/{start_number}/{count}", self.base_uri);
-        self.request(&url).await
+        self.request_scale(&url).await
     }
 
     pub async fn get_genesis(&self, block_number: BlockNumber) -> Result<GenesisBlockInfo> {
         let url = format!("{}/genesis/{block_number}", self.base_uri);
-        self.request(&url).await
+        self.request_scale(&url).await
     }
 }

@@ -2,7 +2,6 @@ Dockerfile
 .dockerignore
 
 doc
-.git
 
 **/target/
 **/*.rs.bk
@@ -89,3 +88,5 @@ pruntime/tmp
 e2e
 *.Dockerfile
 .dockerignore
+
+prb-wm-data

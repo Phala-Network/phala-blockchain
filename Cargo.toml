@@ -43,6 +43,7 @@ members = [
 	"standalone/node",
 	"standalone/runtime",
 	"standalone/pherry",
+	"standalone/prb",
 	"standalone/replay",
 	"standalone/headers-cache",
 	"standalone/justification-validate",

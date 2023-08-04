@@ -1,0 +1,12 @@
+services:
+  wm:
+    image: phalanetwork/prb3:dev
+    hostname: prb-local
+    restart: always
+    network_mode: host
+    logging:
+      options:
+        max-size: "1g"
+    environment: []
+    volumes:
+      - ./prb-wm-data:/var/data/prb-wm

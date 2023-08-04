@@ -94,3 +94,7 @@ yarn-error.log
 .yarnrc.yml
 .yarn
 .eslintcache
+node_modules
+
+prb-wm-data
+frontend/apps/prb3-monitor/public/wm.dev.yml

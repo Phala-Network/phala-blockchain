@@ -1,0 +1,9 @@
+{
+  "extends": ["next/core-web-vitals", "prettier"],
+  "plugins": ["baseui"],
+  "rules": {
+    "baseui/deprecated-theme-api": "warn",
+    "baseui/deprecated-component-api": "warn",
+    "react-hooks/exhaustive-deps": "off"
+  }
+}
