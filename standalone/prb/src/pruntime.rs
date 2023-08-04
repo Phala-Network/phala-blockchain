@@ -24,6 +24,8 @@ pub trait PRuntimeClientWithSemaphore {
 
 #[async_trait::async_trait]
 impl PRuntimeClientWithSemaphore for PRuntimeClient {
+    // Lock the pruntime requester only when needed;
+    // The additional with_lock method is to provide locking ability without breaking compatibility from functions in pherry crate.
     async fn with_lock<'a, R>(&'a self, f: (impl Future<Output = R> + Send + 'a)) -> Result<R> {
         let s = self.client.semaphore.clone();
         let s = s.acquire().await?;

@@ -10,5 +10,5 @@ pub mod utils;
 pub mod wm;
 pub mod worker;
 
-#[subxt::subxt(runtime_metadata_url = "wss://khala.api.onfinality.io:443/public-ws")]
+#[subxt::subxt(runtime_metadata_path = "./artifacts/khala_metadata.scale")]
 pub mod khala {}
