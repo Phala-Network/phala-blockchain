@@ -38,7 +38,7 @@ impl RpcRequest {
         let client = Client::builder()
             .tcp_keepalive(Some(core::time::Duration::from_secs(10)))
             .build()
-            .unwrap();
+            .expect("Should build reqwest client");
         Self {
             base_url,
             client,
