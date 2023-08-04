@@ -115,10 +115,11 @@ function sidevmQueryWithReader({ api, phactory, remotePubkey, address, cert }: S
       throw new Error(error)
     }
     const payload = inkResponse.result.asOk.asInkMessageReturn.toString()
-    if (payload.substring(0, 2) === '0x') {
-      return JSON.parse(hexToString(payload))
+    const parsed = (payload.substring(0, 2) === '0x') ? JSON.parse(hexToString(payload)) : JSON.parse(payload)
+    if (parsed.error) {
+      throw new Error(parsed.error)
     }
-    return JSON.parse(payload)
+    return parsed
   }
 }
 
