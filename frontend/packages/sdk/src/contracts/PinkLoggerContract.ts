@@ -68,6 +68,11 @@ export interface SerMessageTooLarge {
 
 export type SerMessage = SerMessageLog | SerMessageEvent | SerMessageMessageOutput | SerMessageQueryIn | SerMessageTooLarge
 
+export interface GetLogResponse {
+  output: GetLogResponse
+  next: number
+}
+
 export interface LogServerInfo {
   programVersion: [ number, number, number ]
   nextSequence: number
@@ -209,7 +214,7 @@ export class PinkLoggerContractPromise {
     return { api, phactory, remotePubkey, address, cert } as const
   }
 
-  async getLog(contract: AccountId | string, from: number = 0, count: number = 100): Promise<SerMessage[]> {
+  async getLog(contract: AccountId | string, from: number = 0, count: number = 100): Promise<GetLogResponse> {
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
     return await unsafeRunSidevmQuery({ action: 'GetLog', contract, from, count })
@@ -221,12 +226,12 @@ export class PinkLoggerContractPromise {
     return await unsafeRunSidevmQuery({ action: 'GetInfo' })
   }
 
-  async tail(): Promise<SerMessage[]>;
-  async tail(counts: number): Promise<SerMessage[]>;
-  async tail(filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<SerMessage[]>;
-  async tail(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<SerMessage[]>;
-  async tail(counts: number, from: number, filters?: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<SerMessage[]>;
-  async tail(...params: any[]): Promise<SerMessage[]> {
+  async tail(): Promise<GetLogResponse>;
+  async tail(counts: number): Promise<GetLogResponse>;
+  async tail(filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
+  async tail(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
+  async tail(counts: number, from: number, filters?: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
+  async tail(...params: any[]): Promise<GetLogResponse> {
     const request: GetLogRequest = buildGetLogRequest(
       params,
       (x) => {
@@ -242,12 +247,12 @@ export class PinkLoggerContractPromise {
     return await unsafeRunSidevmQuery({ action: 'GetLog', ...request })
   }
 
-  async head(): Promise<SerMessage[]>;
-  async head(counts: number): Promise<SerMessage[]>;
-  async head(filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<SerMessage[]>;
-  async head(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<SerMessage[]>;
-  async head(counts: number, from: number, filters?: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<SerMessage[]>;
-  async head(...params: any[]): Promise<SerMessage[]> {
+  async head(): Promise<GetLogResponse>;
+  async head(counts: number): Promise<GetLogResponse>;
+  async head(filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
+  async head(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
+  async head(counts: number, from: number, filters?: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
+  async head(...params: any[]): Promise<GetLogResponse> {
     const request: GetLogRequest = buildGetLogRequest(params, (x) => x.from || 0, () => ({ from: 0, count: 10 }))
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
