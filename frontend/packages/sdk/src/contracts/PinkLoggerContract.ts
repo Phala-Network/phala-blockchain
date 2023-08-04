@@ -69,7 +69,7 @@ export interface SerMessageTooLarge {
 export type SerMessage = SerMessageLog | SerMessageEvent | SerMessageMessageOutput | SerMessageQueryIn | SerMessageTooLarge
 
 export interface GetLogResponse {
-  output: GetLogResponse
+  records: SerMessage[]
   next: number
 }
 
