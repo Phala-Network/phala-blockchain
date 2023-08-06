@@ -1,6 +1,5 @@
 import { pruntime_rpc } from "./proto";
 import system from './abis/system.json';
-import logServer from './abis/log_server.json';
 
 export * from "./lib/types";
 export * from "./lib/hex";
@@ -16,4 +15,4 @@ export * from './eip712';
 
 export const PhactoryAPI = pruntime_rpc.PhactoryAPI;
 export const pruntimeRpc = pruntime_rpc;
-export const abis = { system, logServer };
+export const abis = { system };
