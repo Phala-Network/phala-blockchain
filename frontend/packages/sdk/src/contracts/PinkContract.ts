@@ -140,17 +140,15 @@ export async function pinkQuery(
     encodedEncryptedData,
     signature,
   };
-  return pruntimeApi.contractQuery(requestData).then((res) => {
-    const { encodedEncryptedData } = res;
-    const { data: encryptedData, iv } = api
-      .createType("EncryptedData", encodedEncryptedData)
-      .toJSON() as {
-      iv: string;
-      data: string;
-    };
-    const data = decrypt(encryptedData, queryAgreementKey, iv);
-    return hexAddPrefix(data);
-  });
+
+  const res = await pruntimeApi.contractQuery(requestData)
+
+  const { data: encryptedResult, iv } = api.createType("EncryptedData", res.encodedEncryptedData).toJSON() as {
+    iv: string;
+    data: string;
+  };
+  const data = decrypt(encryptedResult, queryAgreementKey, iv);
+  return hexAddPrefix(data);
 };
 
 
@@ -210,6 +208,10 @@ export class PinkContractPromise {
   #inkQuery = (isEstimating: boolean, messageOrId: AbiMessage | string | number, options: PinkContractQueryOptions, params: unknown[]): ContractCallSend<'promise'> => {
     const message = this.abi.findMessage(messageOrId);
     const api = this.api as ApiPromise
+
+    if (!options.cert) {
+      throw new Error('You need to provide the `cert` parameter in the options to process a Phat Contract query. Please check the document for a more detailed code snippet: https://www.npmjs.com/package/@phala/sdk')
+    }
 
     const { cert } = options
 

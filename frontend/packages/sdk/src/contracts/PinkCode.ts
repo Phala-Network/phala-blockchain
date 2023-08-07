@@ -6,7 +6,7 @@ import type { AbiConstructor } from '@polkadot/api-contract/types';
 import type { MapConstructorExec } from '@polkadot/api-contract/base/types';
 
 import type { OnChainRegistry } from '../OnChainRegistry';
-import type { AbiLike, WasmLike } from '../types';
+import type { AbiLike } from '../types';
 import type { CertificateData } from '../certificate';
 
 import { SubmittableResult, toPromiseMethod } from '@polkadot/api';
@@ -120,7 +120,7 @@ export class PinkCodePromise {
     return this.api.tx.phalaPhatContracts.clusterUploadResource(
       this.phatRegistry.clusterId,
       'InkCode',
-      this.code.toString()
+      u8aToHex(this.code)
     ).withResultTransform(
       (result: ISubmittableResult) => {
         return new InkCodeSubmittableResult(result, this.abi, this.phatRegistry)

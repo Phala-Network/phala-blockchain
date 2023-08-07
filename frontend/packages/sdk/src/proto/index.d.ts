@@ -1,4 +1,5 @@
 import * as $protobuf from "protobufjs";
+import Long = require("long");
 /** Namespace prpc. */
 export namespace prpc {
 
@@ -90,6 +91,13 @@ export namespace prpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for PrpcError
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 }
 
@@ -563,6 +571,48 @@ export namespace pruntime_rpc {
          * @returns Promise
          */
         public statistics(request: pruntime_rpc.IStatisticsReqeust): Promise<pruntime_rpc.StatisticsResponse>;
+
+        /**
+         * Calls GenerateClusterStateRequest.
+         * @param request Empty message or plain object
+         * @param callback Node-style callback called with the error, if any, and SaveClusterStateArguments
+         */
+        public generateClusterStateRequest(request: google.protobuf.IEmpty, callback: pruntime_rpc.PhactoryAPI.GenerateClusterStateRequestCallback): void;
+
+        /**
+         * Calls GenerateClusterStateRequest.
+         * @param request Empty message or plain object
+         * @returns Promise
+         */
+        public generateClusterStateRequest(request: google.protobuf.IEmpty): Promise<pruntime_rpc.SaveClusterStateArguments>;
+
+        /**
+         * Calls SaveClusterState.
+         * @param request SaveClusterStateArguments message or plain object
+         * @param callback Node-style callback called with the error, if any, and SaveClusterStateResponse
+         */
+        public saveClusterState(request: pruntime_rpc.ISaveClusterStateArguments, callback: pruntime_rpc.PhactoryAPI.SaveClusterStateCallback): void;
+
+        /**
+         * Calls SaveClusterState.
+         * @param request SaveClusterStateArguments message or plain object
+         * @returns Promise
+         */
+        public saveClusterState(request: pruntime_rpc.ISaveClusterStateArguments): Promise<pruntime_rpc.SaveClusterStateResponse>;
+
+        /**
+         * Calls LoadClusterState.
+         * @param request SaveClusterStateResponse message or plain object
+         * @param callback Node-style callback called with the error, if any, and Empty
+         */
+        public loadClusterState(request: pruntime_rpc.ISaveClusterStateResponse, callback: pruntime_rpc.PhactoryAPI.LoadClusterStateCallback): void;
+
+        /**
+         * Calls LoadClusterState.
+         * @param request SaveClusterStateResponse message or plain object
+         * @returns Promise
+         */
+        public loadClusterState(request: pruntime_rpc.ISaveClusterStateResponse): Promise<google.protobuf.Empty>;
     }
 
     namespace PhactoryAPI {
@@ -790,6 +840,27 @@ export namespace pruntime_rpc {
          * @param [response] StatisticsResponse
          */
         type StatisticsCallback = (error: (Error|null), response?: pruntime_rpc.StatisticsResponse) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#generateClusterStateRequest}.
+         * @param error Error, if any
+         * @param [response] SaveClusterStateArguments
+         */
+        type GenerateClusterStateRequestCallback = (error: (Error|null), response?: pruntime_rpc.SaveClusterStateArguments) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#saveClusterState}.
+         * @param error Error, if any
+         * @param [response] SaveClusterStateResponse
+         */
+        type SaveClusterStateCallback = (error: (Error|null), response?: pruntime_rpc.SaveClusterStateResponse) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#loadClusterState}.
+         * @param error Error, if any
+         * @param [response] Empty
+         */
+        type LoadClusterStateCallback = (error: (Error|null), response?: google.protobuf.Empty) => void;
     }
 
     /** Properties of a PhactoryInfo. */
@@ -1015,6 +1086,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for PhactoryInfo
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a SystemInfo. */
@@ -1147,6 +1225,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for SystemInfo
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** GatekeeperRole enum. */
@@ -1250,6 +1335,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for GatekeeperStatus
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a MemoryUsage. */
@@ -1266,6 +1358,9 @@ export namespace pruntime_rpc {
 
         /** MemoryUsage free */
         free?: (number|Long|null);
+
+        /** MemoryUsage rustSpike */
+        rustSpike?: (number|Long|null);
     }
 
     /** Represents a MemoryUsage. */
@@ -1288,6 +1383,9 @@ export namespace pruntime_rpc {
 
         /** MemoryUsage free. */
         public free: (number|Long);
+
+        /** MemoryUsage rustSpike. */
+        public rustSpike: (number|Long);
 
         /**
          * Creates a new MemoryUsage instance using the specified properties.
@@ -1358,6 +1456,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for MemoryUsage
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a SyncedTo. */
@@ -1448,6 +1553,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for SyncedTo
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a HeadersToSync. */
@@ -1547,6 +1659,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for HeadersToSync
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a ParaHeadersToSync. */
@@ -1643,6 +1762,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for ParaHeadersToSync
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a CombinedHeadersToSync. */
@@ -1754,6 +1880,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for CombinedHeadersToSync
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a HeadersSyncedTo. */
@@ -1850,6 +1983,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for HeadersSyncedTo
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a Blocks. */
@@ -1940,6 +2080,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for Blocks
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of an InitRuntimeRequest. */
@@ -2075,6 +2222,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for InitRuntimeRequest
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a GetRuntimeInfoRequest. */
@@ -2174,6 +2328,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for GetRuntimeInfoRequest
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of an InitRuntimeResponse. */
@@ -2291,6 +2452,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for InitRuntimeResponse
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of an Attestation. */
@@ -2405,6 +2573,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for Attestation
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of an AttestationReport. */
@@ -2507,6 +2682,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for AttestationReport
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a GetEgressMessagesResponse. */
@@ -2597,6 +2779,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for GetEgressMessagesResponse
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a ContractQueryRequest. */
@@ -2693,6 +2882,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for ContractQueryRequest
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a Signature. */
@@ -2795,6 +2991,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for Signature
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a Certificate. */
@@ -2891,6 +3094,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for Certificate
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** SignatureType enum. */
@@ -2900,7 +3110,8 @@ export namespace pruntime_rpc {
         Ecdsa = 2,
         Ed25519WrapBytes = 3,
         Sr25519WrapBytes = 4,
-        EcdsaWrapBytes = 5
+        EcdsaWrapBytes = 5,
+        Eip712 = 6
     }
 
     /** Properties of a ContractQueryResponse. */
@@ -2991,6 +3202,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for ContractQueryResponse
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a GetWorkerStateRequest. */
@@ -3081,6 +3299,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for GetWorkerStateRequest
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a WorkerStat. */
@@ -3189,6 +3414,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for WorkerStat
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a WorkerState. */
@@ -3315,6 +3547,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for WorkerState
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a HandoverChallenge. */
@@ -3405,6 +3644,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for HandoverChallenge
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a HandoverChallengeResponse. */
@@ -3501,6 +3747,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for HandoverChallengeResponse
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a HandoverWorkerKey. */
@@ -3597,6 +3850,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for HandoverWorkerKey
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a BenchState. */
@@ -3699,6 +3959,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for BenchState
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a WorkingState. */
@@ -3801,6 +4068,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for WorkingState
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of an EchoMessage. */
@@ -3891,6 +4165,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for EchoMessage
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** ResponsiveEvent enum. */
@@ -3994,6 +4275,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for AddEndpointRequest
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a GetEndpointResponse. */
@@ -4096,6 +4384,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for GetEndpointResponse
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a SignEndpointsRequest. */
@@ -4186,6 +4481,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for SignEndpointsRequest
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a DerivePhalaI2pKeyResponse. */
@@ -4276,6 +4578,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for DerivePhalaI2pKeyResponse
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a TokenomicStat. */
@@ -4408,6 +4717,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for TokenomicStat
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a TokenomicInfo. */
@@ -4564,6 +4880,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for TokenomicInfo
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a NetworkConfigResponse. */
@@ -4666,6 +4989,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for NetworkConfigResponse
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a NetworkConfig. */
@@ -4762,6 +5092,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for NetworkConfig
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a HttpHeader. */
@@ -4858,6 +5195,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for HttpHeader
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a HttpRequest. */
@@ -4966,6 +5310,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for HttpRequest
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a HttpResponse. */
@@ -5068,6 +5419,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for HttpResponse
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a GetContractInfoRequest. */
@@ -5158,6 +5516,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for GetContractInfoRequest
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a GetContractInfoResponse. */
@@ -5248,6 +5613,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for GetContractInfoResponse
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a ContractInfo. */
@@ -5356,6 +5728,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for ContractInfo
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a SidevmInfo. */
@@ -5464,6 +5843,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for SidevmInfo
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a GetClusterInfoResponse. */
@@ -5554,6 +5940,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for GetClusterInfoResponse
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a ClusterInfo. */
@@ -5662,6 +6055,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for ClusterInfo
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a SidevmCode. */
@@ -5758,6 +6158,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for SidevmCode
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a ContractParameters. */
@@ -5866,6 +6273,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for ContractParameters
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a ContractId. */
@@ -5956,6 +6370,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for ContractId
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a ChainState. */
@@ -6052,6 +6473,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for ChainState
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a StopOptions. */
@@ -6142,6 +6570,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for StopOptions
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a StorageProof. */
@@ -6232,6 +6667,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for StorageProof
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a StatisticsReqeust. */
@@ -6328,6 +6770,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for StatisticsReqeust
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a StatisticsResponse. */
@@ -6436,6 +6885,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for StatisticsResponse
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a QueryStats. */
@@ -6532,6 +6988,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for QueryStats
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a QueryCounters. */
@@ -6634,6 +7097,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for QueryCounters
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a HttpEgressStats. */
@@ -6730,6 +7200,13 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for HttpEgressStats
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
     /** Properties of a HttpCounters. */
@@ -6832,6 +7309,225 @@ export namespace pruntime_rpc {
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for HttpCounters
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a SaveClusterStateArguments. */
+    interface ISaveClusterStateArguments {
+
+        /** SaveClusterStateArguments receiver */
+        receiver?: (string|null);
+
+        /** SaveClusterStateArguments minBlockNumber */
+        minBlockNumber?: (number|null);
+
+        /** SaveClusterStateArguments signature */
+        signature?: (string|null);
+    }
+
+    /** Represents a SaveClusterStateArguments. */
+    class SaveClusterStateArguments implements ISaveClusterStateArguments {
+
+        /**
+         * Constructs a new SaveClusterStateArguments.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.ISaveClusterStateArguments);
+
+        /** SaveClusterStateArguments receiver. */
+        public receiver: string;
+
+        /** SaveClusterStateArguments minBlockNumber. */
+        public minBlockNumber: number;
+
+        /** SaveClusterStateArguments signature. */
+        public signature: string;
+
+        /**
+         * Creates a new SaveClusterStateArguments instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns SaveClusterStateArguments instance
+         */
+        public static create(properties?: pruntime_rpc.ISaveClusterStateArguments): pruntime_rpc.SaveClusterStateArguments;
+
+        /**
+         * Encodes the specified SaveClusterStateArguments message. Does not implicitly {@link pruntime_rpc.SaveClusterStateArguments.verify|verify} messages.
+         * @param message SaveClusterStateArguments message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.ISaveClusterStateArguments, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified SaveClusterStateArguments message, length delimited. Does not implicitly {@link pruntime_rpc.SaveClusterStateArguments.verify|verify} messages.
+         * @param message SaveClusterStateArguments message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.ISaveClusterStateArguments, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a SaveClusterStateArguments message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns SaveClusterStateArguments
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.SaveClusterStateArguments;
+
+        /**
+         * Decodes a SaveClusterStateArguments message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns SaveClusterStateArguments
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.SaveClusterStateArguments;
+
+        /**
+         * Verifies a SaveClusterStateArguments message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a SaveClusterStateArguments message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns SaveClusterStateArguments
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.SaveClusterStateArguments;
+
+        /**
+         * Creates a plain object from a SaveClusterStateArguments message. Also converts values to other types if specified.
+         * @param message SaveClusterStateArguments
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.SaveClusterStateArguments, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this SaveClusterStateArguments to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for SaveClusterStateArguments
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a SaveClusterStateResponse. */
+    interface ISaveClusterStateResponse {
+
+        /** SaveClusterStateResponse blockNumber */
+        blockNumber?: (number|null);
+
+        /** SaveClusterStateResponse filename */
+        filename?: (string|null);
+    }
+
+    /** Represents a SaveClusterStateResponse. */
+    class SaveClusterStateResponse implements ISaveClusterStateResponse {
+
+        /**
+         * Constructs a new SaveClusterStateResponse.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.ISaveClusterStateResponse);
+
+        /** SaveClusterStateResponse blockNumber. */
+        public blockNumber: number;
+
+        /** SaveClusterStateResponse filename. */
+        public filename: string;
+
+        /**
+         * Creates a new SaveClusterStateResponse instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns SaveClusterStateResponse instance
+         */
+        public static create(properties?: pruntime_rpc.ISaveClusterStateResponse): pruntime_rpc.SaveClusterStateResponse;
+
+        /**
+         * Encodes the specified SaveClusterStateResponse message. Does not implicitly {@link pruntime_rpc.SaveClusterStateResponse.verify|verify} messages.
+         * @param message SaveClusterStateResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.ISaveClusterStateResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified SaveClusterStateResponse message, length delimited. Does not implicitly {@link pruntime_rpc.SaveClusterStateResponse.verify|verify} messages.
+         * @param message SaveClusterStateResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.ISaveClusterStateResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a SaveClusterStateResponse message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns SaveClusterStateResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.SaveClusterStateResponse;
+
+        /**
+         * Decodes a SaveClusterStateResponse message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns SaveClusterStateResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.SaveClusterStateResponse;
+
+        /**
+         * Verifies a SaveClusterStateResponse message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a SaveClusterStateResponse message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns SaveClusterStateResponse
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.SaveClusterStateResponse;
+
+        /**
+         * Creates a plain object from a SaveClusterStateResponse message. Also converts values to other types if specified.
+         * @param message SaveClusterStateResponse
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.SaveClusterStateResponse, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this SaveClusterStateResponse to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for SaveClusterStateResponse
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 }
 
@@ -6923,6 +7619,13 @@ export namespace google {
              * @returns JSON object
              */
             public toJSON(): { [k: string]: any };
+
+            /**
+             * Gets the default type url for Empty
+             * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+             * @returns The default type url
+             */
+            public static getTypeUrl(typeUrlPrefix?: string): string;
         }
     }
 }

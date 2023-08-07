@@ -7,7 +7,7 @@ import { BN } from '@polkadot/util';
 import { Option, Map, Enum, Vec, U8aFixed, Text } from '@polkadot/types';
 import { AccountId } from '@polkadot/types/interfaces';
 
-import { createPruntimeApi } from './create';
+import createPruntimeClient from './createPruntimeClient'
 import { signCertificate } from './certificate';
 import { pruntime_rpc } from './proto';
 import { PinkContractPromise } from './contracts/PinkContract';
@@ -197,7 +197,7 @@ export class OnChainRegistry {
         }
     }
 
-    this.#phactory = createPruntimeApi(pruntimeURL!)
+    this.#phactory = createPruntimeClient(pruntimeURL!)
 
     // It might not be a good idea to call getInfo() here, but for now both testnet (POC-5 & closed-beta) not yet
     // upgrade to the latest Phactory API, so we need to call it here to make sure that's compatible.

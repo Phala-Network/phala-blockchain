@@ -2,13 +2,18 @@ import type { ApiPromise } from "@polkadot/api";
 import type { Signer as InjectedSigner } from "@polkadot/api/types";
 import type { KeyringPair } from "@polkadot/keyring/types";
 import type { Signer } from "@polkadot/types/types";
+import { type Client, type Account } from 'viem';
 
 import { hexAddPrefix, hexToU8a, u8aToHex } from "@polkadot/util";
 import { decodeAddress } from "@polkadot/util-crypto";
 import { KeypairType } from "@polkadot/util-crypto/types";
 import { sr25519KeypairFromSeed, waitReady } from "@polkadot/wasm-crypto";
+import { signTypedData } from 'viem/wallet';
+
 import { randomHex } from "./lib/hex";
 import { pruntime_rpc as pruntimeRpc } from "./proto";
+import { phalaTypes } from './options';
+import { createEip712StructedDataSignCertificate } from "./eip712";
 
 interface InjectedAccount {
   address: string;
@@ -25,8 +30,9 @@ export type CertificateData = {
 };
 
 interface CertificateBaseParams {
-  api: ApiPromise;
+  api?: ApiPromise;
   signatureType?: pruntimeRpc.SignatureType;
+  ttl?: number
 }
 
 interface CertificateParamsWithSigner extends CertificateBaseParams {
@@ -42,33 +48,73 @@ type CertificateParams =
   | CertificateParamsWithSigner
   | CertificateParamsWithPair;
 
+
 const isUsingSigner = (
   params: CertificateParams
 ): params is CertificateParamsWithSigner =>
   (params as CertificateParamsWithSigner).signer !== undefined;
 
-export const signCertificate = async (
-  params: CertificateParams
-): Promise<CertificateData> => {
-  await waitReady();
-  const { api } = params;
+
+export function generatePair(): [Uint8Array, Uint8Array] {
   const generatedSeed = hexToU8a(hexAddPrefix(randomHex(32)));
   const generatedPair = sr25519KeypairFromSeed(generatedSeed);
-  const [secret, pubkey] = [
+  return [
     generatedPair.slice(0, 64),
     generatedPair.slice(64),
   ];
+}
 
-  const encodedCertificateBody = api
-    .createType("CertificateBody", {
-      pubkey: u8aToHex(pubkey),
-      ttl: 0x7fffffff, // FIXME: max ttl is not safe
-      config_bits: 0,
-    })
-    .toU8a();
+
+function getSignatureTypeFromAccount(account: KeyringPair | InjectedAccount) {
+  const keypairType = account.type || "sr25519";
+  switch (keypairType) {
+    case "sr25519":
+      return pruntimeRpc.SignatureType.Sr25519WrapBytes;
+    case "ed25519":
+      return pruntimeRpc.SignatureType.Ed25519WrapBytes;
+    case "ecdsa":
+      return pruntimeRpc.SignatureType.EcdsaWrapBytes;
+  }
+}
+
+
+function getSignatureTypeFromPair(pair: KeyringPair) {
+  switch (pair.type) {
+    case "sr25519":
+      return pruntimeRpc.SignatureType.Sr25519;
+    case "ed25519":
+      return pruntimeRpc.SignatureType.Ed25519;
+    case "ecdsa":
+      return pruntimeRpc.SignatureType.Ecdsa;
+    default:
+      throw new Error("Unsupported keypair type");
+  }
+}
+
+
+function CertificateBody(pubkey: string, ttl: number, config_bits: number = 0) {
+  const created = phalaTypes.createType(
+    "CertificateBody",
+    { pubkey, ttl, config_bits }
+  )
+  return created.toU8a()
+}
+
+
+export async function signCertificate(params: CertificateParams): Promise<CertificateData> {
+  await waitReady();
+  if (params.api) {
+    console.warn('signCertificate not longer need pass the ApiPromise as parameter, it will remove from type hint in the next.')
+  }
+  if (!(((params as CertificateParamsWithSigner).signer && (params as CertificateParamsWithPair).pair) || (params as CertificateParamsWithPair).pair)) {
+    throw new Error("signCertificate: invalid parameters. Please check document for more information: https://www.npmjs.com/package/@phala/sdk");
+  }
+  // FIXME: max ttl is not safe
+  let { signatureType, ttl = 0x7fffffff } = params;
+  const [secret, pubkey] = generatePair()
+  const encodedCertificateBody = CertificateBody(u8aToHex(pubkey), ttl)
 
   let signerPubkey: string;
-  let signatureType = params.signatureType;
   let signature: Uint8Array;
   let address: string;
   if (isUsingSigner(params)) {
@@ -102,13 +148,7 @@ export const signCertificate = async (
     encodedBody: encodedCertificateBody,
     signature: {
       signedBy: {
-        encodedBody: api
-          .createType("CertificateBody", {
-            pubkey: signerPubkey,
-            ttl: 0x7fffffff, // FIXME: max ttl is not safe
-            config_bits: 0,
-          })
-          .toU8a(),
+        encodedBody: CertificateBody(signerPubkey, ttl),
         signature: null,
       },
       signatureType,
@@ -116,35 +156,28 @@ export const signCertificate = async (
     },
   };
 
-  return {
-    address,
-    certificate,
-    pubkey,
-    secret,
+  return { address, certificate, pubkey, secret };
+}
+
+
+export async function unstable_signEip712Certificate({ client, account, compactPubkey, ttl = 0x7fffffff }: { client: Client, account: Account, compactPubkey: string, ttl?: number }): Promise<CertificateData> {
+  await waitReady();
+  const [secret, pubkey] = generatePair()
+  const address = account.address || account
+  const eip712Cert = CertificateBody(u8aToHex(pubkey), ttl)
+  // It will pop up a window to ask for confirm, so it might failed.
+  const signature = await signTypedData(client, createEip712StructedDataSignCertificate(account, u8aToHex(eip712Cert), ttl))
+  const rootCert = CertificateBody(compactPubkey, ttl)
+  const certificate: pruntimeRpc.ICertificate = {
+    encodedBody: eip712Cert,
+    signature: {
+      signedBy: {
+        encodedBody: rootCert,
+        signature: null,
+      },
+      signatureType: pruntimeRpc.SignatureType.Eip712,
+      signature: hexToU8a(signature),
+    },
   };
-};
-
-const getSignatureTypeFromAccount = (account: KeyringPair | InjectedAccount) => {
-  const keypairType = account.type || "sr25519";
-  switch (keypairType) {
-    case "sr25519":
-      return pruntimeRpc.SignatureType.Sr25519WrapBytes;
-    case "ed25519":
-      return pruntimeRpc.SignatureType.Ed25519WrapBytes;
-    case "ecdsa":
-      return pruntimeRpc.SignatureType.EcdsaWrapBytes;
-  }
-};
-
-const getSignatureTypeFromPair = (pair: KeyringPair) => {
-  switch (pair.type) {
-    case "sr25519":
-      return pruntimeRpc.SignatureType.Sr25519;
-    case "ed25519":
-      return pruntimeRpc.SignatureType.Ed25519;
-    case "ecdsa":
-      return pruntimeRpc.SignatureType.Ecdsa;
-    default:
-      throw new Error("Unsupported keypair type");
-  }
-};
+  return { address, certificate, pubkey, secret } as const;
+}

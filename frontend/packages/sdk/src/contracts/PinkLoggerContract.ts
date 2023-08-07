@@ -8,80 +8,109 @@ import type { InkResponse } from '../types'
 
 import { Keyring } from '@polkadot/api'
 import { hexAddPrefix, hexToU8a, stringToHex, hexToString } from '@polkadot/util'
-import { sr25519Agree, sr25519KeypairFromSeed } from "@polkadot/wasm-crypto";
+import { sr25519Agree } from "@polkadot/wasm-crypto";
 
 import { PinkContractPromise, pinkQuery } from './PinkContract'
 import { ContractInitialError } from './Errors'
-import logServerAbi from '../abis/log_server.json'
-import { signCertificate } from '../certificate'
+import { type CertificateData, generatePair, signCertificate } from '../certificate'
 import { randomHex } from '../lib/hex'
+import { phalaTypes } from '../options'
+import { type pruntime_rpc } from '../proto'
 
 
-export class PinkLoggerContractPromise extends PinkContractPromise {
+interface GetLogRequest {
+  contract?: string
+  from: number
+  count: number
+  block_number?: number
+}
 
-  #pair: KeyringPair
+export interface SerMessageLog {
+  type: 'Log'
+  sequence: number
+  blockNumber: number
+  contract: string
+  entry: string
+  execMode: string
+  timestamp: number
+  level: number
+  message: string
+}
 
-  static async create(api: ApiPromise, registry: OnChainRegistry, systemContract: PinkContractPromise, pair?: KeyringPair): Promise<PinkLoggerContractPromise> {
-    let _pair: KeyringPair | undefined = pair
-    if (!_pair) {
-      const keyring = new Keyring({ type: 'sr25519' });
-      _pair = keyring.addFromUri('//Alice')
-    }
-    const cert = await signCertificate({ api, pair: _pair })
-    const { output } = await systemContract.query['system::getDriver'](_pair.address, { cert }, 'PinkLogger')
-    const contractId = (output as Result<Text, any>).asOk.toHex()
-    if (!contractId) {
-      throw new ContractInitialError('No PinkLogger contract registered in the cluster.')
-    }
-    const contractKey = await registry.getContractKey(contractId)
-    if (!contractKey) {
-      throw new ContractInitialError('PinkLogger contract ID is incorrect and not found in the cluster.')
-    }
-    return new PinkLoggerContractPromise(api, registry, logServerAbi, contractId, contractKey, pair)
+export interface SerMessageEvent {
+  type: 'Event'
+  sequence: number
+  blockNumber: number
+  contract: string
+  topics: string[]
+  payload: string
+}
+
+export interface SerMessageMessageOutput {
+  type: 'MessageOutput'
+  sequence: number
+  blockNumber: number
+  origin: string
+  contract: string
+  nonce: string
+  output: string
+}
+
+export interface SerMessageQueryIn {
+  type: 'QueryIn'
+  sequence: number
+  user: string
+}
+
+export interface SerMessageTooLarge {
+  type: 'TooLarge'
+}
+
+export type SerMessage = SerMessageLog | SerMessageEvent | SerMessageMessageOutput | SerMessageQueryIn | SerMessageTooLarge
+
+export interface GetLogResponse {
+  records: SerMessage[]
+  next: number
+}
+
+export interface LogServerInfo {
+  programVersion: [ number, number, number ]
+  nextSequence: number
+  memoryCapacity: number
+  memoryUsage: number
+  currentNumberOfRecords: number
+  estimatedCurrentSize: number
+}
+
+
+function InkQuery(contractId: AccountId, { sidevmMessage }: { sidevmMessage?: Record<string, any> } = {}) {
+  const head = {
+    nonce: hexAddPrefix(randomHex(32)),
+    id: contractId,
   }
-
-  constructor(api: ApiPromise, registry: OnChainRegistry, abi: any, contractId: string, contractKey: string, pair?: KeyringPair) {
-    super(api, registry, abi, contractId, contractKey)
-    if (!pair) {
-      const keyring = new Keyring({ type: 'sr25519' });
-      this.#pair = keyring.addFromUri('//Alice')
-    } else {
-      this.#pair = pair
-    }
+  let data: Record<string, string> = {}
+  if (sidevmMessage) {
+    data['SidevmMessage'] = stringToHex(JSON.stringify(sidevmMessage))
+  } else {
+    throw new Error('InkQuery construction failed: sidevmMessage is required.')
   }
+  return phalaTypes.createType('InkQuery', { head, data })
+}
 
-  async getLog(contractId: AccountId | string, from: number = 0, counts: number = 100) {
-    const api = this.api as ApiPromise
+interface SidevmQueryContext {
+  api: ApiPromise
+  phactory: pruntime_rpc.PhactoryAPI
+  remotePubkey: string
+  address: AccountId
+  cert: CertificateData
+}
 
-    // Generate a keypair for encryption
-    // NOTE: each instance only has a pre-generated pair now, it maybe better to generate a new keypair every time encrypting
-    const seed = hexToU8a(hexAddPrefix(randomHex(32)));
-    const pair = sr25519KeypairFromSeed(seed);
-    const [sk, pk] = [pair.slice(0, 64), pair.slice(64)];
-
-    const encodedQuery = api.createType('InkQuery', {
-      head: {
-        nonce: hexAddPrefix(randomHex(32)),
-        id: this.address,
-      },
-      data: {
-        SidevmMessage: stringToHex(JSON.stringify({
-          action: 'GetLog',
-          contract: contractId,
-          from,
-          count: counts,
-        })),
-      },
-    })
-
-    const queryAgreementKey = sr25519Agree(
-      hexToU8a(hexAddPrefix(this.phatRegistry.remotePubkey)),
-      sk
-    );
-
-    const cert = await signCertificate({ pair: this.#pair, api });
-
-    const response = await pinkQuery(api, this.phatRegistry.phactory, pk, queryAgreementKey, encodedQuery.toHex(), cert)
+function sidevmQueryWithReader({ api, phactory, remotePubkey, address, cert }: SidevmQueryContext) {
+  return async function unsafeRunSidevmQuery<T>(sidevmMessage: Record<string, any>): Promise<T> {
+    const [sk, pk] = generatePair()
+    const encodedQuery = InkQuery(address, { sidevmMessage })
+    const queryAgreementKey = sr25519Agree(hexToU8a(hexAddPrefix(remotePubkey)), sk)
+    const response = await pinkQuery(api, phactory, pk, queryAgreementKey, encodedQuery.toHex(), cert)
     const inkResponse = api.createType<InkResponse>('InkResponse', response)
     if (inkResponse.result.isErr) {
       let error = `[${inkResponse.result.asErr.index}] ${inkResponse.result.asErr.type}`
@@ -91,9 +120,164 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
       throw new Error(error)
     }
     const payload = inkResponse.result.asOk.asInkMessageReturn.toString()
-    if (payload.substring(0, 2) === '0x') {
-      return JSON.parse(hexToString(payload))
+    const parsed = (payload.substring(0, 2) === '0x') ? JSON.parse(hexToString(payload)) : JSON.parse(payload)
+    if (parsed.error) {
+      throw new Error(parsed.error)
     }
-    return JSON.parse(payload)
+    return parsed
+  }
+}
+
+function buildGetLogRequest(params: any[], getFrom: (x: Partial<GetLogRequest>) => number, getDefaults: () => Partial<GetLogRequest>): GetLogRequest {
+  let request = getDefaults()
+  switch (params.length) {
+    case 0:
+      request.from = getFrom(request)
+      break
+
+    case 1:
+      if (typeof params[0] === 'number') {
+        request.count = params[0]
+        request.from = getFrom(request)
+      } else {
+        request = { ...params[0], ...request, }
+      }
+      break
+
+    case 2:
+      request.count = params[0]
+      if (typeof params[1] === 'number') {
+        request.from = params[1]
+        request.from = getFrom(request)
+      } else {
+        request.from = getFrom(request)
+        request = { ...params[0], ...request, }
+      }
+      break
+
+    case 3:
+      request = { ...params[2], count: params[0], from: params[1] }
+      break
+
+    default:
+      throw new Error('Unexpected parameters.')
+  }
+  return request as GetLogRequest
+}
+
+
+export class PinkLoggerContractPromise {
+  #api: ApiPromise
+  #phatRegistry: OnChainRegistry
+  #address: AccountId;
+  #pair: KeyringPair
+  #systemContractId: string | undefined
+
+  static async create(api: ApiPromise, registry: OnChainRegistry, systemContract: PinkContractPromise, pair?: KeyringPair): Promise<PinkLoggerContractPromise> {
+    let _pair: KeyringPair | undefined = pair
+    if (!_pair) {
+      const keyring = new Keyring({ type: 'sr25519' });
+      _pair = keyring.addFromUri('//Alice')
+    }
+    const cert = await signCertificate({ pair: _pair })
+    const { output } = await systemContract.query['system::getDriver'](_pair.address, { cert }, 'PinkLogger')
+    const contractId = (output as Result<Text, any>).asOk.toHex()
+    if (!contractId) {
+      throw new ContractInitialError('No PinkLogger contract registered in the cluster.')
+    }
+    const systemContractId = systemContract.address?.toHex()
+    return new PinkLoggerContractPromise(api, registry, contractId, pair, systemContractId)
+  }
+
+  constructor(api: ApiPromise, registry: OnChainRegistry, contractId: string | AccountId, pair?: KeyringPair, systemContractId?: string) {
+    this.#api = api
+    this.#phatRegistry = registry
+    this.#address = api.createType('AccountId', contractId);
+    if (!pair) {
+      const keyring = new Keyring({ type: 'sr25519' });
+      this.#pair = keyring.addFromUri('//Alice')
+    } else {
+      this.#pair = pair
+    }
+    this.#systemContractId = systemContractId
+  }
+
+  protected async getSidevmQueryContext(): Promise<SidevmQueryContext> {
+    if (!this.#phatRegistry.phactory || !this.#phatRegistry.remotePubkey) {
+      throw new Error('No Pruntime connection found.')
+    }
+    const cert = await signCertificate({ pair: this.#pair });
+    const api = this.#api as ApiPromise
+    const address = this.#address as AccountId
+    const phactory = this.#phatRegistry.phactory
+    const remotePubkey = this.#phatRegistry.remotePubkey
+    return { api, phactory, remotePubkey, address, cert } as const
+  }
+
+  async getLog(contract: AccountId | string, from: number = 0, count: number = 100): Promise<GetLogResponse> {
+    const ctx = await this.getSidevmQueryContext()
+    const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
+    return await unsafeRunSidevmQuery({ action: 'GetLog', contract, from, count })
+  }
+
+  async getInfo(): Promise<LogServerInfo> {
+    const ctx = await this.getSidevmQueryContext()
+    const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
+    return await unsafeRunSidevmQuery({ action: 'GetInfo' })
+  }
+
+  async tail(): Promise<GetLogResponse>;
+  async tail(counts: number): Promise<GetLogResponse>;
+  async tail(filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
+  async tail(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
+  async tail(counts: number, from: number, filters?: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
+  async tail(...params: any[]): Promise<GetLogResponse> {
+    const request: GetLogRequest = buildGetLogRequest(
+      params,
+      (x) => {
+        if (!x.from) {
+          return x.count ? -x.count : -10
+        }
+        return -(x.from + (x.count || 10))
+      },
+      () => ({ count: 10 })
+    )
+    const ctx = await this.getSidevmQueryContext()
+    const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
+    return await unsafeRunSidevmQuery({ action: 'GetLog', ...request })
+  }
+
+  async head(): Promise<GetLogResponse>;
+  async head(counts: number): Promise<GetLogResponse>;
+  async head(filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
+  async head(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
+  async head(counts: number, from: number, filters?: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
+  async head(...params: any[]): Promise<GetLogResponse> {
+    const request: GetLogRequest = buildGetLogRequest(params, (x) => x.from || 0, () => ({ from: 0, count: 10 }))
+    const ctx = await this.getSidevmQueryContext()
+    const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
+    return await unsafeRunSidevmQuery({ action: 'GetLog', ...request })
+  }
+
+  setSystemContract(contract: PinkContractPromise | string) {
+    if (typeof contract === 'string') {
+      this.#systemContractId = contract
+    } else {
+      this.#systemContractId = contract.address?.toHex()
+    }
+  }
+
+  async headSystemLog(counts: number = 10, from: number = 0) {
+    if (!this.#systemContractId) {
+      throw new Error('System contract ID is not set.')
+    }
+    return this.head(counts, from, { contract: this.#systemContractId })
+  }
+
+  async tailSystemLog(counts: number = 10, from: number = -10) {
+    if (!this.#systemContractId) {
+      throw new Error('System contract ID is not set.')
+    }
+    return this.tail(counts, from, { contract: this.#systemContractId })
   }
 }
