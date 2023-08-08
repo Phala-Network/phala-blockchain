@@ -106,7 +106,7 @@ export async function signCertificate(params: CertificateParams): Promise<Certif
   if (params.api) {
     console.warn('signCertificate not longer need pass the ApiPromise as parameter, it will remove from type hint in the next.')
   }
-  if (!(((params as CertificateParamsWithSigner).signer && (params as CertificateParamsWithPair).pair) || (params as CertificateParamsWithPair).pair)) {
+  if (!(((params as CertificateParamsWithSigner).signer && (params as CertificateParamsWithSigner).account) || (params as CertificateParamsWithPair).pair)) {
     throw new Error("signCertificate: invalid parameters. Please check document for more information: https://www.npmjs.com/package/@phala/sdk");
   }
   // FIXME: max ttl is not safe
