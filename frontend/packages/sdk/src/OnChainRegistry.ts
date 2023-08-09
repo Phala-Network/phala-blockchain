@@ -1,5 +1,4 @@
-import type { ApiPromise } from '@polkadot/api';
-import type { KeyringPair } from '@polkadot/keyring/types';
+import { Keyring, type ApiPromise } from '@polkadot/api';
 import type { U64, Result } from '@polkadot/types';
 
 import { waitReady } from "@polkadot/wasm-crypto";
@@ -8,7 +7,7 @@ import { Option, Map, Enum, Vec, U8aFixed, Text } from '@polkadot/types';
 import { AccountId } from '@polkadot/types/interfaces';
 
 import createPruntimeClient from './createPruntimeClient'
-import { signCertificate } from './certificate';
+import { signCertificate, type CertificateData } from './certificate';
 import { pruntime_rpc } from './proto';
 import { PinkContractPromise } from './contracts/PinkContract';
 import systemAbi from './abis/system.json';
@@ -58,6 +57,7 @@ export class OnChainRegistry {
   #ready: boolean = false
   #phactory: pruntime_rpc.PhactoryAPI | undefined
   #systemContract: PinkContractPromise | undefined
+  #cert: CertificateData | undefined
 
   constructor(api: ApiPromise) {
     this.api = api
@@ -231,15 +231,31 @@ export class OnChainRegistry {
     console.warn('System contract not found, you might not connect to a health cluster.')
   }
 
-  async getClusterBalance(pair: KeyringPair, address: string | AccountId) {
+  async getAnonymousCert(): Promise<CertificateData> {
+    if (!this.#cert) {
+      const keyring = new Keyring({ type: 'sr25519' })
+      const pair = keyring.addFromUri('//Alice')
+      this.#cert = await signCertificate({ pair })
+    }
+    return this.#cert
+  }
+
+  resetAnonymousCert() {
+    this.#cert = undefined
+  }
+
+  async getClusterBalance(address: string | AccountId, cert?: CertificateData) {
     const system = this.#systemContract
     if (!system) {
       throw new Error('System contract not found, you might not connect to a health cluster.')
     }
-    const signParams: any = ((pair as any).signer) ? pair : { pair }
-    const cert = await signCertificate({ ...signParams, api: this.api })
-    const { output: totalBalanceOf } = await system.query['system::totalBalanceOf'](pair.address, { cert }, address)
-    const { output: freeBalanceOf } = await system.query['system::freeBalanceOf'](pair.address, { cert }, address)
+    if (!cert) {
+      cert = await this.getAnonymousCert()
+    }
+    const [{ output: totalBalanceOf }, { output: freeBalanceOf }] = await Promise.all([
+      system.query['system::totalBalanceOf'](cert.address, { cert }, address),
+      system.query['system::freeBalanceOf'](cert.address, { cert }, address),
+    ])
     return {
       total: (totalBalanceOf as Result<U64, any>).asOk.toBn(),
       free: (freeBalanceOf as Result<U64, any>).asOk.toBn(),
