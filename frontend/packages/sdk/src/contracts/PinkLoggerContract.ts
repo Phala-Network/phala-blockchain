@@ -214,6 +214,10 @@ export class PinkLoggerContractPromise {
     return { api, phactory, remotePubkey, address, cert } as const
   }
 
+  get address() {
+    return this.#address
+  }
+
   async getLog(contract: AccountId | string, from: number = 0, count: number = 100): Promise<GetLogResponse> {
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
