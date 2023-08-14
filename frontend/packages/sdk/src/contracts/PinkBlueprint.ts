@@ -170,7 +170,10 @@ export class PinkBlueprintSubmittableResult extends SubmittableResult {
   }
 
   get contract() {
-    return this.#contract
+    if (!this.#contract) {
+        throw new Error('contract is not ready yet, please call waitFinalized first')
+    }
+    return this.#contract!
   }
 }
 
