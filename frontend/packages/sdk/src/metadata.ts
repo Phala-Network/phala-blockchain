@@ -2,6 +2,7 @@ import { type OnChainRegistry } from './OnChainRegistry'
 import { type PinkContractPromise } from './contracts/PinkContract'
 import { type CertificateData } from './certificate'
 import { type Bool } from '@polkadot/types'
+import { fetch } from 'undici'
 
 const OFFICIAL_ARTIFACTS_URL = 'https://phala-network.github.io/phat-contract-artifacts'
 
@@ -38,9 +39,9 @@ export async function unsafeGetAbiFromPatronByCodeHash(codeHash: string): Promis
         throw new Error(`Unknown Error: ${resp.status}: ${_err2}`)
       }
     }
-    throw new Error(`Failed to get abi from Patron: ${resp.status}: ${payload?.error || 'Unknown Error'}`)
+    throw new Error(`Failed to get abi from Patron: ${resp.status}: ${(payload as any)?.error || 'Unknown Error'}`)
   }
-  return await resp.json()
+  return await resp.json() as Record<string, unknown>
 }
 
 export async function unsafeGetAbiFromGitHubRepoByCodeHash(codeHash: string): Promise<Record<string, unknown>> {
@@ -49,7 +50,7 @@ export async function unsafeGetAbiFromGitHubRepoByCodeHash(codeHash: string): Pr
   if (resp.status !== 200) {
     throw new Error(`Failed to get abi from GitHub: ${resp.status}`)
   }
-  return await resp.json()
+  return await resp.json() as Record<string, unknown>
 }
 
 export async function unsafeGetWasmFromPatronByCodeHash(codeHash: string): Promise<Uint8Array> {
