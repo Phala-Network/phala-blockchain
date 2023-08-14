@@ -27,8 +27,12 @@ import assert from '../lib/assert';
 import { PinkContractQueryOptions, PinkContractPromise } from './PinkContract';
 
 
+export interface PinkContractInstantiateCallOutcome extends ContractCallOutcome {
+  salt: string;
+}
+
 interface ContractInkQuery<ApiType extends ApiTypes> extends MessageMeta {
-  (origin: string | AccountId | Uint8Array, ...params: unknown[]): ContractCallResult<ApiType, ContractCallOutcome>;
+  (origin: string | AccountId | Uint8Array, ...params: unknown[]): ContractCallResult<ApiType, PinkContractInstantiateCallOutcome>;
 }
 
 interface MapMessageInkQuery<ApiType extends ApiTypes> {
@@ -98,8 +102,8 @@ async function pinkQuery(
   });
 };
 
-function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, params: unknown[]) => ContractCallResult<'promise', ContractCallOutcome>): ContractInkQuery<'promise'> {
-  return withMeta(meta, (origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, ...params: unknown[]): ContractCallResult<'promise', ContractCallOutcome> =>
+function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, params: unknown[]) => ContractCallResult<'promise', PinkContractInstantiateCallOutcome>): ContractInkQuery<'promise'> {
+  return withMeta(meta, (origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, ...params: unknown[]): ContractCallResult<'promise', PinkContractInstantiateCallOutcome> =>
     fn(origin, options, params)
   );
 }
