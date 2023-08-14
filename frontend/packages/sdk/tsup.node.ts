@@ -8,4 +8,5 @@ export default defineConfig({
   ignoreWatch: ["*.test.ts"],
   target: "node16",
   clean: true,
+  noExternal: ["protobufjs"],
 });
