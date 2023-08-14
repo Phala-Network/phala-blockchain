@@ -28,7 +28,7 @@ use std::{path::Path, str};
 use anyhow::{anyhow, Context as _, Result};
 use core::convert::TryInto;
 use parity_scale_codec::{Decode, Encode};
-use phala_types::AttestationProvider;
+use phala_types::{AttestationProvider, HandoverChallenge};
 use ring::rand::SecureRandom;
 use serde_json::{json, Value};
 use sp_core::{crypto::Pair, sr25519, H256};
@@ -241,6 +241,9 @@ pub struct Phactory<Platform> {
     pub(crate) handover_ecdh_key: Option<EcdhKey>,
 
     #[serde(skip)]
+    handover_last_challenge: Option<HandoverChallenge<chain::BlockNumber>>,
+
+    #[serde(skip)]
     #[serde(default = "Instant::now")]
     last_checkpoint: Instant,
     #[serde(skip)]
@@ -300,6 +303,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             endpoints: Default::default(),
             signed_endpoints: None,
             handover_ecdh_key: None,
+            handover_last_challenge: None,
             last_checkpoint: Instant::now(),
             query_scheduler: default_query_scheduler(),
             netconfig: Default::default(),
@@ -396,6 +400,10 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             info!("Persistent Runtime Data V2 saved");
         }
         Ok(data)
+    }
+
+    fn persistent_runtime_data(&self) -> Result<PersistentRuntimeData, Error> {
+        Self::load_runtime_data(&self.platform, &self.args.sealing_path)
     }
 
     fn load_runtime_data(
