@@ -5,8 +5,8 @@ import type { AccountId, ContractExecResult, EventRecord } from '@polkadot/types
 import type { ApiPromise } from '@polkadot/api';
 import type { ApiBase } from '@polkadot/api/base';
 import type { AbiMessage, ContractOptions, ContractCallOutcome, DecodedEvent } from '@polkadot/api-contract/types';
-import type { ContractCallResult, ContractCallSend, MessageMeta, ContractTx, MapMessageTx } from '@polkadot/api-contract/base/types';
-import type { DecorateMethod, ApiTypes } from '@polkadot/api/types';
+import type { ContractCallResult, ContractCallSend, MessageMeta } from '@polkadot/api-contract/base/types';
+import type { DecorateMethod } from '@polkadot/api/types';
 
 import type { OnChainRegistry } from '../OnChainRegistry';
 import type { AbiLike } from '../types';
@@ -38,14 +38,22 @@ export interface ILooseResult<O, E extends Codec = Codec> extends IEnum {
     readonly isOk: boolean;
 }
 
-export interface ContractInkQuery<ApiType extends ApiTypes> extends MessageMeta {
-  <ResultType = Codec, ErrType extends Codec = Codec>(origin: string | AccountId | Uint8Array, ...params: unknown[]): ContractCallResult<
-    ApiType, PinkContractCallOutcome<ILooseResult<ResultType, ErrType>>
+export interface PinkContractQuery<TParams extends Array<any> = any[], DefaultResultType = Codec, DefaultErrType extends Codec = Codec> extends MessageMeta {
+  <ResultType = DefaultResultType, ErrType extends Codec = DefaultErrType>(origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, ...params: TParams): ContractCallResult<
+    'promise', PinkContractCallOutcome<ILooseResult<ResultType, ErrType>>
   >;
 }
 
-export interface MapMessageInkQuery<ApiType extends ApiTypes> {
-  [message: string]: ContractInkQuery<ApiType>;
+export interface MapMessageInkQuery {
+  [message: string]: PinkContractQuery;
+}
+
+export interface PinkContractTx<TParams extends Array<any> = any[]> extends MessageMeta {
+    (options: ContractOptions, ...params: TParams): SubmittableExtrinsic<'promise'>;
+}
+
+export interface MapMessageTx {
+    [message: string]: PinkContractTx;
 }
 
 export interface PinkContractQueryOptions {
@@ -93,13 +101,16 @@ class PinkContractSubmittableResult extends ContractSubmittableResult {
 }
 
 
-function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, params: unknown[]) => ContractCallResult<'promise', ContractCallOutcome>): ContractInkQuery<'promise'> {
+function createQuery(
+    meta: AbiMessage,
+    fn: (origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, params: unknown[]) => ContractCallResult<'promise', ContractCallOutcome>
+): PinkContractQuery {
   return withMeta(meta, (origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, ...params: unknown[]): ContractCallResult<'promise', ContractCallOutcome> =>
     fn(origin, options, params)
   );
 }
 
-function createTx(meta: AbiMessage, fn: (options: ContractOptions, params: unknown[]) => SubmittableExtrinsic<'promise'>): ContractTx<'promise'> {
+function createTx(meta: AbiMessage, fn: (options: ContractOptions, params: unknown[]) => SubmittableExtrinsic<'promise'>): PinkContractTx {
   return withMeta(meta, (options: ContractOptions, ...params: unknown[]): SubmittableExtrinsic<'promise'> =>
     fn(options, params)
   );
@@ -152,7 +163,7 @@ export async function pinkQuery(
 };
 
 
-export class PinkContractPromise {
+export class PinkContractPromise<TQueries extends Record<string, PinkContractQuery> = Record<string, PinkContractQuery>, TTransactions extends Record<string, PinkContractTx> = Record<string, PinkContractTx>> {
 
   readonly abi: Abi;
   readonly api: ApiBase<'promise'>;
@@ -162,8 +173,8 @@ export class PinkContractPromise {
 
   protected readonly _decorateMethod: DecorateMethod<'promise'>;
 
-  readonly #query: MapMessageInkQuery<'promise'> = {};
-  readonly #tx: MapMessageTx<'promise'> = {};
+  readonly #query: MapMessageInkQuery = {};
+  readonly #tx: MapMessageTx = {};
 
   constructor (api: ApiBase<'promise'>, phatRegistry: OnChainRegistry, abi: AbiLike, address: string | AccountId, contractKey: string) {
     if (!api || !api.isConnected || !api.tx) {
@@ -197,12 +208,12 @@ export class PinkContractPromise {
     return this.api.registry;
   }
 
-  public get query (): MapMessageInkQuery<'promise'> {
-    return this.#query;
+  public get query (): (TQueries & { [k in keyof TTransactions]: PinkContractQuery }) {
+    return this.#query as (TQueries & { [k in keyof TTransactions]: PinkContractQuery });
   }
 
-  public get tx (): MapMessageTx<'promise'> {
-    return this.#tx;
+  public get tx (): TTransactions {
+    return this.#tx as TTransactions;
   }
 
   #inkQuery = (isEstimating: boolean, messageOrId: AbiMessage | string | number, options: PinkContractQueryOptions, params: unknown[]): ContractCallSend<'promise'> => {
