@@ -276,6 +276,74 @@ pub fn create_transaction_ext<T: Encode>(
     Ok(extrinsic)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn create_transaction_with_calldata_ext(
+    signer: &[u8; 32],
+    public_key: &[u8; 32],
+    nonce: u64,
+    spec_version: u32,
+    transaction_version: u32,
+    era_checkpoint: &[u8; 32],
+    genesis_hash: &[u8; 32],
+    calldata: &Vec<u8>,
+    era: Era,
+    tip: u128,
+) -> core::result::Result<Vec<u8>, Error> {
+    let additional_params = (
+        spec_version,
+        transaction_version,
+        genesis_hash,
+        era_checkpoint,
+    );
+    let extra = (era, Compact(nonce), Compact(tip));
+
+    let mut bytes = Vec::new();
+    bytes.extend(calldata);
+    extra.encode_to(&mut bytes);
+    additional_params.encode_to(&mut bytes);
+
+    let signature = if bytes.len() > 256 {
+        signing::sign(
+            &sp_core_hashing::blake2_256(&bytes),
+            signer,
+            SigType::Sr25519,
+        )
+    } else {
+        signing::sign(&bytes, signer, SigType::Sr25519)
+    };
+
+    let signature_type =
+        Signature::try_from(signature.as_slice()).or(Err(Error::InvalidSignature))?;
+    let multi_signature = MultiSignature::Sr25519(signature_type);
+
+    let src_account_id: MultiAddress<[u8; 32], u32> = transaction::MultiAddress::Id(*public_key);
+
+    // Encode Extrinsic
+    let extrinsic = {
+        let mut encoded_inner = Vec::new();
+        // "is signed" + tx protocol v4
+        (0b10000000 + 4u8).encode_to(&mut encoded_inner);
+        // from address for signature
+        src_account_id.encode_to(&mut encoded_inner);
+        // the signature bytes
+        multi_signature.encode_to(&mut encoded_inner);
+        // attach custom extra params
+        extra.encode_to(&mut encoded_inner);
+        // and now, call data
+        encoded_inner.extend(calldata);
+        // now, prefix byte length:
+        let len = Compact(
+            u32::try_from(encoded_inner.len()).expect("extrinsic size expected to be <4GB"),
+        );
+        let mut encoded = Vec::new();
+        len.encode_to(&mut encoded);
+        encoded.extend(encoded_inner);
+        encoded
+    };
+
+    Ok(extrinsic)
+}
+
 pub fn create_transaction<T: Encode>(
     signer: &[u8; 32],
     chain: &str,
@@ -324,6 +392,52 @@ pub fn create_transaction<T: Encode>(
         &era_checkpoint,
         &genesis_hash,
         call_data,
+        era,
+        tip,
+    )
+}
+
+pub fn create_transaction_with_calldata(
+    signer: &[u8; 32],
+    chain: &str,
+    rpc_node: &str,
+    calldata: &Vec<u8>,
+    extra: ExtraParam,
+) -> core::result::Result<Vec<u8>, Error> {
+    let version = get_ss58addr_version(chain)?;
+    let public_key: [u8; 32] = signing::get_public_key(signer, SigType::Sr25519)
+        .try_into()
+        .expect("Public key conversion failed");
+    let addr = public_key.to_ss58check_with_version(version.prefix());
+    let runtime_version = get_runtime_version(rpc_node)?;
+    let genesis_hash: [u8; 32] = get_genesis_hash(rpc_node)?.0;
+
+    let spec_version = runtime_version.spec_version;
+    let transaction_version = runtime_version.transaction_version;
+    let (era_checkpoint, era) = match extra.era {
+        Some(Era::Immortal) => (genesis_hash, Era::Immortal),
+        _ => {
+            let latest_block_hash = get_block_hash(rpc_node, None)?;
+            let header = get_header(rpc_node, Some(latest_block_hash))?;
+            let era = extra.era.unwrap_or(compute_era(header.number as u64)?);
+            (latest_block_hash.into(), era)
+        }
+    };
+    let tip = extra.tip;
+    let nonce = match extra.nonce {
+        Some(n) => n,
+        _ => get_next_nonce(rpc_node, &addr)?,
+    };
+
+    create_transaction_with_calldata_ext(
+        signer,
+        &public_key,
+        nonce,
+        spec_version,
+        transaction_version,
+        &era_checkpoint,
+        &genesis_hash,
+        calldata,
         era,
         tip,
     )
