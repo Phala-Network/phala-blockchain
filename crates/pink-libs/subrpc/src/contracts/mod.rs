@@ -24,8 +24,8 @@ pub enum Error {
     NoResult,
     FailedToReadResult,
     ContractError(Vec<u8>), // the contract explicitly returns an error (error flag == 256)
-    ContractUnknownError,   // the contract explicitly returns an error (error flag == 256) but cannot decode the error
-    ContractTrapped(u32),   // contract panicked: error flag <> 0 && error flag <> 256
+    ContractUnknownError, // the contract explicitly returns an error (error flag == 256) but cannot decode the error
+    ContractTrapped(u32), // contract panicked: error flag <> 0 && error flag <> 256
 }
 
 #[derive(Encode, Decode, Debug)]
