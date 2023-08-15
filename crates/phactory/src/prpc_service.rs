@@ -528,7 +528,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             });
         }
 
-        let mut cached_resp = self
+        let cached_resp = self
             .runtime_info
             .as_mut()
             .ok_or_else(|| from_display("Uninitiated runtime info"))?;
