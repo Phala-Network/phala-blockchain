@@ -15,7 +15,7 @@ insecure__use_cmdline_argv = true
   poll, so it's safe to enable it.
 #}
 insecure__allow_eventfd = true
-stack.size = "1M"
+stack.size = "2M"
 brk.max_size = "256M"
 
 [loader.env]
