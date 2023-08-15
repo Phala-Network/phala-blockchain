@@ -818,8 +818,7 @@ where
     R: std::io::Read,
 {
     let mut deserializer = serde_cbor::Deserializer::from_reader(reader);
-    Ok(Phactory::load_state(&mut deserializer, safe_mode_level)
-        .context("Failed to load factory")?)
+    Phactory::load_state(&mut deserializer, safe_mode_level).context("Failed to load factory")
 }
 
 fn serialize_phactory_to_writer<Platform, R>(phatory: &Phactory<Platform>, writer: R) -> Result<()>
