@@ -33,5 +33,5 @@ if [ ! -f "$PAL_CMD" ]; then
 	exit 1
 fi
 
-CMD=("$PAL_CMD" "$LIBPAL_PATH" init "$APPLICATION" "$@")
-eval "${CMD[@]}"
+"$PAL_CMD" "$LIBPAL_PATH" init "$APPLICATION" "$@"
+echo "$APPLICATION exited with code $?"
