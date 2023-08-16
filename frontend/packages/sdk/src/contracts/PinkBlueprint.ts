@@ -24,7 +24,7 @@ import { pruntime_rpc as pruntimeRpc } from "../proto";
 import { decrypt, encrypt } from "../lib/aes-256-gcm";
 import { randomHex } from "../lib/hex";
 import assert from '../lib/assert';
-import { PinkContractQueryOptions, PinkContractPromise } from './PinkContract';
+import { PinkContractPromise } from './PinkContract';
 
 
 export interface PinkContractInstantiateCallOutcome extends ContractCallOutcome {
@@ -102,8 +102,13 @@ async function pinkQuery(
   });
 };
 
-function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, params: unknown[]) => ContractCallResult<'promise', PinkContractInstantiateCallOutcome>): ContractInkQuery<'promise'> {
-  return withMeta(meta, (origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, ...params: unknown[]): ContractCallResult<'promise', PinkContractInstantiateCallOutcome> =>
+export interface PinkInstantiateQueryOptions {
+  cert: CertificateData
+  salt?: string
+}
+
+function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, options: PinkInstantiateQueryOptions, params: unknown[]) => ContractCallResult<'promise', PinkContractInstantiateCallOutcome>): ContractInkQuery<'promise'> {
+  return withMeta(meta, (origin: string | AccountId | Uint8Array, options: PinkInstantiateQueryOptions, ...params: unknown[]): ContractCallResult<'promise', PinkContractInstantiateCallOutcome> =>
     fn(origin, options, params)
   );
 }
@@ -259,7 +264,7 @@ export class PinkBlueprintPromise {
 
   #estimateGas = (
     constructorOrId: AbiConstructor | string | number,
-    options: PinkContractQueryOptions,
+    options: PinkInstantiateQueryOptions,
     params: unknown[]
   ) => {
     const api = this.api as ApiPromise

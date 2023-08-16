@@ -60,6 +60,8 @@ export interface PinkContractQueryOptions {
   cert: CertificateData
   salt?: string
   estimating?: boolean
+  deposit?: number
+  transfer?: number
 }
 
 class PinkContractSubmittableResult extends ContractSubmittableResult {
@@ -257,8 +259,8 @@ export class PinkContractPromise<TQueries extends Record<string, PinkContractQue
         data: {
           InkMessage: {
             payload: message.toU8a(params),
-            deposit: 0,
-            transfer: null,
+            deposit: options.deposit || 0,
+            transfer: options.transfer || null,
             estimating: (options.estimating !== undefined) ? (!!options.estimating) : isEstimating,
           }
         },
