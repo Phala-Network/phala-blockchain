@@ -59,6 +59,7 @@ export interface MapMessageTx {
 export interface PinkContractQueryOptions {
   cert: CertificateData
   salt?: string
+  estimating?: boolean
 }
 
 class PinkContractSubmittableResult extends ContractSubmittableResult {
@@ -258,7 +259,7 @@ export class PinkContractPromise<TQueries extends Record<string, PinkContractQue
             payload: message.toU8a(params),
             deposit: 0,
             transfer: null,
-            estimating: isEstimating,
+            estimating: (options.estimating !== undefined) ? (!!options.estimating) : isEstimating,
           }
         },
       });
