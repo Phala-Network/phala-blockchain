@@ -37,6 +37,7 @@ pub async fn read_proofs(
     storage_keys: impl IntoIterator<Item = &[u8]>,
 ) -> Result<StorageProof> {
     let mut keys = vec![];
+    // Retrieve the actual storage keys in case they are prefixed
     for prefix in storage_keys {
         let full_keys = api.storage_keys(prefix, hash).await?;
         keys.extend(full_keys);
