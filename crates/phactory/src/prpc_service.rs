@@ -78,7 +78,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     }
 
     pub fn get_info(&self) -> pb::PhactoryInfo {
-        let initialized = self.system.is_some();
+        let initialized = self.runtime_state.is_some();
         let state = self.runtime_state.as_ref();
         let genesis_block_hash = state.map(|state| hex::encode(state.genesis_block_hash));
         let dev_mode = self.dev_mode;
@@ -268,7 +268,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .unwrap_or(counters.next_block_number - 1);
 
         let safe_mode_level = self.args.safe_mode_level;
-        let pubkey = self.system()?.identity_key.public().0;
 
         for block in blocks.into_iter() {
             info!(block = block.block_header.number, "Dispatching");
@@ -286,6 +285,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             let now_ms = state.chain_storage.timestamp_now();
             let chain_storage = state.chain_storage.snapshot();
             let block_number = block.block_header.number;
+            let pubkey = self.system()?.identity_key.public().0;
             let mut context = contracts::pink::context::ContractExecContext::new(
                 ExecutionMode::Transaction,
                 now_ms,
