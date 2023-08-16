@@ -431,6 +431,9 @@ async fn try_load_handover_proof(pr: &PrClient, api: &ParachainApi) -> Result<()
     .await
     .context("Failed to get handover proof")?;
     info!("Loading handover proof at {current_block}");
+    for p in &proof {
+        info!("key=0x{}", hex::encode(sp_core::blake2_256(p)));
+    }
     pr.load_storage_proof(prpc::StorageProof { proof }).await?;
     Ok(())
 }

@@ -171,4 +171,22 @@ impl ChainApi {
         };
         Ok(endpoints)
     }
+
+    pub async fn storage_keys(&self, prefix: &[u8], hash: Option<Hash>) -> Result<Vec<Vec<u8>>> {
+        let page = 100;
+        let mut keys: Vec<Vec<u8>> = vec![];
+
+        loop {
+            let start_key = keys.last().map(|k| &k[..]);
+            let result = self
+                .rpc()
+                .storage_keys_paged(prefix, page, start_key, hash)
+                .await?;
+            if result.is_empty() {
+                break;
+            }
+            result.into_iter().for_each(|key| keys.push(key.0));
+        }
+        Ok(keys)
+    }
 }
