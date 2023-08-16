@@ -58,6 +58,7 @@ export interface MapMessageTx {
 
 export interface PinkContractQueryOptions {
   cert: CertificateData
+  salt?: string
 }
 
 class PinkContractSubmittableResult extends ContractSubmittableResult {

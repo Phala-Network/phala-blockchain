@@ -284,7 +284,7 @@ export class PinkBlueprintPromise {
       } else {
         assert(origin.toString() === cert.address, 'origin must be the same as the certificate address')
       }
-      const salt = randomHex(4)
+      const salt = options.salt || randomHex(4)
       const payload = api.createType("InkQuery", {
         head: {
           nonce: hexAddPrefix(randomHex(32)),
