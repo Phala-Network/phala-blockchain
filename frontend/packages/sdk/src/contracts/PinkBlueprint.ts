@@ -11,7 +11,7 @@ import type { CertificateData } from '../certificate';
 
 import { SubmittableResult } from '@polkadot/api';
 import { ApiBase } from '@polkadot/api/base';
-import { BN_ZERO, isUndefined, hexAddPrefix, u8aToHex, hexToU8a } from '@polkadot/util';
+import { BN_ZERO, isUndefined, hexAddPrefix, u8aToHex, hexToU8a, BN } from '@polkadot/util';
 import { createBluePrintTx, withMeta } from '@polkadot/api-contract/base/util';
 import { sr25519Agree, sr25519KeypairFromSeed, sr25519Sign } from "@polkadot/wasm-crypto";
 import { from } from 'rxjs';
@@ -105,6 +105,8 @@ async function pinkQuery(
 export interface PinkInstantiateQueryOptions {
   cert: CertificateData
   salt?: string
+  transfer?: bigint | string | number | BN
+  deposit?: bigint | string | number | BN
 }
 
 function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, options: PinkInstantiateQueryOptions, params: unknown[]) => ContractCallResult<'promise', PinkContractInstantiateCallOutcome>): ContractInkQuery<'promise'> {
@@ -300,8 +302,8 @@ export class PinkBlueprintPromise {
             codeHash: this.abi.info.source.wasmHash,
             salt,
             instantiateData: this.abi.findConstructor(constructorOrId).toU8a(params),
-            deposit: 0,
-            transfer: 0,
+            deposit: options.deposit || 0,
+            transfer: options.transfer || 0,
           },
         },
       });
