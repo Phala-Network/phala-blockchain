@@ -402,6 +402,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         Ok(data)
     }
 
+    /// Loads the persistent runtime data from the sealing path
     fn persistent_runtime_data(&self) -> Result<PersistentRuntimeData, Error> {
         Self::load_runtime_data(&self.platform, &self.args.sealing_path)
     }
