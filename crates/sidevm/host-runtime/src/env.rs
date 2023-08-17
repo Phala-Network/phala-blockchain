@@ -33,7 +33,7 @@ use wasmer_middlewares::metering;
 
 use crate::{
     async_context::{get_task_cx, set_task_env, GuestWaker},
-    resource::{Resource, ResourceKeeper},
+    resource::{Resource, ResourceKeeper, TcpListenerResource},
     tls::{load_tls_config, TlsStream},
     VmId,
 };
@@ -417,32 +417,30 @@ impl<'a, 'b> env::OcallFuncs for FnEnvMut<'a, &'b mut EnvInner> {
             .or(Err(OcallError::IoError))?;
         let listener = TcpListener::from_std(std_listener).or(Err(OcallError::IoError))?;
         let tls_config = tls_config.map(load_tls_config).transpose()?.map(Arc::new);
-        self.resources.push(Resource::TcpListener {
-            listener,
-            tls_config,
-        })
+        self.resources
+            .push(Resource::TcpListener(Box::new(TcpListenerResource {
+                listener,
+                tls_config,
+            })))
     }
 
     fn tcp_accept(&mut self, waker_id: i32, tcp_res_id: i32) -> Result<(i32, String)> {
         let waker = GuestWaker::from_id(waker_id);
         let (res, remote_addr) = {
             let res = self.resources.get_mut(tcp_res_id)?;
-            let (listener, tls_config) = match res {
-                Resource::TcpListener {
-                    listener,
-                    tls_config,
-                } => (listener, tls_config),
+            let res = match res {
+                Resource::TcpListener(res) => res,
                 _ => return Err(OcallError::UnsupportedOperation),
             };
-            let (stream, addr) = match get_task_cx(waker, |ct| listener.poll_accept(ct)) {
+            let (stream, addr) = match get_task_cx(waker, |ct| res.listener.poll_accept(ct)) {
                 Pending => return Err(OcallError::Pending),
                 Ready(result) => result.or(Err(OcallError::IoError))?,
             };
-            let res = match tls_config {
+            let res = match &res.tls_config {
                 Some(tls_config) => {
                     Resource::TlsStream(Box::new(TlsStream::accept(stream, tls_config.clone())))
                 }
-                None => Resource::TcpStream(stream),
+                None => Resource::TcpStream(Box::new(stream)),
             };
             (res, addr)
         };

@@ -15,15 +15,17 @@ use Resource::*;
 use crate::async_context::{get_task_cx, GuestWaker};
 use crate::tls::TlsStream;
 
+pub struct TcpListenerResource {
+    pub listener: TcpListener,
+    pub tls_config: Option<Arc<ServerConfig>>,
+}
+
 pub enum Resource {
     Sleep(Pin<Box<Sleep>>),
     ChannelRx(Receiver<Vec<u8>>),
     OneshotTx(Option<Sender<Vec<u8>>>),
-    TcpListener {
-        listener: TcpListener,
-        tls_config: Option<Arc<ServerConfig>>,
-    },
-    TcpStream(TcpStream),
+    TcpListener(Box<TcpListenerResource>),
+    TcpStream(Box<TcpStream>),
     TlsStream(Box<TlsStream>),
     TcpConnect(Pin<Box<dyn Future<Output = std::io::Result<TcpStream>> + Send>>),
     TlsConnect(Pin<Box<dyn Future<Output = std::io::Result<TlsStream>> + Send>>),
@@ -57,7 +59,7 @@ impl Resource {
                 let rv = poll_in_task_cx(waker, fut.as_mut());
                 match rv {
                     Pending => Err(OcallError::Pending),
-                    Ready(Ok(stream)) => Ok(Resource::TcpStream(stream)),
+                    Ready(Ok(stream)) => Ok(Resource::TcpStream(Box::new(stream))),
                     Ready(Err(err)) => {
                         log::error!("Tcp connect error: {}", err);
                         Err(OcallError::IoError)
