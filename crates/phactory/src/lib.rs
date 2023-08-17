@@ -28,7 +28,7 @@ use std::{path::Path, str};
 use anyhow::{anyhow, Context as _, Result};
 use core::convert::TryInto;
 use parity_scale_codec::{Decode, Encode};
-use phala_types::AttestationProvider;
+use phala_types::{AttestationProvider, HandoverChallenge};
 use ring::rand::SecureRandom;
 use serde_json::{json, Value};
 use sp_core::{crypto::Pair, sr25519, H256};
@@ -241,6 +241,9 @@ pub struct Phactory<Platform> {
     pub(crate) handover_ecdh_key: Option<EcdhKey>,
 
     #[serde(skip)]
+    handover_last_challenge: Option<HandoverChallenge<chain::BlockNumber>>,
+
+    #[serde(skip)]
     #[serde(default = "Instant::now")]
     last_checkpoint: Instant,
     #[serde(skip)]
@@ -300,6 +303,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             endpoints: Default::default(),
             signed_endpoints: None,
             handover_ecdh_key: None,
+            handover_last_challenge: None,
             last_checkpoint: Instant::now(),
             query_scheduler: default_query_scheduler(),
             netconfig: Default::default(),
@@ -396,6 +400,11 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             info!("Persistent Runtime Data V2 saved");
         }
         Ok(data)
+    }
+
+    /// Loads the persistent runtime data from the sealing path
+    fn persistent_runtime_data(&self) -> Result<PersistentRuntimeData, Error> {
+        Self::load_runtime_data(&self.platform, &self.args.sealing_path)
     }
 
     fn load_runtime_data(
@@ -554,7 +563,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let key128 = derive_key_for_checkpoint(key);
         let nonce = rand::thread_rng().gen();
         let mut enc_writer = aead::stream::new_aes128gcm_writer(key128, nonce, writer);
-        serde_cbor::ser::to_writer(&mut enc_writer, &PhactoryDumper(self))
+        serialize_phactory_to_writer(self, &mut enc_writer)
             .context("Failed to write checkpoint")?;
         enc_writer
             .flush()
@@ -627,8 +636,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let key128 = derive_key_for_checkpoint(key);
         let dec_reader = aead::stream::new_aes128gcm_reader(key128, reader);
         system::sidevm_config(args.cores as _);
-        let PhactoryLoader(mut factory) =
-            serde_cbor::de::from_reader(dec_reader).context("Failed to decode state")?;
+
+        let mut factory = deserialize_phactory_from_reader(dec_reader, args.safe_mode_level)
+            .context("Failed to deserialize Phactory")?;
         factory.set_args(args.clone());
         factory
             .on_restored()
@@ -734,8 +744,14 @@ impl<Platform: Serialize + DeserializeOwned> Phactory<Platform> {
         state.end()
     }
 
-    fn load_state<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct PhactoryVisitor<Platform>(PhantomData<Platform>);
+    fn load_state<'de, D: Deserializer<'de>>(
+        deserializer: D,
+        safe_mode_level: u8,
+    ) -> Result<Self, D::Error> {
+        struct PhactoryVisitor<Platform> {
+            safe_mode_level: u8,
+            _marker: PhantomData<Platform>,
+        }
 
         impl<'de, Platform: Serialize + DeserializeOwned> Visitor<'de> for PhactoryVisitor<Platform> {
             type Value = Phactory<Platform>;
@@ -762,44 +778,59 @@ impl<Platform: Serialize + DeserializeOwned> Phactory<Platform> {
                     .next_element()?
                     .ok_or_else(|| de::Error::custom("Missing Phactory"))?;
 
-                factory.system = {
-                    let runtime_state = factory
-                        .runtime_state
-                        .as_mut()
-                        .ok_or_else(|| de::Error::custom("Missing runtime_state"))?;
+                if self.safe_mode_level < 2 {
+                    factory.system = {
+                        let runtime_state = factory
+                            .runtime_state
+                            .as_mut()
+                            .ok_or_else(|| de::Error::custom("Missing runtime_state"))?;
 
-                    let recv_mq = &mut runtime_state.recv_mq;
-                    let send_mq = &mut runtime_state.send_mq;
-                    let seq = &mut seq;
-                    phala_mq::checkpoint_helper::using_dispatcher(recv_mq, move || {
-                        phala_mq::checkpoint_helper::using_send_mq(send_mq, || {
-                            seq.next_element()?
-                                .ok_or_else(|| de::Error::custom("Missing System"))
-                        })
-                    })?
-                };
+                        let recv_mq = &mut runtime_state.recv_mq;
+                        let send_mq = &mut runtime_state.send_mq;
+                        let seq = &mut seq;
+                        phala_mq::checkpoint_helper::using_dispatcher(recv_mq, move || {
+                            phala_mq::checkpoint_helper::using_send_mq(send_mq, || {
+                                seq.next_element()?
+                                    .ok_or_else(|| de::Error::custom("Missing System"))
+                            })
+                        })?
+                    };
+                } else {
+                    let _: Option<serde::de::IgnoredAny> = seq.next_element()?;
+                }
                 benchmark::restore_state(state);
                 Ok(factory)
             }
         }
 
-        deserializer.deserialize_seq(PhactoryVisitor(PhantomData))
+        deserializer.deserialize_seq(PhactoryVisitor {
+            safe_mode_level,
+            _marker: PhantomData,
+        })
     }
 }
 
-struct PhactoryDumper<'a, Platform>(&'a Phactory<Platform>);
-impl<Platform: Serialize + DeserializeOwned> Serialize for PhactoryDumper<'_, Platform> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.0.dump_state(serializer)
-    }
-}
-struct PhactoryLoader<Platform>(Phactory<Platform>);
-impl<'de, Platform: Serialize + DeserializeOwned + pal::Platform> Deserialize<'de>
-    for PhactoryLoader<Platform>
+fn deserialize_phactory_from_reader<Platform, R>(
+    reader: R,
+    safe_mode_level: u8,
+) -> Result<Phactory<Platform>>
+where
+    Platform: Serialize + DeserializeOwned,
+    R: std::io::Read,
 {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        Ok(Self(Phactory::load_state(deserializer)?))
-    }
+    let mut deserializer = serde_cbor::Deserializer::from_reader(reader);
+    Phactory::load_state(&mut deserializer, safe_mode_level).context("Failed to load factory")
+}
+
+fn serialize_phactory_to_writer<Platform, R>(phatory: &Phactory<Platform>, writer: R) -> Result<()>
+where
+    Platform: Serialize + DeserializeOwned,
+    R: std::io::Write,
+{
+    let mut writer = serde_cbor::ser::IoWrite::new(writer);
+    let mut serializer = serde_cbor::Serializer::new(&mut writer);
+    phatory.dump_state(&mut serializer)?;
+    Ok(())
 }
 
 fn new_sr25519_key() -> sr25519::Pair {

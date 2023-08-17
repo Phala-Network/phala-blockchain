@@ -50,7 +50,7 @@ use phala_types::{
         NewGatekeeperEvent, RemoveGatekeeperEvent, RotateMasterKeyEvent, SystemEvent, WorkerEvent,
         WorkingReportEvent,
     },
-    wrap_content_to_sign, EcdhPublicKey, HandoverChallenge, SignedContentType, WorkerPublicKey,
+    wrap_content_to_sign, EcdhPublicKey, SignedContentType, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
 use sidevm::service::{Command as SidevmCommand, CommandSender, Report, Spawner, SystemMessage};
@@ -448,8 +448,6 @@ pub struct System<Platform> {
     pub(crate) identity_key: WorkerIdentityKey,
     #[serde(with = "ecdh_serde")]
     pub(crate) ecdh_key: EcdhKey,
-    #[serde(skip)]
-    last_challenge: Option<HandoverChallenge<chain::BlockNumber>>,
     /// Be careful to use this field, as it is not updated in safe mode.
     worker_state: WorkerState,
     // Gatekeeper
@@ -531,7 +529,6 @@ impl<Platform: pal::Platform> System<Platform> {
             contract_operation_events: recv_mq.subscribe_bound(),
             identity_key,
             ecdh_key,
-            last_challenge: None,
             worker_state: WorkerState::new(pubkey),
             gatekeeper: None,
             contracts: Default::default(),
@@ -557,43 +554,6 @@ impl<Platform: pal::Platform> System<Platform> {
 
     pub fn registered(&self) -> bool {
         self.worker_state.registered
-    }
-
-    pub fn get_worker_key_challenge(
-        &mut self,
-        block_number: chain::BlockNumber,
-        now: u64,
-    ) -> HandoverChallenge<chain::BlockNumber> {
-        let sgx_target_info = if self.dev_mode {
-            vec![]
-        } else {
-            let my_target_info = sgx_api_lite::target_info().unwrap();
-            sgx_api_lite::encode(&my_target_info).to_vec()
-        };
-        let challenge = HandoverChallenge {
-            sgx_target_info,
-            block_number,
-            now,
-            dev_mode: self.dev_mode,
-            nonce: crate::generate_random_info(),
-        };
-        self.last_challenge = Some(challenge.clone());
-        challenge
-    }
-
-    pub fn verify_worker_key_challenge(
-        &mut self,
-        challenge: &HandoverChallenge<chain::BlockNumber>,
-    ) -> bool {
-        let challenge_match = if self.last_challenge.as_ref() != Some(challenge) {
-            info!("Unknown challenge: {:?}", challenge);
-            false
-        } else {
-            true
-        };
-        // Clear used one-time challenge
-        self.last_challenge = None;
-        challenge_match
     }
 
     pub fn make_query(

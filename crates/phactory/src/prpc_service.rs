@@ -29,8 +29,8 @@ use phala_pallets::utils::attestation::{validate as validate_attestation_report,
 use phala_types::contract::contract_id_preimage;
 use phala_types::{
     contract, messaging::EncryptedKey, wrap_content_to_sign, AttestationReport,
-    ChallengeHandlerInfo, EncryptedWorkerKey, SignedContentType, VersionedWorkerEndpoints,
-    WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfoV2,
+    ChallengeHandlerInfo, EncryptedWorkerKey, HandoverChallenge, SignedContentType,
+    VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfoV2,
 };
 use sp_application_crypto::UncheckedFrom;
 use tracing::{error, info};
@@ -78,7 +78,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     }
 
     pub fn get_info(&self) -> pb::PhactoryInfo {
-        let initialized = self.system.is_some();
+        let initialized = self.runtime_state.is_some();
         let state = self.runtime_state.as_ref();
         let genesis_block_hash = state.map(|state| hex::encode(state.genesis_block_hash));
         let dev_mode = self.dev_mode;
@@ -268,7 +268,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .unwrap_or(counters.next_block_number - 1);
 
         let safe_mode_level = self.args.safe_mode_level;
-        let pubkey = self.system()?.identity_key.public().0;
 
         for block in blocks.into_iter() {
             info!(block = block.block_header.number, "Dispatching");
@@ -286,6 +285,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             let now_ms = state.chain_storage.timestamp_now();
             let chain_storage = state.chain_storage.snapshot();
             let block_number = block.block_header.number;
+            let pubkey = self.system()?.identity_key.public().0;
             let mut context = contracts::pink::context::ContractExecContext::new(
                 ExecutionMode::Transaction,
                 now_ms,
@@ -528,7 +528,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             });
         }
 
-        let mut cached_resp = self
+        let cached_resp = self
             .runtime_info
             .as_mut()
             .ok_or_else(|| from_display("Uninitiated runtime info"))?;
@@ -1109,6 +1109,35 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         self.cluster_state_to_apply = Some(cluster_state);
         Ok(())
     }
+
+    fn get_worker_key_challenge(
+        &mut self,
+        block_number: chain::BlockNumber,
+        now: u64,
+    ) -> HandoverChallenge<chain::BlockNumber> {
+        let sgx_target_info = if self.dev_mode {
+            vec![]
+        } else {
+            let my_target_info = sgx_api_lite::target_info().unwrap();
+            sgx_api_lite::encode(&my_target_info).to_vec()
+        };
+        let challenge = HandoverChallenge {
+            sgx_target_info,
+            block_number,
+            now,
+            dev_mode: self.dev_mode,
+            nonce: crate::generate_random_info(),
+        };
+        self.handover_last_challenge = Some(challenge.clone());
+        challenge
+    }
+
+    pub fn verify_worker_key_challenge(
+        &mut self,
+        challenge: &HandoverChallenge<chain::BlockNumber>,
+    ) -> bool {
+        return self.handover_last_challenge.take().as_ref() == Some(challenge);
+    }
 }
 
 pub struct RpcService<Platform> {
@@ -1483,15 +1512,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     }
 
     // WorkerKey Handover Server
-
     async fn handover_create_challenge(
         &mut self,
         _request: (),
     ) -> RpcResult<pb::HandoverChallenge> {
         let mut phactory = self.lock_phactory(false, true)?;
         let (block, ts) = phactory.current_block()?;
-        let system = phactory.system()?;
-        let challenge = system.get_worker_key_challenge(block, ts);
+        let challenge = phactory.get_worker_key_challenge(block, ts);
         Ok(pb::HandoverChallenge::new(challenge))
     }
 
@@ -1504,8 +1531,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let dev_mode = phactory.dev_mode;
         let in_sgx = attestation_provider == Some(AttestationProvider::Ias);
         let (block_number, now_ms) = phactory.current_block()?;
-        let system = phactory.system()?;
-        let my_identity_key = system.identity_key.clone();
 
         // 1. verify client RA report to ensure it's in sgx
         // this also ensure the message integrity
@@ -1538,7 +1563,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         };
         // 2. verify challenge validity to prevent replay attack
         let challenge = challenge_handler.challenge;
-        if !system.verify_worker_key_challenge(&challenge) {
+        if !phactory.verify_worker_key_challenge(&challenge) {
             return Err(from_display("Invalid challenge"));
         }
         // 3. verify sgx local attestation report to ensure the handover pRuntimes are on the same machine
@@ -1612,6 +1637,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         // Share the key with attestation
         let ecdh_pubkey = challenge_handler.ecdh_pubkey;
         let iv = crate::generate_random_iv();
+        let runtime_data = phactory.persistent_runtime_data().map_err(from_display)?;
+        let (my_identity_key, _) = runtime_data.decode_keys();
         let (ecdh_pubkey, encrypted_key) = key_share::encrypt_secret_to(
             &my_identity_key,
             &[b"worker_key_handover"],
