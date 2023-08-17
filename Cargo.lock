@@ -13787,6 +13787,7 @@ dependencies = [
  "parity-wasm",
  "phala-scheduler",
  "rand 0.8.5",
+ "rocket",
  "rustls-pemfile",
  "serde",
  "sidevm-env",

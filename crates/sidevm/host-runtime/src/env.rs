@@ -10,23 +10,28 @@ use std::{
     time::Duration,
 };
 
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use tokio::{
     net::TcpListener,
-    sync::mpsc::{error::TrySendError, Sender},
     sync::oneshot::Sender as OneshotSender,
+    sync::{
+        mpsc::{error::TrySendError, Sender},
+        oneshot,
+    },
 };
+use tracing::info;
 use wasmer::{
     self, imports, AsStoreMut, Function, FunctionEnv, FunctionEnvMut, Imports, Instance, Memory,
     Store, StoreMut,
 };
 
 use env::{
-    messages::{AccountId, QueryRequest, SystemMessage},
+    messages::{AccountId, HttpRequest, HttpResponseHead, QueryRequest, SystemMessage},
     tls::{TlsClientConfig, TlsServerConfig},
     IntPtr, IntRet, OcallError, Result, RetEncode,
 };
-use scale::Encode;
+use scale::{Decode, Encode};
 use sidevm_env as env;
 use thread_local::ThreadLocal;
 use wasmer_middlewares::metering;
@@ -35,7 +40,7 @@ use crate::{
     async_context::{get_task_cx, set_task_env, GuestWaker},
     resource::{Resource, ResourceKeeper, TcpListenerResource},
     tls::{load_tls_config, TlsStream},
-    VmId,
+    IncomingHttpRequest, VmId,
 };
 
 mod wasi_env;
@@ -163,6 +168,7 @@ pub(crate) struct EnvInner {
     message_tx: Option<Sender<Vec<u8>>>,
     query_tx: Option<Sender<Vec<u8>>>,
     sys_message_tx: Option<Sender<Vec<u8>>>,
+    http_connect_tx: Option<Sender<Vec<u8>>>,
     awake_tasks: Arc<TaskSet>,
     current_task: i32,
     cache_ops: DynCacheOps,
@@ -237,6 +243,7 @@ impl Env {
                 message_tx: None,
                 sys_message_tx: None,
                 query_tx: None,
+                http_connect_tx: None,
                 awake_tasks: Arc::new(TaskSet::with_task0()),
                 current_task: 0,
                 cache_ops,
@@ -282,7 +289,7 @@ impl Env {
         let reply_tx = env_guard
             .resources
             .push(Resource::OneshotTx(Some(reply_tx)));
-        let inner = self.inner.clone();
+        let inner = Arc::downgrade(&self.inner);
         Some(async move {
             let reply_tx = reply_tx?;
             let query = QueryRequest {
@@ -292,10 +299,10 @@ impl Env {
             };
             let result = tx.send(query.encode()).await;
             if result.is_err() {
-                // FIXME: The channel doesn't guarantee the rx side would receive the message even
-                // if the send returns an Ok. So the reply_tx could still leak in that case.
-                let mut env_guard = inner.lock().unwrap();
-                let _ = env_guard.close(reply_tx);
+                if let Some(inner) = inner.upgrade() {
+                    let mut env_guard = inner.lock().unwrap();
+                    let _ = env_guard.close(reply_tx);
+                }
             }
             result?;
             Ok(())
@@ -346,6 +353,59 @@ impl Env {
             .as_ref()
             .expect("BUG: missing memory in env")
             .clone()
+    }
+
+    /// Establish a incoming HTTP connection.
+    pub fn push_http_request(
+        &self,
+        request: IncomingHttpRequest,
+    ) -> Option<impl Future<Output = anyhow::Result<()>>> {
+        let IncomingHttpRequest {
+            head,
+            body_stream,
+            response_tx,
+        } = request;
+        let mut env_guard = self.inner.lock().unwrap();
+        let connect_tx = env_guard.http_connect_tx.clone()?;
+        let (reply_tx, reply_rx) = oneshot::channel();
+        let reply_tx = env_guard
+            .resources
+            .push(Resource::OneshotTx(Some(reply_tx)));
+        tokio::spawn(async move {
+            let reply = reply_rx.await;
+            let reply = reply
+                .context("Failed to receive http response")
+                .and_then(|bytes| {
+                    let response = HttpResponseHead::decode(&mut &bytes[..])?;
+                    Ok(response)
+                });
+            if response_tx.send(reply).is_err() {
+                info!(target: "sidevm", "Failed to send http response");
+            }
+        });
+        let body_stream = env_guard
+            .resources
+            .push(Resource::DuplexStream(body_stream));
+        let inner = Arc::downgrade(&self.inner);
+        Some(async move {
+            let response_tx = reply_tx?;
+            let body_stream = body_stream?;
+            let query = HttpRequest {
+                head,
+                response_tx,
+                body_stream,
+            };
+            let result = connect_tx.send(query.encode()).await;
+            if result.is_err() {
+                if let Some(inner) = inner.upgrade() {
+                    let mut env_guard = inner.lock().unwrap();
+                    let _ = env_guard.close(response_tx);
+                    let _ = env_guard.close(body_stream);
+                }
+            }
+            result?;
+            Ok(())
+        })
     }
 }
 
@@ -551,6 +611,7 @@ impl<'a, 'b> env::OcallFuncs for FnEnvMut<'a, &'b mut EnvInner> {
             GeneralMessage => create_channel!(self.message_tx),
             SystemMessage => create_channel!(self.sys_message_tx),
             Query => create_channel!(self.query_tx),
+            HttpRequest => create_channel!(self.http_connect_tx),
         }
     }
 

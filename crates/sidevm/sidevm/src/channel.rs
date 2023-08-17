@@ -1,6 +1,6 @@
 //! Multi-producer, single-consumer channel implementation.
 use sidevm_env::{
-    messages::{AccountId, QueryRequest, SystemMessage},
+    messages::{AccountId, HttpRequest, QueryRequest, SystemMessage},
     InputChannel, OcallError,
 };
 
@@ -150,4 +150,9 @@ pub fn incoming_system_messages() -> &'static Receiver<SystemMessage> {
 /// Queries from RPC channel.
 pub fn incoming_queries() -> &'static Receiver<Query> {
     singleton_channel!(Query)
+}
+
+/// Incoming HTTP connections.
+pub fn incoming_http_connections() -> &'static Receiver<HttpRequest> {
+    singleton_channel!(HttpRequest)
 }

@@ -36,3 +36,8 @@ tokio-proxy = { git = "https://github.com/Phala-Network/tokio-proxy" }
 page_size = "0.4.2"
 phala-scheduler = { path = "../../phala-scheduler" }
 derive_more = "0.99.17"
+rocket = { version = "0.5.0-rc.3", optional = true }
+
+[features]
+default = ["rocket-stream"]
+rocket-stream = ["rocket"]

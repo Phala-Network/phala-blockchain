@@ -11,6 +11,26 @@ pub struct QueryRequest {
 }
 
 #[derive(Encode, Decode)]
+pub struct HttpHead {
+    pub method: String,
+    pub uri: String,
+    pub headers: Vec<(String, String)>,
+}
+
+#[derive(Encode, Decode)]
+pub struct HttpRequest {
+    pub head: HttpHead,
+    pub response_tx: i32,
+    pub body_stream: i32,
+}
+
+#[derive(Encode, Decode)]
+pub struct HttpResponseHead {
+    pub status: u16,
+    pub headers: Vec<(String, String)>,
+}
+
+#[derive(Encode, Decode)]
 pub enum SystemMessage {
     PinkLog {
         block_number: u32,

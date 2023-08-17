@@ -121,6 +121,8 @@ pub enum InputChannel {
     GeneralMessage = 2,
     /// Input channel for queries from external RPC requests.
     Query = 3,
+    /// Input channel for incoming HTTP requests.
+    HttpRequest = 4,
 }
 
 impl I32Convertible for InputChannel {

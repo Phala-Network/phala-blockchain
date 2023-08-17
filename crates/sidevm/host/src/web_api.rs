@@ -1,16 +1,22 @@
-use rocket::data::ToByteUnit;
+use rocket::data::{ByteUnit, DataStream, ToByteUnit};
 use rocket::http::Status;
+use rocket::request::{FromRequest, Outcome};
 use rocket::response::status::Custom;
-use rocket::{post, routes};
+use rocket::response::Responder;
+use rocket::{post, routes, Request};
 use rocket::{Data, State};
 use scale::Decode;
 use sp_core::crypto::AccountId32;
 use std::collections::HashMap;
+use std::pin::Pin;
 use std::str::FromStr;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, DuplexStream, ReadBuf};
 use tokio::sync::Mutex;
 
-use sidevm_host_runtime::service as sidevm;
 use sidevm::{Command, CommandSender, Spawner, SystemMessage};
+use sidevm_host_runtime::rocket_stream::{bridge, Bridge, DataHttpHead};
+use sidevm_host_runtime::{service as sidevm, IncomingHttpRequest};
 
 use crate::Args;
 struct AppInner {
@@ -166,8 +172,31 @@ async fn push_query(
     Ok(reply)
 }
 
+#[post("/sidevm/<id>", data = "<body>")]
+async fn http_connect<'r>(
+    app: &State<App>,
+    head: DataHttpHead,
+    id: u32,
+    body: Data<'r>,
+) -> Result<Bridge<'r>, Custom<&'static str>> {
+    let (bridge, request, response_rx) = bridge(head.0, body);
+    // let req = IncomingHttpRequest {};
+    // app.send(id, Command::HttpRequest(req))
+    //     .await
+    //     .map_err(|(code, reason)| Custom(Status { code }, reason))?;
+    // let reply = rx.await.or(Err(Custom(
+    //     Status::InternalServerError,
+    //     "Failed to receive query reply from the VM",
+    // )))?;
+    todo!()
+}
+
 #[post("/run/<weight>", data = "<data>")]
-async fn run(app: &State<App>, weight: u32, data: Data<'_>) -> Result<String, Custom<&'static str>> {
+async fn run(
+    app: &State<App>,
+    weight: u32,
+    data: Data<'_>,
+) -> Result<String, Custom<&'static str>> {
     let code = read_data(data)
         .await
         .ok_or(Custom(Status::BadRequest, "No message payload"))?;
@@ -189,9 +218,9 @@ pub async fn serve(args: Args) -> anyhow::Result<()> {
     let app = App::new(spawner, args);
     if let Some(program) = program {
         let wasm_codes = std::fs::read(&program)?;
-        app.run_wasm(1, wasm_codes).await.map_err(|reason| {
-            anyhow::anyhow!("Failed to run wasm: {}", reason)
-        })?;
+        app.run_wasm(1, wasm_codes)
+            .await
+            .map_err(|reason| anyhow::anyhow!("Failed to run wasm: {}", reason))?;
     }
     let _rocket = rocket::build()
         .manage(app)

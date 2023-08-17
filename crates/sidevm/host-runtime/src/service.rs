@@ -4,8 +4,9 @@ use crate::{ShortId, VmId};
 use anyhow::{Context as _, Result};
 use phala_scheduler::TaskScheduler;
 use serde::{Deserialize, Serialize};
-use sidevm_env::messages::AccountId;
+use sidevm_env::messages::{AccountId, HttpHead, HttpResponseHead};
 use std::future::Future;
+use tokio::io::DuplexStream;
 use tokio::{
     sync::mpsc::{channel, Receiver, Sender},
     sync::oneshot::Sender as OneshotSender,
@@ -56,6 +57,14 @@ pub enum Command {
     },
     // Update the task scheduling weight
     UpdateWeight(u32),
+    // An incoming HTTP request
+    HttpRequest(IncomingHttpRequest),
+}
+
+pub struct IncomingHttpRequest {
+    pub(crate) head: HttpHead,
+    pub(crate) body_stream: DuplexStream,
+    pub(crate) response_tx: OneshotSender<anyhow::Result<HttpResponseHead>>,
 }
 
 pub struct ServiceRun {
@@ -187,6 +196,9 @@ impl Spawner {
                             }
                             Some(Command::PushQuery{ origin, payload, reply_tx }) => {
                                 push_msg!(@async: env.push_query(origin, payload, reply_tx), debug, "query");
+                            }
+                            Some(Command::HttpRequest(request)) => {
+                                push_msg!(@async: env.push_http_request(request), debug, "query");
                             }
                             Some(Command::UpdateWeight(weight)) => {
                                 env.set_weight(weight);
