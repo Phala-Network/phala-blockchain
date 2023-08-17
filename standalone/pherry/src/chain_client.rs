@@ -34,10 +34,16 @@ pub async fn read_proof(
 pub async fn read_proofs(
     api: &RelaychainApi,
     hash: Option<Hash>,
-    storage_keys: Vec<&[u8]>,
+    storage_keys: impl IntoIterator<Item = &[u8]>,
 ) -> Result<StorageProof> {
+    let mut keys = vec![];
+    // Retrieve the actual storage keys in case they are prefixed
+    for prefix in storage_keys {
+        let full_keys = api.storage_keys(prefix, hash).await?;
+        keys.extend(full_keys);
+    }
     api.rpc()
-        .read_proof(storage_keys, hash)
+        .read_proof(keys.iter().map(|k| &k[..]), hash)
         .await
         .map(raw_proof)
         .map_err(Into::into)
