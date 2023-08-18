@@ -1,106 +1,81 @@
-use std::{
-    collections::VecDeque,
-    future::Future,
-    pin::Pin,
-    task::{Context, Poll},
-};
+use std::pin::Pin;
 
+use anyhow::{anyhow, Result};
 use rocket::{
-    data::{ByteUnit, DataStream},
-    http::{Header, Status},
+    data::{ByteUnit, IoHandler, IoStream},
+    http::Status,
     request::{FromRequest, Outcome},
     response::Responder,
     Data, Request,
 };
 use sidevm_env::messages::{HttpHead, HttpResponseHead};
 use tokio::{
-    io::{AsyncRead, AsyncWrite, DuplexStream, ReadBuf},
-    sync::oneshot::Receiver,
+    io::{split, AsyncWriteExt, DuplexStream},
+    sync::mpsc::Sender as ChannelSender,
+    sync::oneshot::channel as oneshot_channel,
 };
+use tracing::error;
 
-use crate::IncomingHttpRequest;
+use crate::{service::Command, IncomingHttpRequest};
 
 pub struct DataHttpHead(pub HttpHead);
 
-pub struct BridgedResponse<'r> {
+pub struct StreamResponse {
     head: HttpResponseHead,
-    body_stream: Bridge<'r>,
+    io_stream: DuplexStream,
 }
 
-impl<'r> BridgedResponse<'r> {
-    pub fn new(head: HttpResponseHead, body_stream: Bridge<'r>) -> Self {
-        Self { head, body_stream }
+impl StreamResponse {
+    pub fn new(head: HttpResponseHead, io_stream: DuplexStream) -> Self {
+        Self { head, io_stream }
     }
 }
 
-pub struct Bridge<'r> {
-    input_body: DataStream<'r>,
-    output_stream: DuplexStream,
-    cached_data: VecDeque<u8>,
-}
-
-impl<'r> Future for Bridge<'r> {
-    type Output = std::io::Result<()>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        loop {
-            while !self.cached_data.is_empty() {
-                let me = &mut *self;
-                match Pin::new(&mut me.output_stream).poll_write(cx, me.cached_data.as_slices().0) {
-                    Poll::Ready(Ok(sz)) => {
-                        if sz == 0 {
-                            return Poll::Ready(Err(std::io::Error::new(
-                                std::io::ErrorKind::WriteZero,
-                                "failed to write",
-                            )));
-                        }
-                        let _ = me.cached_data.drain(..sz);
-                    }
-                    Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
-                    Poll::Pending => return Poll::Pending,
-                }
-            }
-
-            let mut input = [0u8; 256];
-            let mut input_buf = ReadBuf::new(&mut input);
-            match Pin::new(&mut self.input_body).poll_read(cx, &mut input_buf) {
-                Poll::Ready(Ok(_)) => {
-                    let sz = input_buf.filled().len();
-                    if sz == 0 {
-                        return Poll::Ready(Ok(()));
-                    }
-                    self.cached_data.extend(&input[..sz]);
-                    continue;
-                }
-                Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
-                Poll::Pending => return Poll::Pending,
-            }
+#[rocket::async_trait]
+impl IoHandler for StreamResponse {
+    async fn io(self: Pin<Box<Self>>, io: IoStream) -> std::io::Result<()> {
+        let Self { io_stream, .. } = *Pin::into_inner(self);
+        let (mut server_reader, mut server_writer) = split(io_stream);
+        let (mut client_reader, mut client_writer) = split(io);
+        let (res_c2s, res_s2c) = tokio::join! {
+            tokio::io::copy(&mut client_reader, &mut server_writer),
+            tokio::io::copy(&mut server_reader, &mut client_writer),
+        };
+        if let Err(e) = res_c2s {
+            error!(target: "sidevm", "Failed to copy from client to server: {}", e);
         }
-    }
-}
-
-impl<'r> AsyncRead for Bridge<'r> {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        if let Poll::Ready(Err(err)) = Pin::new(&mut *self).poll(cx) {
-            return Poll::Ready(Err(err));
+        if let Err(e) = res_s2c {
+            error!(target: "sidevm", "Failed to copy from server to client: {}", e);
         }
-        Pin::new(&mut self.output_stream).poll_read(cx, buf)
+        Ok(())
     }
 }
 
-impl<'r> Responder<'r, 'r> for BridgedResponse<'r> {
-    fn respond_to(self, _req: &'r Request<'_>) -> rocket::response::Result<'r> {
+impl<'r> Responder<'r, 'r> for StreamResponse {
+    fn respond_to(mut self, _req: &'r Request<'_>) -> rocket::response::Result<'r> {
         let mut builder = rocket::response::Response::build();
-        builder.status(Status::new(self.head.status));
-        for (name, value) in self.head.headers.into_iter() {
-            builder.header_adjoin(Header::new(name, value));
+        if Status::new(self.head.status) == Status::SwitchingProtocols {
+            // As Rocket requires to not set status to 101 and do not set headers 'Connection', 'Upgrade',
+            // we need to remove them from the response header.
+            builder.status(Status::ServiceUnavailable);
+            let mut protocol = String::new();
+            for (name, value) in self.head.headers.drain(..) {
+                if name.to_lowercase() == "upgrade" {
+                    protocol = value.to_string();
+                }
+                if name.to_lowercase() != "connection" && name.to_lowercase() != "upgrade" {
+                    builder.raw_header_adjoin(name, value);
+                }
+            }
+            builder.upgrade(protocol, self);
+            builder.streamed_body(&[] as &[u8]);
+        } else {
+            builder.status(Status::new(self.head.status));
+            for (name, value) in self.head.headers.into_iter() {
+                builder.raw_header_adjoin(name, value);
+            }
+            builder.streamed_body(self.io_stream);
         }
-        builder.streamed_body(self.body_stream);
-        builder.upgrade("h2c");
         Ok(builder.finalize())
     }
 }
@@ -125,25 +100,49 @@ impl<'r> FromRequest<'r> for DataHttpHead {
     }
 }
 
-pub fn bridge(
+fn is_upgrade_request(req: &HttpHead) -> bool {
+    req.headers
+        .iter()
+        .find_map(|(name, value)| {
+            if name.to_lowercase() == "connection" {
+                Some(value.to_lowercase() == "upgrade")
+            } else {
+                None
+            }
+        })
+        .unwrap_or(false)
+}
+
+pub async fn connect(
     head: HttpHead,
-    body: Data,
-) -> (
-    Bridge,
-    IncomingHttpRequest,
-    Receiver<anyhow::Result<HttpResponseHead>>,
-) {
-    let (response_tx, response_rx) = tokio::sync::oneshot::channel();
-    let (stream0, stream1) = tokio::io::duplex(1024);
-    let bridge = Bridge {
-        input_body: body.open(ByteUnit::max_value()),
-        output_stream: stream0,
-        cached_data: Default::default(),
-    };
-    let command = IncomingHttpRequest {
+    body: Option<Data<'_>>,
+    command_tx: ChannelSender<Command>,
+) -> Result<StreamResponse> {
+    let is_upgrade = is_upgrade_request(&head);
+    let (response_tx, response_rx) = oneshot_channel();
+    let (mut stream0, stream1) = tokio::io::duplex(1024);
+    let command = Command::HttpRequest(IncomingHttpRequest {
         head,
         body_stream: stream1,
         response_tx,
-    };
-    (bridge, command, response_rx)
+    });
+    command_tx
+        .send(command)
+        .await
+        .or(Err(anyhow!("Command channel closed")))?;
+    if !is_upgrade {
+        // If it is a vanilla HTTP request, we need to send the body.
+        if let Some(body) = body {
+            let data_stream = body.open(ByteUnit::max_value());
+            data_stream.stream_to(&mut stream0).await?;
+            stream0
+                .shutdown()
+                .await
+                .or(Err(anyhow!("Stream shutdown error")))?;
+        }
+    }
+    let resposne = response_rx
+        .await
+        .map_err(|_| anyhow!("Response channel closed"))??;
+    Ok(StreamResponse::new(resposne, stream0))
 }

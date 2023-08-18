@@ -1,22 +1,21 @@
-use rocket::data::{ByteUnit, DataStream, ToByteUnit};
+use rocket::data::ToByteUnit;
 use rocket::http::Status;
-use rocket::request::{FromRequest, Outcome};
 use rocket::response::status::Custom;
-use rocket::response::Responder;
-use rocket::{post, routes, Request};
+use rocket::{get, post, routes};
 use rocket::{Data, State};
+
 use scale::Decode;
 use sp_core::crypto::AccountId32;
+
 use std::collections::HashMap;
-use std::pin::Pin;
 use std::str::FromStr;
-use std::task::{Context, Poll};
-use tokio::io::{AsyncRead, DuplexStream, ReadBuf};
+
+use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 
 use sidevm::{Command, CommandSender, Spawner, SystemMessage};
-use sidevm_host_runtime::rocket_stream::{bridge, Bridge, DataHttpHead};
-use sidevm_host_runtime::{service as sidevm, IncomingHttpRequest};
+use sidevm_host_runtime::rocket_stream::{connect, DataHttpHead, StreamResponse};
+use sidevm_host_runtime::service as sidevm;
 
 use crate::Args;
 struct AppInner {
@@ -53,6 +52,10 @@ impl App {
             .await
             .or(Err((500, "Failed to send message")))?;
         Ok(())
+    }
+
+    async fn sender_for(&self, vmid: u32) -> Option<Sender<Command>> {
+        self.inner.lock().await.instances.get(&vmid).cloned()
     }
 
     async fn run_wasm(&self, weight: u32, wasm_bytes: Vec<u8>) -> Result<u32, &'static str> {
@@ -173,22 +176,38 @@ async fn push_query(
 }
 
 #[post("/sidevm/<id>", data = "<body>")]
-async fn http_connect<'r>(
+async fn connect_vm_post<'r>(
     app: &State<App>,
     head: DataHttpHead,
     id: u32,
     body: Data<'r>,
-) -> Result<Bridge<'r>, Custom<&'static str>> {
-    let (bridge, request, response_rx) = bridge(head.0, body);
-    // let req = IncomingHttpRequest {};
-    // app.send(id, Command::HttpRequest(req))
-    //     .await
-    //     .map_err(|(code, reason)| Custom(Status { code }, reason))?;
-    // let reply = rx.await.or(Err(Custom(
-    //     Status::InternalServerError,
-    //     "Failed to receive query reply from the VM",
-    // )))?;
-    todo!()
+) -> Result<StreamResponse, (Status, String)> {
+    connect_vm(app, head, id, Some(body)).await
+}
+
+#[get("/sidevm/<id>")]
+async fn connect_vm_get<'r>(
+    app: &State<App>,
+    head: DataHttpHead,
+    id: u32,
+) -> Result<StreamResponse, (Status, String)> {
+    connect_vm(app, head, id, None).await
+}
+
+async fn connect_vm<'r>(
+    app: &State<App>,
+    head: DataHttpHead,
+    id: u32,
+    body: Option<Data<'r>>,
+) -> Result<StreamResponse, (Status, String)> {
+    let Some(command_tx) = app.sender_for(id).await else {
+        return Err((Status::NotFound, Default::default()));
+    };
+    let result = connect(head.0, body, command_tx).await;
+    match result {
+        Ok(response) => Ok(response),
+        Err(err) => Err((Status::InternalServerError, err.to_string())),
+    }
 }
 
 #[post("/run/<weight>", data = "<data>")]
@@ -232,6 +251,8 @@ pub async fn serve(args: Args) -> anyhow::Result<()> {
                 push_query,
                 push_query_no_origin,
                 run,
+                connect_vm_get,
+                connect_vm_post,
             ],
         )
         .launch()

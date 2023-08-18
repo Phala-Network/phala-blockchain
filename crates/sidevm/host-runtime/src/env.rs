@@ -393,7 +393,7 @@ impl Env {
             let query = HttpRequest {
                 head,
                 response_tx,
-                body_stream,
+                io_stream: body_stream,
             };
             let result = connect_tx.send(query.encode()).await;
             if result.is_err() {

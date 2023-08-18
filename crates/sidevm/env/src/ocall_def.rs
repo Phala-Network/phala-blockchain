@@ -134,6 +134,7 @@ impl I32Convertible for InputChannel {
             1 => Ok(InputChannel::SystemMessage),
             2 => Ok(InputChannel::GeneralMessage),
             3 => Ok(InputChannel::Query),
+            4 => Ok(InputChannel::HttpRequest),
             _ => Err(OcallError::InvalidParameter),
         }
     }
