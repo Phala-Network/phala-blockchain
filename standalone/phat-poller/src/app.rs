@@ -8,11 +8,14 @@ use crate::{
 use std::{
     collections::{BTreeMap, VecDeque},
     future::Future,
-    sync::{Arc, Mutex, Weak},
+    sync::{
+        atomic::{AtomicI32, Ordering},
+        Arc, Mutex, Weak,
+    },
     time::Duration,
 };
 
-use anyhow::{anyhow, Result, Context};
+use anyhow::{anyhow, Context, Result};
 use phaxt::AccountId;
 use sp_core::{sr25519::Pair as KeyPair, H256};
 use tokio::task::JoinHandle;
@@ -56,6 +59,34 @@ pub struct State {
     last_probe_time: Option<Instant>,
     last_poll_time: Option<Instant>,
     last_poll_result: BTreeMap<ContractId, PollResult>,
+}
+
+#[derive(Default, Debug)]
+struct Stats {
+    contract_polled: AtomicI32,
+    workflow_polled: AtomicI32,
+    workflow_finished: AtomicI32,
+    workflow_succeeded: AtomicI32,
+    workflow_failed: AtomicI32,
+}
+
+impl Stats {
+    fn inc_contract_polled(&self) {
+        self.contract_polled.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn inc_polled(&self) {
+        self.workflow_polled.fetch_add(1, Ordering::Relaxed);
+    }
+    fn inc_finished(&self) {
+        self.workflow_finished.fetch_add(1, Ordering::Relaxed);
+    }
+    fn inc_succeeded(&self) {
+        self.workflow_succeeded.fetch_add(1, Ordering::Relaxed);
+    }
+    fn inc_failed(&self) {
+        self.workflow_failed.fetch_add(1, Ordering::Relaxed);
+    }
 }
 
 pub struct App {
@@ -296,9 +327,13 @@ impl App {
         loop {
             info!("poll contracts begin");
             let start = Instant::now();
+            let stats = Arc::new(Stats::default());
             self.state.lock().unwrap().last_poll_time = Some(start);
-            let result =
-                tokio::time::timeout(self.config.poll_timeout_overall, self.poll_contracts()).await;
+            let result = tokio::time::timeout(
+                self.config.poll_timeout_overall,
+                self.poll_contracts(stats.clone()),
+            )
+            .await;
             match result {
                 Err(_) => {
                     warn!("poll contracts timeout");
@@ -310,12 +345,13 @@ impl App {
             }
             let rest_time = self.config.poll_interval.saturating_sub(start.elapsed());
             info!("{}ms elapsed", start.elapsed().as_millis());
+            info!("stats: {stats:?}");
             info!("next poll in {}s", rest_time.as_secs());
             tokio::time::sleep(rest_time).await;
         }
     }
 
-    async fn poll_contracts(&self) -> Result<()> {
+    async fn poll_contracts(&self, stats: Arc<Stats>) -> Result<()> {
         let mut live_workers = self
             .state
             .lock()
@@ -365,6 +401,7 @@ impl App {
                 "adding poll, user={user}, profile={profile:?}, worker={}",
                 worker.pubkey
             );
+            stats.inc_contract_polled();
             let handle = self.spawn(
                 "poll",
                 &format!(
@@ -377,6 +414,7 @@ impl App {
                     profile,
                     self.weak_self.clone(),
                     self.config.caller.clone(),
+                    stats.clone(),
                 ),
             );
             poll_handles.push(handle);
@@ -394,10 +432,11 @@ async fn poll_contract(
     profile: ContractId,
     weak_app: Weak<App>,
     caller: KeyPair,
+    stats: Arc<Stats>,
 ) -> Result<()> {
     let pubkey = worker.pubkey;
     let start_time = Instant::now();
-    let result = poll_contract_inner(worker, profile, weak_app.clone(), caller).await;
+    let result = poll_contract_inner(worker, profile, weak_app.clone(), caller, stats).await;
     if let Some(app) = weak_app.upgrade() {
         let result = match &result {
             Ok(_) => Ok(()),
@@ -421,6 +460,7 @@ async fn poll_contract_inner(
     profile: ContractId,
     weak_app: Weak<App>,
     caller: KeyPair,
+    stats: Arc<Stats>,
 ) -> Result<()> {
     let count = pink_query::<(), u64>(
         &worker.pubkey,
@@ -437,6 +477,7 @@ async fn poll_contract_inner(
         .ok_or_else(|| anyhow::anyhow!("app gone"))?;
     let mut handles = vec![];
     for i in 0..count {
+        stats.inc_polled();
         let handle = app.spawn(
             "workflow",
             &format!(
@@ -444,7 +485,7 @@ async fn poll_contract_inner(
                 worker.pubkey
             ),
             app.config.poll_timeout,
-            poll_workflow(worker.clone(), profile, i, caller.clone()),
+            poll_workflow(worker.clone(), profile, i, caller.clone(), stats.clone()),
         );
         handles.push(handle);
     }
@@ -462,12 +503,13 @@ async fn poll_contract_inner(
     }
 }
 
-#[instrument(skip(worker, profile, caller), name = "flow")]
+#[instrument(skip(worker, profile, caller, stats), name = "flow")]
 async fn poll_workflow(
     worker: Worker,
     profile: ContractId,
     id: u64,
     caller: KeyPair,
+    stats: Arc<Stats>,
 ) -> Result<()> {
     debug!("polling workflow");
     let result = pink_query::<_, crate::contracts::PollResponse>(
@@ -480,6 +522,12 @@ async fn poll_workflow(
     )
     .await;
     debug!("result: {result:?}");
+    if result.is_ok() {
+        stats.inc_succeeded();
+    } else {
+        stats.inc_failed();
+    }
+    stats.inc_finished();
     result?.map_err(|e| anyhow!("{e:?}"))
 }
 
