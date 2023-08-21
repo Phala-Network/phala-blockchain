@@ -17,6 +17,12 @@ pub struct RequestScheduler<FlowId: FlowIdType> {
     inner: Arc<Mutex<SchedulerInner<FlowId>>>,
 }
 
+impl<Fid: FlowIdType> Default for RequestScheduler<Fid> {
+    fn default() -> Self {
+        Self::new(32, 8)
+    }
+}
+
 pub struct DumpInfo<FlowId> {
     pub backlog: Vec<(FlowId, VirtualTime)>,
     pub flows: Vec<(FlowId, VirtualTime, VirtualTime)>,
