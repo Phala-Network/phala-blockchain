@@ -359,7 +359,7 @@ impl TxManager {
                     let id = ids.get(idx).ok_or(UnknownDataMismatch)?;
                     let tx = self.clone().tx_map.get(id).ok_or(UnknownDataMismatch)?;
                     let mut tx = tx.lock().await;
-                    let shot = std::mem::replace(&mut tx.shot, None).ok_or(UnknownDataMismatch)?;
+                    let shot = tx.shot.take().ok_or(UnknownDataMismatch)?;
                     tx.state = match &r {
                         Ok(_) => TransactionState::Success(TransactionSuccess::default()),
                         Err(e) => TransactionState::Error(e.into()),
@@ -375,7 +375,7 @@ impl TxManager {
                 for id in ids {
                     let tx = self.clone().tx_map.get(&id).ok_or(UnknownDataMismatch)?;
                     let mut tx = tx.lock().await;
-                    let shot = std::mem::replace(&mut tx.shot, None).ok_or(UnknownDataMismatch)?;
+                    let shot = tx.shot.take().ok_or(UnknownDataMismatch)?;
                     tx.state = TransactionState::Error((&e).into());
                     if shot.send(Err(anyhow!(e.to_string()))).is_err() {
                         return Err(anyhow!("shot can't be sent"));
@@ -397,7 +397,7 @@ impl TxManager {
         for i in ids.iter() {
             let tx = self.tx_map.get(i).ok_or(UnknownDataMismatch)?;
             let mut tx = tx.lock().await;
-            let call = std::mem::replace(&mut tx.tx_payload, None).ok_or(UnknownDataMismatch)?;
+            let call = tx.tx_payload.take().ok_or(UnknownDataMismatch)?;
             calls.push(call);
             drop(tx);
         }

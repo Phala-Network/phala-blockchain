@@ -804,7 +804,7 @@ pub mod pallet {
 			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
 			// is called. Or the property of the nft will be overwrote incorrectly.
 			let mut nft_guard =
-				base_pool::Pallet::<T>::get_nft_attr_guard(pool_info.basepool.cid, nft_id.into())?;
+				base_pool::Pallet::<T>::get_nft_attr_guard(pool_info.basepool.cid, nft_id)?;
 			let nft = &mut nft_guard.attr;
 			let in_queue_shares = match pool_info
 				.basepool
