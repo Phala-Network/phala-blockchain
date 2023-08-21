@@ -247,7 +247,6 @@ pub struct Phactory<Platform> {
     #[serde(default = "Instant::now")]
     last_checkpoint: Instant,
     #[serde(skip)]
-    #[serde(default = "default_query_scheduler")]
     query_scheduler: RequestScheduler<AccountId>,
 
     #[serde(default)]
@@ -281,11 +280,9 @@ struct ClusterState<'a> {
     cluster: Cow<'a, Cluster>,
 }
 
-fn default_query_scheduler() -> RequestScheduler<AccountId> {
+fn create_query_scheduler(cores: u32) -> RequestScheduler<AccountId> {
     const FAIR_QUEUE_BACKLOG: usize = 32;
-    const FAIR_QUEUE_THREADS: u32 = 8;
-
-    RequestScheduler::new(FAIR_QUEUE_BACKLOG, FAIR_QUEUE_THREADS)
+    RequestScheduler::new(FAIR_QUEUE_BACKLOG, cores + 2)
 }
 
 impl<Platform: pal::Platform> Phactory<Platform> {
@@ -305,7 +302,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             handover_ecdh_key: None,
             handover_last_challenge: None,
             last_checkpoint: Instant::now(),
-            query_scheduler: default_query_scheduler(),
+            query_scheduler: Default::default(),
             netconfig: Default::default(),
             can_load_chain_state: false,
             trusted_sk: false,
@@ -323,6 +320,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 
         self.can_load_chain_state = !system::gk_master_key_exists(&args.sealing_path);
         self.args = Arc::new(args);
+        self.query_scheduler = create_query_scheduler(self.args.cores);
     }
 
     pub fn set_args(&mut self, args: InitArgs) {
@@ -461,6 +459,7 @@ impl<P: pal::Platform> Phactory<P> {
                 state.chain_storage.inner_mut().load_proof(vec![])
             }
         }
+        self.query_scheduler = create_query_scheduler(self.args.cores);
         Ok(())
     }
 
