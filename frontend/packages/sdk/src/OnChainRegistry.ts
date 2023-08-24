@@ -179,12 +179,6 @@ export class OnChainRegistry {
         if (!workerId && !pruntimeURL) {
           workerId = endpoints[0][0] as string
           pruntimeURL = (endpoints[0][1] as Option<VersionedEndpoints>).unwrap().asV1[0].toPrimitive() as string
-        } else if (workerId) {
-          const endpoint = endpoints.find(([id, _]) => id === workerId)
-          if (!endpoint) {
-            throw new Error(`Worker not found: ${workerId}`)
-          }
-          pruntimeURL = (endpoint[1] as Option<VersionedEndpoints>).unwrap().asV1[0].toPrimitive() as string
         } else if (pruntimeURL) {
           const endpoint = endpoints.find(([_, v]) => {
             const url = (v as Option<VersionedEndpoints>).unwrap().asV1[0].toPrimitive() as string
@@ -193,6 +187,12 @@ export class OnChainRegistry {
           if (endpoint) {
             workerId = endpoint[0] as string
           }
+        } else if (workerId) {
+          const endpoint = endpoints.find(([id, _]) => id === workerId)
+          if (!endpoint) {
+            throw new Error(`Worker not found: ${workerId}`)
+          }
+          pruntimeURL = (endpoint[1] as Option<VersionedEndpoints>).unwrap().asV1[0].toPrimitive() as string
         }
     }
 
