@@ -190,10 +190,9 @@ export class OnChainRegistry {
             const url = (v as Option<VersionedEndpoints>).unwrap().asV1[0].toPrimitive() as string
             return url === pruntimeURL
           })
-          if (!endpoint) {
-            throw new Error(`Worker not found: ${workerId}`)
+          if (endpoint) {
+            workerId = endpoint[0] as string
           }
-          workerId = endpoint[0] as string
         }
     }
 
