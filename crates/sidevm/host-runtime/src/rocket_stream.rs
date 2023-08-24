@@ -86,7 +86,9 @@ impl<'r> FromRequest<'r> for DataHttpHead {
 
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         let method = req.method().to_string();
-        let uri = req.uri().to_string();
+        let uri = req.uri();
+        let path = uri.path().to_string();
+        let query = uri.query().map(|s| s.to_string()).unwrap_or_default();
         let headers = req
             .headers()
             .iter()
@@ -94,7 +96,8 @@ impl<'r> FromRequest<'r> for DataHttpHead {
             .collect();
         Outcome::Success(DataHttpHead(HttpHead {
             method,
-            uri,
+            path,
+            query,
             headers,
         }))
     }

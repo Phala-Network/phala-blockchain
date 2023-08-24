@@ -175,7 +175,7 @@ async fn push_query(
     Ok(reply)
 }
 
-#[post("/sidevm/<id>", data = "<body>")]
+#[post("/sidevm/<id>/<_..>", data = "<body>")]
 async fn connect_vm_post<'r>(
     app: &State<App>,
     head: DataHttpHead,
@@ -185,7 +185,7 @@ async fn connect_vm_post<'r>(
     connect_vm(app, head, id, Some(body)).await
 }
 
-#[get("/sidevm/<id>")]
+#[get("/sidevm/<id>/<_..>")]
 async fn connect_vm_get<'r>(
     app: &State<App>,
     head: DataHttpHead,
