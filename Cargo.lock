@@ -13757,7 +13757,7 @@ checksum = "43b2853a4d09f215c24cc5489c992ce46052d359b5109343cbafbf26bc62f8a3"
 
 [[package]]
 name = "sidevm"
-version = "0.2.0-alpha.0"
+version = "0.2.0-alpha.2"
 dependencies = [
  "derive_more",
  "futures",
@@ -13774,7 +13774,7 @@ dependencies = [
 
 [[package]]
 name = "sidevm-env"
-version = "0.2.0-alpha.0"
+version = "0.2.0-alpha.2"
 dependencies = [
  "cfg-if",
  "derive_more",
@@ -13827,7 +13827,7 @@ dependencies = [
 
 [[package]]
 name = "sidevm-logger"
-version = "0.2.0-alpha.0"
+version = "0.2.0-alpha.2"
 dependencies = [
  "log",
  "sidevm-env",
@@ -13835,7 +13835,7 @@ dependencies = [
 
 [[package]]
 name = "sidevm-macro"
-version = "0.2.0-alpha.0"
+version = "0.2.0-alpha.2"
 dependencies = [
  "heck 0.4.1",
  "insta",

@@ -89,15 +89,20 @@ impl<'r> FromRequest<'r> for DataHttpHead {
         let uri = req.uri();
         let path = uri.path().to_string();
         let query = uri.query().map(|s| s.to_string()).unwrap_or_default();
+        let host = req.host().map(|s| s.to_string()).unwrap_or_default();
         let headers = req
             .headers()
             .iter()
             .map(|header| (header.name.to_string(), header.value.to_string()))
             .collect();
+        let mut url = format!("http://{}{}", host, path);
+        if !query.is_empty() {
+            url.push('?');
+            url.push_str(&query);
+        }
         Outcome::Success(DataHttpHead(HttpHead {
             method,
-            path,
-            query,
+            url,
             headers,
         }))
     }

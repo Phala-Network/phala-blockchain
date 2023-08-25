@@ -13,8 +13,7 @@ pub struct QueryRequest {
 #[derive(Encode, Decode, Debug)]
 pub struct HttpHead {
     pub method: String,
-    pub path: String,
-    pub query: String,
+    pub url: String,
     pub headers: Vec<(String, String)>,
 }
 
