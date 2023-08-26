@@ -18,7 +18,12 @@ use tracing::error;
 
 use crate::{service::Command, IncomingHttpRequest};
 
-pub struct DataHttpHead(pub HttpHead);
+pub struct RequestInfo {
+    method: String,
+    host: String,
+    query: String,
+    headers: Vec<(String, String)>,
+}
 
 pub struct StreamResponse {
     head: HttpResponseHead,
@@ -81,13 +86,12 @@ impl<'r> Responder<'r, 'r> for StreamResponse {
 }
 
 #[rocket::async_trait]
-impl<'r> FromRequest<'r> for DataHttpHead {
+impl<'r> FromRequest<'r> for RequestInfo {
     type Error = &'static str;
 
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         let method = req.method().to_string();
         let uri = req.uri();
-        let path = uri.path().to_string();
         let query = uri.query().map(|s| s.to_string()).unwrap_or_default();
         let host = req.host().map(|s| s.to_string()).unwrap_or_default();
         let headers = req
@@ -95,20 +99,37 @@ impl<'r> FromRequest<'r> for DataHttpHead {
             .iter()
             .map(|header| (header.name.to_string(), header.value.to_string()))
             .collect();
-        let mut url = format!("http://{}{}", host, path);
+        Outcome::Success(Self {
+            method,
+            host,
+            query,
+            headers,
+        })
+    }
+}
+
+impl RequestInfo {
+    fn into_head(self, path: &str) -> HttpHead {
+        let Self {
+            method,
+            host,
+            query,
+            headers,
+        } = self;
+        let mut url = format!("http://{}/{}", host, path);
         if !query.is_empty() {
             url.push('?');
             url.push_str(&query);
         }
-        Outcome::Success(DataHttpHead(HttpHead {
+        HttpHead {
             method,
             url,
             headers,
-        }))
+        }
     }
 }
 
-fn is_upgrade_request(req: &HttpHead) -> bool {
+fn is_upgrade_request(req: &RequestInfo) -> bool {
     req.headers
         .iter()
         .find_map(|(name, value)| {
@@ -122,7 +143,8 @@ fn is_upgrade_request(req: &HttpHead) -> bool {
 }
 
 pub async fn connect(
-    head: HttpHead,
+    head: RequestInfo,
+    path: &str,
     body: Option<Data<'_>>,
     command_tx: ChannelSender<Command>,
 ) -> Result<StreamResponse> {
@@ -130,7 +152,7 @@ pub async fn connect(
     let (response_tx, response_rx) = oneshot_channel();
     let (mut stream0, stream1) = tokio::io::duplex(1024);
     let command = Command::HttpRequest(IncomingHttpRequest {
-        head,
+        head: head.into_head(path),
         body_stream: stream1,
         response_tx,
     });
@@ -142,11 +164,19 @@ pub async fn connect(
         // If it is a vanilla HTTP request, we need to send the body.
         if let Some(body) = body {
             let data_stream = body.open(ByteUnit::max_value());
-            data_stream.stream_to(&mut stream0).await?;
-            stream0
-                .shutdown()
-                .await
-                .or(Err(anyhow!("Stream shutdown error")))?;
+            let stream0 = &mut stream0;
+            let result: Result<()> = async move {
+                data_stream.stream_to(&mut *stream0).await?;
+                stream0
+                    .shutdown()
+                    .await
+                    .or(Err(anyhow!("Stream shutdown error")))?;
+                Ok(())
+            }
+            .await;
+            if let Err(err) = result {
+                error!(target: "sidevm", "Failed to pipe the body: {err:?}");
+            }
         }
     }
     let resposne = response_rx

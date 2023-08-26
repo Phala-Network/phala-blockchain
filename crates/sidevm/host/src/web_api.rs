@@ -11,12 +11,13 @@ use tokio::task::JoinHandle;
 
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::path::PathBuf;
 
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 
 use sidevm::{Command, CommandSender, Spawner, SystemMessage};
-use sidevm_host_runtime::rocket_stream::{connect, DataHttpHead, StreamResponse};
+use sidevm_host_runtime::rocket_stream::{connect, RequestInfo, StreamResponse};
 use sidevm_host_runtime::service::{self as sidevm, ExitReason};
 
 use crate::Args;
@@ -76,11 +77,10 @@ impl App {
             Some(id) => id,
             None => inner.next_id,
         };
-        inner.next_id = inner
-            .next_id
-            .max(id)
+        inner.next_id = id
             .checked_add(1)
-            .ok_or("Too many instances")?;
+            .ok_or("Too many instances")?
+            .max(inner.next_id);
 
         let mut vmid = [0u8; 32];
 
@@ -193,35 +193,39 @@ async fn push_query(
     Ok(reply)
 }
 
-#[post("/sidevm/<id>/<_..>", data = "<body>")]
+#[post("/sidevm/<id>/<path..>", data = "<body>")]
 async fn connect_vm_post<'r>(
     app: &State<App>,
-    head: DataHttpHead,
+    head: RequestInfo,
     id: u32,
+    path: PathBuf,
     body: Data<'r>,
 ) -> Result<StreamResponse, (Status, String)> {
-    connect_vm(app, head, id, Some(body)).await
+    connect_vm(app, head, id, path, Some(body)).await
 }
 
-#[get("/sidevm/<id>/<_..>")]
+#[get("/sidevm/<id>/<path..>")]
 async fn connect_vm_get<'r>(
     app: &State<App>,
-    head: DataHttpHead,
+    head: RequestInfo,
     id: u32,
+    path: PathBuf,
 ) -> Result<StreamResponse, (Status, String)> {
-    connect_vm(app, head, id, None).await
+    connect_vm(app, head, id, path, None).await
 }
 
 async fn connect_vm<'r>(
     app: &State<App>,
-    head: DataHttpHead,
+    head: RequestInfo,
     id: u32,
+    path: PathBuf,
     body: Option<Data<'r>>,
 ) -> Result<StreamResponse, (Status, String)> {
     let Some(command_tx) = app.sender_for(id).await else {
         return Err((Status::NotFound, Default::default()));
     };
-    let result = connect(head.0, body, command_tx).await;
+    let path = path.to_str().ok_or((Status::BadRequest, "Invalid path".to_string()))?;
+    let result = connect(head, path, body, command_tx).await;
     match result {
         Ok(response) => Ok(response),
         Err(err) => Err((Status::InternalServerError, err.to_string())),
