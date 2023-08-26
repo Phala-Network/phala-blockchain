@@ -8,7 +8,7 @@ runs:
       run: sudo bash dockerfile.d/01_apt.sh
       shell: bash
     - name: Install cargo-contract
-      run: cargo install --locked cargo-contract --version =3.0.1
+      run: cargo install --locked cargo-contract --version =3.2.0
       shell: bash
     - name: Install rust components
       run: rustup component add rust-src && rustup target add wasm32-wasi
