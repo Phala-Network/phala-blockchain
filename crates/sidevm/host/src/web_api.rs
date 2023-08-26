@@ -241,6 +241,7 @@ async fn run(
 ) -> Result<String, Custom<&'static str>> {
     if let Some(id) = id {
         if let Some(handle) = app.take_handle(id).await {
+            info!("Stopping VM {id}...");
             if let Err(err) = handle.sender.send(Command::Stop).await {
                 warn!("Failed to send stop command to the VM: {err:?}");
             }
@@ -258,6 +259,22 @@ async fn run(
         .await
         .map_err(|reason| Custom(Status::InternalServerError, reason))?;
     Ok(id.to_string())
+}
+
+#[post("/stop?<id>")]
+async fn stop(app: &State<App>, id: u32) -> Result<(), Custom<&'static str>> {
+    let Some(handle) = app.take_handle(id).await else {
+        return Err(Custom(Status::NotFound, "Instance not found"));
+    };
+    info!("Stopping VM {id}...");
+    if let Err(err) = handle.sender.send(Command::Stop).await {
+        warn!("Failed to send stop command to the VM: {err:?}");
+    }
+    match handle.handle.await {
+        Ok(reason) => info!("VM exited: {reason:?}"),
+        Err(err) => warn!("Failed to wait VM exit: {err:?}"),
+    }
+    Ok(())
 }
 
 pub async fn serve(args: Args) -> anyhow::Result<()> {
@@ -285,6 +302,7 @@ pub async fn serve(args: Args) -> anyhow::Result<()> {
                 push_query,
                 push_query_no_origin,
                 run,
+                stop,
                 connect_vm_get,
                 connect_vm_post,
             ],
