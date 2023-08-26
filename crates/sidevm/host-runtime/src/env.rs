@@ -20,7 +20,7 @@ use tokio::{
         oneshot,
     },
 };
-use tracing::info;
+use tracing::{info, Instrument, Span};
 use wasmer::{
     self, imports, AsStoreMut, Function, FunctionEnv, FunctionEnvMut, Imports, Instance, Memory,
     Store, StoreMut,
@@ -371,18 +371,21 @@ impl Env {
         let reply_tx = env_guard
             .resources
             .push(Resource::OneshotTx(Some(reply_tx)));
-        tokio::spawn(async move {
-            let reply = reply_rx.await;
-            let reply = reply
-                .context("Failed to receive http response")
-                .and_then(|bytes| {
-                    let response = HttpResponseHead::decode(&mut &bytes[..])?;
-                    Ok(response)
-                });
-            if response_tx.send(reply).is_err() {
-                info!(target: "sidevm", "Failed to send http response");
+        tokio::spawn(
+            async move {
+                let reply = reply_rx.await;
+                let reply = reply
+                    .context("Failed to receive http response")
+                    .and_then(|bytes| {
+                        let response = HttpResponseHead::decode(&mut &bytes[..])?;
+                        Ok(response)
+                    });
+                if response_tx.send(reply).is_err() {
+                    info!(target: "sidevm", "Failed to send http response");
+                }
             }
-        });
+            .instrument(Span::current()),
+        );
         let body_stream = env_guard
             .resources
             .push(Resource::DuplexStream(body_stream));

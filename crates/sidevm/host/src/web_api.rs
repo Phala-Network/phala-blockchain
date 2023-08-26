@@ -1,3 +1,4 @@
+use log::{info, warn};
 use rocket::data::ToByteUnit;
 use rocket::http::Status;
 use rocket::response::status::Custom;
@@ -6,6 +7,7 @@ use rocket::{Data, State};
 
 use scale::Decode;
 use sp_core::crypto::AccountId32;
+use tokio::task::JoinHandle;
 
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -15,12 +17,16 @@ use tokio::sync::Mutex;
 
 use sidevm::{Command, CommandSender, Spawner, SystemMessage};
 use sidevm_host_runtime::rocket_stream::{connect, DataHttpHead, StreamResponse};
-use sidevm_host_runtime::service as sidevm;
+use sidevm_host_runtime::service::{self as sidevm, ExitReason};
 
 use crate::Args;
+struct VmHandle {
+    sender: CommandSender,
+    handle: JoinHandle<ExitReason>,
+}
 struct AppInner {
     next_id: u32,
-    instances: HashMap<u32, CommandSender>,
+    instances: HashMap<u32, VmHandle>,
     args: Args,
     spawner: Spawner,
 }
@@ -42,11 +48,8 @@ impl App {
     }
 
     async fn send(&self, vmid: u32, message: Command) -> Result<(), (u16, &'static str)> {
-        self.inner
-            .lock()
+        self.sender_for(vmid)
             .await
-            .instances
-            .get(&vmid)
             .ok_or((404, "Instance not found"))?
             .send(message)
             .await
@@ -55,13 +58,29 @@ impl App {
     }
 
     async fn sender_for(&self, vmid: u32) -> Option<Sender<Command>> {
-        self.inner.lock().await.instances.get(&vmid).cloned()
+        Some(self.inner.lock().await.instances.get(&vmid)?.sender.clone())
     }
 
-    async fn run_wasm(&self, weight: u32, wasm_bytes: Vec<u8>) -> Result<u32, &'static str> {
+    async fn take_handle(&self, vmid: u32) -> Option<VmHandle> {
+        self.inner.lock().await.instances.remove(&vmid)
+    }
+
+    async fn run_wasm(
+        &self,
+        wasm_bytes: Vec<u8>,
+        weight: u32,
+        id: Option<u32>,
+    ) -> Result<u32, &'static str> {
         let mut inner = self.inner.lock().await;
-        let id = inner.next_id;
-        inner.next_id += 1;
+        let id = match id {
+            Some(id) => id,
+            None => inner.next_id,
+        };
+        inner.next_id = inner
+            .next_id
+            .max(id)
+            .checked_add(1)
+            .ok_or("Too many instances")?;
 
         let mut vmid = [0u8; 32];
 
@@ -79,8 +98,7 @@ impl App {
                 weight,
             )
             .unwrap();
-        inner.instances.insert(id, sender);
-        tokio::spawn(handle);
+        inner.instances.insert(id, VmHandle { sender, handle });
         Ok(id)
     }
 }
@@ -210,17 +228,29 @@ async fn connect_vm<'r>(
     }
 }
 
-#[post("/run/<weight>", data = "<data>")]
+#[post("/run?<weight>&<id>", data = "<data>")]
 async fn run(
     app: &State<App>,
-    weight: u32,
+    weight: Option<u32>,
+    id: Option<u32>,
     data: Data<'_>,
 ) -> Result<String, Custom<&'static str>> {
+    if let Some(id) = id {
+        if let Some(handle) = app.take_handle(id).await {
+            if let Err(err) = handle.sender.send(Command::Stop).await {
+                warn!("Failed to send stop command to the VM: {err:?}");
+            }
+            match handle.handle.await {
+                Ok(reason) => info!("VM exited: {reason:?}"),
+                Err(err) => warn!("Failed to wait VM exit: {err:?}"),
+            }
+        };
+    }
     let code = read_data(data)
         .await
         .ok_or(Custom(Status::BadRequest, "No message payload"))?;
     let id = app
-        .run_wasm(weight, code)
+        .run_wasm(code, weight.unwrap_or(1), id)
         .await
         .map_err(|reason| Custom(Status::InternalServerError, reason))?;
     Ok(id.to_string())
@@ -237,7 +267,7 @@ pub async fn serve(args: Args) -> anyhow::Result<()> {
     let app = App::new(spawner, args);
     if let Some(program) = program {
         let wasm_codes = std::fs::read(&program)?;
-        app.run_wasm(1, wasm_codes)
+        app.run_wasm(wasm_codes, 1, None)
             .await
             .map_err(|reason| anyhow::anyhow!("Failed to run wasm: {}", reason))?;
     }
