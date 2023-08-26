@@ -905,3 +905,7 @@ fn try_decode_hex(hex_str: &str) -> Result<Vec<u8>, hex::FromHexError> {
 pub fn public_data_dir(storage_path: impl AsRef<Path>) -> PathBuf {
     storage_path.as_ref().to_path_buf().join("public")
 }
+
+pub const fn version_str() -> &'static str {
+    this_crate::version_str!()
+}

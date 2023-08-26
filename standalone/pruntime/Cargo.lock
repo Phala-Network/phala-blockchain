@@ -1158,6 +1158,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fbdcdcb6d86f71c5e97409ad45898af11cbc995b4ee8112d59095a28d376c935"
 
 [[package]]
+name = "const_panic"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6051f239ecec86fde3410901ab7860d458d160371533842974fc61f96d15879b"
+
+[[package]]
 name = "constant_time_eq"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3832,6 +3838,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "konst"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "030400e39b2dff8beaa55986a17e0014ad657f569ca92426aafcb5e8e71faee7"
+dependencies = [
+ "const_panic",
+ "konst_kernel",
+ "konst_proc_macros",
+ "typewit",
+]
+
+[[package]]
+name = "konst_kernel"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3376133edc39f027d551eb77b077c2865a0ef252b2e7d0dd6b6dc303db95d8b5"
+dependencies = [
+ "typewit",
+]
+
+[[package]]
+name = "konst_proc_macros"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e28ab1dc35e09d60c2b8c90d12a9a8d9666c876c10a3739a3196db0103b6043"
+
+[[package]]
 name = "lalrpop"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5572,7 +5605,7 @@ dependencies = [
 
 [[package]]
 name = "phactory"
-version = "0.0.1"
+version = "2.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5635,6 +5668,7 @@ dependencies = [
  "sp-runtime-interface",
  "sp-state-machine",
  "sp-trie",
+ "this-crate 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror",
  "tokio",
  "tracing",
@@ -6064,7 +6098,7 @@ dependencies = [
  "parity-scale-codec",
  "pink-extension-macro",
  "scale-info",
- "this-crate",
+ "this-crate 0.1.0",
 ]
 
 [[package]]
@@ -6471,6 +6505,7 @@ dependencies = [
  "base64 0.13.0",
  "clap",
  "hex_fmt",
+ "konst",
  "lazy_static",
  "libc",
  "num_cpus",
@@ -6491,6 +6526,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sgx-api-lite",
+ "this-crate 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing",
  "urlencoding",
  "version",
@@ -8918,6 +8954,15 @@ dependencies = [
 [[package]]
 name = "this-crate"
 version = "0.1.0"
+dependencies = [
+ "konst",
+]
+
+[[package]]
+name = "this-crate"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23c3dac231fac5770597ae4670029b06ea5adab46e2fd192838e9a77007ec656"
 
 [[package]]
 name = "thiserror"
@@ -9465,6 +9510,12 @@ name = "typenum"
 version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "497961ef93d974e23eb6f433eb5fe1b7930b659f06d12dec6fc44a8f554c0bba"
+
+[[package]]
+name = "typewit"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e5cee357cc77d1e02f10a3e6c4e13b8462fafab05998b62d331b7d9485589ff"
 
 [[package]]
 name = "ubyte"
