@@ -174,6 +174,7 @@ pub(crate) struct EnvInner {
     cache_ops: DynCacheOps,
     weight: u32,
     instance: Option<Instance>,
+    _counter: vm_counter::Counter,
 }
 
 impl VmMemory {
@@ -249,6 +250,7 @@ impl Env {
                 cache_ops,
                 weight: 1,
                 instance: None,
+                _counter: Default::default(),
             })),
         }
     }
@@ -813,3 +815,31 @@ impl fmt::Display for OcallAborted {
 }
 
 impl std::error::Error for OcallAborted {}
+
+pub use vm_counter::vm_count;
+mod vm_counter {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    pub fn vm_count() -> usize {
+        Counter::current()
+    }
+
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+    pub struct Counter(());
+    impl Counter {
+        pub fn current() -> usize {
+            COUNTER.load(Ordering::Relaxed)
+        }
+    }
+    impl Default for Counter {
+        fn default() -> Self {
+            COUNTER.fetch_add(1, Ordering::Relaxed);
+            Self(())
+        }
+    }
+    impl Drop for Counter {
+        fn drop(&mut self) {
+            COUNTER.fetch_sub(1, Ordering::Relaxed);
+        }
+    }
+}

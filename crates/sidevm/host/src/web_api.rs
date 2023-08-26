@@ -277,6 +277,16 @@ async fn stop(app: &State<App>, id: u32) -> Result<(), Custom<&'static str>> {
     Ok(())
 }
 
+#[get("/info")]
+async fn info(app: &State<App>) -> String {
+    let inner = app.inner.lock().await;
+    serde_json::json!({
+        "running": sidevm_host_runtime::vm_count(),
+        "deployed": inner.instances.len(),
+        "ids": inner.instances.keys().cloned().collect::<Vec<_>>(),
+    }).to_string()
+}
+
 pub async fn serve(args: Args) -> anyhow::Result<()> {
     let (run, spawner) = sidevm::service(args.workers);
     std::thread::spawn(move || {
@@ -305,6 +315,7 @@ pub async fn serve(args: Args) -> anyhow::Result<()> {
                 stop,
                 connect_vm_get,
                 connect_vm_post,
+                info,
             ],
         )
         .launch()

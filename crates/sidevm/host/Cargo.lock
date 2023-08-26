@@ -2849,6 +2849,7 @@ dependencies = [
  "once_cell",
  "parity-scale-codec",
  "rocket",
+ "serde_json",
  "sidevm-host-runtime",
  "sp-core",
  "tokio",

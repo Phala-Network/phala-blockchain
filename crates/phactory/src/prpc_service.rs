@@ -159,6 +159,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 let (major, minor) = ::pink::runtimes::max_supported_version();
                 format!("{major}.{minor}")
             },
+            live_sidevm_instances: sidevm::vm_count() as u32,
         }
     }
 
