@@ -840,7 +840,7 @@ fn new_sr25519_key() -> sr25519::Pair {
 }
 
 // TODO.kevin: Move to phactory-api when the std ready.
-fn generate_random_iv() -> aead::IV {
+pub fn generate_random_iv() -> aead::IV {
     let mut nonce_vec = [0u8; aead::IV_BYTES];
     let rand = ring::rand::SystemRandom::new();
     rand.fill(&mut nonce_vec).unwrap();

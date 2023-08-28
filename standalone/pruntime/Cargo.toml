@@ -39,6 +39,7 @@ phala-rocket-middleware = { path = "../../crates/phala-rocket-middleware" }
 phala-types = { path = "../../crates/phala-types", features = ["enable_serde", "sgx"] }
 phala-git-revision = { path = "../../crates/phala-git-revision" }
 phala-clap-parsers = { path = "../../crates/phala-clap-parsers" }
+phala-crypto = { path = "../../crates/phala-crypto" }
 sgx-api-lite = { path = "../../crates/sgx-api-lite" }
 tracing = "0.1"
 hex_fmt = "0.3.0"
