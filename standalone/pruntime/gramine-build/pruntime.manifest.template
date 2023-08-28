@@ -45,6 +45,7 @@ path = "/lib"
 uri = "file:{{ libdir }}"
 
 [[fs.mounts]]
+type = "chroot"
 path = "/data/protected_files"
 uri = "file:{{ seal_dir }}"
 

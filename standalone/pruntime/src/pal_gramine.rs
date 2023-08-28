@@ -255,6 +255,7 @@ pub(crate) fn print_target_info() {
             "isv_prod_id : 0x{:?}",
             HexFmt(report.body.isv_prod_id.to_ne_bytes())
         );
+        println!("cpu_svn     : 0x{}", HexFmt(&report.body.cpu_svn.svn));
     } else {
         println!("Running in Native mode");
     }
