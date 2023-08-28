@@ -1817,6 +1817,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let url: reqwest::Url = request.url.parse().map_err(from_debug)?;
 
         let client = reqwest::Client::builder()
+            .trust_dns(true)
             .env_proxy(url.host_str().unwrap_or_default())
             .build()
             .map_err(from_debug)?;
