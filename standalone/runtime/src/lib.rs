@@ -478,7 +478,7 @@ impl pallet_balances::Config for Runtime {
     type FreezeIdentifier = ();
     type MaxFreezes = ();
     type MaxHolds = ();
-	type RuntimeHoldReason = ();
+    type RuntimeHoldReason = ();
 }
 
 parameter_types! {
@@ -1161,15 +1161,15 @@ where
 }
 
 impl pallet_im_online::Config for Runtime {
-	type AuthorityId = ImOnlineId;
-	type RuntimeEvent = RuntimeEvent;
-	type NextSessionRotation = Babe;
-	type ValidatorSet = Historical;
-	type ReportUnresponsiveness = Offences;
-	type UnsignedPriority = ImOnlineUnsignedPriority;
-	type WeightInfo = pallet_im_online::weights::SubstrateWeight<Runtime>;
-	type MaxKeys = MaxKeys;
-	type MaxPeerInHeartbeats = MaxPeerInHeartbeats;
+    type AuthorityId = ImOnlineId;
+    type RuntimeEvent = RuntimeEvent;
+    type NextSessionRotation = Babe;
+    type ValidatorSet = Historical;
+    type ReportUnresponsiveness = Offences;
+    type UnsignedPriority = ImOnlineUnsignedPriority;
+    type WeightInfo = pallet_im_online::weights::SubstrateWeight<Runtime>;
+    type MaxKeys = MaxKeys;
+    type MaxPeerInHeartbeats = MaxPeerInHeartbeats;
 }
 
 impl pallet_offences::Config for Runtime {
@@ -1239,33 +1239,33 @@ impl pallet_recovery::Config for Runtime {
 }
 
 parameter_types! {
-	pub const GraceStrikes: u32 = 10;
-	pub const SocietyVotingPeriod: BlockNumber = 80 * HOURS;
-	pub const ClaimPeriod: BlockNumber = 80 * HOURS;
-	pub const PeriodSpend: Balance = 500 * DOLLARS;
-	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
-	pub const ChallengePeriod: BlockNumber = 7 * DAYS;
-	pub const MaxPayouts: u32 = 10;
-	pub const MaxBids: u32 = 10;
-	pub const SocietyPalletId: PalletId = PalletId(*b"py/socie");
+    pub const GraceStrikes: u32 = 10;
+    pub const SocietyVotingPeriod: BlockNumber = 80 * HOURS;
+    pub const ClaimPeriod: BlockNumber = 80 * HOURS;
+    pub const PeriodSpend: Balance = 500 * DOLLARS;
+    pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
+    pub const ChallengePeriod: BlockNumber = 7 * DAYS;
+    pub const MaxPayouts: u32 = 10;
+    pub const MaxBids: u32 = 10;
+    pub const SocietyPalletId: PalletId = PalletId(*b"py/socie");
 }
 
 impl pallet_society::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type PalletId = SocietyPalletId;
-	type Currency = Balances;
-	type Randomness = RandomnessCollectiveFlip;
-	type GraceStrikes = GraceStrikes;
-	type PeriodSpend = PeriodSpend;
-	type VotingPeriod = SocietyVotingPeriod;
-	type ClaimPeriod = ClaimPeriod;
-	type MaxLockDuration = MaxLockDuration;
-	type FounderSetOrigin =
-	pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>;
-	type ChallengePeriod = ChallengePeriod;
-	type MaxPayouts = MaxPayouts;
-	type MaxBids = MaxBids;
-	type WeightInfo = pallet_society::weights::SubstrateWeight<Runtime>;
+    type RuntimeEvent = RuntimeEvent;
+    type PalletId = SocietyPalletId;
+    type Currency = Balances;
+    type Randomness = RandomnessCollectiveFlip;
+    type GraceStrikes = GraceStrikes;
+    type PeriodSpend = PeriodSpend;
+    type VotingPeriod = SocietyVotingPeriod;
+    type ClaimPeriod = ClaimPeriod;
+    type MaxLockDuration = MaxLockDuration;
+    type FounderSetOrigin =
+    pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>;
+    type ChallengePeriod = ChallengePeriod;
+    type MaxPayouts = MaxPayouts;
+    type MaxBids = MaxBids;
+    type WeightInfo = pallet_society::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {
@@ -1428,8 +1428,8 @@ impl pallet_rmrk_core::Config for Runtime {
     type MaxResourcesOnMint = MaxResourcesOnMint;
     type TransferHooks = PhalaWrappedBalances;
     type WeightInfo = pallet_rmrk_core::weights::SubstrateWeight<Runtime>;
-	type CollectionId = u32;
-	type ItemId = u32;
+    type CollectionId = u32;
+    type ItemId = u32;
 }
 impl pallet_phat::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
@@ -1525,6 +1525,36 @@ impl pallet_oracle::Config for Runtime {
 impl puppets::parachain_info::Config for Runtime {}
 impl puppets::parachain_system::Config for Runtime {}
 
+pub struct DealWithServiceFee;
+impl OnUnbalanced<NegativeImbalance> for DealWithServiceFee {
+    fn on_nonzero_unbalanced(amount: NegativeImbalance) {
+        let split = amount.ration(80, 20);
+        Treasury::on_unbalanced(split.0);
+        Author::on_unbalanced(split.1);
+    }
+}
+
+parameter_types! {
+    pub EIP712Name: Vec<u8> = b"Substrate".to_vec();
+    pub EIP712Version: Vec<u8> = b"1".to_vec();
+    pub EIP712ChainID: pallet_evm_account_mapping::EIP712ChainID = sp_core::U256::from(0);
+    pub EIP712VerifyingContractAddress: pallet_evm_account_mapping::EIP712VerifyingContractAddress = sp_core::H160::from([0u8; 20]);
+}
+
+impl pallet_evm_account_mapping::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
+    type Currency = Balances;
+    type ServiceFee = ConstU128<10000000000>; // 0.01 PHA
+    type OnUnbalancedForServiceFee = DealWithServiceFee;
+    type CallFilter = frame_support::traits::Everything;
+    type EIP712Name = EIP712Name;
+    type EIP712Version = EIP712Version;
+    type EIP712ChainID = EIP712ChainID;
+    type EIP712VerifyingContractAddress = EIP712VerifyingContractAddress;
+    type WeightInfo = pallet_evm_account_mapping::weights::SubstrateWeight<Runtime>;
+}
+
 construct_runtime!(
     pub struct Runtime {
         Assets: pallet_assets,
@@ -1590,6 +1620,8 @@ construct_runtime!(
         // NFT
         Uniques: pallet_uniques::{Pallet, Storage, Event<T>},
         RmrkCore: pallet_rmrk_core::{Pallet, Call, Event<T>},
+
+        EvmAccountMapping: pallet_evm_account_mapping,
     }
 );
 

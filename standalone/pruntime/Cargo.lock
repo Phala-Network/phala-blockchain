@@ -4446,6 +4446,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-evm_account_mapping"
+version = "0.0.1"
+source = "git+https://github.com/Phala-Network/substrate-evm_account_mapping?branch=polkadot-v1.0.0#ce3d6ba85f03a7b8f124ca5e48765b106fa188ea"
+dependencies = [
+ "ethabi",
+ "frame-support",
+ "frame-system",
+ "hex",
+ "log",
+ "pallet-transaction-payment",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-fast-unstake"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-v1.0.0#948fbd2fd1233dc26dbb9f9bbc1d2cca2c03945d"
@@ -5404,6 +5423,7 @@ dependencies = [
  "pallet-democracy",
  "pallet-election-provider-multi-phase",
  "pallet-elections-phragmen",
+ "pallet-evm_account_mapping",
  "pallet-fast-unstake",
  "pallet-grandpa",
  "pallet-identity",
