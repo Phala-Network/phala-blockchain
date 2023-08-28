@@ -11,7 +11,7 @@ pink-extension = { version = "0.4.2", path = "../pink-extension" }
 reqwest-env-proxy = { version = "0.1", path = "../../reqwest-env-proxy" }
 sp-core = { version = "7", features = ["full_crypto"] }
 sp-runtime-interface = { version = "7", features = ["disable_target_static_assertions"] }
-reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "socks"] }
+reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "socks", "trust-dns"] }
 log = "0.4"
 ring = "0.16"
 getrandom = "0.2"

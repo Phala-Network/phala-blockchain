@@ -139,6 +139,19 @@ mod check_system {
                 })
                 .collect()
         }
+        #[ink(message)]
+        pub fn http_get(&self, url: String) -> (u16, String) {
+            let response = pink::ext().http_request(pink::chain_extension::HttpRequest {
+                url,
+                method: "GET".into(),
+                headers: Default::default(),
+                body: Default::default(),
+            });
+            (
+                response.status_code,
+                String::from_utf8(response.body).unwrap_or_default(),
+            )
+        }
     }
 
     impl ContractDeposit for CheckSystem {

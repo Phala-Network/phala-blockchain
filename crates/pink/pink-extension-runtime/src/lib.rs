@@ -103,6 +103,7 @@ async fn async_http_request(
     let timeout = Duration::from_millis(timeout_ms);
     let url: reqwest::Url = request.url.parse().or(Err(HttpRequestError::InvalidUrl))?;
     let client = reqwest::Client::builder()
+        .trust_dns(true)
         .timeout(timeout)
         .env_proxy(url.host_str().unwrap_or_default())
         .build()

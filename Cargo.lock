@@ -10950,6 +10950,7 @@ dependencies = [
  "tokio-rustls 0.24.1",
  "tokio-socks",
  "tower-service",
+ "trust-dns-resolver",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",

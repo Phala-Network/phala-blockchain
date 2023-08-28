@@ -20,6 +20,7 @@ fn get_report_from_intel(
     let url: reqwest::Url = format!("https://{IAS_HOST}{IAS_REPORT_ENDPOINT}").parse()?;
     info!(from=%url, "Getting RA report");
     let mut res = reqwest::blocking::Client::builder()
+        .trust_dns(true)
         .timeout(Some(timeout))
         .env_proxy(url.domain().unwrap_or_default())
         .build()
