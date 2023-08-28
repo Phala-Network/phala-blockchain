@@ -5668,7 +5668,7 @@ dependencies = [
  "sp-runtime-interface",
  "sp-state-machine",
  "sp-trie",
- "this-crate 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "this-crate 0.1.0",
  "thiserror",
  "tokio",
  "tracing",
