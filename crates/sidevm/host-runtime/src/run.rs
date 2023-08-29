@@ -24,7 +24,8 @@ pub struct WasmRun {
 
 impl Drop for WasmRun {
     fn drop(&mut self) {
-        self.env.cleanup()
+        self.env.cleanup();
+        self.scheduler.exit(&self.id);
     }
 }
 
@@ -73,6 +74,7 @@ impl WasmRun {
         env.set_instance(instance);
         env.set_gas_per_breath(gas_per_breath);
         env.set_weight(weight);
+        scheduler.reset(&id);
         Ok((
             WasmRun {
                 env: env.clone(),
