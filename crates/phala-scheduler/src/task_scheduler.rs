@@ -37,6 +37,10 @@ impl<TaskId: TaskIdType> TaskScheduler<TaskId> {
         self.inner.lock().unwrap().poll_resume(cx, task_id, weight)
     }
 
+    pub fn reset(&self, task_id: &TaskId) {
+        self.exit(task_id)
+    }
+
     pub fn exit(&self, task_id: &TaskId) {
         self.inner.lock().unwrap().exit(task_id)
     }
