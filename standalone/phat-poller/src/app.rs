@@ -18,7 +18,6 @@ use std::{
 use anyhow::{anyhow, Context, Result};
 use phaxt::AccountId;
 use sp_core::{sr25519::Pair as KeyPair, H256};
-use tokio::task::JoinHandle;
 use tracing::{debug, error, info, instrument, warn, Instrument};
 
 use serde::Serialize;
@@ -53,7 +52,7 @@ struct ProbeInfo {
 #[derive(Default, Serialize)]
 pub struct State {
     next_task_id: TaskId,
-    workers: Vec<Worker>,
+    live_workers: Vec<Worker>,
     running_tasks: BTreeMap<TaskId, Task>,
     history: VecDeque<Task>,
     last_probe_time: Option<Instant>,
@@ -75,8 +74,8 @@ impl Stats {
         self.contract_polled.fetch_add(1, Ordering::Relaxed);
     }
 
-    fn inc_polled(&self) {
-        self.workflow_polled.fetch_add(1, Ordering::Relaxed);
+    fn inc_polled(&self) -> i32 {
+        self.workflow_polled.fetch_add(1, Ordering::Relaxed)
     }
     fn inc_finished(&self) {
         self.workflow_finished.fetch_add(1, Ordering::Relaxed);
@@ -112,6 +111,12 @@ struct Task {
     end_time: Option<Instant>,
     duration: Option<Duration>,
     result: Option<Result<(), String>>,
+}
+
+fn shuffle<T>(slice: &mut [T]) {
+    use rand::seq::SliceRandom;
+    let mut rng = rand::thread_rng();
+    slice.shuffle(&mut rng);
 }
 
 pub fn create_app(config: Config) -> ArcApp {
@@ -158,7 +163,7 @@ impl App {
         description: &str,
         timeout: Duration,
         task: impl Future<Output = Result<T>> + Send + 'static,
-    ) -> JoinHandle<Result<T>> {
+    ) -> abort_on_drop::ChildTask<Result<T>> {
         let id = self.next_task_id();
         let mut state = self.state.lock().unwrap();
         state.running_tasks.insert(
@@ -176,12 +181,14 @@ impl App {
         let app = self.weak_self.clone();
         tokio::spawn(
             track_task_result(app, id, async move {
-                tokio::time::timeout(timeout, task)
-                    .await
-                    .or(Err(anyhow::anyhow!("timeout")))?
+                tokio::time::timeout(timeout, task).await.or_else(|_| {
+                    warn!(?timeout, "task timeout");
+                    Err(anyhow::anyhow!("timeout"))
+                })?
             })
             .instrument(tracing::info_span!("task", id, name)),
         )
+        .into()
     }
 
     #[instrument(skip(self), name = "probe")]
@@ -201,6 +208,9 @@ impl App {
     }
 
     async fn update_worker_list(&self) -> Result<()> {
+        if !self.config.dev_worker_uri.is_empty() {
+            return self.probe_dev_worker().await;
+        }
         info!("connecting to node {uri}", uri = self.config.node_uri);
         let chain_rpc = tokio::time::timeout(
             Duration::from_secs(5),
@@ -214,12 +224,9 @@ impl App {
             warn!("no workers found");
             return Ok(());
         }
-        let mut probe_tasks = Vec::with_capacity(workers.len());
-        let mut probe_workers = Vec::with_capacity(workers.len());
         let mut workers_without_endpoints = Vec::new();
 
-        let probe_start = Instant::now();
-        let timeout = self.config.poll_timeout;
+        let mut workers_uri = vec![];
         for worker in workers {
             let endpoints = chain_rpc.get_endpoints(&worker).await?;
             debug!("worker {worker:?} endpoints: {endpoints:?}");
@@ -230,63 +237,63 @@ impl App {
                 workers_without_endpoints.push(worker);
                 continue;
             };
-            let handle = self.spawn(
-                "probe",
-                &format!(r#""uri":"{uri}"}}"#),
-                timeout,
-                probe_worker(Some(worker), uri.clone()),
-            );
-            probe_tasks.push(handle);
-            probe_workers.push((worker, uri));
+            workers_uri.push(uri.to_string());
         }
-        info!("probing {} workers", probe_tasks.len());
+        self.probe_workers(&workers_uri).await
+    }
+
+    async fn probe_workers(&self, workers: &[String]) -> Result<()> {
+        info!("probing {} workers", workers.len());
+        let probe_start = Instant::now();
+        let timeout = self.config.poll_timeout;
+        let probe_tasks = workers
+            .iter()
+            .map(|uri| {
+                self.spawn(
+                    "probe",
+                    &format!(r#""uri":"{uri}"}}"#),
+                    timeout,
+                    probe_worker(None, uri.clone()),
+                )
+            })
+            .collect::<Vec<_>>();
         let probe_results = futures::future::join_all(probe_tasks).await;
-        let workers: Vec<_> = probe_workers
-            .into_iter()
+        let workers: Vec<_> = workers
+            .iter()
             .zip(probe_results)
-            .map(|((pubkey, uri), result)| {
+            .filter_map(|(uri, result)| {
                 let probe_result = match result {
-                    Ok(Ok((_, instant))) => Ok(instant),
+                    Ok(Ok((pubkey, instant))) => Ok((pubkey, instant)),
                     Ok(Err(err)) => Err(format!("{err}")),
                     Err(err) => Err(format!("{err}")),
                 };
-                Worker {
-                    pubkey,
-                    uri,
+                let Ok((pubkey, instant)) = probe_result else {
+                    return None;
+                };
+                Some(Worker {
+                    pubkey: pubkey.clone(),
+                    uri: uri.clone(),
                     probe_info: ProbeInfo {
                         probe_start,
-                        probe_result,
+                        probe_result: Ok(instant),
                     },
-                }
+                })
             })
             .collect();
-        info!("{} workers updated", workers.len());
-        self.state.lock().unwrap().workers = workers;
+        info!(
+            "============= {} workers probed ============",
+            workers.len()
+        );
+        for worker in &workers {
+            info!(latency=?worker.latency().unwrap_or(Duration::MAX), "  {}", worker.uri);
+        }
+        info!("============================================");
+        self.state.lock().unwrap().live_workers = workers;
         Ok(())
     }
 
     async fn probe_dev_worker(&self) -> Result<()> {
-        let Some(uri) = self.config.dev_worker_uri.as_ref() else {
-            warn!("no dev worker uri specified");
-            return Ok(());
-        };
-        let handle = self.spawn(
-            "probe",
-            &format!("uri:{uri}"),
-            self.config.probe_timeout,
-            probe_worker(None, uri.clone()),
-        );
-        let t0 = Instant::now();
-        let (pubkey, t1) = handle.await??;
-        self.state.lock().unwrap().workers.push(Worker {
-            pubkey,
-            uri: uri.clone(),
-            probe_info: ProbeInfo {
-                probe_start: t0,
-                probe_result: Ok(t1),
-            },
-        });
-        Ok(())
+        self.probe_workers(&self.config.dev_worker_uri).await
     }
 }
 
@@ -356,7 +363,7 @@ impl App {
             .state
             .lock()
             .unwrap()
-            .workers
+            .live_workers
             .iter()
             .filter(|worker| worker.latency().is_some())
             .cloned()
@@ -367,16 +374,17 @@ impl App {
             return Ok(());
         }
         live_workers.sort_by_key(|worker| worker.latency().unwrap_or(Duration::MAX));
+        let n_workers = live_workers.len();
         let top_workers = live_workers
             .into_iter()
-            .take(self.config.use_top_workers)
+            .take(self.config.use_top_workers.unwrap_or(n_workers))
             .collect::<Vec<_>>();
-        info!("top workers:");
+        info!("top live workers:");
         for worker in &top_workers {
             info!(latency=?worker.latency().unwrap_or(Duration::MAX), "  {}", worker.pubkey);
         }
         let worker = &top_workers[0];
-        let contracts: Vec<(AccountId, ContractId)> = tokio::time::timeout(
+        let mut contracts: Vec<(AccountId, ContractId)> = tokio::time::timeout(
             self.config.poll_timeout,
             pink_query::<_, crate::contracts::UserProfilesResponse>(
                 &worker.pubkey,
@@ -390,6 +398,8 @@ impl App {
         .await
         .context("Get profiles timeout")??
         .or(Err(anyhow::anyhow!("query failed")))?;
+
+        shuffle(&mut contracts);
 
         let mut poll_handles = Vec::with_capacity(contracts.len());
 
@@ -408,7 +418,7 @@ impl App {
                     r#"{{"worker":"{}","contract":"{profile:?}"}}"#,
                     worker.pubkey
                 ),
-                self.config.poll_timeout.saturating_mul(2),
+                self.config.poll_timeout_overall,
                 poll_contract(
                     worker.clone(),
                     profile,
@@ -476,16 +486,27 @@ async fn poll_contract_inner(
         .upgrade()
         .ok_or_else(|| anyhow::anyhow!("app gone"))?;
     let mut handles = vec![];
-    for i in 0..count {
-        stats.inc_polled();
+
+    let mut inds = (0..count).collect::<Vec<_>>();
+    shuffle(&mut inds);
+    for i in inds {
+        let ind = stats.inc_polled() as u32;
+        let delay = app.config.workflow_poll_gap * ind;
         let handle = app.spawn(
             "workflow",
             &format!(
                 r#"{{"worker":"{}","contract":"{profile:?}"}}"#,
                 worker.pubkey
             ),
-            app.config.poll_timeout,
-            poll_workflow(worker.clone(), profile, i, caller.clone(), stats.clone()),
+            delay + app.config.poll_timeout,
+            poll_workflow(
+                worker.clone(),
+                profile,
+                i,
+                caller.clone(),
+                stats.clone(),
+                delay,
+            ),
         );
         handles.push(handle);
     }
@@ -503,14 +524,17 @@ async fn poll_contract_inner(
     }
 }
 
-#[instrument(skip(worker, profile, caller, stats), name = "flow")]
+#[instrument(skip_all, fields(ind=id), name = "flow")]
 async fn poll_workflow(
     worker: Worker,
     profile: ContractId,
     id: u64,
     caller: KeyPair,
     stats: Arc<Stats>,
+    delay: Duration,
 ) -> Result<()> {
+    debug!(delay = delay.as_millis(), "queue workflow");
+    tokio::time::sleep(delay).await;
     debug!("polling workflow");
     let result = pink_query::<_, crate::contracts::PollResponse>(
         &worker.pubkey,
@@ -533,15 +557,10 @@ async fn poll_workflow(
 
 impl App {
     pub async fn run(&self) -> Result<()> {
-        if self.config.dev_worker_uri.is_some() {
-            self.probe_dev_worker().await?;
-            self.bg_poll_contracts().await;
-        } else {
-            tokio::join! {
-                self.bg_update_worker_list(),
-                self.bg_poll_contracts(),
-            };
-        }
+        tokio::join! {
+            self.bg_update_worker_list(),
+            self.bg_poll_contracts(),
+        };
         Ok(())
     }
 }
