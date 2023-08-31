@@ -247,7 +247,7 @@ impl App {
             .map(|uri| {
                 self.spawn(
                     "probe",
-                    &format!(r#""uri":"{uri}"}}"#),
+                    &format!("uri={uri}"),
                     timeout,
                     probe_worker(None, uri.clone()),
                 )
@@ -447,10 +447,7 @@ impl App {
             stats.inc_polled();
             let handle = self.spawn(
                 "poll",
-                &format!(
-                    r#"{{"worker":"{}","contract":"{profile:?}"}}"#,
-                    worker.pubkey
-                ),
+                &format!("worker={},profile={profile:?},ind={ind}", worker.pubkey),
                 self.config.poll_timeout,
                 poll_workflow(
                     worker.clone(),
