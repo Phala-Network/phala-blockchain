@@ -9,7 +9,7 @@ use std::{
     collections::{BTreeMap, VecDeque},
     future::Future,
     sync::{
-        atomic::{AtomicI32, Ordering},
+        atomic::{AtomicU32, Ordering},
         Arc, Mutex, Weak,
     },
     time::Duration,
@@ -62,11 +62,11 @@ pub struct State {
 
 #[derive(Default, Debug)]
 struct Stats {
-    contract_polled: AtomicI32,
-    workflow_polled: AtomicI32,
-    workflow_finished: AtomicI32,
-    workflow_succeeded: AtomicI32,
-    workflow_failed: AtomicI32,
+    contract_polled: AtomicU32,
+    workflow_polled: AtomicU32,
+    workflow_finished: AtomicU32,
+    workflow_succeeded: AtomicU32,
+    workflow_failed: AtomicU32,
 }
 
 impl Stats {
@@ -74,7 +74,7 @@ impl Stats {
         self.contract_polled.fetch_add(1, Ordering::Relaxed);
     }
 
-    fn inc_polled(&self) -> i32 {
+    fn inc_polled(&self) -> u32 {
         self.workflow_polled.fetch_add(1, Ordering::Relaxed)
     }
     fn inc_finished(&self) {
@@ -490,7 +490,7 @@ async fn poll_contract_inner(
     let mut inds = (0..count).collect::<Vec<_>>();
     shuffle(&mut inds);
     for i in inds {
-        let ind = stats.inc_polled() as u32;
+        let ind = stats.inc_polled();
         let delay = app.config.workflow_poll_gap * ind;
         let handle = app.spawn(
             "workflow",
