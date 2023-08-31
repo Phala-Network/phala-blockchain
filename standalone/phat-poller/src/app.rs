@@ -173,11 +173,13 @@ impl App {
             },
         );
         let app = self.weak_self.clone();
+        let description = description.to_string();
+        let task_name = name.to_string();
         tokio::spawn(
             track_task_result(app, id, async move {
-                tokio::time::timeout(timeout, task).await.or_else(|_| {
-                    warn!(?timeout, "task timeout");
-                    Err(anyhow::anyhow!("timeout"))
+                tokio::time::timeout(timeout, task).await.map_err(|_| {
+                    warn!(name = task_name, description, ?timeout, "task timed out");
+                    anyhow::anyhow!("timeout")
                 })?
             })
             .instrument(tracing::info_span!("task", id, name)),
@@ -265,7 +267,7 @@ impl App {
                     return None;
                 };
                 Some(Worker {
-                    pubkey: pubkey.clone(),
+                    pubkey,
                     uri: uri.clone(),
                     probe_info: ProbeInfo {
                         probe_start,
