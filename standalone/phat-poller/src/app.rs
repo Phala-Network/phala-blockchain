@@ -57,12 +57,10 @@ pub struct State {
     history: VecDeque<Task>,
     last_probe_time: Option<Instant>,
     last_poll_time: Option<Instant>,
-    last_poll_result: BTreeMap<ContractId, PollResult>,
 }
 
 #[derive(Default, Debug)]
 struct Stats {
-    contract_polled: AtomicU32,
     workflow_polled: AtomicU32,
     workflow_finished: AtomicU32,
     workflow_succeeded: AtomicU32,
@@ -70,10 +68,6 @@ struct Stats {
 }
 
 impl Stats {
-    fn inc_contract_polled(&self) {
-        self.contract_polled.fetch_add(1, Ordering::Relaxed);
-    }
-
     fn inc_polled(&self) -> u32 {
         self.workflow_polled.fetch_add(1, Ordering::Relaxed)
     }
@@ -358,6 +352,55 @@ impl App {
         }
     }
 
+    async fn inspect_workflows(
+        &self,
+        worker: &Worker,
+    ) -> Result<Vec<(AccountId, ContractId, u64)>> {
+        info!("inspecting workflows");
+        let profiles: Vec<(AccountId, ContractId)> = tokio::time::timeout(
+            self.config.poll_timeout,
+            pink_query::<_, crate::contracts::UserProfilesResponse>(
+                &worker.pubkey,
+                &worker.uri,
+                self.config.factory_contract,
+                SELECTOR_GET_USER_PROFILES,
+                (),
+                &self.config.caller,
+            ),
+        )
+        .await
+        .context("Get profiles timeout")??
+        .or(Err(anyhow::anyhow!("query failed")))?;
+
+        let n_profiles = profiles.len();
+
+        let mut workflows = vec![];
+        for (user, profile) in profiles {
+            let count = pink_query::<(), u64>(
+                &worker.pubkey,
+                &worker.uri,
+                profile,
+                SELECTOR_WORKFLOW_COUNT,
+                (),
+                &self.config.caller,
+            )
+            .await;
+            match count {
+                Ok(count) => {
+                    for ind in 0..count {
+                        workflows.push((user.clone(), profile, ind));
+                    }
+                }
+                Err(err) => {
+                    warn!(?err, "failed to query workflow count for {profile:?}");
+                }
+            }
+        }
+        let n_workflows = workflows.len();
+        info!(n_profiles, n_workflows, "workflows inspected");
+        Ok(workflows)
+    }
+
     async fn poll_contracts(&self, stats: Arc<Stats>) -> Result<()> {
         let mut live_workers = self
             .state
@@ -384,143 +427,51 @@ impl App {
             info!(latency=?worker.latency().unwrap_or(Duration::MAX), "  {}", worker.pubkey);
         }
         let worker = &top_workers[0];
-        let mut contracts: Vec<(AccountId, ContractId)> = tokio::time::timeout(
-            self.config.poll_timeout,
-            pink_query::<_, crate::contracts::UserProfilesResponse>(
-                &worker.pubkey,
-                &worker.uri,
-                self.config.factory_contract,
-                SELECTOR_GET_USER_PROFILES,
-                (),
-                &self.config.caller,
-            ),
-        )
-        .await
-        .context("Get profiles timeout")??
-        .or(Err(anyhow::anyhow!("query failed")))?;
+        let mut workflows = self.inspect_workflows(worker).await?;
 
-        shuffle(&mut contracts);
+        shuffle(&mut workflows);
 
-        let mut poll_handles = Vec::with_capacity(contracts.len());
+        info!(count = workflows.len(), "polling workflows");
 
+        let mut poll_handles = Vec::with_capacity(workflows.len());
         let mut worker_index = 0;
-        for (user, profile) in contracts {
+        for (user, profile, ind) in workflows {
             // call contract poll with workers in robin round
             let worker = &top_workers[worker_index];
             debug!(
                 "adding poll, user={user}, profile={profile:?}, worker={}",
                 worker.pubkey
             );
-            stats.inc_contract_polled();
+            stats.inc_polled();
             let handle = self.spawn(
                 "poll",
                 &format!(
                     r#"{{"worker":"{}","contract":"{profile:?}"}}"#,
                     worker.pubkey
                 ),
-                self.config.poll_timeout_overall,
-                poll_contract(
+                self.config.poll_timeout,
+                poll_workflow(
                     worker.clone(),
                     profile,
-                    self.weak_self.clone(),
+                    ind,
                     self.config.caller.clone(),
                     stats.clone(),
                 ),
             );
             poll_handles.push(handle);
             worker_index = (worker_index + 1) % top_workers.len();
+            tokio::time::sleep(self.config.workflow_poll_gap).await;
         }
-        info!(count = poll_handles.len(), "polling contracts");
         let poll_results = futures::future::join_all(poll_handles).await;
-        info!(count = poll_results.len(), "contracts polled");
+        info!(count = poll_results.len(), "workflows polled");
+        let failed_count = poll_results
+            .into_iter()
+            .filter(|r| !matches!(r, Ok(Ok(_))))
+            .count();
+        if failed_count > 0 {
+            info!("{failed_count} workflows failed");
+        }
         Ok(())
-    }
-}
-
-async fn poll_contract(
-    worker: Worker,
-    profile: ContractId,
-    weak_app: Weak<App>,
-    caller: KeyPair,
-    stats: Arc<Stats>,
-) -> Result<()> {
-    let pubkey = worker.pubkey;
-    let start_time = Instant::now();
-    let result = poll_contract_inner(worker, profile, weak_app.clone(), caller, stats).await;
-    if let Some(app) = weak_app.upgrade() {
-        let result = match &result {
-            Ok(_) => Ok(()),
-            Err(err) => Err(format!("{err}")),
-        };
-        app.state.lock().unwrap().last_poll_result.insert(
-            profile,
-            PollResult {
-                worker: pubkey,
-                start_time,
-                end_time: Some(Instant::now()),
-                result,
-            },
-        );
-    }
-    result
-}
-
-async fn poll_contract_inner(
-    worker: Worker,
-    profile: ContractId,
-    weak_app: Weak<App>,
-    caller: KeyPair,
-    stats: Arc<Stats>,
-) -> Result<()> {
-    let count = pink_query::<(), u64>(
-        &worker.pubkey,
-        &worker.uri,
-        profile,
-        SELECTOR_WORKFLOW_COUNT,
-        (),
-        &caller,
-    )
-    .await?;
-
-    let app = weak_app
-        .upgrade()
-        .ok_or_else(|| anyhow::anyhow!("app gone"))?;
-    let mut handles = vec![];
-
-    let mut inds = (0..count).collect::<Vec<_>>();
-    shuffle(&mut inds);
-    for i in inds {
-        let ind = stats.inc_polled();
-        let delay = app.config.workflow_poll_gap * ind;
-        let handle = app.spawn(
-            "workflow",
-            &format!(
-                r#"{{"worker":"{}","contract":"{profile:?}"}}"#,
-                worker.pubkey
-            ),
-            delay + app.config.poll_timeout,
-            poll_workflow(
-                worker.clone(),
-                profile,
-                i,
-                caller.clone(),
-                stats.clone(),
-                delay,
-            ),
-        );
-        handles.push(handle);
-    }
-    info!(count = handles.len(), ?profile, "polling workflows");
-    let results = futures::future::join_all(handles).await;
-    let errors = results
-        .into_iter()
-        .enumerate()
-        .filter(|(_, r)| !matches!(r, Ok(Ok(_))))
-        .collect::<Vec<_>>();
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(anyhow::anyhow!("Failed flows: {:?}", errors))
     }
 }
 
@@ -531,10 +482,7 @@ async fn poll_workflow(
     id: u64,
     caller: KeyPair,
     stats: Arc<Stats>,
-    delay: Duration,
 ) -> Result<()> {
-    debug!(delay = delay.as_millis(), "queue workflow");
-    tokio::time::sleep(delay).await;
     debug!("polling workflow");
     let result = pink_query::<_, crate::contracts::PollResponse>(
         &worker.pubkey,
