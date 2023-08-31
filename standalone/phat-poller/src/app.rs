@@ -464,10 +464,7 @@ impl App {
         }
         let poll_results = futures::future::join_all(poll_handles).await;
         info!(count = poll_results.len(), "workflows polled");
-        let failed_count = poll_results
-            .into_iter()
-            .filter(|r| !matches!(r, Ok(Ok(_))))
-            .count();
+        let failed_count = poll_results.into_iter().filter(|r| r.is_err()).count();
         if failed_count > 0 {
             info!("{failed_count} workflows failed");
         }
