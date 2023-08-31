@@ -58,6 +58,10 @@ pub struct RunArgs {
     #[arg(long, value_parser = parse_duration, default_value = "30s")]
     pub poll_timeout_overall: Duration,
 
+    /// Poll workflows with a unique poll id
+    #[arg(long)]
+    pub with_poll_id: bool,
+
     /// Top n workers to be used to poll
     #[arg(long)]
     pub use_top_workers: Option<usize>,

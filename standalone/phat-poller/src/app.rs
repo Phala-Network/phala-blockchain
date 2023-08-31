@@ -445,6 +445,7 @@ impl App {
                 worker.pubkey
             );
             stats.inc_polled();
+            let poll_id = take_next_poll_id();
             let handle = self.spawn(
                 "poll",
                 &format!("worker={},profile={profile:?},ind={ind}", worker.pubkey),
@@ -455,6 +456,8 @@ impl App {
                     ind,
                     self.config.caller.clone(),
                     stats.clone(),
+                    self.config.with_poll_id,
+                    poll_id,
                 ),
             );
             poll_handles.push(handle);
@@ -471,24 +474,50 @@ impl App {
     }
 }
 
-#[instrument(skip_all, fields(ind=id), name = "flow")]
+fn take_next_poll_id() -> String {
+    use once_cell::sync::Lazy;
+    use rand::distributions::{Alphanumeric, DistString};
+
+    static PREFIX: Lazy<String> =
+        Lazy::new(|| Alphanumeric.sample_string(&mut rand::thread_rng(), 7));
+    static NEXT_POLL_ID: AtomicU32 = AtomicU32::new(0);
+
+    let id = NEXT_POLL_ID.fetch_add(1, Ordering::Relaxed);
+    format!("{}_{}", PREFIX.as_str(), id)
+}
+
+#[instrument(skip_all, fields(id=%poll_id), name = "flow")]
 async fn poll_workflow(
     worker: Worker,
     profile: ContractId,
     id: u64,
     caller: KeyPair,
     stats: Arc<Stats>,
+    with_poll_id: bool,
+    poll_id: String,
 ) -> Result<()> {
-    debug!("polling workflow");
-    let result = pink_query::<_, crate::contracts::PollResponse>(
-        &worker.pubkey,
-        &worker.uri,
-        profile,
-        SELECTOR_POLL,
-        (id,),
-        &caller,
-    )
-    .await;
+    debug!(id, "polling workflow");
+    let result = if with_poll_id {
+        pink_query::<_, crate::contracts::PollResponse>(
+            &worker.pubkey,
+            &worker.uri,
+            profile,
+            SELECTOR_POLL,
+            (id, poll_id),
+            &caller,
+        )
+        .await
+    } else {
+        pink_query::<_, crate::contracts::PollResponse>(
+            &worker.pubkey,
+            &worker.uri,
+            profile,
+            SELECTOR_POLL,
+            (id,),
+            &caller,
+        )
+        .await
+    };
     debug!("result: {result:?}");
     if result.is_ok() {
         stats.inc_succeeded();
