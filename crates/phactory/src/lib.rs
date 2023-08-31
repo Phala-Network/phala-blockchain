@@ -65,7 +65,7 @@ pub type PRuntimeLightValidation = LightValidation<chain::Runtime>;
 pub mod benchmark;
 
 mod bin_api_service;
-mod contracts;
+pub mod contracts;
 mod cryptography;
 mod im_helpers;
 mod light_validation;

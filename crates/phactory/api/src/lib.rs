@@ -9,5 +9,6 @@ pub mod prpc;
 #[cfg(feature = "pruntime-client")]
 pub mod pruntime_client;
 pub mod storage_sync;
+pub mod contracts;
 
 mod proto_generated;

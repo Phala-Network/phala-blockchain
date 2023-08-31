@@ -31,6 +31,7 @@ impl ContractsKeeper {
         self.contracts.get(id)
     }
 
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.contracts.len()
     }

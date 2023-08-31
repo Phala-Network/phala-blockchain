@@ -5,7 +5,7 @@ use crate::{
     system::{TransactionError, TransactionResult},
 };
 use anyhow::Result;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Encode;
 use phala_crypto::sr25519::Persistence;
 use phala_mq::{ContractClusterId, MessageOrigin};
 use phala_types::contract::messaging::ResourceType;
@@ -32,47 +32,10 @@ use ::pink::{
 };
 use tracing::info;
 
+pub use phactory_api::contracts::{Query, QueryError, Response};
 pub use phala_types::contract::InkCommand;
 
 pub(crate) mod http_counters;
-
-#[derive(Debug, Encode, Decode)]
-pub enum Query {
-    InkMessage {
-        payload: Vec<u8>,
-        /// Amount of tokens deposit to the caller.
-        deposit: u128,
-        /// Amount of tokens transfer from the caller to the target contract.
-        transfer: u128,
-        /// Whether to use the gas estimation mode.
-        estimating: bool,
-    },
-    SidevmQuery(Vec<u8>),
-    InkInstantiate {
-        code_hash: sp_core::H256,
-        salt: Vec<u8>,
-        instantiate_data: Vec<u8>,
-        /// Amount of tokens deposit to the caller.
-        deposit: u128,
-        /// Amount of tokens transfer from the caller to the target contract.
-        transfer: u128,
-    },
-}
-
-#[derive(Debug, Encode, Decode)]
-pub enum Response {
-    Payload(Vec<u8>),
-}
-
-#[derive(Debug, Encode, Decode)]
-pub enum QueryError {
-    BadOrigin,
-    RuntimeError(String),
-    SidevmNotFound,
-    NoResponse,
-    ServiceUnavailable,
-    Timeout,
-}
 
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct ClusterConfig {
