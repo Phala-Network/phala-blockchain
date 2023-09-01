@@ -12,6 +12,7 @@ export * from './OnChainRegistry';
 export * from './options';
 export * from './metadata';
 export * from './eip712';
+export { default as createPruntimeClient } from './createPruntimeClient';
 
 export const PhactoryAPI = pruntime_rpc.PhactoryAPI;
 export const pruntimeRpc = pruntime_rpc;
