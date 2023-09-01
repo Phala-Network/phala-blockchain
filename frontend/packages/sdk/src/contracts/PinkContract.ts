@@ -1,5 +1,5 @@
-import type { Bytes } from '@polkadot/types';
-import type { Codec, IEnum, Registry, ISubmittableResult  } from '@polkadot/types/types';
+import type { Bytes, Text, Struct, Result, Null, Vec, u8 } from '@polkadot/types';
+import type { Codec, IEnum, Registry, ISubmittableResult } from '@polkadot/types/types';
 import type { SubmittableExtrinsic } from '@polkadot/api/submittable/types';
 import type { AccountId, ContractExecResult, EventRecord } from '@polkadot/types/interfaces';
 import type { ApiPromise } from '@polkadot/api';
@@ -102,6 +102,36 @@ class PinkContractSubmittableResult extends ContractSubmittableResult {
     }
     throw new Error('Contract transaction submit failed.')
   }
+}
+
+interface InkQueryOk extends IEnum {
+    readonly isInkMessageReturn: boolean;
+    readonly asInkMessageReturn: Vec<u8>;
+}
+
+interface InkQueryError extends IEnum {
+    readonly isBadOrigin: boolean;
+    readonly asBadOrigin: Null;
+
+    readonly isRuntimeError: boolean;
+    readonly asRuntimeError: Text;
+
+    readonly isSidevmNotFound: boolean;
+    readonly asSidevmNotFound: Null;
+
+    readonly isNoResponse: boolean;
+    readonly asNoResponse: Null;
+
+    readonly isServiceUnavailable: boolean;
+    readonly asServiceUnavailable: Null;
+
+    readonly isTimeout: boolean;
+    readonly asTimeout: Null;
+}
+
+interface InkResponse extends Struct {
+    nonce: Text
+    result: Result<InkQueryOk, InkQueryError>
 }
 
 
@@ -266,13 +296,18 @@ export class PinkContractPromise<TQueries extends Record<string, PinkContractQue
         },
       });
       const data = await pinkQuery(api, this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert);
+      const inkResponse = api.createType<InkResponse>("InkResponse", data)
+      if (inkResponse.result.isErr) {
+        // @FIXME: not sure this is enough as not yet tested
+        throw new Error(`InkResponse Error: ${inkResponse.result.asErr.toString()}`)
+      }
+      if (!inkResponse.result.asOk.isInkMessageReturn) {
+        // @FIXME: not sure this is enough as not yet tested
+        throw new Error(`Unexpected InkMessageReturn: ${inkResponse.result.asOk.toJSON()?.toString()}`)
+      }
       const { debugMessage, gasConsumed, gasRequired, result, storageDeposit } = api.createType<ContractExecResult>(
         "ContractExecResult",
-        (
-          api.createType("InkResponse", data).toJSON() as {
-            result: { ok: { inkMessageReturn: string } };
-          }
-        ).result.ok.inkMessageReturn
+        inkResponse.result.asOk.asInkMessageReturn.toString()
       );
       return {
         debugMessage: debugMessage,
