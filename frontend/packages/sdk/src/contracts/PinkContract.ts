@@ -18,13 +18,13 @@ import { ContractSubmittableResult } from '@polkadot/api-contract/base/Contract'
 import { applyOnEvent } from '@polkadot/api-contract/util';
 import { withMeta, convertWeight } from '@polkadot/api-contract/base/util'
 import { BN, BN_ZERO, hexAddPrefix, u8aToHex, hexToU8a } from '@polkadot/util';
-import { sr25519Agree, sr25519KeypairFromSeed, sr25519Sign } from "@polkadot/wasm-crypto";
+import { sr25519Agree, sr25519KeypairFromSeed } from "@polkadot/wasm-crypto";
 import { from } from 'rxjs';
 
-import { pruntime_rpc as pruntimeRpc } from "../proto";
-import { decrypt, encrypt } from "../lib/aes-256-gcm";
+import { encrypt } from "../lib/aes-256-gcm";
 import { randomHex } from "../lib/hex";
 import assert from '../lib/assert';
+import { pinkQuery } from '../pinkQuery';
 
 
 export type PinkContractCallOutcome<ResultType> = {
@@ -159,44 +159,6 @@ function createEncryptedData(pk: Uint8Array, data: string, agreementKey: Uint8Ar
   };
 };
 
-export async function pinkQuery(
-  api: ApiPromise,
-  pruntimeApi: pruntimeRpc.PhactoryAPI,
-  pk: Uint8Array,
-  queryAgreementKey: Uint8Array,
-  encodedQuery: string,
-  { certificate, pubkey, secret }: CertificateData
-) {
-  // Encrypt the ContractQuery.
-  const encryptedData = createEncryptedData(pk, encodedQuery, queryAgreementKey);
-  const encodedEncryptedData = api
-    .createType("EncryptedData", encryptedData)
-    .toU8a();
-
-  // Sign the encrypted data.
-  const signature: pruntimeRpc.ISignature = {
-    signedBy: certificate,
-    signatureType: pruntimeRpc.SignatureType.Sr25519,
-    signature: sr25519Sign(pubkey, secret, encodedEncryptedData),
-  };
-
-  // Send request.
-  const requestData = {
-    encodedEncryptedData,
-    signature,
-  };
-
-  const res = await pruntimeApi.contractQuery(requestData)
-
-  const { data: encryptedResult, iv } = api.createType("EncryptedData", res.encodedEncryptedData).toJSON() as {
-    iv: string;
-    data: string;
-  };
-  const data = decrypt(encryptedResult, queryAgreementKey, iv);
-  return hexAddPrefix(data);
-};
-
-
 export class PinkContractPromise<TQueries extends Record<string, PinkContractQuery> = Record<string, PinkContractQuery>, TTransactions extends Record<string, PinkContractTx> = Record<string, PinkContractTx>> {
 
   readonly abi: Abi;
@@ -295,7 +257,7 @@ export class PinkContractPromise<TQueries extends Record<string, PinkContractQue
           }
         },
       });
-      const data = await pinkQuery(api, this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert);
+      const data = await pinkQuery(this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert);
       const inkResponse = api.createType<InkResponse>("InkResponse", data)
       if (inkResponse.result.isErr) {
         // @FIXME: not sure this is enough as not yet tested

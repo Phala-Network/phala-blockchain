@@ -1,3 +1,4 @@
+import { type Option } from '@polkadot/types';
 import type { DecorateMethod, ApiTypes } from '@polkadot/api/types';
 import type { AccountId, Hash, ContractInstantiateResult } from '@polkadot/types/interfaces';
 import type { ISubmittableResult } from '@polkadot/types/types';
@@ -11,20 +12,18 @@ import type { CertificateData } from '../certificate';
 
 import { SubmittableResult } from '@polkadot/api';
 import { ApiBase } from '@polkadot/api/base';
-import { BN_ZERO, isUndefined, hexAddPrefix, u8aToHex, hexToU8a, BN } from '@polkadot/util';
+import { BN_ZERO, isUndefined, hexAddPrefix, hexToU8a, BN } from '@polkadot/util';
 import { createBluePrintTx, withMeta } from '@polkadot/api-contract/base/util';
-import { sr25519Agree, sr25519KeypairFromSeed, sr25519Sign } from "@polkadot/wasm-crypto";
+import { sr25519Agree, sr25519KeypairFromSeed } from "@polkadot/wasm-crypto";
 import { from } from 'rxjs';
 
 import { Abi } from '@polkadot/api-contract/Abi';
 import { toPromiseMethod } from '@polkadot/api';
-import { CodecMap, Option } from '@polkadot/types';
 
-import { pruntime_rpc as pruntimeRpc } from "../proto";
-import { decrypt, encrypt } from "../lib/aes-256-gcm";
 import { randomHex } from "../lib/hex";
 import assert from '../lib/assert';
 import { PinkContractPromise } from './PinkContract';
+import { pinkQuery } from '../pinkQuery';
 
 
 export interface PinkContractInstantiateCallOutcome extends ContractCallOutcome {
@@ -42,65 +41,6 @@ interface MapMessageInkQuery<ApiType extends ApiTypes> {
 interface PinkContractInstantiateResult extends ContractInstantiateResult {
   salt: string;
 }
-
-interface IEncryptedData extends CodecMap {
-  data: Uint8Array
-  iv: Uint8Array
-}
-
-function hex(b: string | Uint8Array) {
-  if (typeof b != "string") {
-    b = Buffer.from(b).toString('hex');
-  }
-  if (!b.startsWith('0x')) {
-    return '0x' + b;
-  } else {
-    return b;
-  }
-}
-
-function createEncryptedData(pk: Uint8Array, data: string, agreementKey: Uint8Array) {
-  const iv = hexAddPrefix(randomHex(12));
-  return {
-    iv,
-    pubkey: u8aToHex(pk),
-    data: hexAddPrefix(encrypt(data, agreementKey, hexToU8a(iv))),
-  };
-};
-
-async function pinkQuery(
-  api: ApiPromise,
-  pruntimeApi: pruntimeRpc.PhactoryAPI,
-  pk: Uint8Array,
-  queryAgreementKey: Uint8Array,
-  encodedQuery: string,
-  { certificate, pubkey, secret }: CertificateData
-) {
-  // Encrypt the ContractQuery.
-  const encryptedData = createEncryptedData(pk, encodedQuery, queryAgreementKey);
-  const encodedEncryptedData = api
-    .createType("EncryptedData", encryptedData)
-    .toU8a();
-
-  // Sign the encrypted data.
-  const signature: pruntimeRpc.ISignature = {
-    signedBy: certificate,
-    signatureType: pruntimeRpc.SignatureType.Sr25519,
-    signature: sr25519Sign(pubkey, secret, encodedEncryptedData),
-  };
-
-  // Send request.
-  const requestData = {
-    encodedEncryptedData,
-    signature,
-  };
-  return pruntimeApi.contractQuery(requestData).then((res) => {
-    const { encodedEncryptedData } = res;
-    const encryptedData = api.createType<IEncryptedData>("EncryptedData", encodedEncryptedData)
-    const data = decrypt(encryptedData.data.toString(), queryAgreementKey, encryptedData.iv);
-    return hexAddPrefix(data);
-  });
-};
 
 export interface PinkInstantiateQueryOptions {
   cert: CertificateData
@@ -307,7 +247,7 @@ export class PinkBlueprintPromise {
           },
         },
       });
-      const rawResponse = await pinkQuery(api, this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert);
+      const rawResponse = await pinkQuery(this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert);
       const response = api.createType<InkResponse>("InkResponse", rawResponse);
       if (response.result.isErr) {
         return api.createType<InkQueryError>(
