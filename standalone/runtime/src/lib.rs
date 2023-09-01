@@ -932,7 +932,7 @@ const_assert!(DesiredMembers::get() <= CouncilMaxMembers::get());
 impl pallet_elections_phragmen::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type PalletId = ElectionsPhragmenPalletId;
-    type Currency = Balances;
+    type Currency = PhalaWrappedBalances;
     type ChangeMembers = Council;
     // NOTE: this implies that council's genesis members cannot be set directly and must come from
     // this module.
@@ -1456,6 +1456,7 @@ impl pallet_wrapped_balances::Config for Runtime {
     type WPhaAssetId = ConstU32<10000>;
     type WrappedBalancesAccountId = WrappedBalancesPalletAccount;
     type OnSlashed = Treasury;
+    type ElectionPalletId = ElectionsPhragmenPalletId;
 }
 
 pub struct MigrationAccount;

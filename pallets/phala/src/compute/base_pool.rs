@@ -293,7 +293,7 @@ pub mod pallet {
 			BalanceOf<T>:
 				sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 			T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-			T: Config + wrapped_balances::Config + vault::Config,
+			T: wrapped_balances::Config + vault::Config,
 		{
 			Pallet::<T>::set_nft_attr(self.cid, self.nftid, &self.attr)?;
 			Ok(())
@@ -336,7 +336,7 @@ pub mod pallet {
 		where
 			T: pallet_assets::Config<AssetId = u32, Balance = Balance>,
 			T: Config<AccountId = AccountId>,
-			T: Config + wrapped_balances::Config + vault::Config,
+			T: wrapped_balances::Config + vault::Config,
 		{
 			pallet_assets::Pallet::<T>::balance(
 				<T as wrapped_balances::Config>::WPhaAssetId::get(),
@@ -359,7 +359,7 @@ pub mod pallet {
 				sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 			T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 			T: Config<AccountId = AccountId>,
-			T: Config + wrapped_balances::Config + vault::Config,
+			T: wrapped_balances::Config + vault::Config,
 		{
 			self.total_value += rewards;
 			for vault_staker in &self.value_subscribers {
@@ -422,7 +422,7 @@ pub mod pallet {
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + vault::Config,
+		T: vault::Config,
 	{
 		/// Adds a staker accountid to contribution whitelist.
 		///
@@ -588,7 +588,7 @@ pub mod pallet {
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + wrapped_balances::Config + vault::Config,
+		T: wrapped_balances::Config + vault::Config,
 	{
 		/// Returns a [`NftGuard`] object that can read or write to the nft attributes
 		///

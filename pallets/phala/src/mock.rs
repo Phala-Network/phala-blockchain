@@ -263,6 +263,7 @@ impl computation::Config for Test {
 
 parameter_types! {
 	pub const WPhaAssetId: u32 = 1;
+	pub const ElectionPalletId: LockIdentifier = b"phrelect";
 }
 
 impl wrapped_balances::Config for Test {
@@ -270,6 +271,7 @@ impl wrapped_balances::Config for Test {
 	type WPhaAssetId = WPhaAssetId;
 	type WrappedBalancesAccountId = ConstU64<1234>;
 	type OnSlashed = ();
+	type ElectionPalletId = ElectionPalletId;
 }
 
 parameter_types! {
