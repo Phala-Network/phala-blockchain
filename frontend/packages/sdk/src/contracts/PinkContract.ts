@@ -48,8 +48,14 @@ export interface MapMessageInkQuery {
   [message: string]: PinkContractQuery;
 }
 
+export interface PinkContractOptions extends ContractOptions {
+    // Deposit to caller's cluster account to pay the gas fee. It useful when caller's cluster account
+    // won't have enough funds and eliminate one `transferToCluster` transaction.
+    deposit?: bigint | BN | string | number;
+}
+
 export interface PinkContractTx<TParams extends Array<any> = any[]> extends MessageMeta {
-    (options: ContractOptions, ...params: TParams): SubmittableExtrinsic<'promise'>;
+    (options: PinkContractOptions, ...params: TParams): SubmittableExtrinsic<'promise'>;
 }
 
 export interface MapMessageTx {
@@ -144,8 +150,8 @@ function createQuery(
   );
 }
 
-function createTx(meta: AbiMessage, fn: (options: ContractOptions, params: unknown[]) => SubmittableExtrinsic<'promise'>): PinkContractTx {
-  return withMeta(meta, (options: ContractOptions, ...params: unknown[]): SubmittableExtrinsic<'promise'> =>
+function createTx(meta: AbiMessage, fn: (options: PinkContractOptions, params: unknown[]) => SubmittableExtrinsic<'promise'>): PinkContractTx {
+  return withMeta(meta, (options: PinkContractOptions, ...params: unknown[]): SubmittableExtrinsic<'promise'> =>
     fn(options, params)
   );
 }
@@ -288,7 +294,7 @@ export class PinkContractPromise<TQueries extends Record<string, PinkContractQue
     };
   };
 
-  #inkCommand = (messageOrId: AbiMessage | string | number, { gasLimit = BN_ZERO, storageDepositLimit = null, value = BN_ZERO }: ContractOptions, params: unknown[]): SubmittableExtrinsic<'promise'> => {
+  #inkCommand = (messageOrId: AbiMessage | string | number, options: PinkContractOptions, params: unknown[]): SubmittableExtrinsic<'promise'> => {
     const api = this.api as ApiPromise
 
     // Generate a keypair for encryption
@@ -299,7 +305,7 @@ export class PinkContractPromise<TQueries extends Record<string, PinkContractQue
 
     const commandAgreementKey = sr25519Agree(hexToU8a(this.contractKey), sk);
 
-    const inkCommandInternal = (dest: AccountId, value: BN, gas: { refTime: BN }, storageDepositLimit: BN | undefined, encParams: Uint8Array) => {
+    const inkCommandInternal = (dest: AccountId, value: BN, deposit: BN, gas: { refTime: BN }, storageDepositLimit: BN | undefined, encParams: Uint8Array) => {
       // @ts-ignore
       const payload = api.createType("InkCommand", {
         InkMessage: {
@@ -316,7 +322,6 @@ export class PinkContractPromise<TQueries extends Record<string, PinkContractQue
           encrypted: createEncryptedData(pk, payload.toHex(), commandAgreementKey),
         })
         .toHex();
-      const deposit = new BN(value);
 
       return api.tx.phalaPhatContracts.pushContractMessage(
         dest,
@@ -328,9 +333,10 @@ export class PinkContractPromise<TQueries extends Record<string, PinkContractQue
     return inkCommandInternal(
       this.address,
       // @ts-ignore
-      value,
-      convertWeight(gasLimit).v2Weight,
-      storageDepositLimit,
+      options.value || BN_ZERO,
+      options.deposit || BN_ZERO,
+      convertWeight(options.gasLimit || BN_ZERO).v2Weight,
+      options.storageDepositLimit,
       this.abi.findMessage(messageOrId).toU8a(params)
     ).withResultTransform((result: ISubmittableResult) => {
       return new PinkContractSubmittableResult(
