@@ -49,6 +49,12 @@ export interface PinkInstantiateQueryOptions {
   deposit?: bigint | string | number | BN
 }
 
+export interface PinkBlueprintOptions extends BlueprintOptions {
+  // Deposit to caller's cluster account to pay the gas fee. It useful when caller's cluster account
+  // won't have enough funds and eliminate one `transferToCluster` transaction.
+  deposit?: bigint | BN | string | number;
+}
+
 function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, options: PinkInstantiateQueryOptions, params: unknown[]) => ContractCallResult<'promise', PinkContractInstantiateCallOutcome>): ContractInkQuery<'promise'> {
   return withMeta(meta, (origin: string | AccountId | Uint8Array, options: PinkInstantiateQueryOptions, ...params: unknown[]): ContractCallResult<'promise', PinkContractInstantiateCallOutcome> =>
     fn(origin, options, params)
@@ -175,7 +181,7 @@ export class PinkBlueprintPromise {
 
   #deploy = (
     constructorOrId: AbiConstructor | string | number,
-    { gasLimit = BN_ZERO, storageDepositLimit = null, value = BN_ZERO, salt }: BlueprintOptions,
+    { gasLimit = BN_ZERO, storageDepositLimit = null, value = BN_ZERO, deposit = BN_ZERO, salt }: PinkBlueprintOptions,
     params: unknown[]
   ) => {
     if (!salt) {
@@ -187,10 +193,10 @@ export class PinkBlueprintPromise {
       this.abi.findConstructor(constructorOrId).toU8a(params),
       salt,
       this.phatRegistry.clusterId,
-      0,  // not transfer any token to the contract during initialization
+      value,  // not transfer any token to the contract during initialization
       gasLimit,
       storageDepositLimit,
-      0
+      deposit
     ).withResultTransform((result: ISubmittableResult) => {
       let maybeContactId: string | undefined
       const instantiateEvent = result.events.filter(i => i.event.method === 'Instantiating')[0]
