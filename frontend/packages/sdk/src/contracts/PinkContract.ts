@@ -316,9 +316,7 @@ export class PinkContractPromise<TQueries extends Record<string, PinkContractQue
           encrypted: createEncryptedData(pk, payload.toHex(), commandAgreementKey),
         })
         .toHex();
-      let deposit = new BN(0);
-      const gasFee = new BN(gas.refTime).mul(this.phatRegistry.gasPrice);
-      deposit = new BN(value).add(gasFee).add(new BN(storageDepositLimit || 0));
+      const deposit = new BN(value);
 
       return api.tx.phalaPhatContracts.pushContractMessage(
         dest,
