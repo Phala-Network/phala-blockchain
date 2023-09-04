@@ -29,8 +29,9 @@ use phala_pallets::utils::attestation::{validate as validate_attestation_report,
 use phala_types::contract::contract_id_preimage;
 use phala_types::{
     contract, messaging::EncryptedKey, wrap_content_to_sign, AttestationReport,
-    ChallengeHandlerInfo, EncryptedWorkerKey, HandoverChallenge, SignedContentType,
-    VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfoV2,
+    ChallengeHandlerInfo, EncryptedWorkerKeyV0, EncryptedWorkerKeyV1, HandoverChallenge,
+    SignedContentType, VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey,
+    WorkerRegistrationInfoV2,
 };
 use sp_application_crypto::UncheckedFrom;
 use tracing::{error, info};
@@ -1637,7 +1638,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         // Share the key with attestation
         let ecdh_pubkey = challenge_handler.ecdh_pubkey;
         let iv = crate::generate_random_iv();
-        let runtime_data = phactory.persistent_runtime_data().map_err(from_display)?;
+        let (runtime_data, svn) = phactory
+            .load_persistent_runtime_data_with_svn()
+            .map_err(from_display)?;
         let (my_identity_key, _) = runtime_data.decode_keys();
         let (ecdh_pubkey, encrypted_key) = key_share::encrypt_secret_to(
             &my_identity_key,
@@ -1652,21 +1655,22 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             encrypted_key,
             iv,
         };
-        let runtime_state = phactory.runtime_state()?;
-        let genesis_block_hash = runtime_state.genesis_block_hash;
-        let encrypted_worker_key = EncryptedWorkerKey {
+        let genesis_block_hash = runtime_data.genesis_block_hash;
+        let encrypted_worker_key = EncryptedWorkerKeyV1 {
             genesis_block_hash,
-            para_id: runtime_state.para_id,
+            para_id: runtime_data.para_id,
             dev_mode,
             encrypted_key,
+            svn,
         };
 
-        let worker_key_hash = sp_core::hashing::blake2_256(&encrypted_worker_key.encode());
+        let encoded_worker_key = encrypted_worker_key.encode();
+        let payload_hash = sp_core::hashing::blake2_256(&encoded_worker_key);
         let attestation = if !dev_mode && in_sgx {
             Some(create_attestation_report_on(
                 &phactory.platform,
                 attestation_provider,
-                &worker_key_hash,
+                &payload_hash,
                 phactory.args.ra_timeout,
                 phactory.args.ra_max_retries,
             )?)
@@ -1675,10 +1679,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             None
         };
 
-        Ok(pb::HandoverWorkerKey::new(
-            encrypted_worker_key,
+        Ok(pb::HandoverWorkerKey {
             attestation,
-        ))
+            encoded_worker_key_v0: None,
+            encoded_worker_key_v1: Some(encoded_worker_key),
+        })
     }
 
     // WorkerKey Handover Client
@@ -1741,12 +1746,37 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
 
     async fn handover_receive(&mut self, request: pb::HandoverWorkerKey) -> RpcResult<()> {
         let mut phactory = self.lock_phactory(false, true)?;
-        let encrypted_worker_key = request.decode_worker_key().map_err(from_display)?;
-
-        let dev_mode = encrypted_worker_key.dev_mode;
+        let received_key;
+        let payload_hash;
+        match (
+            &request.encoded_worker_key_v0,
+            &request.encoded_worker_key_v1,
+        ) {
+            (None, None) => return Err(from_display("No worker key found")),
+            (Some(_), Some(_)) => return Err(from_display("Both v0 and v1 worker key found")),
+            (Some(encoded), None) => {
+                payload_hash = sp_core::hashing::blake2_256(encoded);
+                let v0 = EncryptedWorkerKeyV0::decode(&mut &encoded[..])
+                    .map_err(|_| from_display("Decode worker key failed"))?;
+                received_key = EncryptedWorkerKeyV1 {
+                    genesis_block_hash: v0.genesis_block_hash,
+                    para_id: v0.para_id,
+                    dev_mode: v0.dev_mode,
+                    encrypted_key: v0.encrypted_key,
+                    // If the version of the key is v0, it must from pRuntime v2.0 or v2.1, which never load the
+                    // keys with a different svn. Thus, we can safely set the svn to current svn.
+                    svn: phactory.platform.current_svn().map_err(from_debug)?,
+                };
+            }
+            (None, Some(encoded)) => {
+                payload_hash = sp_core::hashing::blake2_256(encoded);
+                received_key = EncryptedWorkerKeyV1::decode(&mut &encoded[..])
+                    .map_err(|_| from_display("Decode worker key failed"))?;
+            }
+        }
+        let dev_mode = received_key.dev_mode;
         // verify RA report
         if !dev_mode {
-            let worker_key_hash = sp_core::hashing::blake2_256(&encrypted_worker_key.encode());
             let raw_attestation = request
                 .attestation
                 .ok_or_else(|| from_display("Server attestation not found"))?;
@@ -1755,7 +1785,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                     .map_err(|_| from_display("Decode server attestation failed"))?;
             validate_attestation_report(
                 attn_to_validate,
-                &worker_key_hash,
+                &payload_hash,
                 now(),
                 false,
                 vec![],
@@ -1766,7 +1796,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             info!("Skip server RA report check for dev mode key");
         }
 
-        let encrypted_key = encrypted_worker_key.encrypted_key;
+        let encrypted_key = received_key.encrypted_key;
         let my_ecdh_key = phactory
             .handover_ecdh_key
             .as_ref()
@@ -1782,11 +1812,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         // only seal if the key is successfully updated
         phactory
             .save_runtime_data(
-                encrypted_worker_key.genesis_block_hash,
-                encrypted_worker_key.para_id,
+                received_key.genesis_block_hash,
+                received_key.para_id,
                 sr25519::Pair::restore_from_secret_key(&secret),
                 false, // we are not sure whether this key is injected
                 dev_mode,
+                Some(&received_key.svn),
             )
             .map_err(from_display)?;
 

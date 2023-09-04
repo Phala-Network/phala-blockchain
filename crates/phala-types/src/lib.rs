@@ -530,11 +530,20 @@ pub struct ChallengeHandlerInfo<BlockNumber> {
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
-pub struct EncryptedWorkerKey {
+pub struct EncryptedWorkerKeyV0 {
     pub genesis_block_hash: H256,
     pub para_id: u32,
     pub dev_mode: bool,
     pub encrypted_key: messaging::EncryptedKey,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub struct EncryptedWorkerKeyV1 {
+    pub genesis_block_hash: H256,
+    pub para_id: u32,
+    pub dev_mode: bool,
+    pub encrypted_key: messaging::EncryptedKey,
+    pub svn: Vec<u8>,
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]

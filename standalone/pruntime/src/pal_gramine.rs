@@ -3,7 +3,9 @@ use parity_scale_codec::{Decode, Encode};
 use std::alloc::System;
 use tracing::info;
 
-use phactory_pal::{AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, Sealing, RA};
+use phactory_pal::{
+    AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, Sealing, UnsealedData, RA,
+};
 use phala_allocator::StatSizeAllocator;
 use std::io::ErrorKind;
 use std::str::FromStr as _;
@@ -17,9 +19,14 @@ use phala_types::AttestationProvider;
 pub(crate) struct GraminePlatform;
 
 #[derive(Encode, Decode)]
-struct SealedData {
+struct Svn {
     isvsvn: u16,
     cpusvn: [u8; 16],
+}
+
+#[derive(Encode, Decode)]
+struct SealedData {
+    svn: Svn,
     iv: [u8; 12],
     data: Vec<u8>,
 }
@@ -34,28 +41,27 @@ fn get_sealing_key(isvsvn: u16, cpusvn: [u8; 16]) -> anyhow::Result<[u8; 32]> {
     Ok(key256)
 }
 
-fn sgx_seal_data(data: &[u8]) -> anyhow::Result<SealedData> {
+fn sgx_current_svn() -> anyhow::Result<Svn> {
     let this_target_info =
         sgx_api_lite::target_info().or(Err(anyhow!("Failed to get target info")))?;
     let report = sgx_api_lite::report(&this_target_info, &[0; 64])
         .or(Err(anyhow!("Failed to get SGX report")))?;
     let isvsvn = report.body.isv_svn;
     let cpusvn = report.body.cpu_svn.svn;
-    let key = get_sealing_key(isvsvn, cpusvn)
-        .or(Err(anyhow!("Failed to get sealing key")))?;
+    Ok(Svn { isvsvn, cpusvn })
+}
+
+fn sgx_seal_data(data: &[u8], svn: Svn) -> anyhow::Result<SealedData> {
+    let key =
+        get_sealing_key(svn.isvsvn, svn.cpusvn).or(Err(anyhow!("Failed to get sealing key")))?;
     let iv = phactory::generate_random_iv();
     let mut data = data.to_vec();
     phala_crypto::aead::encrypt(&iv, &key, &mut data).or(Err(anyhow!("Failed to encrypt data")))?;
-    Ok(SealedData {
-        isvsvn,
-        cpusvn,
-        iv,
-        data,
-    })
+    Ok(SealedData { svn, iv, data })
 }
 
 fn sgx_unseal_data(data: &SealedData) -> anyhow::Result<Vec<u8>> {
-    let key = get_sealing_key(data.isvsvn, data.cpusvn)
+    let key = get_sealing_key(data.svn.isvsvn, data.svn.cpusvn)
         .or(Err(anyhow!("Failed to get sealing key")))?;
     let mut enccypted_data = data.data.clone();
     let decrypted = phala_crypto::aead::decrypt(&data.iv, &key, &mut enccypted_data[..])
@@ -71,13 +77,18 @@ impl Sealing for GraminePlatform {
         &self,
         path: impl AsRef<std::path::Path>,
         data: &[u8],
+        svn: Option<&[u8]>,
     ) -> Result<(), Self::SealError> {
         if !is_gramine() {
             std::fs::write(path, data)?;
             return Ok(());
         }
         info!("Sealing data to {:?}", path.as_ref());
-        let data = sgx_seal_data(data)?;
+        let svn = match svn {
+            Some(svn) => Svn::decode(&mut &svn[..])?,
+            None => sgx_current_svn()?,
+        };
+        let data = sgx_seal_data(data, svn)?;
         let encoded = data.encode();
         std::fs::write(path, encoded)?;
         Ok(())
@@ -86,19 +97,26 @@ impl Sealing for GraminePlatform {
     fn unseal_data(
         &self,
         path: impl AsRef<std::path::Path>,
-    ) -> Result<Option<Vec<u8>>, Self::UnsealError> {
+    ) -> Result<Option<UnsealedData>, Self::UnsealError> {
         match std::fs::read(path) {
             Err(err) if matches!(err.kind(), ErrorKind::NotFound) => Ok(None),
             Ok(data) => {
                 if !is_gramine() {
-                    return Ok(Some(data));
+                    return Ok(Some(UnsealedData { data, svn: vec![] }));
                 }
-                let data = SealedData::decode(&mut &data[..])?;
-                let data = sgx_unseal_data(&data)?;
-                Ok(Some(data))
+                let sealed_data = SealedData::decode(&mut &data[..])?;
+                let data = sgx_unseal_data(&sealed_data)?;
+                Ok(Some(UnsealedData {
+                    data,
+                    svn: sealed_data.svn.encode(),
+                }))
             }
             Err(err) => Err(err.into()),
         }
+    }
+
+    fn current_svn(&self) -> Result<Vec<u8>, Self::SealError> {
+        Ok(sgx_current_svn()?.encode())
     }
 }
 
