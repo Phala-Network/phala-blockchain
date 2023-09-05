@@ -13,6 +13,7 @@ export * from './options';
 export * from './metadata';
 export * from './eip712';
 export { default as createPruntimeClient } from './createPruntimeClient';
+export { default as signAndSend } from './signAndSend';
 
 export const PhactoryAPI = pruntime_rpc.PhactoryAPI;
 export const pruntimeRpc = pruntime_rpc;
