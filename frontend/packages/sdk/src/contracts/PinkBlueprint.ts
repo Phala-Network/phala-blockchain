@@ -2,8 +2,9 @@ import { type Option } from '@polkadot/types';
 import type { DecorateMethod, ApiTypes } from '@polkadot/api/types';
 import type { AccountId, Hash, ContractInstantiateResult } from '@polkadot/types/interfaces';
 import type { ISubmittableResult } from '@polkadot/types/types';
+import type { SubmittableExtrinsic } from '@polkadot/api/submittable/types';
 import type { AbiMessage, AbiConstructor, BlueprintOptions, ContractCallOutcome } from '@polkadot/api-contract/types';
-import type { ContractCallResult, MessageMeta, MapConstructorExec } from '@polkadot/api-contract/base/types';
+import type { ContractCallResult, MessageMeta } from '@polkadot/api-contract/base/types';
 import type { ApiPromise } from '@polkadot/api';
 
 import type { OnChainRegistry } from '../OnChainRegistry';
@@ -54,6 +55,15 @@ export interface PinkBlueprintOptions extends BlueprintOptions {
   // won't have enough funds and eliminate one `transferToCluster` transaction.
   deposit?: bigint | BN | string | number;
 }
+
+export interface PinkBlueprintDeploy<ApiType extends ApiTypes> extends MessageMeta {
+    (options: BlueprintOptions, ...params: unknown[]): SubmittableExtrinsic<ApiType, PinkBlueprintSubmittableResult>;
+}
+
+export interface PinkMapConstructorExec<ApiType extends ApiTypes> {
+    [message: string]: PinkBlueprintDeploy<ApiType>;
+}
+
 
 function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, options: PinkInstantiateQueryOptions, params: unknown[]) => ContractCallResult<'promise', PinkContractInstantiateCallOutcome>): ContractInkQuery<'promise'> {
   return withMeta(meta, (origin: string | AccountId | Uint8Array, options: PinkInstantiateQueryOptions, ...params: unknown[]): ContractCallResult<'promise', PinkContractInstantiateCallOutcome> =>
@@ -144,7 +154,7 @@ export class PinkBlueprintPromise {
   readonly codeHash: Hash;
 
   readonly #query: MapMessageInkQuery<'promise'> = {};
-  readonly #tx: MapConstructorExec<'promise'> = {};
+  readonly #tx: PinkMapConstructorExec<'promise'> = {};
 
   constructor (api: ApiBase<'promise'>, phatRegistry: OnChainRegistry, abi: AbiLike, codeHash: string | Hash | Uint8Array) {
     if (!api || !api.isConnected || !api.tx) {
@@ -165,13 +175,13 @@ export class PinkBlueprintPromise {
 
     this.abi.constructors.forEach((c): void => {
       if (isUndefined(this.#tx[c.method])) {
-        this.#tx[c.method] = createBluePrintTx(c, (o, p) => this.#deploy(c, o, p));
+        this.#tx[c.method] = createBluePrintTx(c, (o, p) => this.#deploy(c, o, p)) as PinkBlueprintDeploy<'promise'>;
         this.#query[c.method] = createQuery(c, (f, o, p) => this.#estimateGas(c, o, p).send(f));
       }
     });
   }
 
-  public get tx (): MapConstructorExec<'promise'> {
+  public get tx (): PinkMapConstructorExec<'promise'> {
     return this.#tx;
   }
 
