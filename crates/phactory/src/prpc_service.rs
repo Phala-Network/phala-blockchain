@@ -2015,4 +2015,24 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             .load_cluster_state(&req.filename)
             .map_err(from_debug)
     }
+    async fn try_upgrade_pink_runtime(
+        &mut self,
+        req: pb::PinkRuntimeVersion,
+    ) -> Result<(), prpc::server::Error> {
+        let version = (req.major, req.minor);
+        let block_number;
+        let mut cluster = {
+            let mut phactory = self.lock_phactory(true, false)?;
+            block_number = phactory.current_block()?.0;
+            let system = phactory.system()?;
+            let cluster = system
+                .contract_cluster
+                .as_ref()
+                .ok_or_else(|| from_display("Worker not in cluster"))?;
+            cluster.clone()
+        };
+        cluster.upgrade_runtime(version);
+        cluster.on_idle(block_number);
+        Ok(())
+    }
 }

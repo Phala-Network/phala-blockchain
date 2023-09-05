@@ -14,7 +14,7 @@ use core::fmt;
 use phala_scheduler::RequestScheduler;
 use pink::{
     capi::v1::ecall::{ClusterSetupConfig, ECalls},
-    types::{AccountId, ECallsAvailable, ExecSideEffects, ExecutionMode, TransactionArguments},
+    types::{AccountId, ExecSideEffects, ExecutionMode, TransactionArguments},
 };
 use runtime::BlockNumber;
 
@@ -664,7 +664,6 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     fn process_contract_messages(&mut self, block: &mut BlockInfo) {
-        let log_handler = self.get_system_message_handler();
         // Iterate over all contracts to handle their incoming commands.
         //
         // Since the wasm contracts can instantiate new contracts, it means that it will mutate the `self.contracts`.
@@ -675,6 +674,7 @@ impl<Platform: pal::Platform> System<Platform> {
             // Inner loop to handle commands. One command per iteration and apply the command side-effects to make it
             // availabe for next command.
             loop {
+                let log_handler = self.get_system_message_handler();
                 let Some(cluster) = &mut self.contract_cluster else {
                     return;
                 };
@@ -698,15 +698,13 @@ impl<Platform: pal::Platform> System<Platform> {
                     block,
                     &self.egress,
                     &self.sidevm_spawner,
-                    log_handler.clone(),
+                    log_handler,
                     block.storage,
                 );
             }
         }
         if let Some(cluster) = &mut self.contract_cluster {
-            if ECallsAvailable::on_idle(cluster.config.runtime_version) {
-                cluster.runtime_mut(log_handler).on_idle(block.block_number);
-            }
+            cluster.on_idle(block.block_number);
         };
     }
 
@@ -1830,19 +1828,7 @@ pub(crate) fn apply_pink_events(
             }
             PinkEvent::UpgradeRuntimeTo { version } => {
                 ensure_system!();
-                info!("Try to upgrade runtime to {version:?}");
-                if version <= cluster.config.runtime_version {
-                    info!("Runtime version is already {version:?}");
-                    continue;
-                }
-                if cluster.config.runtime_version == (1, 0) {
-                    // The 1.0 runtime didn't call on_genesis on cluster setup, so we need to call it
-                    // manually to make sure the storage_versions are correct before migration.
-                    cluster.default_runtime_mut().on_genesis();
-                }
-                cluster.config.runtime_version = version;
-                cluster.default_runtime_mut().on_runtime_upgrade();
-                info!("Runtime upgraded to {version:?}");
+                cluster.upgrade_runtime(version);
             }
         }
     }
