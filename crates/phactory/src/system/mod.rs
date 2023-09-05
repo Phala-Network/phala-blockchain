@@ -14,7 +14,7 @@ use core::fmt;
 use phala_scheduler::RequestScheduler;
 use pink::{
     capi::v1::ecall::{ClusterSetupConfig, ECalls},
-    types::{AccountId, ExecSideEffects, ExecutionMode, TransactionArguments},
+    types::{AccountId, ECallsAvailable, ExecSideEffects, ExecutionMode, TransactionArguments},
 };
 use runtime::BlockNumber;
 
@@ -664,6 +664,7 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     fn process_contract_messages(&mut self, block: &mut BlockInfo) {
+        let log_handler = self.get_system_message_handler();
         // Iterate over all contracts to handle their incoming commands.
         //
         // Since the wasm contracts can instantiate new contracts, it means that it will mutate the `self.contracts`.
@@ -674,7 +675,6 @@ impl<Platform: pal::Platform> System<Platform> {
             // Inner loop to handle commands. One command per iteration and apply the command side-effects to make it
             // availabe for next command.
             loop {
-                let log_handler = self.get_system_message_handler();
                 let Some(cluster) = &mut self.contract_cluster else {
                     return;
                 };
@@ -698,11 +698,16 @@ impl<Platform: pal::Platform> System<Platform> {
                     block,
                     &self.egress,
                     &self.sidevm_spawner,
-                    log_handler,
+                    log_handler.clone(),
                     block.storage,
                 );
             }
         }
+        if let Some(cluster) = &mut self.contract_cluster {
+            if ECallsAvailable::on_idle(cluster.config.runtime_version) {
+                cluster.runtime_mut(log_handler).on_idle(block.block_number);
+            }
+        };
     }
 
     pub fn did_process_block(&mut self, block: &mut BlockInfo) {

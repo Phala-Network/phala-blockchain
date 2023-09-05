@@ -9649,7 +9649,7 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "pink"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "call-trace",
@@ -9786,6 +9786,7 @@ dependencies = [
  "proc-macro2 1.0.66",
  "rustfmt-snippet 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn 1.0.109",
+ "template-quote",
 ]
 
 [[package]]
@@ -10212,6 +10213,30 @@ dependencies = [
  "syn 2.0.26",
  "version_check",
  "yansi",
+]
+
+[[package]]
+name = "proc-quote"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e84ab161de78c915302ca325a19bee6df272800e2ae1a43fe3ef430bab2a100"
+dependencies = [
+ "proc-macro-hack",
+ "proc-macro2 1.0.66",
+ "proc-quote-impl",
+ "quote 1.0.31",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "proc-quote-impl"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fb3ec628b063cdbcf316e06a8b8c1a541d28fa6c0a8eacd2bfb2b7f49e88aa0"
+dependencies = [
+ "proc-macro-hack",
+ "proc-macro2 1.0.66",
+ "quote 1.0.31",
 ]
 
 [[package]]
@@ -14959,6 +14984,28 @@ dependencies = [
  "redox_syscall 0.3.5",
  "rustix 0.37.23",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "template-quote"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b774676e9c0a6ece1b3b866f2501d02ce66a8319bc5ed38a6dc2cf863f56970c"
+dependencies = [
+ "proc-quote",
+ "template-quote-impl",
+]
+
+[[package]]
+name = "template-quote-impl"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3008126541b827d5b3abaac25659be4f0c32bf956d6c0b10526ae0acf93709cb"
+dependencies = [
+ "proc-macro-error",
+ "proc-macro2 1.0.66",
+ "quote 1.0.31",
+ "syn 1.0.109",
 ]
 
 [[package]]

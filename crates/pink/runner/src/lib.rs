@@ -4,7 +4,7 @@ pub use sp_weights::constants;
 
 pub mod types {
     pub use crate::capi::types::*;
-    pub use crate::capi::v1::ecall::TransactionArguments;
+    pub use crate::capi::v1::ecall::{ECallsAvailable, TransactionArguments};
 }
 
 pub mod runtimes;

@@ -34,7 +34,7 @@ pub trait OCall: CrossCall {}
 
 pub mod ecall {
     use super::{CrossCallMut, ECall, Executing};
-    use crate::types::{AccountId, Balance, ExecutionMode, Hash, Weight};
+    use crate::types::{AccountId, Balance, ExecutionMode, Hash, Weight, BlockNumber};
     use pink_macro::cross_call;
     use scale::{Decode, Encode};
     pub trait EventCallbacks {
@@ -116,8 +116,10 @@ pub mod ecall {
         fn git_revision(&self) -> String;
         #[xcall(id = 22)]
         fn on_genesis(&mut self);
-        #[xcall(id = 23)]
+        #[xcall(id = 23, since = "1.1")]
         fn on_runtime_upgrade(&mut self);
+        #[xcall(id = 24, since = "1.2")]
+        fn on_idle(&mut self, block_number: BlockNumber);
     }
 }
 

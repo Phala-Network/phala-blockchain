@@ -2,14 +2,17 @@ mod extension;
 mod pallet_pink;
 mod weights;
 
-use crate::types::{AccountId, Balance, BlockNumber, Nonce, Hash, Hashing};
+use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Nonce};
 use frame_support::{
     parameter_types,
     traits::ConstBool,
     weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
 };
 use log::info;
-use pallet_contracts::{Config, Frame, Migration, Schedule};
+use pallet_contracts::{
+    migration::{v10, v11, v12, v9},
+    Config, Frame, Migration, Schedule,
+};
 use sp_runtime::{traits::IdentityLookup, Perbill};
 
 pub use extension::get_side_effects;
@@ -18,7 +21,7 @@ pub use pink_extension::{EcdhPublicKey, HookPoint, Message, OspMessage, PinkEven
 
 type Block = sp_runtime::generic::Block<
     sp_runtime::generic::Header<BlockNumber, Hashing>,
-    frame_system::mocking:: MockUncheckedExtrinsic<PinkRuntime>,
+    frame_system::mocking::MockUncheckedExtrinsic<PinkRuntime>,
 >;
 
 pub type SystemEvents = Vec<frame_system::EventRecord<RuntimeEvent, Hash>>;
@@ -150,7 +153,12 @@ impl Config for PinkRuntime {
     type MaxStorageKeyLen = MaxStorageKeyLen;
     type UnsafeUnstableInterface = ConstBool<false>;
     type MaxDebugBufferLen = MaxDebugBufferLen;
-    type Migrations = ();
+    type Migrations = (
+        v9::Migration<Self>,
+        v10::Migration<Self>,
+        v11::Migration<Self>,
+        v12::Migration<Self>,
+    );
 }
 
 #[test]
@@ -176,4 +184,9 @@ pub fn on_runtime_upgrade() {
     type Migrations = (Migration<PinkRuntime>, AllPalletsWithSystem);
     Migrations::on_runtime_upgrade();
     info!("Runtime database migration done");
+}
+
+/// Call on_idle for each pallet.
+pub fn on_idle(n: BlockNumber) {
+    <AllPalletsWithSystem as frame_support::traits::OnIdle<BlockNumber>>::on_idle(n, Weight::MAX);
 }
