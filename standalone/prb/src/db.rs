@@ -164,7 +164,7 @@ pub fn setup_inventory_db(db_path: &str) -> WrappedDb {
     let db = Arc::new(db);
     debug!("Opened inventory database in {:?}", db_path);
 
-    vec![
+    [
         ID_PROP_WORKER_NAME,
         ID_PROP_WORKER_ENABLED,
         ID_PROP_WORKER_SYNC_ONLY,

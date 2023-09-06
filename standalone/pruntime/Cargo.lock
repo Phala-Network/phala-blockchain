@@ -5942,7 +5942,7 @@ dependencies = [
  "proc-macro-hack",
  "proc-macro2 1.0.66",
  "proc-quote-impl",
- "quote 1.0.31",
+ "quote 1.0.33",
  "syn 1.0.109",
 ]
 
@@ -5954,7 +5954,7 @@ checksum = "7fb3ec628b063cdbcf316e06a8b8c1a541d28fa6c0a8eacd2bfb2b7f49e88aa0"
 dependencies = [
  "proc-macro-hack",
  "proc-macro2 1.0.66",
- "quote 1.0.31",
+ "quote 1.0.33",
 ]
 
 [[package]]
@@ -8436,7 +8436,7 @@ checksum = "3008126541b827d5b3abaac25659be4f0c32bf956d6c0b10526ae0acf93709cb"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.66",
- "quote 1.0.31",
+ "quote 1.0.33",
  "syn 1.0.109",
 ]
 
