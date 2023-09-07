@@ -106,7 +106,7 @@ mod check_system {
             script: Vec<u8>,
             args: Vec<String>,
         ) -> Result<js::Output, String> {
-            js::eval_bytecode_with(delegate, script, &args)
+            js::eval_bytecode_with(delegate, &script, &args)
         }
 
         #[ink(message)]
