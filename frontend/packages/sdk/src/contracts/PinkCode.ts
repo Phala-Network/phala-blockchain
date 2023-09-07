@@ -21,7 +21,7 @@ import { PinkBlueprintPromise } from './PinkBlueprint';
 export class InkCodeSubmittableResult extends SubmittableResult {
   readonly registry: OnChainRegistry;
   readonly abi: Abi;
-  readonly blueprint?: PinkBlueprintPromise;
+  readonly blueprint: PinkBlueprintPromise;
 
   #isFinalized: boolean = false
 

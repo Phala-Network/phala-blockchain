@@ -10,12 +10,13 @@ import { Keyring } from '@polkadot/api'
 import { hexAddPrefix, hexToU8a, stringToHex, hexToString } from '@polkadot/util'
 import { sr25519Agree } from "@polkadot/wasm-crypto";
 
-import { PinkContractPromise, pinkQuery } from './PinkContract'
+import { type PinkContractPromise } from './PinkContract'
 import { ContractInitialError } from './Errors'
 import { type CertificateData, generatePair, signCertificate } from '../certificate'
 import { randomHex } from '../lib/hex'
 import { phalaTypes } from '../options'
 import { type pruntime_rpc } from '../proto'
+import { pinkQuery } from '../pinkQuery'
 
 
 interface GetLogRequest {
@@ -98,20 +99,19 @@ function InkQuery(contractId: AccountId, { sidevmMessage }: { sidevmMessage?: Re
 }
 
 interface SidevmQueryContext {
-  api: ApiPromise
   phactory: pruntime_rpc.PhactoryAPI
   remotePubkey: string
   address: AccountId
   cert: CertificateData
 }
 
-function sidevmQueryWithReader({ api, phactory, remotePubkey, address, cert }: SidevmQueryContext) {
+function sidevmQueryWithReader({ phactory, remotePubkey, address, cert }: SidevmQueryContext) {
   return async function unsafeRunSidevmQuery<T>(sidevmMessage: Record<string, any>): Promise<T> {
     const [sk, pk] = generatePair()
     const encodedQuery = InkQuery(address, { sidevmMessage })
     const queryAgreementKey = sr25519Agree(hexToU8a(hexAddPrefix(remotePubkey)), sk)
-    const response = await pinkQuery(api, phactory, pk, queryAgreementKey, encodedQuery.toHex(), cert)
-    const inkResponse = api.createType<InkResponse>('InkResponse', response)
+    const response = await pinkQuery(phactory, pk, queryAgreementKey, encodedQuery.toHex(), cert)
+    const inkResponse = phalaTypes.createType<InkResponse>('InkResponse', response)
     if (inkResponse.result.isErr) {
       let error = `[${inkResponse.result.asErr.index}] ${inkResponse.result.asErr.type}`
       if (inkResponse.result.asErr.type === 'RuntimeError') {
@@ -167,8 +167,8 @@ function buildGetLogRequest(params: any[], getFrom: (x: Partial<GetLogRequest>) 
 
 
 export class PinkLoggerContractPromise {
-  #api: ApiPromise
-  #phatRegistry: OnChainRegistry
+  #phactory: pruntime_rpc.PhactoryAPI
+  #remotePubkey: string
   #address: AccountId;
   #pair: KeyringPair
   #systemContractId: string | undefined
@@ -186,32 +186,31 @@ export class PinkLoggerContractPromise {
       throw new ContractInitialError('No PinkLogger contract registered in the cluster.')
     }
     const systemContractId = systemContract.address?.toHex()
-    return new PinkLoggerContractPromise(api, registry, contractId, pair, systemContractId)
+    if (!registry.phactory || !registry.remotePubkey) {
+      throw new Error('No Pruntime connection found.')
+    }
+    return new PinkLoggerContractPromise(registry.phactory, registry.remotePubkey, _pair, contractId, systemContractId)
   }
 
-  constructor(api: ApiPromise, registry: OnChainRegistry, contractId: string | AccountId, pair?: KeyringPair, systemContractId?: string) {
-    this.#api = api
-    this.#phatRegistry = registry
-    this.#address = api.createType('AccountId', contractId);
-    if (!pair) {
-      const keyring = new Keyring({ type: 'sr25519' });
-      this.#pair = keyring.addFromUri('//Alice')
-    } else {
-      this.#pair = pair
-    }
+  // constructor(api: ApiPromise, registry: OnChainRegistry, contractId: string | AccountId, pair: KeyringPair, systemContractId: string) {
+  constructor(phactory: pruntime_rpc.PhactoryAPI, remotePubkey: string, pair: KeyringPair, contractId: string | AccountId, systemContractId: string) {
+    this.#phactory = phactory
+    this.#remotePubkey = remotePubkey
+    this.#address = phalaTypes.createType('AccountId', contractId);
+    this.#pair = pair
     this.#systemContractId = systemContractId
   }
 
   protected async getSidevmQueryContext(): Promise<SidevmQueryContext> {
-    if (!this.#phatRegistry.phactory || !this.#phatRegistry.remotePubkey) {
-      throw new Error('No Pruntime connection found.')
-    }
     const cert = await signCertificate({ pair: this.#pair });
-    const api = this.#api as ApiPromise
     const address = this.#address as AccountId
-    const phactory = this.#phatRegistry.phactory
-    const remotePubkey = this.#phatRegistry.remotePubkey
-    return { api, phactory, remotePubkey, address, cert } as const
+    const phactory = this.#phactory
+    const remotePubkey = this.#remotePubkey
+    return { phactory, remotePubkey, address, cert } as const
+  }
+
+  get address() {
+    return this.#address
   }
 
   async getLog(contract: AccountId | string, from: number = 0, count: number = 100): Promise<GetLogResponse> {

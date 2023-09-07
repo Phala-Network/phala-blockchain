@@ -1,8 +1,10 @@
+import { type Option } from '@polkadot/types';
 import type { DecorateMethod, ApiTypes } from '@polkadot/api/types';
 import type { AccountId, Hash, ContractInstantiateResult } from '@polkadot/types/interfaces';
 import type { ISubmittableResult } from '@polkadot/types/types';
+import type { SubmittableExtrinsic } from '@polkadot/api/submittable/types';
 import type { AbiMessage, AbiConstructor, BlueprintOptions, ContractCallOutcome } from '@polkadot/api-contract/types';
-import type { ContractCallResult, MessageMeta, MapConstructorExec } from '@polkadot/api-contract/base/types';
+import type { ContractCallResult, MessageMeta } from '@polkadot/api-contract/base/types';
 import type { ApiPromise } from '@polkadot/api';
 
 import type { OnChainRegistry } from '../OnChainRegistry';
@@ -11,24 +13,26 @@ import type { CertificateData } from '../certificate';
 
 import { SubmittableResult } from '@polkadot/api';
 import { ApiBase } from '@polkadot/api/base';
-import { BN_ZERO, isUndefined, hexAddPrefix, u8aToHex, hexToU8a } from '@polkadot/util';
+import { BN_ZERO, isUndefined, hexAddPrefix, hexToU8a, BN } from '@polkadot/util';
 import { createBluePrintTx, withMeta } from '@polkadot/api-contract/base/util';
-import { sr25519Agree, sr25519KeypairFromSeed, sr25519Sign } from "@polkadot/wasm-crypto";
+import { sr25519Agree, sr25519KeypairFromSeed } from "@polkadot/wasm-crypto";
 import { from } from 'rxjs';
 
 import { Abi } from '@polkadot/api-contract/Abi';
 import { toPromiseMethod } from '@polkadot/api';
-import { CodecMap, Option } from '@polkadot/types';
 
-import { pruntime_rpc as pruntimeRpc } from "../proto";
-import { decrypt, encrypt } from "../lib/aes-256-gcm";
 import { randomHex } from "../lib/hex";
 import assert from '../lib/assert';
-import { PinkContractQueryOptions, PinkContractPromise } from './PinkContract';
+import { PinkContractPromise } from './PinkContract';
+import { pinkQuery } from '../pinkQuery';
 
+
+export interface PinkContractInstantiateCallOutcome extends ContractCallOutcome {
+  salt: string;
+}
 
 interface ContractInkQuery<ApiType extends ApiTypes> extends MessageMeta {
-  (origin: string | AccountId | Uint8Array, ...params: unknown[]): ContractCallResult<ApiType, ContractCallOutcome>;
+  (origin: string | AccountId | Uint8Array, ...params: unknown[]): ContractCallResult<ApiType, PinkContractInstantiateCallOutcome>;
 }
 
 interface MapMessageInkQuery<ApiType extends ApiTypes> {
@@ -39,67 +43,30 @@ interface PinkContractInstantiateResult extends ContractInstantiateResult {
   salt: string;
 }
 
-interface IEncryptedData extends CodecMap {
-  data: Uint8Array
-  iv: Uint8Array
+export interface PinkInstantiateQueryOptions {
+  cert: CertificateData
+  salt?: string
+  transfer?: bigint | string | number | BN
+  deposit?: bigint | string | number | BN
 }
 
-function hex(b: string | Uint8Array) {
-  if (typeof b != "string") {
-    b = Buffer.from(b).toString('hex');
-  }
-  if (!b.startsWith('0x')) {
-    return '0x' + b;
-  } else {
-    return b;
-  }
+export interface PinkBlueprintOptions extends BlueprintOptions {
+  // Deposit to caller's cluster account to pay the gas fee. It useful when caller's cluster account
+  // won't have enough funds and eliminate one `transferToCluster` transaction.
+  deposit?: bigint | BN | string | number;
 }
 
-function createEncryptedData(pk: Uint8Array, data: string, agreementKey: Uint8Array) {
-  const iv = hexAddPrefix(randomHex(12));
-  return {
-    iv,
-    pubkey: u8aToHex(pk),
-    data: hexAddPrefix(encrypt(data, agreementKey, hexToU8a(iv))),
-  };
-};
+export interface PinkBlueprintDeploy<ApiType extends ApiTypes> extends MessageMeta {
+    (options: BlueprintOptions, ...params: unknown[]): SubmittableExtrinsic<ApiType, PinkBlueprintSubmittableResult>;
+}
 
-async function pinkQuery(
-  api: ApiPromise,
-  pruntimeApi: pruntimeRpc.PhactoryAPI,
-  pk: Uint8Array,
-  queryAgreementKey: Uint8Array,
-  encodedQuery: string,
-  { certificate, pubkey, secret }: CertificateData
-) {
-  // Encrypt the ContractQuery.
-  const encryptedData = createEncryptedData(pk, encodedQuery, queryAgreementKey);
-  const encodedEncryptedData = api
-    .createType("EncryptedData", encryptedData)
-    .toU8a();
+export interface PinkMapConstructorExec<ApiType extends ApiTypes> {
+    [message: string]: PinkBlueprintDeploy<ApiType>;
+}
 
-  // Sign the encrypted data.
-  const signature: pruntimeRpc.ISignature = {
-    signedBy: certificate,
-    signatureType: pruntimeRpc.SignatureType.Sr25519,
-    signature: sr25519Sign(pubkey, secret, encodedEncryptedData),
-  };
 
-  // Send request.
-  const requestData = {
-    encodedEncryptedData,
-    signature,
-  };
-  return pruntimeApi.contractQuery(requestData).then((res) => {
-    const { encodedEncryptedData } = res;
-    const encryptedData = api.createType<IEncryptedData>("EncryptedData", encodedEncryptedData)
-    const data = decrypt(encryptedData.data.toString(), queryAgreementKey, encryptedData.iv);
-    return hexAddPrefix(data);
-  });
-};
-
-function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, params: unknown[]) => ContractCallResult<'promise', ContractCallOutcome>): ContractInkQuery<'promise'> {
-  return withMeta(meta, (origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, ...params: unknown[]): ContractCallResult<'promise', ContractCallOutcome> =>
+function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, options: PinkInstantiateQueryOptions, params: unknown[]) => ContractCallResult<'promise', PinkContractInstantiateCallOutcome>): ContractInkQuery<'promise'> {
+  return withMeta(meta, (origin: string | AccountId | Uint8Array, options: PinkInstantiateQueryOptions, ...params: unknown[]): ContractCallResult<'promise', PinkContractInstantiateCallOutcome> =>
     fn(origin, options, params)
   );
 }
@@ -166,7 +133,10 @@ export class PinkBlueprintSubmittableResult extends SubmittableResult {
   }
 
   get contract() {
-    return this.#contract
+    if (!this.#contract) {
+        throw new Error('contract is not ready yet, please call waitFinalized first')
+    }
+    return this.#contract!
   }
 }
 
@@ -184,7 +154,7 @@ export class PinkBlueprintPromise {
   readonly codeHash: Hash;
 
   readonly #query: MapMessageInkQuery<'promise'> = {};
-  readonly #tx: MapConstructorExec<'promise'> = {};
+  readonly #tx: PinkMapConstructorExec<'promise'> = {};
 
   constructor (api: ApiBase<'promise'>, phatRegistry: OnChainRegistry, abi: AbiLike, codeHash: string | Hash | Uint8Array) {
     if (!api || !api.isConnected || !api.tx) {
@@ -205,13 +175,13 @@ export class PinkBlueprintPromise {
 
     this.abi.constructors.forEach((c): void => {
       if (isUndefined(this.#tx[c.method])) {
-        this.#tx[c.method] = createBluePrintTx(c, (o, p) => this.#deploy(c, o, p));
+        this.#tx[c.method] = createBluePrintTx(c, (o, p) => this.#deploy(c, o, p)) as PinkBlueprintDeploy<'promise'>;
         this.#query[c.method] = createQuery(c, (f, o, p) => this.#estimateGas(c, o, p).send(f));
       }
     });
   }
 
-  public get tx (): MapConstructorExec<'promise'> {
+  public get tx (): PinkMapConstructorExec<'promise'> {
     return this.#tx;
   }
 
@@ -221,7 +191,7 @@ export class PinkBlueprintPromise {
 
   #deploy = (
     constructorOrId: AbiConstructor | string | number,
-    { gasLimit = BN_ZERO, storageDepositLimit = null, value = BN_ZERO, salt }: BlueprintOptions,
+    { gasLimit = BN_ZERO, storageDepositLimit = null, value = BN_ZERO, deposit = BN_ZERO, salt }: PinkBlueprintOptions,
     params: unknown[]
   ) => {
     if (!salt) {
@@ -233,10 +203,10 @@ export class PinkBlueprintPromise {
       this.abi.findConstructor(constructorOrId).toU8a(params),
       salt,
       this.phatRegistry.clusterId,
-      0,  // not transfer any token to the contract during initialization
+      value,  // not transfer any token to the contract during initialization
       gasLimit,
       storageDepositLimit,
-      0
+      deposit
     ).withResultTransform((result: ISubmittableResult) => {
       let maybeContactId: string | undefined
       const instantiateEvent = result.events.filter(i => i.event.method === 'Instantiating')[0]
@@ -252,7 +222,7 @@ export class PinkBlueprintPromise {
 
   #estimateGas = (
     constructorOrId: AbiConstructor | string | number,
-    options: PinkContractQueryOptions,
+    options: PinkInstantiateQueryOptions,
     params: unknown[]
   ) => {
     const api = this.api as ApiPromise
@@ -277,7 +247,7 @@ export class PinkBlueprintPromise {
       } else {
         assert(origin.toString() === cert.address, 'origin must be the same as the certificate address')
       }
-      const salt = randomHex(4)
+      const salt = options.salt || randomHex(4)
       const payload = api.createType("InkQuery", {
         head: {
           nonce: hexAddPrefix(randomHex(32)),
@@ -288,12 +258,12 @@ export class PinkBlueprintPromise {
             codeHash: this.abi.info.source.wasmHash,
             salt,
             instantiateData: this.abi.findConstructor(constructorOrId).toU8a(params),
-            deposit: 0,
-            transfer: 0,
+            deposit: options.deposit || 0,
+            transfer: options.transfer || 0,
           },
         },
       });
-      const rawResponse = await pinkQuery(api, this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert);
+      const rawResponse = await pinkQuery(this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert);
       const response = api.createType<InkResponse>("InkResponse", rawResponse);
       if (response.result.isErr) {
         return api.createType<InkQueryError>(
