@@ -247,11 +247,14 @@ export class PinkBlueprintPromise {
       } else {
         assert(origin.toString() === cert.address, 'origin must be the same as the certificate address')
       }
+      if (!this.phatRegistry.systemContract) {
+        throw new Error("You OnChainRegistry don't set up associated System Contract, estimate gas failed.")
+      }
       const salt = options.salt || randomHex(4)
       const payload = api.createType("InkQuery", {
         head: {
           nonce: hexAddPrefix(randomHex(32)),
-          id: this.phatRegistry.clusterInfo?.systemContract!,
+          id: this.phatRegistry.systemContract?.address
         },
         data: {
           InkInstantiate: {
