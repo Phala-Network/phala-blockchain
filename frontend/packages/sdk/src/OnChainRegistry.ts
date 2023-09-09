@@ -154,24 +154,24 @@ export class OnChainRegistry {
 
     let clusterInfo
 
-    if (!skipCheck) {
-        if (clusterId) {
-          clusterInfo = await this.getClusters(clusterId)
-          if (!clusterInfo) {
-            throw new Error(`Cluster not found: ${clusterId}`)
-          }
-        } else {
-          const clusters = await this.getClusters()
-          if (!clusters || !Array.isArray(clusters)) {
-            throw new Error('No cluster found.')
-          }
-          if (clusters.length === 0) {
-            throw new Error('No cluster found.')
-          }
-          clusterId = clusters[0][0] as string
-          clusterInfo = clusters[0][1] as ClusterInfo
-        }
+    if (clusterId) {
+      clusterInfo = await this.getClusters(clusterId)
+      if (!clusterInfo) {
+        throw new Error(`Cluster not found: ${clusterId}`)
+      }
+    } else {
+      const clusters = await this.getClusters()
+      if (!clusters || !Array.isArray(clusters)) {
+        throw new Error('No cluster found.')
+      }
+      if (clusters.length === 0) {
+        throw new Error('No cluster found.')
+      }
+      clusterId = clusters[0][0] as string
+      clusterInfo = clusters[0][1] as ClusterInfo
+    }
 
+    if (!skipCheck) {
         const endpoints = await this.getEndpints()
         if (!Array.isArray(endpoints) || endpoints.length === 0) {
           throw new Error('No worker found.')
