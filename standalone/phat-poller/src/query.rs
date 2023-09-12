@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use phactory_api::{
+    contracts::{Query, QueryError, Response},
     crypto::{CertificateBody, EncryptedData},
     prpc,
 };
@@ -9,49 +10,13 @@ use phala_types::contract;
 use phala_types::contract::ContractId;
 use scale::{Decode, Encode};
 use sp_core::Pair as _;
-use tracing::warn;
 use std::convert::TryFrom as _;
-
-#[derive(Debug, Encode, Decode)]
-pub enum Query {
-    InkMessage {
-        payload: Vec<u8>,
-        /// Amount of tokens deposit to the caller.
-        deposit: u128,
-        /// Amount of tokens transfer from the caller to the target contract.
-        transfer: u128,
-        /// Whether to use the gas estimation mode.
-        estimating: bool,
-    },
-    SidevmQuery(Vec<u8>),
-}
+use tracing::debug;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
     InkMessage { nonce: Vec<u8>, message: Vec<u8> },
 }
-
-#[derive(Debug, Encode, Decode)]
-pub enum Response {
-    Payload(Vec<u8>),
-}
-
-#[derive(Debug, Encode, Decode)]
-pub enum QueryError {
-    BadOrigin,
-    RuntimeError(String),
-    SidevmNotFound,
-}
-impl std::fmt::Display for QueryError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            QueryError::BadOrigin => write!(f, "Bad origin"),
-            QueryError::RuntimeError(msg) => write!(f, "Runtime error: {}", msg),
-            QueryError::SidevmNotFound => write!(f, "Sidevm not found"),
-        }
-    }
-}
-impl std::error::Error for QueryError {}
 
 #[derive(Debug, Encode, Decode)]
 pub enum LangError {
@@ -77,12 +42,11 @@ pub async fn pink_query<I: Encode, O: Decode>(
 ) -> Result<O> {
     let call_data = (selector.to_be_bytes(), args).encode();
     let payload = pink_query_raw(worker_pubkey, url, id, call_data, key).await??;
-    let output =
-        crate::primitives::ContractExecResult::<u128>::decode(&mut &payload[..])?
-            .result
-            .map_err(|err| anyhow::anyhow!("DispatchError({err:?})"))?;
+    let output = crate::primitives::ContractExecResult::<u128>::decode(&mut &payload[..])?
+        .result
+        .map_err(|err| anyhow::anyhow!("DispatchError({err:?})"))?;
     if output.did_revert() {
-        warn!("Contract execution reverted, output={:?}", output.data);
+        debug!("Contract execution reverted, output={:?}", output.data);
     }
     let r = Result::<O, LangError>::decode(&mut &output.data[..])??;
     Ok(r)

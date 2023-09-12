@@ -24,7 +24,7 @@ pub struct RunArgs {
 
     /// The worker URL used to development
     #[arg(long)]
-    pub dev_worker_uri: Option<String>,
+    pub dev_worker_uri: Vec<String>,
 
     /// Cluster ID
     #[arg(long, value_parser = parse_hash, default_value = "0x0000000000000000000000000000000000000000000000000000000000000001")]
@@ -46,17 +46,25 @@ pub struct RunArgs {
     #[arg(long, value_parser = parse_duration, default_value = "10s")]
     pub poll_interval: Duration,
 
+    /// The gap between two poll to workflows
+    #[arg(long, value_parser = parse_duration, default_value = "200ms")]
+    pub workflow_poll_gap: Duration,
+
     /// Contract poll timeout
     #[arg(long, value_parser = parse_duration, default_value = "10s")]
     pub poll_timeout: Duration,
 
     /// Contract poll timeout over all contracts
-    #[arg(long, value_parser = parse_duration, default_value = "20s")]
+    #[arg(long, value_parser = parse_duration, default_value = "30s")]
     pub poll_timeout_overall: Duration,
 
+    /// Poll workflows with a unique poll id
+    #[arg(long)]
+    pub with_poll_id: bool,
+
     /// Top n workers to be used to poll
-    #[arg(long, default_value_t = 5)]
-    pub use_top_workers: usize,
+    #[arg(long)]
+    pub use_top_workers: Option<usize>,
 
     /// Contract ID for the BricksProfileFactory to poll
     #[arg(long, value_parser = parse_hash)]

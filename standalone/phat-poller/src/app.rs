@@ -9,7 +9,7 @@ use std::{
     collections::{BTreeMap, VecDeque},
     future::Future,
     sync::{
-        atomic::{AtomicI32, Ordering},
+        atomic::{AtomicU32, Ordering},
         Arc, Mutex, Weak,
     },
     time::Duration,
@@ -18,7 +18,6 @@ use std::{
 use anyhow::{anyhow, Context, Result};
 use phaxt::AccountId;
 use sp_core::{sr25519::Pair as KeyPair, H256};
-use tokio::task::JoinHandle;
 use tracing::{debug, error, info, instrument, warn, Instrument};
 
 use serde::Serialize;
@@ -53,30 +52,24 @@ struct ProbeInfo {
 #[derive(Default, Serialize)]
 pub struct State {
     next_task_id: TaskId,
-    workers: Vec<Worker>,
+    live_workers: Vec<Worker>,
     running_tasks: BTreeMap<TaskId, Task>,
     history: VecDeque<Task>,
     last_probe_time: Option<Instant>,
     last_poll_time: Option<Instant>,
-    last_poll_result: BTreeMap<ContractId, PollResult>,
 }
 
 #[derive(Default, Debug)]
 struct Stats {
-    contract_polled: AtomicI32,
-    workflow_polled: AtomicI32,
-    workflow_finished: AtomicI32,
-    workflow_succeeded: AtomicI32,
-    workflow_failed: AtomicI32,
+    workflow_polled: AtomicU32,
+    workflow_finished: AtomicU32,
+    workflow_succeeded: AtomicU32,
+    workflow_failed: AtomicU32,
 }
 
 impl Stats {
-    fn inc_contract_polled(&self) {
-        self.contract_polled.fetch_add(1, Ordering::Relaxed);
-    }
-
-    fn inc_polled(&self) {
-        self.workflow_polled.fetch_add(1, Ordering::Relaxed);
+    fn inc_polled(&self) -> u32 {
+        self.workflow_polled.fetch_add(1, Ordering::Relaxed)
     }
     fn inc_finished(&self) {
         self.workflow_finished.fetch_add(1, Ordering::Relaxed);
@@ -112,6 +105,12 @@ struct Task {
     end_time: Option<Instant>,
     duration: Option<Duration>,
     result: Option<Result<(), String>>,
+}
+
+fn shuffle<T>(slice: &mut [T]) {
+    use rand::seq::SliceRandom;
+    let mut rng = rand::thread_rng();
+    slice.shuffle(&mut rng);
 }
 
 pub fn create_app(config: Config) -> ArcApp {
@@ -158,7 +157,7 @@ impl App {
         description: &str,
         timeout: Duration,
         task: impl Future<Output = Result<T>> + Send + 'static,
-    ) -> JoinHandle<Result<T>> {
+    ) -> abort_on_drop::ChildTask<Result<T>> {
         let id = self.next_task_id();
         let mut state = self.state.lock().unwrap();
         state.running_tasks.insert(
@@ -174,14 +173,18 @@ impl App {
             },
         );
         let app = self.weak_self.clone();
+        let description = description.to_string();
+        let task_name = name.to_string();
         tokio::spawn(
             track_task_result(app, id, async move {
-                tokio::time::timeout(timeout, task)
-                    .await
-                    .or(Err(anyhow::anyhow!("timeout")))?
+                tokio::time::timeout(timeout, task).await.map_err(|_| {
+                    warn!(name = task_name, description, ?timeout, "task timed out");
+                    anyhow::anyhow!("timeout")
+                })?
             })
             .instrument(tracing::info_span!("task", id, name)),
         )
+        .into()
     }
 
     #[instrument(skip(self), name = "probe")]
@@ -201,6 +204,9 @@ impl App {
     }
 
     async fn update_worker_list(&self) -> Result<()> {
+        if !self.config.dev_worker_uri.is_empty() {
+            return self.probe_dev_worker().await;
+        }
         info!("connecting to node {uri}", uri = self.config.node_uri);
         let chain_rpc = tokio::time::timeout(
             Duration::from_secs(5),
@@ -214,12 +220,9 @@ impl App {
             warn!("no workers found");
             return Ok(());
         }
-        let mut probe_tasks = Vec::with_capacity(workers.len());
-        let mut probe_workers = Vec::with_capacity(workers.len());
         let mut workers_without_endpoints = Vec::new();
 
-        let probe_start = Instant::now();
-        let timeout = self.config.poll_timeout;
+        let mut workers_uri = vec![];
         for worker in workers {
             let endpoints = chain_rpc.get_endpoints(&worker).await?;
             debug!("worker {worker:?} endpoints: {endpoints:?}");
@@ -230,63 +233,63 @@ impl App {
                 workers_without_endpoints.push(worker);
                 continue;
             };
-            let handle = self.spawn(
-                "probe",
-                &format!(r#""uri":"{uri}"}}"#),
-                timeout,
-                probe_worker(Some(worker), uri.clone()),
-            );
-            probe_tasks.push(handle);
-            probe_workers.push((worker, uri));
+            workers_uri.push(uri.to_string());
         }
-        info!("probing {} workers", probe_tasks.len());
+        self.probe_workers(&workers_uri).await
+    }
+
+    async fn probe_workers(&self, workers: &[String]) -> Result<()> {
+        info!("probing {} workers", workers.len());
+        let probe_start = Instant::now();
+        let timeout = self.config.poll_timeout;
+        let probe_tasks = workers
+            .iter()
+            .map(|uri| {
+                self.spawn(
+                    "probe",
+                    &format!("uri={uri}"),
+                    timeout,
+                    probe_worker(None, uri.clone()),
+                )
+            })
+            .collect::<Vec<_>>();
         let probe_results = futures::future::join_all(probe_tasks).await;
-        let workers: Vec<_> = probe_workers
-            .into_iter()
+        let workers: Vec<_> = workers
+            .iter()
             .zip(probe_results)
-            .map(|((pubkey, uri), result)| {
+            .filter_map(|(uri, result)| {
                 let probe_result = match result {
-                    Ok(Ok((_, instant))) => Ok(instant),
+                    Ok(Ok((pubkey, instant))) => Ok((pubkey, instant)),
                     Ok(Err(err)) => Err(format!("{err}")),
                     Err(err) => Err(format!("{err}")),
                 };
-                Worker {
+                let Ok((pubkey, instant)) = probe_result else {
+                    return None;
+                };
+                Some(Worker {
                     pubkey,
-                    uri,
+                    uri: uri.clone(),
                     probe_info: ProbeInfo {
                         probe_start,
-                        probe_result,
+                        probe_result: Ok(instant),
                     },
-                }
+                })
             })
             .collect();
-        info!("{} workers updated", workers.len());
-        self.state.lock().unwrap().workers = workers;
+        info!(
+            "============= {} workers probed ============",
+            workers.len()
+        );
+        for worker in &workers {
+            info!(latency=?worker.latency().unwrap_or(Duration::MAX), "  {}", worker.uri);
+        }
+        info!("============================================");
+        self.state.lock().unwrap().live_workers = workers;
         Ok(())
     }
 
     async fn probe_dev_worker(&self) -> Result<()> {
-        let Some(uri) = self.config.dev_worker_uri.as_ref() else {
-            warn!("no dev worker uri specified");
-            return Ok(());
-        };
-        let handle = self.spawn(
-            "probe",
-            &format!("uri:{uri}"),
-            self.config.probe_timeout,
-            probe_worker(None, uri.clone()),
-        );
-        let t0 = Instant::now();
-        let (pubkey, t1) = handle.await??;
-        self.state.lock().unwrap().workers.push(Worker {
-            pubkey,
-            uri: uri.clone(),
-            probe_info: ProbeInfo {
-                probe_start: t0,
-                probe_result: Ok(t1),
-            },
-        });
-        Ok(())
+        self.probe_workers(&self.config.dev_worker_uri).await
     }
 }
 
@@ -351,32 +354,12 @@ impl App {
         }
     }
 
-    async fn poll_contracts(&self, stats: Arc<Stats>) -> Result<()> {
-        let mut live_workers = self
-            .state
-            .lock()
-            .unwrap()
-            .workers
-            .iter()
-            .filter(|worker| worker.latency().is_some())
-            .cloned()
-            .collect::<Vec<_>>();
-
-        if live_workers.is_empty() {
-            warn!("no live workers available");
-            return Ok(());
-        }
-        live_workers.sort_by_key(|worker| worker.latency().unwrap_or(Duration::MAX));
-        let top_workers = live_workers
-            .into_iter()
-            .take(self.config.use_top_workers)
-            .collect::<Vec<_>>();
-        info!("top workers:");
-        for worker in &top_workers {
-            info!(latency=?worker.latency().unwrap_or(Duration::MAX), "  {}", worker.pubkey);
-        }
-        let worker = &top_workers[0];
-        let contracts: Vec<(AccountId, ContractId)> = tokio::time::timeout(
+    async fn inspect_workflows(
+        &self,
+        worker: &Worker,
+    ) -> Result<Vec<(AccountId, ContractId, u64)>> {
+        info!("inspecting workflows");
+        let profiles: Vec<(AccountId, ContractId)> = tokio::time::timeout(
             self.config.poll_timeout,
             pink_query::<_, crate::contracts::UserProfilesResponse>(
                 &worker.pubkey,
@@ -391,136 +374,150 @@ impl App {
         .context("Get profiles timeout")??
         .or(Err(anyhow::anyhow!("query failed")))?;
 
-        let mut poll_handles = Vec::with_capacity(contracts.len());
+        let n_profiles = profiles.len();
 
+        let mut workflows = vec![];
+        for (user, profile) in profiles {
+            let count = pink_query::<(), u64>(
+                &worker.pubkey,
+                &worker.uri,
+                profile,
+                SELECTOR_WORKFLOW_COUNT,
+                (),
+                &self.config.caller,
+            )
+            .await;
+            match count {
+                Ok(count) => {
+                    for ind in 0..count {
+                        workflows.push((user.clone(), profile, ind));
+                    }
+                }
+                Err(err) => {
+                    warn!(?err, "failed to query workflow count for {profile:?}");
+                }
+            }
+        }
+        let n_workflows = workflows.len();
+        info!(n_profiles, n_workflows, "workflows inspected");
+        Ok(workflows)
+    }
+
+    async fn poll_contracts(&self, stats: Arc<Stats>) -> Result<()> {
+        let mut live_workers = self
+            .state
+            .lock()
+            .unwrap()
+            .live_workers
+            .iter()
+            .filter(|worker| worker.latency().is_some())
+            .cloned()
+            .collect::<Vec<_>>();
+
+        if live_workers.is_empty() {
+            warn!("no live workers available");
+            return Ok(());
+        }
+        live_workers.sort_by_key(|worker| worker.latency().unwrap_or(Duration::MAX));
+        let n_workers = live_workers.len();
+        let top_workers = live_workers
+            .into_iter()
+            .take(self.config.use_top_workers.unwrap_or(n_workers))
+            .collect::<Vec<_>>();
+        info!("top live workers:");
+        for worker in &top_workers {
+            info!(latency=?worker.latency().unwrap_or(Duration::MAX), "  {}", worker.pubkey);
+        }
+        let worker = &top_workers[0];
+        let mut workflows = self.inspect_workflows(worker).await?;
+
+        shuffle(&mut workflows);
+
+        info!(count = workflows.len(), "polling workflows");
+
+        let mut poll_handles = Vec::with_capacity(workflows.len());
         let mut worker_index = 0;
-        for (user, profile) in contracts {
+        for (user, profile, ind) in workflows {
             // call contract poll with workers in robin round
             let worker = &top_workers[worker_index];
             debug!(
                 "adding poll, user={user}, profile={profile:?}, worker={}",
                 worker.pubkey
             );
-            stats.inc_contract_polled();
+            stats.inc_polled();
+            let poll_id = take_next_poll_id();
             let handle = self.spawn(
                 "poll",
-                &format!(
-                    r#"{{"worker":"{}","contract":"{profile:?}"}}"#,
-                    worker.pubkey
-                ),
-                self.config.poll_timeout.saturating_mul(2),
-                poll_contract(
+                &format!("worker={},profile={profile:?},ind={ind}", worker.pubkey),
+                self.config.poll_timeout,
+                poll_workflow(
                     worker.clone(),
                     profile,
-                    self.weak_self.clone(),
+                    ind,
                     self.config.caller.clone(),
                     stats.clone(),
+                    self.config.with_poll_id,
+                    poll_id,
                 ),
             );
             poll_handles.push(handle);
             worker_index = (worker_index + 1) % top_workers.len();
+            tokio::time::sleep(self.config.workflow_poll_gap).await;
         }
-        info!(count = poll_handles.len(), "polling contracts");
         let poll_results = futures::future::join_all(poll_handles).await;
-        info!(count = poll_results.len(), "contracts polled");
+        info!(count = poll_results.len(), "workflows polled");
+        let failed_count = poll_results.into_iter().filter(|r| r.is_err()).count();
+        if failed_count > 0 {
+            info!("{failed_count} workflows failed");
+        }
         Ok(())
     }
 }
 
-async fn poll_contract(
-    worker: Worker,
-    profile: ContractId,
-    weak_app: Weak<App>,
-    caller: KeyPair,
-    stats: Arc<Stats>,
-) -> Result<()> {
-    let pubkey = worker.pubkey;
-    let start_time = Instant::now();
-    let result = poll_contract_inner(worker, profile, weak_app.clone(), caller, stats).await;
-    if let Some(app) = weak_app.upgrade() {
-        let result = match &result {
-            Ok(_) => Ok(()),
-            Err(err) => Err(format!("{err}")),
-        };
-        app.state.lock().unwrap().last_poll_result.insert(
-            profile,
-            PollResult {
-                worker: pubkey,
-                start_time,
-                end_time: Some(Instant::now()),
-                result,
-            },
-        );
-    }
-    result
+fn take_next_poll_id() -> String {
+    use once_cell::sync::Lazy;
+    use rand::distributions::{Alphanumeric, DistString};
+
+    static PREFIX: Lazy<String> =
+        Lazy::new(|| Alphanumeric.sample_string(&mut rand::thread_rng(), 7));
+    static NEXT_POLL_ID: AtomicU32 = AtomicU32::new(0);
+
+    let id = NEXT_POLL_ID.fetch_add(1, Ordering::Relaxed);
+    format!("{}_{}", PREFIX.as_str(), id)
 }
 
-async fn poll_contract_inner(
-    worker: Worker,
-    profile: ContractId,
-    weak_app: Weak<App>,
-    caller: KeyPair,
-    stats: Arc<Stats>,
-) -> Result<()> {
-    let count = pink_query::<(), u64>(
-        &worker.pubkey,
-        &worker.uri,
-        profile,
-        SELECTOR_WORKFLOW_COUNT,
-        (),
-        &caller,
-    )
-    .await?;
-
-    let app = weak_app
-        .upgrade()
-        .ok_or_else(|| anyhow::anyhow!("app gone"))?;
-    let mut handles = vec![];
-    for i in 0..count {
-        stats.inc_polled();
-        let handle = app.spawn(
-            "workflow",
-            &format!(
-                r#"{{"worker":"{}","contract":"{profile:?}"}}"#,
-                worker.pubkey
-            ),
-            app.config.poll_timeout,
-            poll_workflow(worker.clone(), profile, i, caller.clone(), stats.clone()),
-        );
-        handles.push(handle);
-    }
-    info!(count = handles.len(), ?profile, "polling workflows");
-    let results = futures::future::join_all(handles).await;
-    let errors = results
-        .into_iter()
-        .enumerate()
-        .filter(|(_, r)| !matches!(r, Ok(Ok(_))))
-        .collect::<Vec<_>>();
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(anyhow::anyhow!("Failed flows: {:?}", errors))
-    }
-}
-
-#[instrument(skip(worker, profile, caller, stats), name = "flow")]
+#[instrument(skip_all, fields(id=%poll_id), name = "flow")]
 async fn poll_workflow(
     worker: Worker,
     profile: ContractId,
     id: u64,
     caller: KeyPair,
     stats: Arc<Stats>,
+    with_poll_id: bool,
+    poll_id: String,
 ) -> Result<()> {
-    debug!("polling workflow");
-    let result = pink_query::<_, crate::contracts::PollResponse>(
-        &worker.pubkey,
-        &worker.uri,
-        profile,
-        SELECTOR_POLL,
-        (id,),
-        &caller,
-    )
-    .await;
+    debug!(id, "polling workflow");
+    let result = if with_poll_id {
+        pink_query::<_, crate::contracts::PollResponse>(
+            &worker.pubkey,
+            &worker.uri,
+            profile,
+            SELECTOR_POLL,
+            (id, poll_id),
+            &caller,
+        )
+        .await
+    } else {
+        pink_query::<_, crate::contracts::PollResponse>(
+            &worker.pubkey,
+            &worker.uri,
+            profile,
+            SELECTOR_POLL,
+            (id,),
+            &caller,
+        )
+        .await
+    };
     debug!("result: {result:?}");
     if result.is_ok() {
         stats.inc_succeeded();
@@ -533,15 +530,10 @@ async fn poll_workflow(
 
 impl App {
     pub async fn run(&self) -> Result<()> {
-        if self.config.dev_worker_uri.is_some() {
-            self.probe_dev_worker().await?;
-            self.bg_poll_contracts().await;
-        } else {
-            tokio::join! {
-                self.bg_update_worker_list(),
-                self.bg_poll_contracts(),
-            };
-        }
+        tokio::join! {
+            self.bg_update_worker_list(),
+            self.bg_poll_contracts(),
+        };
         Ok(())
     }
 }
