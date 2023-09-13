@@ -23,6 +23,14 @@ fn main() {
         ".pruntime_rpc",
         "#[derive(::serde::Serialize, ::serde::Deserialize)]",
     );
+    for name in [
+        "AttestationReport",
+        "InitRuntimeResponse",
+        "Attestation",
+        "NetworkConfig",
+    ] {
+        builder = builder.type_attribute(name, "#[derive(::scale_info::TypeInfo)]");
+    }
     builder = builder.field_attribute("InitRuntimeResponse.attestation", "#[serde(skip,default)]");
     for field in [
         "GetContractInfoRequest.contracts",

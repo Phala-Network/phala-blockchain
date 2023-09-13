@@ -17,9 +17,10 @@ pub mod signers {
     use serde::{Deserialize, Serialize};
     use sp_core::{crypto::Pair as PairTrait, sr25519};
 
-    #[derive(Serialize, Deserialize, Clone)]
+    #[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
     pub struct Sr25519Signer {
         #[serde(with = "more::key_bytes")]
+        #[codec(skip)]
         key: sr25519::Pair,
     }
 

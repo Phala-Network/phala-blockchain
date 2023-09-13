@@ -98,7 +98,7 @@ pub trait StorageSynchronizer {
     fn state_validated(&self) -> bool;
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 pub struct BlockSyncState<Validator> {
     validator: Validator,
     main_bridge: u64,
@@ -272,9 +272,10 @@ pub struct Counters {
     pub waiting_for_paraheaders: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 pub struct SolochainSynchronizer<Validator> {
     sync_state: BlockSyncState<Validator>,
+    #[codec(skip)]
     state_roots: VecDeque<Hash>,
 }
 
@@ -344,11 +345,12 @@ impl<Validator: BlockValidator> StorageSynchronizer for SolochainSynchronizer<Va
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 pub struct ParachainSynchronizer<Validator> {
     sync_state: BlockSyncState<Validator>,
     last_relaychain_state_root: Option<Hash>,
     para_header_number_next: chain::BlockNumber,
+    #[codec(skip)]
     para_state_roots: VecDeque<Hash>,
 }
 
@@ -473,7 +475,7 @@ impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Va
 
 // We create this new type to help serialize the original dyn StorageSynchronizer.
 // Because it it impossible to impl Serialize/Deserialize for dyn StorageSynchronizer.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 pub enum Synchronizer<Validator> {
     Solo(SolochainSynchronizer<Validator>),
     Para(ParachainSynchronizer<Validator>),

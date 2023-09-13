@@ -18,7 +18,7 @@ struct PersistentMasterKey {
     signature: Signature,
 }
 
-#[derive(Debug, Encode, Decode, PartialEq, Eq, Clone)]
+#[derive(Debug, Encode, Decode, PartialEq, Eq, Clone, ::scale_info::TypeInfo)]
 pub struct RotatedMasterKey {
     pub rotation_id: u64,
     pub block_height: chain::BlockNumber,

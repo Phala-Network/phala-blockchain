@@ -37,14 +37,14 @@ pub use phala_types::contract::InkCommand;
 
 pub(crate) mod http_counters;
 
-#[derive(Serialize, Deserialize, Default, Clone)]
+#[derive(Serialize, Deserialize, Default, Clone, ::scale_info::TypeInfo)]
 pub struct ClusterConfig {
     pub log_handler: Option<AccountId>,
     pub runtime_version: (u32, u32),
     pub secret_salt: [u8; 32],
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 pub struct Cluster {
     pub id: ContractClusterId,
     pub config: ClusterConfig,

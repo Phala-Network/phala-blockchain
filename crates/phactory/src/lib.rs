@@ -30,6 +30,7 @@ use core::convert::TryInto;
 use parity_scale_codec::{Decode, Encode};
 use phala_types::{AttestationProvider, HandoverChallenge};
 use ring::rand::SecureRandom;
+use scale_info::TypeInfo;
 use serde_json::{json, Value};
 use sp_core::{crypto::Pair, sr25519, H256};
 
@@ -79,17 +80,21 @@ mod types;
 // runtime definition locally.
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 struct RuntimeState {
+    #[codec(skip)]
     send_mq: MessageSendQueue,
 
     #[serde(skip)]
+    #[codec(skip)]
     recv_mq: MessageDispatcher,
 
     // chain storage synchonizing
+    #[cfg_attr(not(test), codec(skip))]
     storage_synchronizer: Synchronizer<LightValidation<chain::Runtime>>,
 
     // TODO.kevin: use a better serialization approach
+    #[codec(skip)]
     chain_storage: ChainStorage,
 
     #[serde(with = "more::scale_bytes")]
@@ -218,11 +223,12 @@ enum RuntimeDataSeal {
     V1(PersistentRuntimeData),
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, TypeInfo)]
 #[serde(bound(deserialize = "Platform: Deserialize<'de>"))]
 pub struct Phactory<Platform> {
     platform: Platform,
     #[serde(skip)]
+    #[codec(skip)]
     pub args: Arc<InitArgs>,
     dev_mode: bool,
     attestation_provider: Option<AttestationProvider>,
@@ -231,45 +237,68 @@ pub struct Phactory<Platform> {
     runtime_state: Option<RuntimeState>,
     endpoints: BTreeMap<EndpointType, String>,
     #[serde(skip)]
+    #[codec(skip)]
     signed_endpoints: Option<GetEndpointResponse>,
     // The deserialzation of system requires the mq, which inside the runtime_state, to be ready.
     #[serde(skip)]
     system: Option<system::System<Platform>>,
 
     // tmp key for WorkerKey handover encryption
+    #[codec(skip)]
     #[serde(skip)]
     pub(crate) handover_ecdh_key: Option<EcdhKey>,
 
+    #[codec(skip)]
     #[serde(skip)]
     handover_last_challenge: Option<HandoverChallenge<chain::BlockNumber>>,
 
+    #[codec(skip)]
     #[serde(skip)]
     #[serde(default = "Instant::now")]
     last_checkpoint: Instant,
+
+    #[codec(skip)]
     #[serde(skip)]
     query_scheduler: RequestScheduler<AccountId>,
 
     #[serde(default)]
     netconfig: Option<NetworkConfig>,
 
+    #[codec(skip)]
     #[serde(skip)]
     can_load_chain_state: bool,
 
+    #[codec(skip)]
     #[serde(skip)]
     trusted_sk: bool,
 
+    #[codec(skip)]
     #[serde(skip)]
     pub(crate) rcu_dispatching: bool,
 
+    #[codec(skip)]
     #[serde(skip)]
     pub(crate) pending_effects: Vec<::pink::types::ExecSideEffects>,
 
+    #[codec(skip)]
     #[serde(skip)]
     #[serde(default = "Instant::now")]
     started_at: Instant,
 
+    #[codec(skip)]
     #[serde(skip)]
     pub(crate) cluster_state_to_apply: Option<ClusterState<'static>>,
+}
+
+#[test]
+fn show_type_changes_that_affect_the_checkpoint() {
+    fn travel_types<T: TypeInfo>() -> String {
+        use scale_info::{IntoPortable, PortableRegistry};
+        let mut registry = Default::default();
+        let _ = T::type_info().into_portable(&mut registry);
+        serde_json::to_string_pretty(&PortableRegistry::from(registry).types).unwrap()
+    }
+    insta::assert_display_snapshot!(travel_types::<Phactory<()>>());
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -615,8 +644,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 info!("Succeeded to load checkpoint file {:?}", ckpt_filename);
                 Ok(Some(state))
             }
-            Err(_err /*Don't leak it into the log*/) => {
-                error!("Failed to load checkpoint file {:?}", ckpt_filename);
+            Err(err /*Don't leak it into the log*/) => {
+                error!(
+                    "Failed to load checkpoint file {:?}: {err:?}",
+                    ckpt_filename
+                );
                 if args.remove_corrupted_checkpoint {
                     error!("Removing {:?}", ckpt_filename);
                     std::fs::remove_file(ckpt_filename)
