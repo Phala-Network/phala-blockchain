@@ -4,10 +4,6 @@
 //!
 //! This is the central crate of Phala tightly-coupled pallets.
 
-#[cfg(target_arch = "wasm32")]
-extern crate webpki_wasm as webpki;
-
-#[cfg(not(feature = "std"))]
 extern crate alloc;
 
 // Re-export
