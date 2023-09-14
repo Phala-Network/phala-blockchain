@@ -4,15 +4,15 @@ import type { KeyringPair } from '@polkadot/keyring/types'
 import type { Text } from '@polkadot/types'
 import type { AccountId } from '@polkadot/types/interfaces'
 import type { Result } from '@polkadot/types-codec'
-import { hexAddPrefix, hexToString, hexToU8a, stringToHex } from '@polkadot/util'
+import { hexAddPrefix, hexToString, hexToU8a } from '@polkadot/util'
 import { sr25519Agree } from '@polkadot/wasm-crypto'
 import type { OnChainRegistry } from '../OnChainRegistry'
 import { phalaTypes } from '../options'
 import { type CertificateData, generatePair, signCertificate } from '../pruntime/certificate'
+import { InkQuerySidevmMessage } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
 import { type pruntime_rpc } from '../pruntime/proto'
 import type { InkResponse } from '../types'
-import { randomHex } from '../utils/hex'
 import { ContractInitialError } from './Errors'
 import { type PinkContractPromise } from './PinkContract'
 
@@ -85,20 +85,6 @@ export interface LogServerInfo {
   estimatedCurrentSize: number
 }
 
-function InkQuery(contractId: AccountId, { sidevmMessage }: { sidevmMessage?: Record<string, any> } = {}) {
-  const head = {
-    nonce: hexAddPrefix(randomHex(32)),
-    id: contractId,
-  }
-  const data: Record<string, string> = {}
-  if (sidevmMessage) {
-    data['SidevmMessage'] = stringToHex(JSON.stringify(sidevmMessage))
-  } else {
-    throw new Error('InkQuery construction failed: sidevmMessage is required.')
-  }
-  return phalaTypes.createType('InkQuery', { head, data })
-}
-
 interface SidevmQueryContext {
   phactory: pruntime_rpc.PhactoryAPI
   remotePubkey: string
@@ -109,7 +95,7 @@ interface SidevmQueryContext {
 function sidevmQueryWithReader({ phactory, remotePubkey, address, cert }: SidevmQueryContext) {
   return async function unsafeRunSidevmQuery<T>(sidevmMessage: Record<string, any>): Promise<T> {
     const [sk, pk] = generatePair()
-    const encodedQuery = InkQuery(address, { sidevmMessage })
+    const encodedQuery = InkQuerySidevmMessage(address, sidevmMessage)
     const queryAgreementKey = sr25519Agree(hexToU8a(hexAddPrefix(remotePubkey)), sk)
     const response = await pinkQuery(phactory, pk, queryAgreementKey, encodedQuery.toHex(), cert)
     const inkResponse = phalaTypes.createType<InkResponse>('InkResponse', response)

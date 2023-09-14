@@ -1,4 +1,3 @@
-import type { ApiPromise } from '@polkadot/api'
 import { SubmittableResult, toPromiseMethod } from '@polkadot/api'
 import { ApiBase } from '@polkadot/api/base'
 import type { SubmittableExtrinsic } from '@polkadot/api/submittable/types'
@@ -14,7 +13,9 @@ import { BN, BN_ZERO, hexAddPrefix, hexToU8a, isUndefined } from '@polkadot/util
 import { sr25519Agree, sr25519KeypairFromSeed } from '@polkadot/wasm-crypto'
 import { from } from 'rxjs'
 import type { OnChainRegistry } from '../OnChainRegistry'
+import { phalaTypes } from '../options'
 import type { CertificateData } from '../pruntime/certificate'
+import { InkQueryInstantiate } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
 import type { AbiLike, InkQueryError, InkResponse } from '../types'
 import assert from '../utils/assert'
@@ -191,7 +192,7 @@ export class PinkBlueprintPromise {
     this._decorateMethod = toPromiseMethod
     this.phatRegistry = phatRegistry
 
-    this.codeHash = this.api.registry.createType('Hash', codeHash)
+    this.codeHash = phalaTypes.createType('Hash', codeHash)
 
     this.abi.constructors.forEach((c): void => {
       if (isUndefined(this.#tx[c.method])) {
@@ -247,8 +248,6 @@ export class PinkBlueprintPromise {
     options: PinkInstantiateQueryOptions,
     params: unknown[]
   ) => {
-    const api = this.api as ApiPromise
-
     // Generate a keypair for encryption
     // NOTE: each instance only has a pre-generated pair now, it maybe better to generate a new keypair every time encrypting
     const seed = hexToU8a(hexAddPrefix(randomHex(32)))
@@ -272,27 +271,20 @@ export class PinkBlueprintPromise {
         )
       }
       const salt = options.salt || randomHex(4)
-      const payload = api.createType('InkQuery', {
-        head: {
-          nonce: hexAddPrefix(randomHex(32)),
-          id: this.phatRegistry.systemContract?.address,
-        },
-        data: {
-          InkInstantiate: {
-            codeHash: this.abi.info.source.wasmHash,
-            salt,
-            instantiateData: this.abi.findConstructor(constructorOrId).toU8a(params),
-            deposit: options.deposit || 0,
-            transfer: options.transfer || 0,
-          },
-        },
-      })
+      const payload = InkQueryInstantiate(
+        this.phatRegistry.systemContract.address,
+        this.abi.info.source.wasmHash,
+        this.abi.findConstructor(constructorOrId).toU8a(params),
+        salt,
+        options.deposit,
+        options.transfer
+      )
       const rawResponse = await pinkQuery(this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert)
-      const response = api.createType<InkResponse>('InkResponse', rawResponse)
+      const response = phalaTypes.createType<InkResponse>('InkResponse', rawResponse)
       if (response.result.isErr) {
-        return api.createType<InkQueryError>('InkQueryError', response.result.asErr.toHex())
+        return phalaTypes.createType<InkQueryError>('InkQueryError', response.result.asErr.toHex())
       }
-      const result = api.createType<ContractInstantiateResult>(
+      const result = phalaTypes.createType<ContractInstantiateResult>(
         'ContractInstantiateResult',
         response.result.asOk.asInkMessageReturn.toHex()
       )

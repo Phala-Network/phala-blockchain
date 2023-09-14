@@ -12,14 +12,14 @@ import { applyOnEvent } from '@polkadot/api-contract/util'
 import type { Bytes, Null, Result, Struct, Text, Vec, u8 } from '@polkadot/types'
 import type { AccountId, ContractExecResult, EventRecord } from '@polkadot/types/interfaces'
 import type { Codec, IEnum, ISubmittableResult, Registry } from '@polkadot/types/types'
-import { BN, BN_ZERO, hexAddPrefix, hexToU8a, u8aToHex } from '@polkadot/util'
+import { BN, BN_ZERO, hexAddPrefix, hexToU8a } from '@polkadot/util'
 import { sr25519Agree, sr25519KeypairFromSeed } from '@polkadot/wasm-crypto'
 import { from } from 'rxjs'
 import type { OnChainRegistry } from '../OnChainRegistry'
 import type { CertificateData } from '../pruntime/certificate'
+import { EncrypteInkCommand, InkQueryMessage, PlainInkCommand } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
 import type { AbiLike } from '../types'
-import { encrypt } from '../utils/aes-256-gcm'
 import assert from '../utils/assert'
 import { randomHex } from '../utils/hex'
 
@@ -54,6 +54,9 @@ export interface PinkContractOptions extends ContractOptions {
   // Deposit to caller's cluster account to pay the gas fee. It useful when caller's cluster account
   // won't have enough funds and eliminate one `transferToCluster` transaction.
   deposit?: bigint | BN | string | number
+
+  //
+  plain?: boolean
 }
 
 export interface PinkContractTx<TParams extends Array<any> = any[]> extends MessageMeta {
@@ -169,15 +172,6 @@ function createTx(
   )
 }
 
-function createEncryptedData(pk: Uint8Array, data: string, agreementKey: Uint8Array) {
-  const iv = hexAddPrefix(randomHex(12))
-  return {
-    iv,
-    pubkey: u8aToHex(pk),
-    data: hexAddPrefix(encrypt(data, agreementKey, hexToU8a(iv))),
-  }
-}
-
 export class PinkContractPromise<
   TQueries extends Record<string, PinkContractQuery> = Record<string, PinkContractQuery>,
   TTransactions extends Record<string, PinkContractTx> = Record<string, PinkContractTx>,
@@ -271,20 +265,13 @@ export class PinkContractPromise<
         assert(origin.toString() === cert.address, 'origin must be the same as the certificate address')
       }
 
-      const payload = api.createType('InkQuery', {
-        head: {
-          nonce: hexAddPrefix(randomHex(32)),
-          id: this.address,
-        },
-        data: {
-          InkMessage: {
-            payload: message.toU8a(params),
-            deposit: options.deposit || 0,
-            transfer: options.transfer || 0,
-            estimating: options.estimating !== undefined ? !!options.estimating : isEstimating,
-          },
-        },
-      })
+      const payload = InkQueryMessage(
+        this.address,
+        message.toU8a(params),
+        options.deposit,
+        options.transfer,
+        options.estimating !== undefined ? !!options.estimating : isEstimating
+      )
       const data = await pinkQuery(this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert)
       const inkResponse = api.createType<InkResponse>('InkResponse', data)
       if (inkResponse.result.isErr) {
@@ -327,74 +314,39 @@ export class PinkContractPromise<
     params: unknown[]
   ): SubmittableExtrinsic<'promise'> => {
     const api = this.api as ApiPromise
-
-    // Generate a keypair for encryption
-    // NOTE: each instance only has a pre-generated pair now, it maybe better to generate a new keypair every time encrypting
-    const seed = hexToU8a(hexAddPrefix(randomHex(32)))
-    const pair = sr25519KeypairFromSeed(seed)
-    const [sk, pk] = [pair.slice(0, 64), pair.slice(64)]
-
-    const commandAgreementKey = sr25519Agree(hexToU8a(this.contractKey), sk)
-
-    const inkCommandInternal = (
-      dest: AccountId,
-      value: BN,
-      deposit: BN,
-      gas: { refTime: BN },
-      storageDepositLimit: BN | undefined,
-      encParams: Uint8Array
-    ) => {
-      // @ts-ignore
-      const payload = api.createType('InkCommand', {
-        InkMessage: {
-          nonce: hexAddPrefix(randomHex(32)),
-          // FIXME: unexpected u8a prefix
-          message: api.createType('Vec<u8>', encParams).toHex(),
-          transfer: value,
-          gasLimit: gas.refTime,
-          storageDepositLimit,
-        },
-      })
-      const encodedPayload = api
-        .createType('CommandPayload', {
-          encrypted: createEncryptedData(pk, payload.toHex(), commandAgreementKey),
-        })
-        .toHex()
-
-      return api.tx.phalaPhatContracts.pushContractMessage(dest, encodedPayload, deposit)
-    }
-
-    return inkCommandInternal(
-      this.address,
-      // @ts-ignore
-      options.value || BN_ZERO,
-      options.deposit || BN_ZERO,
+    const fn = options.plain ? PlainInkCommand : EncrypteInkCommand
+    const payload = fn(
+      this.contractKey,
+      this.abi.findMessage(messageOrId).toU8a(params),
+      options.value,
       convertWeight(options.gasLimit || BN_ZERO).v2Weight,
-      options.storageDepositLimit,
-      this.abi.findMessage(messageOrId).toU8a(params)
-    ).withResultTransform((result: ISubmittableResult) => {
-      return new PinkContractSubmittableResult(
-        this.phatRegistry,
-        result,
-        applyOnEvent(result, ['ContractEmitted', 'ContractExecution'], (records: EventRecord[]) => {
-          return records
-            .map(
-              ({
-                event: {
-                  data: [, data],
-                },
-              }): DecodedEvent | null => {
-                try {
-                  return this.abi.decodeEvent(data as Bytes)
-                } catch (error) {
-                  console.error(`Unable to decode contract event: ${(error as Error).message}`)
-                  return null
+      options.storageDepositLimit
+    )
+    return api.tx.phalaPhatContracts
+      .pushContractMessage(this.address, payload.toHex(), options.deposit || BN_ZERO)
+      .withResultTransform((result: ISubmittableResult) => {
+        return new PinkContractSubmittableResult(
+          this.phatRegistry,
+          result,
+          applyOnEvent(result, ['ContractEmitted', 'ContractExecution'], (records: EventRecord[]) => {
+            return records
+              .map(
+                ({
+                  event: {
+                    data: [, data],
+                  },
+                }): DecodedEvent | null => {
+                  try {
+                    return this.abi.decodeEvent(data as Bytes)
+                  } catch (error) {
+                    console.error(`Unable to decode contract event: ${(error as Error).message}`)
+                    return null
+                  }
                 }
-              }
-            )
-            .filter((decoded): decoded is DecodedEvent => !!decoded)
-        })
-      )
-    })
+              )
+              .filter((decoded): decoded is DecodedEvent => !!decoded)
+          })
+        )
+      })
   }
 }
