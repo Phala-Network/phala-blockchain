@@ -16,7 +16,7 @@ this-crate = { path = "../../this-crate" }
 
 [build-dependencies]
 run_shell = "0.1"
-sp-core = "7"
+sp-core = "21"
 
 [lib]
 name = "log_server"

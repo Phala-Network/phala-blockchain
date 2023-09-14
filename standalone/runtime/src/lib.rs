@@ -20,7 +20,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
-#![recursion_limit = "512"]
+#![recursion_limit = "1024"]
 #![allow(clippy::identity_op)]
 
 mod msg_routing;
@@ -37,7 +37,7 @@ use frame_support::{
     traits::{
         AsEnsureOriginWithArg, ConstU128, ConstU32, Currency, EitherOfDiverse, EqualPrivilegeOnly,
         Everything, Imbalance, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, OnUnbalanced,
-        SortedMembers, U128CurrencyToVote, WithdrawReasons,
+        SortedMembers, WithdrawReasons,
     },
     weights::{
         constants::{
@@ -52,7 +52,7 @@ use frame_system::{
     EnsureRoot, EnsureSigned, EnsureSignedBy,
 };
 pub use node_primitives::{
-    AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, Moment, Signature,
+    AccountId, AccountIndex, Balance, BlockNumber, Hash, Moment, Nonce, Signature,
 };
 use pallet_election_provider_multi_phase::SolutionAccuracyOf;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
@@ -228,13 +228,12 @@ impl frame_system::Config for Runtime {
     type DbWeight = RocksDbWeight;
     type RuntimeOrigin = RuntimeOrigin;
     type RuntimeCall = RuntimeCall;
-    type Index = Index;
-    type BlockNumber = BlockNumber;
+    type Nonce = Nonce;
     type Hash = Hash;
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
     type Lookup = Indices;
-    type Header = generic::Header<BlockNumber, BlakeTwo256>;
+    type Block = Block;
     type RuntimeEvent = RuntimeEvent;
     type BlockHashCount = BlockHashCount;
     type Version = Version;
@@ -478,8 +477,8 @@ impl pallet_balances::Config for Runtime {
     type WeightInfo = pallet_balances::weights::SubstrateWeight<Runtime>;
     type FreezeIdentifier = ();
     type MaxFreezes = ();
-    type HoldIdentifier = ();
     type MaxHolds = ();
+	type RuntimeHoldReason = ();
 }
 
 parameter_types! {
@@ -580,7 +579,7 @@ impl pallet_staking::Config for Runtime {
     type Currency = Balances;
     type CurrencyBalance = Balance;
     type UnixTime = Timestamp;
-    type CurrencyToVote = U128CurrencyToVote;
+    type CurrencyToVote = sp_staking::currency_to_vote::U128CurrencyToVote;
     type RewardRemainder = Treasury;
     type RuntimeEvent = RuntimeEvent;
     type Slash = Treasury; // send the slashed funds to the treasury.
@@ -605,14 +604,14 @@ impl pallet_staking::Config for Runtime {
     type TargetList = pallet_staking::UseValidatorsMap<Self>;
     type MaxUnlockingChunks = ConstU32<32>;
     type HistoryDepth = HistoryDepth;
-    type OnStakerSlash = NominationPools;
+    type EventListeners = NominationPools;
     type WeightInfo = pallet_staking::weights::SubstrateWeight<Runtime>;
     type BenchmarkingConfig = StakingBenchmarkingConfig;
 }
 
 impl pallet_fast_unstake::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    type ControlOrigin = frame_system::EnsureRoot<AccountId>;
+    type ControlOrigin = EnsureRoot<AccountId>;
     type BatchSize = ConstU32<64>;
     type Deposit = ConstU128<{ DOLLARS }>;
     type Currency = Balances;
@@ -937,7 +936,7 @@ impl pallet_elections_phragmen::Config for Runtime {
     // NOTE: this implies that council's genesis members cannot be set directly and must come from
     // this module.
     type InitializeMembers = Council;
-    type CurrencyToVote = U128CurrencyToVote;
+    type CurrencyToVote = sp_staking::currency_to_vote::U128CurrencyToVote;
     type CandidacyBond = CandidacyBond;
     type VotingBondBase = VotingBondBase;
     type VotingBondFactor = VotingBondFactor;
@@ -1108,7 +1107,7 @@ where
         call: RuntimeCall,
         public: <Signature as traits::Verify>::Signer,
         account: AccountId,
-        nonce: Index,
+        nonce: Nonce,
     ) -> Option<(
         RuntimeCall,
         <UncheckedExtrinsic as traits::Extrinsic>::SignaturePayload,
@@ -1162,16 +1161,15 @@ where
 }
 
 impl pallet_im_online::Config for Runtime {
-    type AuthorityId = ImOnlineId;
-    type RuntimeEvent = RuntimeEvent;
-    type NextSessionRotation = Babe;
-    type ValidatorSet = Historical;
-    type ReportUnresponsiveness = Offences;
-    type UnsignedPriority = ImOnlineUnsignedPriority;
-    type WeightInfo = pallet_im_online::weights::SubstrateWeight<Runtime>;
-    type MaxKeys = MaxKeys;
-    type MaxPeerInHeartbeats = MaxPeerInHeartbeats;
-    type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
+	type AuthorityId = ImOnlineId;
+	type RuntimeEvent = RuntimeEvent;
+	type NextSessionRotation = Babe;
+	type ValidatorSet = Historical;
+	type ReportUnresponsiveness = Offences;
+	type UnsignedPriority = ImOnlineUnsignedPriority;
+	type WeightInfo = pallet_im_online::weights::SubstrateWeight<Runtime>;
+	type MaxKeys = MaxKeys;
+	type MaxPeerInHeartbeats = MaxPeerInHeartbeats;
 }
 
 impl pallet_offences::Config for Runtime {
@@ -1241,34 +1239,33 @@ impl pallet_recovery::Config for Runtime {
 }
 
 parameter_types! {
-    pub const CandidateDeposit: Balance = 10 * DOLLARS;
-    pub const WrongSideDeduction: Balance = 2 * DOLLARS;
-    pub const MaxStrikes: u32 = 10;
-    pub RotationPeriod: BlockNumber = 80 * Hours::get();
-    pub const PeriodSpend: Balance = 500 * DOLLARS;
-    pub MaxLockDuration: BlockNumber = 36 * 30 * Days::get();
-    pub ChallengePeriod: BlockNumber = 7 * Days::get();
-    pub const MaxCandidateIntake: u32 = 10;
-    pub const SocietyPalletId: PalletId = PalletId(*b"py/socie");
+	pub const GraceStrikes: u32 = 10;
+	pub const SocietyVotingPeriod: BlockNumber = 80 * HOURS;
+	pub const ClaimPeriod: BlockNumber = 80 * HOURS;
+	pub const PeriodSpend: Balance = 500 * DOLLARS;
+	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
+	pub const ChallengePeriod: BlockNumber = 7 * DAYS;
+	pub const MaxPayouts: u32 = 10;
+	pub const MaxBids: u32 = 10;
+	pub const SocietyPalletId: PalletId = PalletId(*b"py/socie");
 }
 
 impl pallet_society::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-    type PalletId = SocietyPalletId;
-    type Currency = Balances;
-    type Randomness = RandomnessCollectiveFlip;
-    type CandidateDeposit = CandidateDeposit;
-    type WrongSideDeduction = WrongSideDeduction;
-    type MaxStrikes = MaxStrikes;
-    type PeriodSpend = PeriodSpend;
-    type MembershipChanged = ();
-    type RotationPeriod = RotationPeriod;
-    type MaxLockDuration = MaxLockDuration;
-    type FounderSetOrigin =
-        pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>;
-    type SuspensionJudgementOrigin = pallet_society::EnsureFounder<Runtime>;
-    type MaxCandidateIntake = MaxCandidateIntake;
-    type ChallengePeriod = ChallengePeriod;
+	type RuntimeEvent = RuntimeEvent;
+	type PalletId = SocietyPalletId;
+	type Currency = Balances;
+	type Randomness = RandomnessCollectiveFlip;
+	type GraceStrikes = GraceStrikes;
+	type PeriodSpend = PeriodSpend;
+	type VotingPeriod = SocietyVotingPeriod;
+	type ClaimPeriod = ClaimPeriod;
+	type MaxLockDuration = MaxLockDuration;
+	type FounderSetOrigin =
+	pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>;
+	type ChallengePeriod = ChallengePeriod;
+	type MaxPayouts = MaxPayouts;
+	type MaxBids = MaxBids;
+	type WeightInfo = pallet_society::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {
@@ -1431,8 +1428,8 @@ impl pallet_rmrk_core::Config for Runtime {
     type MaxResourcesOnMint = MaxResourcesOnMint;
     type TransferHooks = PhalaWrappedBalances;
     type WeightInfo = pallet_rmrk_core::weights::SubstrateWeight<Runtime>;
-    #[cfg(feature = "runtime-benchmarks")]
-    type Helper = pallet_rmrk_core::RmrkBenchmark;
+	type CollectionId = u32;
+	type ItemId = u32;
 }
 impl pallet_phat::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
@@ -1503,8 +1500,6 @@ impl pallet_assets::Config for Runtime {
     type CallbackHandle = ();
     type WeightInfo = pallet_assets::weights::SubstrateWeight<Runtime>;
     type RemoveItemsLimit = ConstU32<1000>;
-    #[cfg(feature = "runtime-benchmarks")]
-    type BenchmarkHelper = ();
 }
 
 impl pallet_phat_tokenomic::Config for Runtime {
@@ -1531,11 +1526,7 @@ impl puppets::parachain_info::Config for Runtime {}
 impl puppets::parachain_system::Config for Runtime {}
 
 construct_runtime!(
-    pub struct Runtime where
-        Block = Block,
-        NodeBlock = node_primitives::Block,
-        UncheckedExtrinsic = UncheckedExtrinsic
-    {
+    pub struct Runtime {
         Assets: pallet_assets,
         System: frame_system,
         Utility: pallet_utility,
@@ -1827,8 +1818,8 @@ impl_runtime_apis! {
         }
     }
 
-    impl frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Index> for Runtime {
-        fn account_nonce(account: AccountId) -> Index {
+    impl frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce> for Runtime {
+        fn account_nonce(account: AccountId) -> Nonce {
             System::account_nonce(account)
         }
     }

@@ -15,9 +15,10 @@ use scale::Encode;
 use crate::{
     contract::check_instantiate_result,
     runtime::{
-        on_genesis, on_runtime_upgrade, Balances as PalletBalances, Contracts as PalletContracts,
-        Pink as PalletPink,
+        on_genesis, on_idle, on_runtime_upgrade, Balances as PalletBalances,
+        Contracts as PalletContracts, Pink as PalletPink,
     },
+    types::BlockNumber,
 };
 
 use super::OCallImpl;
@@ -284,6 +285,10 @@ impl ecall::ECalls for ECallImpl {
 
     fn on_runtime_upgrade(&mut self) {
         on_runtime_upgrade();
+    }
+
+    fn on_idle(&mut self, block_number: BlockNumber) {
+        on_idle(block_number);
     }
 }
 

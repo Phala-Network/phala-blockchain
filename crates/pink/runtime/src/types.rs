@@ -10,7 +10,7 @@ pub type Hashing = BlakeTwo256;
 pub type AccountId = AccountId32;
 pub type Balance = u128;
 pub type BlockNumber = u32;
-pub type Index = u64;
+pub type Nonce = u64;
 
 #[derive(Encode, Decode, Clone, Debug)]
 pub struct EventsBlockHeader {

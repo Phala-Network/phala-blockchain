@@ -50,7 +50,7 @@ pub fn start_node() -> Child {
     Command::new(cargo_bin("phala-node"))
         .stdout(process::Stdio::piped())
         .stderr(process::Stdio::piped())
-        .args(["--dev", "--tmp", "--rpc-port=45789", "--no-hardware-benchmarks"])
+        .args(&["--dev", "--tmp", "--rpc-port=45789", "--no-hardware-benchmarks"])
         .spawn()
         .unwrap()
 }
@@ -94,7 +94,7 @@ pub fn build_substrate(args: &[&str]) {
         .args(args)
         .current_dir(root_dir)
         .output()
-        .unwrap_or_else(|_| panic!("Failed to execute 'cargo b' with args {:?}'", args));
+        .expect(format!("Failed to execute 'cargo b' with args {:?}'", args).as_str());
 
     if !output.status.success() {
         panic!(
@@ -285,12 +285,12 @@ pub fn extract_info_from_output(read: impl Read + Send) -> (NodeInfo, String) {
         .find_map(|line| {
             let line = line.expect("failed to obtain next line while extracting node info");
             data.push_str(&line);
-            data.push('\n');
+            data.push_str("\n");
 
             // does the line contain our port (we expect this specific output from substrate).
             let sock_addr = match line.split_once("Running JSON-RPC server: addr=") {
                 None => return None,
-                Some((_, after)) => after.split_once(',').unwrap().0,
+                Some((_, after)) => after.split_once(",").unwrap().0,
             };
 
             Some(format!("ws://{}", sock_addr))

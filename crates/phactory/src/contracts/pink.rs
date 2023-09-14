@@ -19,7 +19,7 @@ use pink::{
     },
     local_cache::{self, StorageQuotaExceeded},
     runtimes::v1::{get_runtime, using_ocalls},
-    types::ExecutionMode,
+    types::{BlockNumber, ExecutionMode},
 };
 use serde::{Deserialize, Serialize};
 use sidevm::service::{Command as SidevmCommand, CommandSender, Metric, SystemMessage};
@@ -823,6 +823,29 @@ impl Cluster {
 
     pub(crate) fn snapshot(&self) -> Self {
         self.clone()
+    }
+
+    pub(crate) fn upgrade_runtime(&mut self, version: (u32, u32)) {
+        let current = self.config.runtime_version;
+        info!("Try to upgrade runtime to {version:?}, current version is {current:?}");
+        if version <= current {
+            info!("Runtime version is already {current:?}");
+            return;
+        }
+        if current == (1, 0) {
+            // The 1.0 runtime didn't call on_genesis on cluster setup, so we need to call it
+            // manually to make sure the storage_versions are correct before migration.
+            self.default_runtime_mut().on_genesis();
+        }
+        self.config.runtime_version = version;
+        self.default_runtime_mut().on_runtime_upgrade();
+        info!("Runtime upgraded to {version:?}");
+    }
+
+    pub(crate) fn on_idle(&mut self, block_number: BlockNumber) {
+        if pink::types::ECallsAvailable::on_idle(self.config.runtime_version) {
+            self.default_runtime_mut().on_idle(block_number);
+        }
     }
 }
 

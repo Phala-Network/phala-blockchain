@@ -3,6 +3,7 @@ use syn::{parse_quote, Result};
 
 struct Method {
     id: u32,
+    since_version: (u32, u32),
     args: Vec<TokenStream>,
     method: syn::TraitItemMethod,
 }
@@ -10,6 +11,7 @@ struct Method {
 impl Method {
     fn parse(method: &syn::TraitItemMethod) -> Result<Self> {
         let mut id = None;
+        let mut since = None;
 
         for attr in method.attrs.iter() {
             if !attr.is_xcall() {
@@ -50,6 +52,34 @@ impl Method {
                                             ));
                                         }
                                     },
+                                    "since" => {
+                                        macro_rules! value_err {
+                                            () => {
+                                                Err(syn::Error::new_spanned(
+                                                    &name_value.lit,
+                                                    "Expected a version string with format \"major.minor\"",
+                                                ))
+                                            };
+                                        }
+                                        match &name_value.lit {
+                                            syn::Lit::Str(value) => {
+                                                // parse version string, e.g. "1.2"
+                                                let value = value.value();
+                                                let parts: Vec<_> = value.split('.').collect();
+                                                if parts.len() != 2 {
+                                                    return value_err!();
+                                                }
+                                                let major =
+                                                    parts[0].parse::<u32>().or(value_err!())?;
+                                                let minor =
+                                                    parts[1].parse::<u32>().or(value_err!())?;
+                                                since = Some((major, minor));
+                                            }
+                                            _ => {
+                                                return value_err!();
+                                            }
+                                        }
+                                    }
                                     attr => {
                                         return Err(syn::Error::new_spanned(
                                             name_value,
@@ -71,6 +101,8 @@ impl Method {
             }
         }
 
+        let since_version = since.unwrap_or((1, 0));
+
         match id {
             None => Err(syn::Error::new_spanned(
                 &method.sig,
@@ -80,7 +112,12 @@ impl Method {
                 let mut method = method.clone();
                 let args = parse_args(&method)?;
                 method.attrs.retain(|attr| !attr.is_xcall());
-                Ok(Method { id, args, method })
+                Ok(Method {
+                    id,
+                    since_version,
+                    args,
+                    method,
+                })
             }
         }
     }
@@ -115,6 +152,7 @@ fn patch_or_err(config: TokenStream, input: TokenStream) -> Result<TokenStream> 
 
     let call_impl = gen_call_impl(&call_methods, &trait_item.ident, &impl_for)?;
     let trait_ro = gen_call_impl_ro(&call_methods, &trait_item.ident, &impl_for)?;
+    let checker = gen_availability_checker(&call_methods, &trait_item.ident)?;
 
     let exec_dispatcher = gen_exec_dispatcher(&call_methods, &trait_item.ident)?;
 
@@ -130,6 +168,8 @@ fn patch_or_err(config: TokenStream, input: TokenStream) -> Result<TokenStream> 
         #exec_dispatcher
 
         #id2name
+
+        #checker
     })
 }
 
@@ -218,6 +258,20 @@ fn gen_call_impl(
     Ok(parse_quote! {
         impl<T: #impl_for + CrossCallMut> #trait_name for T {
             #(#impl_methods)*
+        }
+    })
+}
+
+fn gen_availability_checker(call_methods: &[Method], trait_name: &Ident) -> Result<TokenStream> {
+    let checker_name = Ident::new(&format!("{}Available", trait_name), Span::call_site());
+    Ok(template_quote::quote! {
+        pub struct #checker_name;
+        impl #checker_name {
+            #(for method in call_methods) {
+                pub fn #{&method.method.sig.ident}(version: (u32, u32)) -> bool {
+                    version >= (#{ method.since_version.0 }, #{ method.since_version.1 })
+                }
+            }
         }
     })
 }

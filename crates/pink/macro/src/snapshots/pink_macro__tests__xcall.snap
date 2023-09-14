@@ -1,6 +1,6 @@
 ---
 source: crates/pink/macro/src/tests.rs
-assertion_line: 21
+assertion_line: 24
 expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
 ---
 pub trait ECalls {
@@ -79,6 +79,15 @@ pub fn id2name(id: u32) -> &'static str {
         1u32 => "instantiate",
         2u32 => "set_id",
         _ => "unknown",
+    }
+}
+pub struct ECallsAvailable;
+impl ECallsAvailable {
+    pub fn instantiate(version: (u32, u32)) -> bool {
+        version >= (1u32, 0u32)
+    }
+    pub fn set_id(version: (u32, u32)) -> bool {
+        version >= (1u32, 0u32)
     }
 }
 

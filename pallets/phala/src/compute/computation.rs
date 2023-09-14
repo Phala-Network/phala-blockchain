@@ -206,7 +206,7 @@ pub mod pallet {
 		type ExpectedBlockTimeSec: Get<u32>;
 		type MinInitP: Get<u32>;
 
-		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
+		type Randomness: Randomness<Self::Hash, BlockNumberFor<Self>>;
 		type OnReward: OnReward;
 		type OnUnbound: OnUnbound;
 		type OnStopped: OnStopped<BalanceOf<Self>>;
@@ -267,7 +267,7 @@ pub mod pallet {
 	pub type BudgetUpdateNonce<T> = StorageValue<_, u64, ValueQuery>;
 
 	#[pallet::storage]
-	pub type LastBugdetUpdateBlock<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
+	pub type LastBudgetUpdateBlock<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
 
 	pub struct DefaultContractAccount;
 
@@ -311,11 +311,11 @@ pub mod pallet {
 
 	/// The block number when the computing starts. Used to calculate halving.
 	#[pallet::storage]
-	pub type ComputingStartBlock<T: Config> = StorageValue<_, T::BlockNumber>;
+	pub type ComputingStartBlock<T: Config> = StorageValue<_, BlockNumberFor<T>>;
 
 	/// The interval of halving (75% decay) in block number.
 	#[pallet::storage]
-	pub type ComputingHalvingInterval<T: Config> = StorageValue<_, T::BlockNumber>;
+	pub type ComputingHalvingInterval<T: Config> = StorageValue<_, BlockNumberFor<T>>;
 
 	/// The stakes of session accounts.
 	///
@@ -595,7 +595,7 @@ pub mod pallet {
 		pub fn set_budget_per_block(
 			origin: OriginFor<T>,
 			nonce: u64,
-			block_number: T::BlockNumber,
+			block_number: BlockNumberFor<T>,
 			budget: u128,
 		) -> DispatchResult {
 			T::SetBudgetOrigins::ensure_origin(origin)?;
@@ -604,7 +604,7 @@ pub mod pallet {
 				Error::<T>::NonceIndexInvalid,
 			);
 			ensure!(
-				block_number > LastBugdetUpdateBlock::<T>::get(),
+				block_number > LastBudgetUpdateBlock::<T>::get(),
 				Error::<T>::BudgetUpdateBlockInvalid,
 			);
 			// Double the maxbudgetlimit to compensate budget miss-caculated during the last nonce.
@@ -615,7 +615,7 @@ pub mod pallet {
 			let mut tokenomic = TokenomicParameters::<T>::get()
 				.ok_or(Error::<T>::InternalErrorBadTokenomicParameters)?;
 			BudgetUpdateNonce::<T>::put(nonce);
-			LastBugdetUpdateBlock::<T>::put(block_number);
+			LastBudgetUpdateBlock::<T>::put(block_number);
 			tokenomic.budget_per_block = budget;
 			Self::update_tokenomic_parameters(tokenomic);
 			Self::deposit_event(Event::<T>::BudgetUpdated { nonce, budget });
@@ -635,11 +635,11 @@ pub mod pallet {
 	}
 
 	#[pallet::hooks]
-	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T>
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
 	where
 		BalanceOf<T>: FixedPointConvert,
 	{
-		fn on_finalize(_n: T::BlockNumber) {
+		fn on_finalize(_n: BlockNumberFor<T>) {
 			Self::heartbeat_challenge();
 			// Apply tokenomic update if possible
 			if let Some(tokenomic) = ScheduledTokenomicUpdate::<T>::take() {
@@ -724,7 +724,7 @@ pub mod pallet {
 		}
 
 		pub fn on_gk_message_received(
-			message: DecodedMessage<WorkingInfoUpdateEvent<T::BlockNumber>>,
+			message: DecodedMessage<WorkingInfoUpdateEvent<BlockNumberFor<T>>>,
 		) -> DispatchResult {
 			if !matches!(message.sender, MessageOrigin::Gatekeeper) {
 				return Err(Error::<T>::BadSender.into());
@@ -1190,13 +1190,13 @@ pub mod pallet {
 	}
 
 	#[pallet::genesis_config]
-	pub struct GenesisConfig {
+	pub struct GenesisConfig<T: Config> {
+		_mark: PhantomData<T>,
 		pub cool_down_period_sec: u32,
 		pub tokenomic_parameters: TokenomicParams,
 	}
 
-	#[cfg(feature = "std")]
-	impl Default for GenesisConfig {
+	impl<T: Config> Default for GenesisConfig<T> {
 		/// Default tokenomic parameters for Phala
 		fn default() -> Self {
 			use fixed_macro::types::U64F64 as fp;
@@ -1221,6 +1221,7 @@ pub mod pallet {
 			let kappa = fp!(1);
 
 			Self {
+				_mark: Default::default(),
 				cool_down_period_sec: 604800, // 7 days
 				tokenomic_parameters: TokenomicParams {
 					pha_rate: pha_rate.to_bits(),
@@ -1243,7 +1244,7 @@ pub mod pallet {
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
 			CoolDownPeriod::<T>::put(self.cool_down_period_sec as u64);
 			TokenomicParameters::<T>::put(self.tokenomic_parameters.clone());

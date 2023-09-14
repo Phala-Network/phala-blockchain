@@ -25,7 +25,7 @@ use crate::{
 use frame_benchmarking_cli::*;
 use node_executor::ExecutorDispatch;
 use node_runtime::{Block, ExistentialDeposit, RuntimeApi};
-use sc_cli::{ChainSpec, Result, RuntimeVersion, SubstrateCli};
+use sc_cli::SubstrateCli;
 use sc_service::PartialComponents;
 use sp_keyring::Sr25519Keyring;
 
@@ -85,14 +85,10 @@ impl SubstrateCli for Cli {
         };
         Ok(spec)
     }
-
-    fn native_runtime_version(_: &Box<dyn ChainSpec>) -> &'static RuntimeVersion {
-        &node_runtime::VERSION
-    }
 }
 
 /// Parse command line arguments into service configuration.
-pub fn run() -> Result<()> {
+pub fn run() -> sc_cli::Result<()> {
     let cli = Cli::from_args();
 
     match &cli.subcommand {
@@ -119,12 +115,12 @@ pub fn run() -> Result<()> {
                         if !cfg!(feature = "runtime-benchmarks") {
                             return Err(
                                 "Runtime benchmarking wasn't enabled when building the node. \
-							You can enable it with `--features runtime-benchmarks`."
+                            You can enable it with `--features runtime-benchmarks`."
                                     .into(),
                             );
                         }
 
-                        cmd.run::<Block, ExecutorDispatch>(config)
+                        cmd.run::<Block, ()>(config)
                     }
                     BenchmarkCmd::Block(cmd) => {
                         // ensure that we keep the task manager alive
@@ -285,7 +281,7 @@ pub fn run() -> Result<()> {
         }
         #[cfg(not(feature = "try-runtime"))]
         Some(Subcommand::TryRuntime) => Err("TryRuntime wasn't enabled when building the node. \
-				You can enable it with `--features try-runtime`."
+                You can enable it with `--features try-runtime`."
             .into()),
         Some(Subcommand::ChainInfo(cmd)) => {
             let runner = cli.create_runner(cmd)?;

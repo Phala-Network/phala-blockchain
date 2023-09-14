@@ -703,6 +703,9 @@ impl<Platform: pal::Platform> System<Platform> {
                 );
             }
         }
+        if let Some(cluster) = &mut self.contract_cluster {
+            cluster.on_idle(block.block_number);
+        };
     }
 
     pub fn did_process_block(&mut self, block: &mut BlockInfo) {
@@ -1825,19 +1828,7 @@ pub(crate) fn apply_pink_events(
             }
             PinkEvent::UpgradeRuntimeTo { version } => {
                 ensure_system!();
-                info!("Try to upgrade runtime to {version:?}");
-                if version <= cluster.config.runtime_version {
-                    info!("Runtime version is already {version:?}");
-                    continue;
-                }
-                if cluster.config.runtime_version == (1, 0) {
-                    // The 1.0 runtime didn't call on_genesis on cluster setup, so we need to call it
-                    // manually to make sure the storage_versions are correct before migration.
-                    cluster.default_runtime_mut().on_genesis();
-                }
-                cluster.config.runtime_version = version;
-                cluster.default_runtime_mut().on_runtime_upgrade();
-                info!("Runtime upgraded to {version:?}");
+                cluster.upgrade_runtime(version);
             }
         }
     }

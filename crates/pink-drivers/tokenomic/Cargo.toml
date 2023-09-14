@@ -19,7 +19,7 @@ pink-extension = { version = "0.4", default-features = false, path = "../../../c
 this-crate = { path = "../../this-crate" }
 
 [build-dependencies]
-sp-core = "7"
+sp-core = "21"
 
 [lib]
 name = "tokenomic"
