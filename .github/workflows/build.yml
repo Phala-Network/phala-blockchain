@@ -14,6 +14,8 @@ jobs:
     name: Build core
     runs-on: ubuntu-20.04
     steps:
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.3
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
@@ -23,6 +25,8 @@ jobs:
     name: Build pruntime
     runs-on: ubuntu-20.04
     steps:
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.3
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
@@ -32,6 +36,8 @@ jobs:
     name: Build prouter
     runs-on: ubuntu-20.04
     steps:
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.3
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
