@@ -141,9 +141,9 @@ export function buildGetLogRequest(params: any[], getFrom: (x: Partial<GetLogReq
         request.from = getFrom(request)
       } else {
         request.from = getFrom(params[0])
-            if (params[0].count) {
-                request.count = params[0].count
-            }
+        if (params[0].count) {
+          request.count = params[0].count
+        }
         request = { ...params[0], ...request, }
       }
       break
