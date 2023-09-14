@@ -63,6 +63,7 @@ pub use types::{AuthoritySet, AuthoritySetChange, BlockHeader};
 
 #[derive(Encode, Decode, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BridgeInfo<T: Config> {
+    #[serde(skip)]
     _marker: PhantomData<T>,
     #[serde(bound(
         serialize = "BlockHeader: ::serde::Serialize",
