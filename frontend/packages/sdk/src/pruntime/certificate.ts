@@ -8,10 +8,10 @@ import { KeypairType } from '@polkadot/util-crypto/types'
 import { sr25519KeypairFromSeed, waitReady } from '@polkadot/wasm-crypto'
 import { type Account, type Client } from 'viem'
 import { signTypedData } from 'viem/wallet'
+import { phalaTypes } from '../options'
+import { pruntime_rpc as pruntimeRpc } from '../pruntime/proto'
+import { randomHex } from '../utils/hex'
 import { createEip712StructedDataSignCertificate } from './eip712'
-import { randomHex } from './lib/hex'
-import { phalaTypes } from './options'
-import { pruntime_rpc as pruntimeRpc } from './proto'
 
 interface InjectedAccount {
   address: string

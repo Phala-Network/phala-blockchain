@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildGetLogRequest } from './PinkLoggerContract'
+import { buildGetLogRequest } from '../../src/contracts/PinkLoggerContract'
 
 function buildGetLogRequestTail(...params: any[]) {
   return buildGetLogRequest(

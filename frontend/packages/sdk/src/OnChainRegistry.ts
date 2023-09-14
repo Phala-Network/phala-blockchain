@@ -5,10 +5,10 @@ import { AccountId } from '@polkadot/types/interfaces'
 import { BN } from '@polkadot/util'
 import { waitReady } from '@polkadot/wasm-crypto'
 import systemAbi from './abis/system.json'
-import { type CertificateData, signCertificate } from './certificate'
 import { PinkContractPromise } from './contracts/PinkContract'
-import createPruntimeClient from './createPruntimeClient'
-import { pruntime_rpc } from './proto'
+import { type CertificateData, signCertificate } from './pruntime/certificate'
+import createPruntimeClient from './pruntime/createPruntimeClient'
+import { pruntime_rpc } from './pruntime/proto'
 
 export class UnexpectedEndpointError extends Error {}
 

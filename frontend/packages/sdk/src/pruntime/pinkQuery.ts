@@ -1,10 +1,10 @@
 import { type CodecMap } from '@polkadot/types'
 import { hexAddPrefix, hexToU8a, u8aToHex } from '@polkadot/util'
 import { sr25519Sign } from '@polkadot/wasm-crypto'
+import { phalaTypes } from '../options'
+import { decrypt, encrypt } from '../utils/aes-256-gcm'
+import { randomHex } from '../utils/hex'
 import { type CertificateData } from './certificate'
-import { decrypt, encrypt } from './lib/aes-256-gcm'
-import { randomHex } from './lib/hex'
-import { phalaTypes } from './options'
 import { pruntime_rpc as pruntimeRpc } from './proto'
 
 interface IEncryptedData extends CodecMap {

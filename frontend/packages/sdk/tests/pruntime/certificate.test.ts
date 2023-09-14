@@ -14,9 +14,9 @@ import { createTestClient, http } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { mainnet } from 'viem/chains'
 import { describe, it } from 'vitest'
-import { signCertificate, unstable_signEip712Certificate } from './certificate'
-import { etherAddressToCompactPubkey } from './eip712'
-import { types } from './lib/types'
+import { types } from '../../src/options'
+import { signCertificate, unstable_signEip712Certificate } from '../../src/pruntime/certificate'
+import { etherAddressToCompactPubkey } from '../../src/pruntime/eip712'
 
 let id = 0
 

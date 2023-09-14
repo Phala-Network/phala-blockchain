@@ -1,8 +1,8 @@
 import { type Bool } from '@polkadot/types'
 import { fetch } from 'undici'
-import { type CertificateData } from './certificate'
-import { type PinkContractPromise } from './contracts/PinkContract'
-import { type OnChainRegistry } from './OnChainRegistry'
+import { type PinkContractPromise } from '../contracts/PinkContract'
+import { type OnChainRegistry } from '../OnChainRegistry'
+import { type CertificateData } from '../pruntime/certificate'
 
 const OFFICIAL_ARTIFACTS_URL = 'https://phala-network.github.io/phat-contract-artifacts'
 

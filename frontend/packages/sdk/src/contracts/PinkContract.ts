@@ -15,13 +15,13 @@ import type { Codec, IEnum, ISubmittableResult, Registry } from '@polkadot/types
 import { BN, BN_ZERO, hexAddPrefix, hexToU8a, u8aToHex } from '@polkadot/util'
 import { sr25519Agree, sr25519KeypairFromSeed } from '@polkadot/wasm-crypto'
 import { from } from 'rxjs'
-import type { CertificateData } from '../certificate'
-import { encrypt } from '../lib/aes-256-gcm'
-import assert from '../lib/assert'
-import { randomHex } from '../lib/hex'
 import type { OnChainRegistry } from '../OnChainRegistry'
-import { pinkQuery } from '../pinkQuery'
+import type { CertificateData } from '../pruntime/certificate'
+import { pinkQuery } from '../pruntime/pinkQuery'
 import type { AbiLike } from '../types'
+import { encrypt } from '../utils/aes-256-gcm'
+import assert from '../utils/assert'
+import { randomHex } from '../utils/hex'
 
 export type PinkContractCallOutcome<ResultType> = {
   output: ResultType
