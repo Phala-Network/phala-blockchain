@@ -1,65 +1,67 @@
-import type { Bytes, Text, Struct, Result, Null, Vec, u8 } from '@polkadot/types';
-import type { Codec, IEnum, Registry, ISubmittableResult } from '@polkadot/types/types';
-import type { SubmittableExtrinsic } from '@polkadot/api/submittable/types';
-import type { AccountId, ContractExecResult, EventRecord } from '@polkadot/types/interfaces';
-import type { ApiPromise } from '@polkadot/api';
-import type { ApiBase } from '@polkadot/api/base';
-import type { AbiMessage, ContractOptions, ContractCallOutcome, DecodedEvent } from '@polkadot/api-contract/types';
-import type { ContractCallResult, ContractCallSend, MessageMeta } from '@polkadot/api-contract/base/types';
-import type { DecorateMethod } from '@polkadot/api/types';
-
-import type { OnChainRegistry } from '../OnChainRegistry';
-import type { AbiLike } from '../types';
-import type { CertificateData } from '../certificate';
-
-import { Abi } from '@polkadot/api-contract/Abi';
-import { toPromiseMethod } from '@polkadot/api';
-import { ContractSubmittableResult } from '@polkadot/api-contract/base/Contract';
-import { applyOnEvent } from '@polkadot/api-contract/util';
-import { withMeta, convertWeight } from '@polkadot/api-contract/base/util'
-import { BN, BN_ZERO, hexAddPrefix, u8aToHex, hexToU8a } from '@polkadot/util';
-import { sr25519Agree, sr25519KeypairFromSeed } from "@polkadot/wasm-crypto";
-import { from } from 'rxjs';
-
-import { encrypt } from "../lib/aes-256-gcm";
-import { randomHex } from "../lib/hex";
-import assert from '../lib/assert';
-import { pinkQuery } from '../pinkQuery';
-
+import type { ApiPromise } from '@polkadot/api'
+import { toPromiseMethod } from '@polkadot/api'
+import type { ApiBase } from '@polkadot/api/base'
+import type { SubmittableExtrinsic } from '@polkadot/api/submittable/types'
+import type { DecorateMethod } from '@polkadot/api/types'
+import { Abi } from '@polkadot/api-contract/Abi'
+import { ContractSubmittableResult } from '@polkadot/api-contract/base/Contract'
+import type { ContractCallResult, ContractCallSend, MessageMeta } from '@polkadot/api-contract/base/types'
+import { convertWeight, withMeta } from '@polkadot/api-contract/base/util'
+import type { AbiMessage, ContractCallOutcome, ContractOptions, DecodedEvent } from '@polkadot/api-contract/types'
+import { applyOnEvent } from '@polkadot/api-contract/util'
+import type { Bytes, Null, Result, Struct, Text, Vec, u8 } from '@polkadot/types'
+import type { AccountId, ContractExecResult, EventRecord } from '@polkadot/types/interfaces'
+import type { Codec, IEnum, ISubmittableResult, Registry } from '@polkadot/types/types'
+import { BN, BN_ZERO, hexAddPrefix, hexToU8a, u8aToHex } from '@polkadot/util'
+import { sr25519Agree, sr25519KeypairFromSeed } from '@polkadot/wasm-crypto'
+import { from } from 'rxjs'
+import type { CertificateData } from '../certificate'
+import { encrypt } from '../lib/aes-256-gcm'
+import assert from '../lib/assert'
+import { randomHex } from '../lib/hex'
+import type { OnChainRegistry } from '../OnChainRegistry'
+import { pinkQuery } from '../pinkQuery'
+import type { AbiLike } from '../types'
 
 export type PinkContractCallOutcome<ResultType> = {
   output: ResultType
-} & Omit<ContractCallOutcome, 'output'>;
+} & Omit<ContractCallOutcome, 'output'>
 
 export interface ILooseResult<O, E extends Codec = Codec> extends IEnum {
-    readonly asErr: E;
-    readonly asOk: O;
-    readonly isErr: boolean;
-    readonly isOk: boolean;
+  readonly asErr: E
+  readonly asOk: O
+  readonly isErr: boolean
+  readonly isOk: boolean
 }
 
-export interface PinkContractQuery<TParams extends Array<any> = any[], DefaultResultType = Codec, DefaultErrType extends Codec = Codec> extends MessageMeta {
-  <ResultType = DefaultResultType, ErrType extends Codec = DefaultErrType>(origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, ...params: TParams): ContractCallResult<
-    'promise', PinkContractCallOutcome<ILooseResult<ResultType, ErrType>>
-  >;
+export interface PinkContractQuery<
+  TParams extends Array<any> = any[],
+  DefaultResultType = Codec,
+  DefaultErrType extends Codec = Codec,
+> extends MessageMeta {
+  <ResultType = DefaultResultType, ErrType extends Codec = DefaultErrType>(
+    origin: string | AccountId | Uint8Array,
+    options: PinkContractQueryOptions,
+    ...params: TParams
+  ): ContractCallResult<'promise', PinkContractCallOutcome<ILooseResult<ResultType, ErrType>>>
 }
 
 export interface MapMessageInkQuery {
-  [message: string]: PinkContractQuery;
+  [message: string]: PinkContractQuery
 }
 
 export interface PinkContractOptions extends ContractOptions {
-    // Deposit to caller's cluster account to pay the gas fee. It useful when caller's cluster account
-    // won't have enough funds and eliminate one `transferToCluster` transaction.
-    deposit?: bigint | BN | string | number;
+  // Deposit to caller's cluster account to pay the gas fee. It useful when caller's cluster account
+  // won't have enough funds and eliminate one `transferToCluster` transaction.
+  deposit?: bigint | BN | string | number
 }
 
 export interface PinkContractTx<TParams extends Array<any> = any[]> extends MessageMeta {
-    (options: PinkContractOptions, ...params: TParams): SubmittableExtrinsic<'promise'>;
+  (options: PinkContractOptions, ...params: TParams): SubmittableExtrinsic<'promise'>
 }
 
 export interface MapMessageTx {
-    [message: string]: PinkContractTx;
+  [message: string]: PinkContractTx
 }
 
 export interface PinkContractQueryOptions {
@@ -71,7 +73,6 @@ export interface PinkContractQueryOptions {
 }
 
 class PinkContractSubmittableResult extends ContractSubmittableResult {
-
   readonly #registry: OnChainRegistry
 
   #isFinalized: boolean = false
@@ -91,7 +92,7 @@ class PinkContractSubmittableResult extends ContractSubmittableResult {
       const block = await this.#registry.api.rpc.chain.getBlock(codeHash)
       const chainHeight = block.block.header.number.toNumber()
 
-      const t0 = new Date().getTime();
+      const t0 = new Date().getTime()
       while (true) {
         const result = await this.#registry.phactory.getInfo({})
         if (result.blocknum > chainHeight) {
@@ -99,11 +100,11 @@ class PinkContractSubmittableResult extends ContractSubmittableResult {
           return
         }
 
-        const t1 = new Date().getTime();
+        const t1 = new Date().getTime()
         if (t1 - t0 > timeout) {
           throw new Error('Timeout')
         }
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000))
       }
     }
     throw new Error('Contract transaction submit failed.')
@@ -111,136 +112,157 @@ class PinkContractSubmittableResult extends ContractSubmittableResult {
 }
 
 interface InkQueryOk extends IEnum {
-    readonly isInkMessageReturn: boolean;
-    readonly asInkMessageReturn: Vec<u8>;
+  readonly isInkMessageReturn: boolean
+  readonly asInkMessageReturn: Vec<u8>
 }
 
 interface InkQueryError extends IEnum {
-    readonly isBadOrigin: boolean;
-    readonly asBadOrigin: Null;
+  readonly isBadOrigin: boolean
+  readonly asBadOrigin: Null
 
-    readonly isRuntimeError: boolean;
-    readonly asRuntimeError: Text;
+  readonly isRuntimeError: boolean
+  readonly asRuntimeError: Text
 
-    readonly isSidevmNotFound: boolean;
-    readonly asSidevmNotFound: Null;
+  readonly isSidevmNotFound: boolean
+  readonly asSidevmNotFound: Null
 
-    readonly isNoResponse: boolean;
-    readonly asNoResponse: Null;
+  readonly isNoResponse: boolean
+  readonly asNoResponse: Null
 
-    readonly isServiceUnavailable: boolean;
-    readonly asServiceUnavailable: Null;
+  readonly isServiceUnavailable: boolean
+  readonly asServiceUnavailable: Null
 
-    readonly isTimeout: boolean;
-    readonly asTimeout: Null;
+  readonly isTimeout: boolean
+  readonly asTimeout: Null
 }
 
 interface InkResponse extends Struct {
-    nonce: Text
-    result: Result<InkQueryOk, InkQueryError>
+  nonce: Text
+  result: Result<InkQueryOk, InkQueryError>
 }
-
 
 function createQuery(
-    meta: AbiMessage,
-    fn: (origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, params: unknown[]) => ContractCallResult<'promise', ContractCallOutcome>
+  meta: AbiMessage,
+  fn: (
+    origin: string | AccountId | Uint8Array,
+    options: PinkContractQueryOptions,
+    params: unknown[]
+  ) => ContractCallResult<'promise', ContractCallOutcome>
 ): PinkContractQuery {
-  return withMeta(meta, (origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, ...params: unknown[]): ContractCallResult<'promise', ContractCallOutcome> =>
-    fn(origin, options, params)
-  );
+  return withMeta(
+    meta,
+    (
+      origin: string | AccountId | Uint8Array,
+      options: PinkContractQueryOptions,
+      ...params: unknown[]
+    ): ContractCallResult<'promise', ContractCallOutcome> => fn(origin, options, params)
+  )
 }
 
-function createTx(meta: AbiMessage, fn: (options: PinkContractOptions, params: unknown[]) => SubmittableExtrinsic<'promise'>): PinkContractTx {
-  return withMeta(meta, (options: PinkContractOptions, ...params: unknown[]): SubmittableExtrinsic<'promise'> =>
-    fn(options, params)
-  );
+function createTx(
+  meta: AbiMessage,
+  fn: (options: PinkContractOptions, params: unknown[]) => SubmittableExtrinsic<'promise'>
+): PinkContractTx {
+  return withMeta(
+    meta,
+    (options: PinkContractOptions, ...params: unknown[]): SubmittableExtrinsic<'promise'> => fn(options, params)
+  )
 }
 
 function createEncryptedData(pk: Uint8Array, data: string, agreementKey: Uint8Array) {
-  const iv = hexAddPrefix(randomHex(12));
+  const iv = hexAddPrefix(randomHex(12))
   return {
     iv,
     pubkey: u8aToHex(pk),
     data: hexAddPrefix(encrypt(data, agreementKey, hexToU8a(iv))),
-  };
-};
+  }
+}
 
-export class PinkContractPromise<TQueries extends Record<string, PinkContractQuery> = Record<string, PinkContractQuery>, TTransactions extends Record<string, PinkContractTx> = Record<string, PinkContractTx>> {
+export class PinkContractPromise<
+  TQueries extends Record<string, PinkContractQuery> = Record<string, PinkContractQuery>,
+  TTransactions extends Record<string, PinkContractTx> = Record<string, PinkContractTx>,
+> {
+  readonly abi: Abi
+  readonly api: ApiBase<'promise'>
+  readonly address: AccountId
+  readonly contractKey: string
+  readonly phatRegistry: OnChainRegistry
 
-  readonly abi: Abi;
-  readonly api: ApiBase<'promise'>;
-  readonly address: AccountId;
-  readonly contractKey: string;
-  readonly phatRegistry: OnChainRegistry;
+  protected readonly _decorateMethod: DecorateMethod<'promise'>
 
-  protected readonly _decorateMethod: DecorateMethod<'promise'>;
+  readonly #query: MapMessageInkQuery = {}
+  readonly #tx: MapMessageTx = {}
 
-  readonly #query: MapMessageInkQuery = {};
-  readonly #tx: MapMessageTx = {};
-
-  constructor (api: ApiBase<'promise'>, phatRegistry: OnChainRegistry, abi: AbiLike, address: string | AccountId, contractKey: string) {
+  constructor(
+    api: ApiBase<'promise'>,
+    phatRegistry: OnChainRegistry,
+    abi: AbiLike,
+    address: string | AccountId,
+    contractKey: string
+  ) {
     if (!api || !api.isConnected || !api.tx) {
-      throw new Error('Your API has not been initialized correctly and is not connected to a chain');
+      throw new Error('Your API has not been initialized correctly and is not connected to a chain')
     }
     if (!phatRegistry.isReady()) {
-      throw new Error('Your phatRegistry has not been initialized correctly.');
+      throw new Error('Your phatRegistry has not been initialized correctly.')
     }
 
-    this.abi = abi instanceof Abi
-      ? abi
-      : new Abi(abi, api.registry.getChainProperties());
-    this.api = api;
-    this._decorateMethod = toPromiseMethod;
+    this.abi = abi instanceof Abi ? abi : new Abi(abi, api.registry.getChainProperties())
+    this.api = api
+    this._decorateMethod = toPromiseMethod
     this.phatRegistry = phatRegistry
 
-    this.address = this.registry.createType('AccountId', address);
+    this.address = this.registry.createType('AccountId', address)
     this.contractKey = contractKey
 
     this.abi.messages.forEach((m): void => {
       if (m.isMutating) {
-        this.#tx[m.method] = createTx(m, (o, p) => this.#inkCommand(m, o, p));
-        this.#query[m.method] = createQuery(m, (f, c, p) => this.#inkQuery(true, m, c, p).send(f));
+        this.#tx[m.method] = createTx(m, (o, p) => this.#inkCommand(m, o, p))
+        this.#query[m.method] = createQuery(m, (f, c, p) => this.#inkQuery(true, m, c, p).send(f))
       } else {
-        this.#query[m.method] = createQuery(m, (f, c, p) => this.#inkQuery(false, m, c, p).send(f));
+        this.#query[m.method] = createQuery(m, (f, c, p) => this.#inkQuery(false, m, c, p).send(f))
       }
-    });
+    })
   }
 
-  public get registry (): Registry {
-    return this.api.registry;
+  public get registry(): Registry {
+    return this.api.registry
   }
 
-  public get query (): (TQueries & { [k in keyof TTransactions]: PinkContractQuery }) {
-    return this.#query as (TQueries & { [k in keyof TTransactions]: PinkContractQuery });
+  public get query(): TQueries & { [k in keyof TTransactions]: PinkContractQuery } {
+    return this.#query as TQueries & { [k in keyof TTransactions]: PinkContractQuery }
   }
 
-  public get tx (): TTransactions {
-    return this.#tx as TTransactions;
+  public get tx(): TTransactions {
+    return this.#tx as TTransactions
   }
 
-  #inkQuery = (isEstimating: boolean, messageOrId: AbiMessage | string | number, options: PinkContractQueryOptions, params: unknown[]): ContractCallSend<'promise'> => {
-    const message = this.abi.findMessage(messageOrId);
+  #inkQuery = (
+    isEstimating: boolean,
+    messageOrId: AbiMessage | string | number,
+    options: PinkContractQueryOptions,
+    params: unknown[]
+  ): ContractCallSend<'promise'> => {
+    const message = this.abi.findMessage(messageOrId)
     const api = this.api as ApiPromise
 
     if (!options.cert) {
-      throw new Error('You need to provide the `cert` parameter in the options to process a Phat Contract query. Please check the document for a more detailed code snippet: https://www.npmjs.com/package/@phala/sdk')
+      throw new Error(
+        'You need to provide the `cert` parameter in the options to process a Phat Contract query. Please check the document for a more detailed code snippet: https://www.npmjs.com/package/@phala/sdk'
+      )
     }
 
     const { cert } = options
 
     // Generate a keypair for encryption
     // NOTE: each instance only has a pre-generated pair now, it maybe better to generate a new keypair every time encrypting
-    const seed = hexToU8a(hexAddPrefix(randomHex(32)));
-    const pair = sr25519KeypairFromSeed(seed);
-    const [sk, pk] = [pair.slice(0, 64), pair.slice(64)];
+    const seed = hexToU8a(hexAddPrefix(randomHex(32)))
+    const pair = sr25519KeypairFromSeed(seed)
+    const [sk, pk] = [pair.slice(0, 64), pair.slice(64)]
 
-    const queryAgreementKey = sr25519Agree(
-      hexToU8a(hexAddPrefix(this.phatRegistry.remotePubkey)),
-      sk
-    );
+    const queryAgreementKey = sr25519Agree(hexToU8a(hexAddPrefix(this.phatRegistry.remotePubkey)), sk)
 
     const inkQueryInternal = async (origin: string | AccountId | Uint8Array): Promise<ContractCallOutcome> => {
-
       if (typeof origin === 'string') {
         assert(origin === cert.address, 'origin must be the same as the certificate address')
       } else if (origin.hasOwnProperty('verify') && origin.hasOwnProperty('adddress')) {
@@ -249,7 +271,7 @@ export class PinkContractPromise<TQueries extends Record<string, PinkContractQue
         assert(origin.toString() === cert.address, 'origin must be the same as the certificate address')
       }
 
-      const payload = api.createType("InkQuery", {
+      const payload = api.createType('InkQuery', {
         head: {
           nonce: hexAddPrefix(randomHex(32)),
           id: this.address,
@@ -259,12 +281,12 @@ export class PinkContractPromise<TQueries extends Record<string, PinkContractQue
             payload: message.toU8a(params),
             deposit: options.deposit || 0,
             transfer: options.transfer || 0,
-            estimating: (options.estimating !== undefined) ? (!!options.estimating) : isEstimating,
-          }
+            estimating: options.estimating !== undefined ? !!options.estimating : isEstimating,
+          },
         },
-      });
-      const data = await pinkQuery(this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert);
-      const inkResponse = api.createType<InkResponse>("InkResponse", data)
+      })
+      const data = await pinkQuery(this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert)
+      const inkResponse = api.createType<InkResponse>('InkResponse', data)
       if (inkResponse.result.isErr) {
         // @FIXME: not sure this is enough as not yet tested
         throw new Error(`InkResponse Error: ${inkResponse.result.asErr.toString()}`)
@@ -274,60 +296,72 @@ export class PinkContractPromise<TQueries extends Record<string, PinkContractQue
         throw new Error(`Unexpected InkMessageReturn: ${inkResponse.result.asOk.toJSON()?.toString()}`)
       }
       const { debugMessage, gasConsumed, gasRequired, result, storageDeposit } = api.createType<ContractExecResult>(
-        "ContractExecResult",
+        'ContractExecResult',
         inkResponse.result.asOk.asInkMessageReturn.toString()
-      );
+      )
       return {
         debugMessage: debugMessage,
         gasConsumed: gasConsumed,
         gasRequired: gasRequired && !convertWeight(gasRequired).v1Weight.isZero() ? gasRequired : gasConsumed,
-        output: result.isOk && message.returnType
-          ? this.abi.registry.createTypeUnsafe(message.returnType.lookupName || message.returnType.type, [result.asOk.data.toU8a(true)], { isPedantic: true })
-          : null,
+        output:
+          result.isOk && message.returnType
+            ? this.abi.registry.createTypeUnsafe(
+                message.returnType.lookupName || message.returnType.type,
+                [result.asOk.data.toU8a(true)],
+                { isPedantic: true }
+              )
+            : null,
         result,
-        storageDeposit
+        storageDeposit,
       }
     }
 
     return {
-      send: this._decorateMethod((origin: string | AccountId | Uint8Array) => from(inkQueryInternal(origin)))
-    };
-  };
+      send: this._decorateMethod((origin: string | AccountId | Uint8Array) => from(inkQueryInternal(origin))),
+    }
+  }
 
-  #inkCommand = (messageOrId: AbiMessage | string | number, options: PinkContractOptions, params: unknown[]): SubmittableExtrinsic<'promise'> => {
+  #inkCommand = (
+    messageOrId: AbiMessage | string | number,
+    options: PinkContractOptions,
+    params: unknown[]
+  ): SubmittableExtrinsic<'promise'> => {
     const api = this.api as ApiPromise
 
     // Generate a keypair for encryption
     // NOTE: each instance only has a pre-generated pair now, it maybe better to generate a new keypair every time encrypting
-    const seed = hexToU8a(hexAddPrefix(randomHex(32)));
-    const pair = sr25519KeypairFromSeed(seed);
-    const [sk, pk] = [pair.slice(0, 64), pair.slice(64)];
+    const seed = hexToU8a(hexAddPrefix(randomHex(32)))
+    const pair = sr25519KeypairFromSeed(seed)
+    const [sk, pk] = [pair.slice(0, 64), pair.slice(64)]
 
-    const commandAgreementKey = sr25519Agree(hexToU8a(this.contractKey), sk);
+    const commandAgreementKey = sr25519Agree(hexToU8a(this.contractKey), sk)
 
-    const inkCommandInternal = (dest: AccountId, value: BN, deposit: BN, gas: { refTime: BN }, storageDepositLimit: BN | undefined, encParams: Uint8Array) => {
+    const inkCommandInternal = (
+      dest: AccountId,
+      value: BN,
+      deposit: BN,
+      gas: { refTime: BN },
+      storageDepositLimit: BN | undefined,
+      encParams: Uint8Array
+    ) => {
       // @ts-ignore
-      const payload = api.createType("InkCommand", {
+      const payload = api.createType('InkCommand', {
         InkMessage: {
           nonce: hexAddPrefix(randomHex(32)),
           // FIXME: unexpected u8a prefix
-          message: api.createType("Vec<u8>", encParams).toHex(),
+          message: api.createType('Vec<u8>', encParams).toHex(),
           transfer: value,
           gasLimit: gas.refTime,
           storageDepositLimit,
         },
-      });
+      })
       const encodedPayload = api
-        .createType("CommandPayload", {
+        .createType('CommandPayload', {
           encrypted: createEncryptedData(pk, payload.toHex(), commandAgreementKey),
         })
-        .toHex();
+        .toHex()
 
-      return api.tx.phalaPhatContracts.pushContractMessage(
-        dest,
-        encodedPayload,
-        deposit
-      );
+      return api.tx.phalaPhatContracts.pushContractMessage(dest, encodedPayload, deposit)
     }
 
     return inkCommandInternal(
@@ -344,17 +378,23 @@ export class PinkContractPromise<TQueries extends Record<string, PinkContractQue
         result,
         applyOnEvent(result, ['ContractEmitted', 'ContractExecution'], (records: EventRecord[]) => {
           return records
-            .map(({ event: { data: [, data] } }): DecodedEvent | null => {
-              try {
-                return this.abi.decodeEvent(data as Bytes);
-              } catch (error) {
-                console.error(`Unable to decode contract event: ${(error as Error).message}`);
-                return null;
+            .map(
+              ({
+                event: {
+                  data: [, data],
+                },
+              }): DecodedEvent | null => {
+                try {
+                  return this.abi.decodeEvent(data as Bytes)
+                } catch (error) {
+                  console.error(`Unable to decode contract event: ${(error as Error).message}`)
+                  return null
+                }
               }
-            })
+            )
             .filter((decoded): decoded is DecodedEvent => !!decoded)
         })
       )
-    });
-  };
+    })
+  }
 }

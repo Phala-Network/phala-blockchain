@@ -1,12 +1,9 @@
-import { type Client, type Account } from 'viem';
-import { type signTypedData } from 'viem/wallet';
-
-import { hexToU8a, u8aToHex } from "@polkadot/util";
-import { encodeAddress } from "@polkadot/util-crypto";
-import { hashMessage, recoverPublicKey } from "viem";
-import { signMessage } from 'viem/wallet';
-import { secp256k1Compress, blake2AsU8a } from '@polkadot/util-crypto';
-
+import { hexToU8a, u8aToHex } from '@polkadot/util'
+import { blake2AsU8a, encodeAddress, secp256k1Compress } from '@polkadot/util-crypto'
+import { type Account, type Client } from 'viem'
+import { hashMessage, recoverPublicKey } from 'viem'
+import { type signTypedData } from 'viem/wallet'
+import { signMessage } from 'viem/wallet'
 
 // keccak256(b"phala/phat-contract")
 const SALT = '0x0ea813d1592526d672ea2576d7a07914cef2ca301b35c5eed941f7c897512a00'
@@ -20,7 +17,7 @@ export async function etherAddressToCompactPubkey(client: Client, account: Accou
   const msg = '0x48656c6c6f'
   const sign = await signMessage(client, { account, message: msg })
   const hash = hashMessage(msg)
-  const recovered = await recoverPublicKey({ hash, signature:sign })
+  const recovered = await recoverPublicKey({ hash, signature: sign })
   const compactPubkey = u8aToHex(secp256k1Compress(hexToU8a(recovered)))
   return compactPubkey
 }
@@ -34,15 +31,20 @@ export async function etherAddressToSubstrateAddress(client: Client, account: Ac
   return substratePubkey
 }
 
-export function createEip712StructedDataSignCertificate(account: Account, encodedCert: string, ttl: number): SignTypedDataInput {
+export function createEip712StructedDataSignCertificate(
+  account: Account,
+  encodedCert: string,
+  ttl: number
+): SignTypedDataInput {
   return {
     domain: {
-      name: "Phat Query Certificate",
+      name: 'Phat Query Certificate',
       version: '1',
       salt: SALT,
     },
     message: {
-      description: "You are signing a Certificate that can be used to query Phat Contracts using your identity without further prompts.",
+      description:
+        'You are signing a Certificate that can be used to query Phat Contracts using your identity without further prompts.',
       timeToLive: `The Certificate will be valid till block ${ttl}.`,
       encodedCert,
     },
@@ -66,12 +68,12 @@ export function createEip712StructedDataSignCertificate(account: Account, encode
 export function createEip712StructedDataSignQuery(account: Account, encodedQuery: string): SignTypedDataInput {
   return {
     domain: {
-      name: "Phat Contract Query",
+      name: 'Phat Contract Query',
       version: '1',
       salt: SALT,
     },
     message: {
-      description: "You are signing a query request that would be sent to a Phat Contract.",
+      description: 'You are signing a query request that would be sent to a Phat Contract.',
       encodedQuery: encodedQuery,
     },
     primaryType: 'PhatContractQuery',
