@@ -1535,7 +1535,7 @@ impl OnUnbalanced<NegativeImbalance> for DealWithServiceFee {
 }
 
 parameter_types! {
-    pub EIP712Name: Vec<u8> = b"Substrate".to_vec();
+    pub EIP712Name: Vec<u8> = b"PhalaNetwork".to_vec();
     pub EIP712Version: Vec<u8> = b"1".to_vec();
     pub EIP712ChainID: pallet_evm_account_mapping::EIP712ChainID = sp_core::U256::from(0);
     pub EIP712VerifyingContractAddress: pallet_evm_account_mapping::EIP712VerifyingContractAddress = sp_core::H160::from([0u8; 20]);
