@@ -23,6 +23,22 @@ pub mod pallet {
     type BalanceOf<T> =
         <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
+    #[pallet::error]
+    pub enum Error<T> {
+        /// Calling chain extension with an invalid extension id.
+        UnknownChainExtensionId,
+        /// Calling chain extension with an invalid function id.
+        UnknownChainExtensionFunction,
+        /// Failed to write chain extension return value to the contract buffer.
+        ContractIoBufferOverflow,
+        /// No key seed found in the cluster when deriving a key. Should never happen.
+        KeySeedMissing,
+        /// Crypto error occurred while deriving a key. Unlikely to happen.
+        DeriveKeyFailed,
+        /// The system contract is missing. Should never happen.
+        SystemContractMissing,
+    }
+
     #[derive(Clone, Eq, PartialEq, Encode, Decode, TypeInfo)]
     pub struct WasmCode<AccountId> {
         pub owner: AccountId,

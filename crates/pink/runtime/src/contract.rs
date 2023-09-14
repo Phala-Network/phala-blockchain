@@ -228,15 +228,17 @@ fn contract_tx<T>(
     gas_free: bool,
     tx_fn: impl FnOnce() -> ContractResult<T>,
 ) -> ContractResult<T> {
-    if !gas_free && PalletPink::pay_for_gas(&origin, gas_limit).is_err() {
-        return ContractResult {
-            gas_consumed: Weight::zero(),
-            gas_required: Weight::zero(),
-            storage_deposit: Default::default(),
-            debug_message: Default::default(),
-            result: Err(DispatchError::Other("InsufficientBalance")),
-            events: None,
-        };
+    if !gas_free {
+        if let Err(err) = PalletPink::pay_for_gas(&origin, gas_limit) {
+            return ContractResult {
+                gas_consumed: Weight::zero(),
+                gas_required: Weight::zero(),
+                storage_deposit: Default::default(),
+                debug_message: Default::default(),
+                result: Err(err),
+                events: None,
+            };
+        }
     }
     let result = tx_fn();
     if !gas_free {
