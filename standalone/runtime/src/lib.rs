@@ -1528,9 +1528,7 @@ impl puppets::parachain_system::Config for Runtime {}
 pub struct DealWithServiceFee;
 impl OnUnbalanced<NegativeImbalance> for DealWithServiceFee {
     fn on_nonzero_unbalanced(amount: NegativeImbalance) {
-        let split = amount.ration(80, 20);
-        Treasury::on_unbalanced(split.0);
-        Author::on_unbalanced(split.1);
+        Treasury::on_unbalanced(amount);
     }
 }
 
