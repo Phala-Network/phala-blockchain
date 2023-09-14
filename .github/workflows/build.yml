@@ -14,49 +14,24 @@ jobs:
     name: Build core
     runs-on: ubuntu-20.04
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master # https://github.com/easimon/maximize-build-space
-        with:
-          root-reserve-mb: 4096
-          temp-reserve-mb: 1024
-          swap-size-mb: 8192
-          remove-dotnet: "true"
-          remove-android: "true"
-          remove-haskell: "true"
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
+      - uses: ./.github/actions/maximize-disk-space
       - uses: ./.github/actions/build-core
   build-pruntime:
     name: Build pruntime
     runs-on: ubuntu-20.04
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master # https://github.com/easimon/maximize-build-space
-        with:
-          root-reserve-mb: 4096
-          temp-reserve-mb: 1024
-          swap-size-mb: 8192
-          remove-dotnet: "true"
-          remove-android: "true"
-          remove-haskell: "true"
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
+      - uses: ./.github/actions/maximize-disk-space
       - uses: ./.github/actions/build-pruntime
   build-prouter:
     name: Build prouter
     runs-on: ubuntu-20.04
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master # https://github.com/easimon/maximize-build-space
-        with:
-          root-reserve-mb: 4096
-          temp-reserve-mb: 1024
-          swap-size-mb: 8192
-          remove-dotnet: "true"
-          remove-android: "true"
-          remove-haskell: "true"
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
@@ -73,15 +48,6 @@ jobs:
     name: Run E2E tests
     runs-on: ubuntu-20.04
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master # https://github.com/easimon/maximize-build-space
-        with:
-          root-reserve-mb: 4096
-          temp-reserve-mb: 1024
-          swap-size-mb: 8192
-          remove-dotnet: "true"
-          remove-android: "true"
-          remove-haskell: "true"
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
@@ -130,19 +96,11 @@ jobs:
     name: Run cargo tests
     runs-on: ubuntu-20.04
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master # https://github.com/easimon/maximize-build-space
-        with:
-          root-reserve-mb: 4096
-          temp-reserve-mb: 1024
-          swap-size-mb: 8192
-          remove-dotnet: "true"
-          remove-android: "true"
-          remove-haskell: "true"
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
       - uses: ./.github/actions/install_toolchain
+      - uses: ./.github/actions/maximize-disk-space
       - name: Run cargo tests
         run: cargo test --tests --release --workspace --exclude node-executor --exclude phala-node
 
@@ -150,20 +108,12 @@ jobs:
     name: Run cargo clippy
     runs-on: ubuntu-20.04
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master # https://github.com/easimon/maximize-build-space
-        with:
-          root-reserve-mb: 4096
-          temp-reserve-mb: 1024
-          swap-size-mb: 8192
-          remove-dotnet: "true"
-          remove-android: "true"
-          remove-haskell: "true"
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
       - uses: ./.github/actions/install_toolchain
       - name: Install clippy
         run: rustup component add clippy
+      - uses: ./.github/actions/maximize-disk-space
       - name: Run cargo clippy
         run: cargo clippy --tests -- -D warnings && cd standalone/pruntime && cargo clippy --tests -- -D warnings
