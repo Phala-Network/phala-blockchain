@@ -46,6 +46,7 @@ impl ContractsKeeper {
     }
 
     pub fn drain(&mut self) -> impl Iterator<Item = Contract> {
+        #[allow(clippy::iter_kv_map)]
         std::mem::take(&mut self.contracts)
             .into_iter()
             .map(|(_, v)| v)

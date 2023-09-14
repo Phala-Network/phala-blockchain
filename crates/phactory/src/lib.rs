@@ -561,7 +561,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let file = File::create(&checkpoint_file).context("Failed to create checkpoint file")?;
         self.take_checkpoint_to_writer(&key, file)
             .context("Take checkpoint to writer failed")?;
-        info!("Checkpoint saved to {}", checkpoint_file);
+        info!("Checkpoint saved to {checkpoint_file}");
         self.last_checkpoint = Instant::now();
         remove_outdated_checkpoints(
             &self.args.storage_path,
@@ -618,43 +618,33 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             Ok(file) => file,
             Err(err) if matches!(err.kind(), ErrorKind::NotFound) => {
                 // This should never happen unless it was removed just after the glob.
-                anyhow::bail!("Checkpoint file {:?} is not found", ckpt_filename);
+                anyhow::bail!("Checkpoint file {ckpt_filename:?} is not found");
             }
             Err(err) => {
-                error!(
-                    "Failed to open checkpoint file {:?}: {:?}",
-                    ckpt_filename, err
-                );
+                error!("Failed to open checkpoint file {ckpt_filename:?}: {err:?}",);
                 if args.remove_corrupted_checkpoint {
-                    error!("Removing {:?}", ckpt_filename);
+                    error!("Removing {ckpt_filename:?}");
                     std::fs::remove_file(ckpt_filename)
                         .context("Failed to remove corrupted checkpoint file")?;
                 }
-                anyhow::bail!(
-                    "Failed to open checkpoint file {:?}: {:?}",
-                    ckpt_filename,
-                    err
-                );
+                anyhow::bail!("Failed to open checkpoint file {ckpt_filename:?}: {err:?}");
             }
         };
 
-        info!("Loading checkpoint from file {:?}", ckpt_filename);
+        info!("Loading checkpoint from file {ckpt_filename:?}");
         match Self::restore_from_checkpoint_reader(&runtime_data.sk, file, args) {
             Ok(state) => {
-                info!("Succeeded to load checkpoint file {:?}", ckpt_filename);
+                info!("Succeeded to load checkpoint file {ckpt_filename:?}");
                 Ok(Some(state))
             }
-            Err(err /*Don't leak it into the log*/) => {
-                error!(
-                    "Failed to load checkpoint file {:?}: {err:?}",
-                    ckpt_filename
-                );
+            Err(_err /*Don't leak it into the log*/) => {
+                error!("Failed to load checkpoint file {ckpt_filename:?}");
                 if args.remove_corrupted_checkpoint {
                     error!("Removing {:?}", ckpt_filename);
                     std::fs::remove_file(ckpt_filename)
                         .context("Failed to remove corrupted checkpoint file")?;
                 }
-                anyhow::bail!("Failed to load checkpoint file {:?}", ckpt_filename);
+                anyhow::bail!("Failed to load checkpoint file {ckpt_filename:?}");
             }
         }
     }
