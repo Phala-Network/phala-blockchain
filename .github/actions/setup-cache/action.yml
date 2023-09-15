@@ -1,0 +1,18 @@
+name: "Setup cache"
+description: "Setup cache"
+
+inputs:
+  key:
+    description: "subkey of the cache"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Cache Rust toolchain
+      uses: actions/cache@v3
+      with:
+        key: rust-toolchain
+        path: |
+          ~/.cargo
+          ~/.rustup

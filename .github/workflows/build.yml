@@ -14,20 +14,36 @@ jobs:
     name: Build core
     runs-on: ubuntu-20.04
     steps:
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.3
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
+      - uses: ./.github/actions/setup-cache
+        with:
+          key: core
       - uses: ./.github/actions/maximize-disk-space
       - uses: ./.github/actions/build-core
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
   build-pruntime:
     name: Build pruntime
     runs-on: ubuntu-20.04
     steps:
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.3
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
+      - uses: ./.github/actions/setup-cache
+        with:
+          key: pruntime
       - uses: ./.github/actions/maximize-disk-space
       - uses: ./.github/actions/build-pruntime
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
   build-prouter:
     name: Build prouter
     runs-on: ubuntu-20.04
