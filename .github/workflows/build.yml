@@ -48,15 +48,10 @@ jobs:
     name: Build prouter
     runs-on: ubuntu-20.04
     steps:
-      - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.3
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
       - uses: ./.github/actions/build-prouter
-        env:
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: "sccache"
   build-contracts:
     name: Build contracts
     runs-on: ubuntu-20.04
