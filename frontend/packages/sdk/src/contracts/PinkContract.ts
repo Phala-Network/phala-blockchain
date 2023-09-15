@@ -17,7 +17,7 @@ import { sr25519Agree, sr25519KeypairFromSeed } from '@polkadot/wasm-crypto'
 import { from } from 'rxjs'
 import type { OnChainRegistry } from '../OnChainRegistry'
 import type { CertificateData } from '../pruntime/certificate'
-import { EncrypteInkCommand, InkQueryMessage, PlainInkCommand } from '../pruntime/coders'
+import { EncryptedInkCommand, InkQueryMessage, PlainInkCommand } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
 import type { AbiLike } from '../types'
 import assert from '../utils/assert'
@@ -314,7 +314,7 @@ export class PinkContractPromise<
     params: unknown[]
   ): SubmittableExtrinsic<'promise'> => {
     const api = this.api as ApiPromise
-    const fn = options.plain ? PlainInkCommand : EncrypteInkCommand
+    const fn = options.plain ? PlainInkCommand : EncryptedInkCommand
     const payload = fn(
       this.contractKey,
       this.abi.findMessage(messageOrId).toU8a(params),

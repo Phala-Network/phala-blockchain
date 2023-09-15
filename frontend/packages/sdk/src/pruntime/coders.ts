@@ -101,7 +101,7 @@ export function PlainInkCommand(
   })
 }
 
-export function EncrypteInkCommand(
+export function EncryptedInkCommand(
   address: string,
   encParams: Uint8Array,
   value: LooseNumber | undefined,
@@ -122,7 +122,7 @@ export function EncrypteInkCommand(
   })
   const iv = hexAddPrefix(randomHex(12))
   return phalaTypes.createType('CommandPayload', {
-    encrypted: {
+    Encrypted: {
       iv,
       pubkey: u8aToHex(pk),
       data: hexAddPrefix(encrypt(payload.toHex(), commandAgreementKey, hexToU8a(iv))),
