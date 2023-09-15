@@ -128,7 +128,7 @@ function sidevmQueryWithReader({ phactory, remotePubkey, address, cert }: Sidevm
   }
 }
 
-function buildGetLogRequest(params: any[], getFrom: (x: Partial<GetLogRequest>) => number, getDefaults: () => Partial<GetLogRequest>): GetLogRequest {
+export function buildGetLogRequest(params: any[], getFrom: (x: Partial<GetLogRequest>) => number, getDefaults: () => Partial<GetLogRequest>): GetLogRequest {
   let request = getDefaults()
   switch (params.length) {
     case 0:
@@ -140,6 +140,10 @@ function buildGetLogRequest(params: any[], getFrom: (x: Partial<GetLogRequest>) 
         request.count = params[0]
         request.from = getFrom(request)
       } else {
+        request.from = getFrom(params[0])
+        if (params[0].count) {
+          request.count = params[0].count
+        }
         request = { ...params[0], ...request, }
       }
       break
@@ -148,10 +152,9 @@ function buildGetLogRequest(params: any[], getFrom: (x: Partial<GetLogRequest>) 
       request.count = params[0]
       if (typeof params[1] === 'number') {
         request.from = params[1]
-        request.from = getFrom(request)
       } else {
         request.from = getFrom(request)
-        request = { ...params[0], ...request, }
+        request = { ...params[1], ...request, }
       }
       break
 
@@ -227,7 +230,8 @@ export class PinkLoggerContractPromise {
 
   async tail(): Promise<GetLogResponse>;
   async tail(counts: number): Promise<GetLogResponse>;
-  async tail(filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
+  async tail(filters: Pick<GetLogRequest, 'contract' | 'block_number' | 'count'>): Promise<GetLogResponse>;
+  async tail(counts: number, from: number): Promise<GetLogResponse>;
   async tail(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
   async tail(counts: number, from: number, filters?: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
   async tail(...params: any[]): Promise<GetLogResponse> {
@@ -248,7 +252,8 @@ export class PinkLoggerContractPromise {
 
   async head(): Promise<GetLogResponse>;
   async head(counts: number): Promise<GetLogResponse>;
-  async head(filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
+  async head(filters: Pick<GetLogRequest, 'contract' | 'block_number' | 'count'>): Promise<GetLogResponse>;
+  async head(counts: number, from: number): Promise<GetLogResponse>;
   async head(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
   async head(counts: number, from: number, filters?: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>;
   async head(...params: any[]): Promise<GetLogResponse> {
