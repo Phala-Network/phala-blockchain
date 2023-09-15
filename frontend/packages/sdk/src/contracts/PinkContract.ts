@@ -85,32 +85,54 @@ class PinkContractSubmittableResult extends ContractSubmittableResult {
     this.#registry = registry
   }
 
-  async waitFinalized(timeout: number = 120_000) {
+  async waitFinalized(
+    predicate?: () => Promise<boolean>,
+    options?: { timeout?: number; blocks?: number }
+  ): Promise<void> {
     if (this.#isFinalized) {
       return
     }
-
-    if (this.isInBlock || this.isFinalized) {
-      const codeHash = this.status.asInBlock.toString()
-      const block = await this.#registry.api.rpc.chain.getBlock(codeHash)
-      const chainHeight = block.block.header.number.toNumber()
-
-      const t0 = new Date().getTime()
+    if (!this.isInBlock && !this.isFinalized) {
+      throw new Error('Contract transaction submit failed.')
+    }
+    const codeHash = this.status.asInBlock.toString()
+    const block = await this.#registry.api.rpc.chain.getBlock(codeHash)
+    const chainHeight = block.block.header.number.toNumber()
+    const t0 = new Date().getTime()
+    const timeout = options?.timeout ?? 120_000
+    const blocks = options?.blocks ?? 10
+    if (!predicate) {
       while (true) {
-        const result = await this.#registry.phactory.getInfo({})
-        if (result.blocknum > chainHeight) {
+        const { blocknum: currentHeight } = await this.#registry.phactory.getInfo({})
+        if (currentHeight > chainHeight) {
           this.#isFinalized = true
           return
         }
-
-        const t1 = new Date().getTime()
-        if (t1 - t0 > timeout) {
+        if (currentHeight - blocks > chainHeight) {
           throw new Error('Timeout')
         }
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        if (new Date().getTime() - t0 > timeout) {
+          throw new Error('Timeout')
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1_000))
+      }
+    } else {
+      while (true) {
+        const { blocknum: currentHeight } = await this.#registry.phactory.getInfo({})
+        const isOk = await predicate()
+        if (isOk) {
+          this.#isFinalized = true
+          return
+        }
+        if (currentHeight - blocks > chainHeight) {
+          throw new Error('Timeout')
+        }
+        if (new Date().getTime() - t0 > timeout) {
+          throw new Error('Timeout')
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1_000))
       }
     }
-    throw new Error('Contract transaction submit failed.')
   }
 }
 
