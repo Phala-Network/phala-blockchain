@@ -22,3 +22,15 @@ runs:
         /opt/microsoft
         && df -h
       shell: bash
+    - name: Setup swap
+      run: |
+        SWAP_FILE=/mnt/swapfile
+        sudo swapoff -a
+        sudo rm -f ${SWAP_FILE}
+        sudo fallocate -l 12G ${SWAP_FILE}
+        sudo chmod 600 ${SWAP_FILE}
+        sudo mkswap ${SWAP_FILE}
+        sudo swapon ${SWAP_FILE}
+        sudo swapon --show
+        df -h
+      shell: bash
