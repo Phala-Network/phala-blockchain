@@ -21,9 +21,17 @@ export default function createPruntimeClient(baseURL: string) {
         const buffer = await (await resp.blob()).arrayBuffer()
         callback(null, new Uint8Array(buffer))
       } else if (resp.status === 500) {
-        const buffer = await (await resp.blob()).arrayBuffer()
-        const prpcError = prpc.PrpcError.decode(new Uint8Array(buffer))
-        throw new Error(`PrpcError: ${prpcError.message}`)
+        // We assume it's an error message from PRPC so we try to decode it first,
+        // then fail back to plain text.
+        let error: Error
+        try {
+          const buffer = await (await resp.blob()).arrayBuffer()
+          const prpcError = prpc.PrpcError.decode(new Uint8Array(buffer))
+          error = new Error(`PrpcError: ${prpcError.message}`)
+        } catch (err) {
+          error = new Error(`ServerError: ${resp.status}: ${await resp.text()}`)
+        }
+        throw error
       } else {
         throw new Error(`Unexpected Response Status: ${resp.status}`)
       }
