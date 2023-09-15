@@ -187,25 +187,21 @@ function sidevmQueryWithReader({ phactory, remotePubkey, address, cert }: Sidevm
 function postProcessLogRecord(messages: SerInnerMessage[]): SerMessage[] {
   return messages.map(message => {
     if (message.type === 'MessageOutput') {
-      const r1 = []
-      for (let i = 2; i < message.output.length; i += 2) {
-        r1.push(hexToNumber('0x' + message.output.substring(i, i + 2)))
-      }
-      const r2 = phalaTypes.createType<ContractExecResult>('ContractExecResult', new Uint8Array(r1))
-      const r3 = r2.toJSON() as unknown as SerMessageMessageOutput['output']
-      if (r2.result.isErr && r2.result.asErr.isModule && r2.result.asErr.asModule?.index == 4) {
-        const r4 = phalaTypes.createType('ContractError', r2.result.asErr.asModule.error)
-        r3.result = {
+      const execResult = phalaTypes.createType<ContractExecResult>('ContractExecResult', hexToU8a(message.output))
+      const output = execResult.toJSON() as unknown as SerMessageMessageOutput['output']
+      if (execResult.result.isErr && execResult.result.asErr.isModule && execResult.result.asErr.asModule?.index == 4) {
+        const err = phalaTypes.createType('ContractError', execResult.result.asErr.asModule.error)
+        output.result = {
           err: {
-            ...(r3.result as OutputErr).err,
+            ...(output.result as OutputErr).err,
             module: {
-              error: r4.toJSON() as string,
+              error: err.toJSON() as string,
               index: 4
             }
           }
         } as OutputErr
       }
-      return { ...message, output: r3 }
+      return { ...message, output }
     }
     return message
   })
