@@ -104,7 +104,7 @@ export const types = {
       ContractReverted: null,
       CodeRejected: null,
       Indeterministic: null,
-    }
+    },
   },
 }
 

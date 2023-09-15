@@ -1,7 +1,7 @@
 import type { ApiPromise } from '@polkadot/api'
 import { Keyring } from '@polkadot/api'
 import type { KeyringPair } from '@polkadot/keyring/types'
-import type { u8, Text, Struct, Enum } from '@polkadot/types'
+import type { Enum, Struct, Text, u8 } from '@polkadot/types'
 import type { AccountId } from '@polkadot/types/interfaces'
 import type { Result } from '@polkadot/types-codec'
 import { hexAddPrefix, hexToNumber, hexToString, hexToU8a } from '@polkadot/util'
@@ -185,20 +185,20 @@ function sidevmQueryWithReader({ phactory, remotePubkey, address, cert }: Sidevm
 }
 
 function postProcessLogRecord(messages: SerInnerMessage[]): SerMessage[] {
-  return messages.map(message => {
+  return messages.map((message) => {
     if (message.type === 'MessageOutput') {
       const execResult = phalaTypes.createType<ContractExecResult>('ContractExecResult', hexToU8a(message.output))
       const output = execResult.toJSON() as unknown as SerMessageMessageOutput['output']
-      if (execResult.result.isErr && execResult.result.asErr.isModule && execResult.result.asErr.asModule?.index == 4) {
+      if (execResult.result.isErr && execResult.result.asErr.isModule && execResult.result.asErr.asModule?.index === 4) {
         const err = phalaTypes.createType('ContractError', execResult.result.asErr.asModule.error)
         output.result = {
           err: {
             ...(output.result as OutputErr).err,
             module: {
               error: err.toJSON() as string,
-              index: 4
-            }
-          }
+              index: 4,
+            },
+          },
         } as OutputErr
       }
       return { ...message, output }
@@ -312,7 +312,12 @@ export class PinkLoggerContractPromise {
   async getLog(contract: AccountId | string, from: number = 0, count: number = 100): Promise<GetLogResponse> {
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
-    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[], next: number }>({ action: 'GetLog', contract, from, count })
+    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[]; next: number }>({
+      action: 'GetLog',
+      contract,
+      from,
+      count,
+    })
     return { records: postProcessLogRecord(result.records), next: result.next } as const
   }
 
@@ -345,7 +350,10 @@ export class PinkLoggerContractPromise {
     )
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
-    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[], next: number }>({ action: 'GetLog', ...request })
+    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[]; next: number }>({
+      action: 'GetLog',
+      ...request,
+    })
     return { records: postProcessLogRecord(result.records), next: result.next } as const
   }
 
@@ -367,7 +375,10 @@ export class PinkLoggerContractPromise {
     )
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
-    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[], next: number }>({ action: 'GetLog', ...request })
+    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[]; next: number }>({
+      action: 'GetLog',
+      ...request,
+    })
     return { records: postProcessLogRecord(result.records), next: result.next } as const
   }
 
