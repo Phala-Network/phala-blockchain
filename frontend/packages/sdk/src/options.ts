@@ -75,6 +75,37 @@ export const types = {
     storageDepositLimit: 'Option<u128>',
   },
   InkCommand: { _enum: { InkMessage: 'InkMessage' } },
+  ContractError: {
+    _enum: {
+      InvalidScheduleVersion: null,
+      InvalidCallFlags: null,
+      OutOfGas: null,
+      OutputBufferTooSmall: null,
+      TransferFailed: null,
+      MaxCallDepthReached: null,
+      ContractNotFound: null,
+      CodeTooLarge: null,
+      CodeNotFound: null,
+      OutOfBounds: null,
+      DecodingFailed: null,
+      ContractTrapped: null,
+      ValueTooLarge: null,
+      TerminatedWhileReentrant: null,
+      InputForwarded: null,
+      RandomSubjectTooLong: null,
+      TooManyTopics: null,
+      NoChainExtension: null,
+      DuplicateContract: null,
+      TerminatedInConstructor: null,
+      ReentranceDenied: null,
+      StorageDepositNotEnoughFunds: null,
+      StorageDepositLimitExhausted: null,
+      CodeInUse: null,
+      ContractReverted: null,
+      CodeRejected: null,
+      Indeterministic: null,
+    }
+  },
 }
 
 export const phalaRegistryTypes = { ...types, ...typeDefinitions, ...SubstrateLookupTypes } as unknown as RegistryTypes

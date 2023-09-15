@@ -1,10 +1,10 @@
 import type { ApiPromise } from '@polkadot/api'
 import { Keyring } from '@polkadot/api'
 import type { KeyringPair } from '@polkadot/keyring/types'
-import type { Text } from '@polkadot/types'
+import type { u8, Text, Struct, Enum } from '@polkadot/types'
 import type { AccountId } from '@polkadot/types/interfaces'
 import type { Result } from '@polkadot/types-codec'
-import { hexAddPrefix, hexToString, hexToU8a } from '@polkadot/util'
+import { hexAddPrefix, hexToNumber, hexToString, hexToU8a } from '@polkadot/util'
 import { sr25519Agree } from '@polkadot/wasm-crypto'
 import type { OnChainRegistry } from '../OnChainRegistry'
 import { phalaTypes } from '../options'
@@ -44,7 +44,24 @@ export interface SerMessageEvent {
   payload: string
 }
 
-export interface SerMessageMessageOutput {
+interface OutputOk {
+  ok: {
+    flags: string[]
+    data: string
+  }
+}
+
+interface OutputErr {
+  err: {
+    module?: {
+      error: string
+      index: number
+    }
+    other?: null
+  }
+}
+
+export interface SerMessageMessageOutputRaw {
   type: 'MessageOutput'
   sequence: number
   blockNumber: number
@@ -52,6 +69,30 @@ export interface SerMessageMessageOutput {
   contract: string
   nonce: string
   output: string
+}
+
+export interface SerMessageMessageOutput {
+  type: 'MessageOutput'
+  sequence: number
+  blockNumber: number
+  origin: string
+  contract: string
+  nonce: string
+  output: {
+    gasConsumed: {
+      refTime: number
+      proofSize: number
+    }
+    gasRequired: {
+      refTime: number
+      proofSize: number
+      storageDeposit: {
+        charge: number
+      }
+    }
+    debugMessage: string
+    result: OutputOk | OutputErr
+  }
 }
 
 export interface SerMessageQueryIn {
@@ -63,6 +104,13 @@ export interface SerMessageQueryIn {
 export interface SerMessageTooLarge {
   type: 'TooLarge'
 }
+
+export type SerInnerMessage =
+  | SerMessageLog
+  | SerMessageEvent
+  | SerMessageMessageOutputRaw
+  | SerMessageQueryIn
+  | SerMessageTooLarge
 
 export type SerMessage =
   | SerMessageLog
@@ -92,6 +140,27 @@ interface SidevmQueryContext {
   cert: CertificateData
 }
 
+interface ContractExecResultOk extends Struct {
+  flags: Text[]
+  data: Text
+}
+
+interface ModuleError extends Struct {
+  index: number
+  error: Text
+}
+
+interface ContractExecResultErr extends Enum {
+  asModule: ModuleError
+  asOther: Text
+  isModule: boolean
+  isOther: boolean
+}
+
+interface ContractExecResult extends Struct {
+  result: Result<ContractExecResultOk, ContractExecResultErr>
+}
+
 function sidevmQueryWithReader({ phactory, remotePubkey, address, cert }: SidevmQueryContext) {
   return async function unsafeRunSidevmQuery<T>(sidevmMessage: Record<string, any>): Promise<T> {
     const [sk, pk] = generatePair()
@@ -113,6 +182,33 @@ function sidevmQueryWithReader({ phactory, remotePubkey, address, cert }: Sidevm
     }
     return parsed
   }
+}
+
+function postProcessLogRecord(messages: SerInnerMessage[]): SerMessage[] {
+  return messages.map(message => {
+    if (message.type === 'MessageOutput') {
+      const r1 = []
+      for (let i = 2; i < message.output.length; i += 2) {
+        r1.push(hexToNumber('0x' + message.output.substring(i, i + 2)))
+      }
+      const r2 = phalaTypes.createType<ContractExecResult>('ContractExecResult', new Uint8Array(r1))
+      const r3 = r2.toJSON() as unknown as SerMessageMessageOutput['output']
+      if (r2.result.isErr && r2.result.asErr.isModule && r2.result.asErr.asModule?.index == 4) {
+        const r4 = phalaTypes.createType('ContractError', r2.result.asErr.asModule.error)
+        r3.result = {
+          err: {
+            ...(r3.result as OutputErr).err,
+            module: {
+              error: r4.toJSON() as string,
+              index: 4
+            }
+          }
+        } as OutputErr
+      }
+      return { ...message, output: r3 }
+    }
+    return message
+  })
 }
 
 export function buildGetLogRequest(
@@ -220,7 +316,8 @@ export class PinkLoggerContractPromise {
   async getLog(contract: AccountId | string, from: number = 0, count: number = 100): Promise<GetLogResponse> {
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
-    return await unsafeRunSidevmQuery({ action: 'GetLog', contract, from, count })
+    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[], next: number }>({ action: 'GetLog', contract, from, count })
+    return { records: postProcessLogRecord(result.records), next: result.next } as const
   }
 
   async getInfo(): Promise<LogServerInfo> {
@@ -252,7 +349,8 @@ export class PinkLoggerContractPromise {
     )
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
-    return await unsafeRunSidevmQuery({ action: 'GetLog', ...request })
+    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[], next: number }>({ action: 'GetLog', ...request })
+    return { records: postProcessLogRecord(result.records), next: result.next } as const
   }
 
   async head(): Promise<GetLogResponse>
@@ -273,7 +371,8 @@ export class PinkLoggerContractPromise {
     )
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
-    return await unsafeRunSidevmQuery({ action: 'GetLog', ...request })
+    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[], next: number }>({ action: 'GetLog', ...request })
+    return { records: postProcessLogRecord(result.records), next: result.next } as const
   }
 
   setSystemContract(contract: PinkContractPromise | string) {
