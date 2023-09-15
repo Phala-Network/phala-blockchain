@@ -17,6 +17,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: true
+      - uses: ./.github/actions/maximize-disk-space
       - uses: ./.github/actions/build-core
         with:
           profile: release
@@ -28,6 +29,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: true
+      - uses: ./.github/actions/maximize-disk-space
       - uses: ./.github/actions/build-pruntime
 
   build-contracts:
