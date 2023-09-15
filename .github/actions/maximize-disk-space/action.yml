@@ -1,0 +1,36 @@
+name: "Maximize disk space"
+description: "Maximize disk space"
+runs:
+  using: "composite"
+  steps:
+    - name: Remove unused tools
+      run: >
+        df -h &&
+        sudo rm -rf /usr/local/.ghcup
+        /usr/local/share/powershell
+        /usr/local/share/chromium
+        /usr/share/swift
+        /opt/hostedtoolcache/Python
+        /opt/hostedtoolcache/CodeQL
+        /opt/hostedtoolcache/PyPy
+        /opt/hostedtoolcache/Ruby
+        /opt/hostedtoolcache/go
+        /imagegeneration/installers/*.tar.gz
+        /usr/local/lib/android
+        /usr/lib/google-cloud-sdk
+        /usr/lib/jvm
+        /opt/microsoft
+        && df -h
+      shell: bash
+    - name: Setup swap
+      run: |
+        SWAP_FILE=/mnt/swapfile
+        sudo swapoff -a
+        sudo rm -f ${SWAP_FILE}
+        sudo fallocate -l 12G ${SWAP_FILE}
+        sudo chmod 600 ${SWAP_FILE}
+        sudo mkswap ${SWAP_FILE}
+        sudo swapon ${SWAP_FILE}
+        sudo swapon --show
+        df -h
+      shell: bash
