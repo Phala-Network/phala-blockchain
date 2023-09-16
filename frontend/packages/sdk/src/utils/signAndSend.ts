@@ -1,10 +1,7 @@
-import type { ApiTypes } from '@polkadot/api-base/types/base'
 import type { SubmittableResult } from '@polkadot/api'
-import type {
-  AddressOrPair,
-  SubmittableExtrinsic,
-} from '@polkadot/api-base/types/submittable'
 import type { Signer as InjectedSigner } from '@polkadot/api/types'
+import type { ApiTypes } from '@polkadot/api-base/types/base'
+import type { AddressOrPair, SubmittableExtrinsic } from '@polkadot/api-base/types/submittable'
 
 function callback<TSubmittableResult>(
   resolve: (value: TSubmittableResult) => void,
@@ -23,47 +20,35 @@ function callback<TSubmittableResult>(
       }
     }
 
-    (unsub as any)()
+    ;(unsub as any)()
     if (error) {
       reject(error)
     } else {
       resolve(result as TSubmittableResult)
     }
   } else if (result.status.isInvalid) {
-    (unsub as any)()
+    ;(unsub as any)()
     reject('Invalid transaction')
   }
 }
 
-function signAndSend<
-  TSubmittableResult extends SubmittableResult = SubmittableResult
->(
+function signAndSend<TSubmittableResult extends SubmittableResult = SubmittableResult>(
   target: SubmittableExtrinsic<ApiTypes>,
   pair: AddressOrPair
 ): Promise<TSubmittableResult>
-function signAndSend<
-  TSubmittableResult extends SubmittableResult = SubmittableResult
->(
+function signAndSend<TSubmittableResult extends SubmittableResult = SubmittableResult>(
   target: SubmittableExtrinsic<ApiTypes>,
   address: AddressOrPair,
   signer: InjectedSigner
 ): Promise<TSubmittableResult>
-function signAndSend(
-  target: SubmittableExtrinsic<ApiTypes>,
-  address: AddressOrPair,
-  signer?: InjectedSigner
-) {
+function signAndSend(target: SubmittableExtrinsic<ApiTypes>, address: AddressOrPair, signer?: InjectedSigner) {
   // Ready -> Broadcast -> InBlock -> Finalized
   return new Promise(async (resolve, reject) => {
     try {
       if (signer) {
-        const unsub = await target.signAndSend(
-          address,
-          { signer },
-          (result) => {
-            callback(resolve, reject, result, unsub)
-          }
-        )
+        const unsub = await target.signAndSend(address, { signer }, (result) => {
+          callback(resolve, reject, result, unsub)
+        })
       } else {
         const unsub = await target.signAndSend(address, (result) => {
           callback(resolve, reject, result, unsub)

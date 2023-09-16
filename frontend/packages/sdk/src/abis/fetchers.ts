@@ -1,8 +1,8 @@
-import { type OnChainRegistry } from './OnChainRegistry'
-import { type PinkContractPromise } from './contracts/PinkContract'
-import { type CertificateData } from './certificate'
 import { type Bool } from '@polkadot/types'
 import { fetch } from 'undici'
+import { type PinkContractPromise } from '../contracts/PinkContract'
+import { type OnChainRegistry } from '../OnChainRegistry'
+import { type CertificateData } from '../pruntime/certificate'
 
 const OFFICIAL_ARTIFACTS_URL = 'https://phala-network.github.io/phat-contract-artifacts'
 
@@ -14,12 +14,20 @@ export interface CheckCodeHashExistsEnv {
 export function unsafeCheckCodeHashExists(env: CheckCodeHashExistsEnv) {
   const { systemContract, cert } = env
   return async function _unsafeCheckCodeHashExists(codeHash: string) {
-    const { output } = await systemContract.query['system::codeExists']<Bool>(cert.address, { cert }, `0x${codeHash}`, 'Ink')
-    return (output && output.isOk && output.asOk.isTrue)
+    const { output } = await systemContract.query['system::codeExists']<Bool>(
+      cert.address,
+      { cert },
+      `0x${codeHash}`,
+      'Ink'
+    )
+    return output && output.isOk && output.asOk.isTrue
   }
 }
 
-export async function unsafeGetContractCodeHash(phatRegistry: OnChainRegistry, contractId: string): Promise<string | null> {
+export async function unsafeGetContractCodeHash(
+  phatRegistry: OnChainRegistry,
+  contractId: string
+): Promise<string | null> {
   const payload = await phatRegistry.phactory.getContractInfo({ contracts: [contractId] })
   return payload?.contracts[0]?.codeHash || null
 }
@@ -41,7 +49,7 @@ export async function unsafeGetAbiFromPatronByCodeHash(codeHash: string): Promis
     }
     throw new Error(`Failed to get abi from Patron: ${resp.status}: ${(payload as any)?.error || 'Unknown Error'}`)
   }
-  return await resp.json() as Record<string, unknown>
+  return (await resp.json()) as Record<string, unknown>
 }
 
 export async function unsafeGetAbiFromGitHubRepoByCodeHash(codeHash: string): Promise<Record<string, unknown>> {
@@ -50,7 +58,7 @@ export async function unsafeGetAbiFromGitHubRepoByCodeHash(codeHash: string): Pr
   if (resp.status !== 200) {
     throw new Error(`Failed to get abi from GitHub: ${resp.status}`)
   }
-  return await resp.json() as Record<string, unknown>
+  return (await resp.json()) as Record<string, unknown>
 }
 
 export async function unsafeGetWasmFromPatronByCodeHash(codeHash: string): Promise<Uint8Array> {
@@ -72,4 +80,3 @@ export async function unsafeGetWasmFromGithubRepoByCodeHash(codeHash: string): P
   const buffer = await resp.arrayBuffer()
   return new Uint8Array(buffer)
 }
-
