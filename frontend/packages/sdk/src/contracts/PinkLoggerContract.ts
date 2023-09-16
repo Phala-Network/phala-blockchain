@@ -1,10 +1,10 @@
 import type { ApiPromise } from '@polkadot/api'
 import { Keyring } from '@polkadot/api'
 import type { KeyringPair } from '@polkadot/keyring/types'
-import type { Enum, Struct, Text, u8 } from '@polkadot/types'
+import type { Enum, Struct, Text } from '@polkadot/types'
 import type { AccountId } from '@polkadot/types/interfaces'
 import type { Result } from '@polkadot/types-codec'
-import { hexAddPrefix, hexToNumber, hexToString, hexToU8a } from '@polkadot/util'
+import { hexAddPrefix, hexToString, hexToU8a } from '@polkadot/util'
 import { sr25519Agree } from '@polkadot/wasm-crypto'
 import type { OnChainRegistry } from '../OnChainRegistry'
 import { phalaTypes } from '../options'
@@ -189,7 +189,11 @@ function postProcessLogRecord(messages: SerInnerMessage[]): SerMessage[] {
     if (message.type === 'MessageOutput') {
       const execResult = phalaTypes.createType<ContractExecResult>('ContractExecResult', hexToU8a(message.output))
       const output = execResult.toJSON() as unknown as SerMessageMessageOutput['output']
-      if (execResult.result.isErr && execResult.result.asErr.isModule && execResult.result.asErr.asModule?.index === 4) {
+      if (
+        execResult.result.isErr &&
+        execResult.result.asErr.isModule &&
+        execResult.result.asErr.asModule?.index === 4
+      ) {
         const err = phalaTypes.createType('ContractError', execResult.result.asErr.asModule.error)
         output.result = {
           err: {
