@@ -2,7 +2,7 @@ import type { ApiPromise } from '@polkadot/api'
 import { toPromiseMethod } from '@polkadot/api'
 import type { ApiBase } from '@polkadot/api/base'
 import type { SubmittableExtrinsic } from '@polkadot/api/submittable/types'
-import type { DecorateMethod } from '@polkadot/api/types'
+import type { DecorateMethod, Signer as InjectedSigner } from '@polkadot/api/types'
 import { Abi } from '@polkadot/api-contract/Abi'
 import { ContractSubmittableResult } from '@polkadot/api-contract/base/Contract'
 import type { ContractCallResult, ContractCallSend, MessageMeta } from '@polkadot/api-contract/base/types'
@@ -11,7 +11,7 @@ import type { AbiMessage, ContractCallOutcome, ContractOptions, DecodedEvent } f
 import { applyOnEvent } from '@polkadot/api-contract/util'
 import type { Bytes, Null, Result, Struct, Text, Vec, u8 } from '@polkadot/types'
 import type { AccountId, ContractExecResult, EventRecord } from '@polkadot/types/interfaces'
-import type { Codec, IEnum, ISubmittableResult, Registry } from '@polkadot/types/types'
+import type { Codec, IEnum, IKeyringPair, ISubmittableResult, Registry } from '@polkadot/types/types'
 import { BN, BN_ZERO, hexAddPrefix, hexToU8a } from '@polkadot/util'
 import { sr25519Agree, sr25519KeypairFromSeed } from '@polkadot/wasm-crypto'
 import { from } from 'rxjs'
@@ -22,6 +22,7 @@ import { pinkQuery } from '../pruntime/pinkQuery'
 import type { AbiLike } from '../types'
 import assert from '../utils/assert'
 import { randomHex } from '../utils/hex'
+import signAndSend from '../utils/signAndSend'
 
 export type PinkContractCallOutcome<ResultType> = {
   output: ResultType
@@ -58,6 +59,15 @@ export interface PinkContractOptions extends ContractOptions {
   //
   plain?: boolean
 }
+
+interface SendOptions {
+  autoDeposit?: boolean
+  cert?: CertificateData
+}
+
+export type PinkContractSendOptions =
+  | (PinkContractOptions & SendOptions & { address: string | AccountId; signer: InjectedSigner })
+  | (PinkContractOptions & SendOptions & { pair: IKeyringPair })
 
 export interface PinkContractTx<TParams extends Array<any> = any[]> extends MessageMeta {
   (options: PinkContractOptions, ...params: TParams): SubmittableExtrinsic<'promise'>
@@ -335,16 +345,15 @@ export class PinkContractPromise<
     options: PinkContractOptions,
     params: unknown[]
   ): SubmittableExtrinsic<'promise'> => {
-    const api = this.api as ApiPromise
-    const fn = options.plain ? PlainInkCommand : EncryptedInkCommand
-    const payload = fn(
+    const command = options.plain ? PlainInkCommand : EncryptedInkCommand
+    const payload = command(
       this.contractKey,
       this.abi.findMessage(messageOrId).toU8a(params),
       options.value,
       convertWeight(options.gasLimit || BN_ZERO).v2Weight,
       options.storageDepositLimit
     )
-    return api.tx.phalaPhatContracts
+    return this.api.tx.phalaPhatContracts
       .pushContractMessage(this.address, payload.toHex(), options.deposit || BN_ZERO)
       .withResultTransform((result: ISubmittableResult) => {
         return new PinkContractSubmittableResult(
@@ -370,5 +379,44 @@ export class PinkContractPromise<
           })
         )
       })
+  }
+
+  public async send(messageOrId: string, options: PinkContractSendOptions, ...args: unknown[]) {
+    const { autoDeposit, cert: userCert, ...rest } = options
+    const txOptions: PinkContractOptions = {
+      gasLimit: options.gasLimit,
+      value: options.value,
+      storageDepositLimit: options.storageDepositLimit,
+      plain: options.plain,
+    }
+
+    const tx = this.#tx[messageOrId]
+    if (!tx) {
+      throw new Error(`Message not found: ${messageOrId}`)
+    }
+
+    if (autoDeposit) {
+      const address = 'signer' in rest ? rest.address : rest.pair.address
+      const balance = await this.phatRegistry.getClusterBalance(address)
+      const cert = userCert || (await this.phatRegistry.getAnonymousCert())
+      const query = this.#query[messageOrId]
+      if (!query) {
+        throw new Error(`Message not found: ${messageOrId}`)
+      }
+      const { gasRequired, storageDeposit } = await query(cert.address, { cert }, ...args)
+      const required = gasRequired.refTime.toBn().add(storageDeposit.isCharge ? storageDeposit.asCharge : BN_ZERO)
+      if (balance.free.lt(required)) {
+        txOptions.deposit = required.sub(balance.free)
+      }
+      if (!txOptions.gasLimit) {
+        txOptions.gasLimit = gasRequired.refTime.toBn()
+      }
+    }
+
+    if ('signer' in rest) {
+      return await signAndSend(tx(txOptions, ...args), rest.address, rest.signer)
+    } else {
+      return await signAndSend(tx(txOptions, ...args), rest.pair)
+    }
   }
 }
