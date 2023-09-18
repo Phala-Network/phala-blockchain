@@ -9733,7 +9733,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "dlmalloc",
  "ink",
@@ -9748,7 +9748,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension-macro"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "heck 0.4.1",
  "ink_ir",
@@ -9763,7 +9763,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension-runtime"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "futures",
  "getrandom 0.2.7",
@@ -15824,7 +15824,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.7",
- "rand 0.8.5",
+ "rand 0.4.6",
  "static_assertions",
 ]
 
