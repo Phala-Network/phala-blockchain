@@ -338,14 +338,21 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         predefined_identity_key: Option<sr25519::Pair>,
     ) -> Result<PersistentRuntimeData> {
         let data = if let Some(identity_sk) = predefined_identity_key {
-            self.save_runtime_data(genesis_block_hash, para_id, identity_sk, false, true)?
+            self.save_runtime_data(genesis_block_hash, para_id, identity_sk, false, true, None)?
         } else {
             match Self::load_runtime_data(&self.platform, &self.args.sealing_path) {
                 Ok(data) => data,
                 Err(Error::PersistentRuntimeNotFound) => {
                     warn!("Persistent data not found.");
                     let identity_sk = new_sr25519_key();
-                    self.save_runtime_data(genesis_block_hash, para_id, identity_sk, true, false)?
+                    self.save_runtime_data(
+                        genesis_block_hash,
+                        para_id,
+                        identity_sk,
+                        true,
+                        false,
+                        None,
+                    )?
                 }
                 Err(err) => return Err(anyhow!("Failed to load persistent data: {}", err)),
             }
@@ -375,6 +382,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         sr25519_sk: sr25519::Pair,
         trusted_sk: bool,
         dev_mode: bool,
+        svn: Option<&[u8]>,
     ) -> Result<PersistentRuntimeData> {
         // Put in PresistentRuntimeData
         let sk = sr25519_sk.dump_secret_key();
@@ -392,7 +400,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             info!("Length of encoded slice: {}", encoded_vec.len());
             let filepath = PathBuf::from(&self.args.sealing_path).join(RUNTIME_SEALED_DATA_FILE);
             self.platform
-                .seal_data(filepath, &encoded_vec)
+                .seal_data(filepath, &encoded_vec, svn)
                 .map_err(Into::into)
                 .context("Failed to seal runtime data")?;
             info!("Persistent Runtime Data V2 saved");
@@ -401,22 +409,31 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     }
 
     /// Loads the persistent runtime data from the sealing path
-    fn persistent_runtime_data(&self) -> Result<PersistentRuntimeData, Error> {
-        Self::load_runtime_data(&self.platform, &self.args.sealing_path)
+    fn load_persistent_runtime_data_with_svn(
+        &self,
+    ) -> Result<(PersistentRuntimeData, Vec<u8>), Error> {
+        Self::load_runtime_data_with_svn(&self.platform, &self.args.sealing_path)
     }
 
     fn load_runtime_data(
         platform: &Platform,
         sealing_path: &str,
     ) -> Result<PersistentRuntimeData, Error> {
+        Self::load_runtime_data_with_svn(platform, sealing_path).map(|(data, _)| data)
+    }
+
+    fn load_runtime_data_with_svn(
+        platform: &Platform,
+        sealing_path: &str,
+    ) -> Result<(PersistentRuntimeData, Vec<u8>), Error> {
         let filepath = PathBuf::from(sealing_path).join(RUNTIME_SEALED_DATA_FILE);
-        let data = platform
+        let pal::UnsealedData { data, svn } = platform
             .unseal_data(filepath)
             .map_err(Into::into)?
             .ok_or(Error::PersistentRuntimeNotFound)?;
         let data: RuntimeDataSeal = Decode::decode(&mut &data[..]).map_err(Error::DecodeError)?;
         match data {
-            RuntimeDataSeal::V1(data) => Ok(data),
+            RuntimeDataSeal::V1(data) => Ok((data, svn)),
         }
     }
 
@@ -840,7 +857,7 @@ fn new_sr25519_key() -> sr25519::Pair {
 }
 
 // TODO.kevin: Move to phactory-api when the std ready.
-fn generate_random_iv() -> aead::IV {
+pub fn generate_random_iv() -> aead::IV {
     let mut nonce_vec = [0u8; aead::IV_BYTES];
     let rand = ring::rand::SystemRandom::new();
     rand.fill(&mut nonce_vec).unwrap();

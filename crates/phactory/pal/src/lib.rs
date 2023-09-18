@@ -1,8 +1,8 @@
 //! Platform abstraction layer for Trusted Execution Environments
 
+use core::time::Duration;
 use std::fmt::Debug;
 use std::path::Path;
-use core::time::Duration;
 
 use phala_types::AttestationProvider;
 
@@ -11,12 +11,26 @@ pub use phactory_api::prpc::MemoryUsage;
 pub trait ErrorType: Debug + Into<anyhow::Error> {}
 impl<T: Debug + Into<anyhow::Error>> ErrorType for T {}
 
+pub struct UnsealedData {
+    pub data: Vec<u8>,
+    pub svn: Vec<u8>,
+}
+
 pub trait Sealing {
     type SealError: ErrorType;
     type UnsealError: ErrorType;
 
-    fn seal_data(&self, path: impl AsRef<Path>, data: &[u8]) -> Result<(), Self::SealError>;
-    fn unseal_data(&self, path: impl AsRef<Path>) -> Result<Option<Vec<u8>>, Self::UnsealError>;
+    fn current_svn(&self) -> Result<Vec<u8>, Self::SealError>;
+    fn seal_data(
+        &self,
+        path: impl AsRef<Path>,
+        data: &[u8],
+        svn: Option<&[u8]>,
+    ) -> Result<(), Self::SealError>;
+    fn unseal_data(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<Option<UnsealedData>, Self::UnsealError>;
 }
 
 pub trait RA {

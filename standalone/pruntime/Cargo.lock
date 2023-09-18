@@ -6132,6 +6132,7 @@ dependencies = [
  "phactory-pal",
  "phala-allocator",
  "phala-clap-parsers",
+ "phala-crypto",
  "phala-git-revision",
  "phala-rocket-middleware",
  "phala-sanitized-logger",
@@ -7281,6 +7282,7 @@ name = "sgx-api-lite"
 version = "0.1.0"
 dependencies = [
  "aes",
+ "bitflags 2.0.2",
  "cmac",
 ]
 

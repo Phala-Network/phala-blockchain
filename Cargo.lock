@@ -13160,6 +13160,7 @@ name = "sgx-api-lite"
 version = "0.1.0"
 dependencies = [
  "aes 0.8.1",
+ "bitflags 2.0.2",
  "cmac",
 ]
 

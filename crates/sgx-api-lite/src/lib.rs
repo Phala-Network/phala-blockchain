@@ -25,8 +25,10 @@ use std::mem::{size_of, zeroed};
 pub use sys::sgx_report_data_t as ReportData;
 pub use sys::sgx_report_t as Report;
 pub use sys::sgx_target_info_t as TargetInfo;
+pub use egetkey::get_mrenclave_sealing_key;
 
 mod sys;
+mod egetkey;
 
 #[repr(C, align(512))]
 struct SgxAligned<T>(T);

@@ -45,10 +45,9 @@ path = "/lib"
 uri = "file:{{ libdir }}"
 
 [[fs.mounts]]
+type = "chroot"
 path = "/data/protected_files"
 uri = "file:{{ seal_dir }}"
-type = "encrypted"
-key_name = "_sgx_mrenclave"
 
 [[fs.mounts]]
 type = "chroot"
@@ -89,4 +88,5 @@ allowed_files = [
   "file:/etc/resolv.conf",
   "file:Rocket.toml",
   "file:{{ storage_dir }}/",
+  "file:{{ seal_dir }}/",
 ]

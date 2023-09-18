@@ -7,7 +7,7 @@ use sp_core::sr25519;
 
 use phala_crypto::sr25519::{Signature, Signing, Sr25519SecretKey};
 
-use crate::pal::Sealing;
+use crate::pal::{Sealing, UnsealedData};
 
 /// Master key filepath
 pub const MASTER_KEY_FILE: &str = "master_key.seal";
@@ -66,7 +66,7 @@ pub fn seal(
     info!("Seal master key to {}", filepath.as_path().display());
     // TODO.shelven: seal with identity key so the newly handovered pRuntime do not need to do an extra sync to get master
     // key
-    sys.seal_data(filepath, &data.encode())
+    sys.seal_data(filepath, &data.encode(), None)
         .expect("Seal master key failed");
 }
 
@@ -84,7 +84,7 @@ pub fn try_unseal(
 ) -> Vec<RotatedMasterKey> {
     let filepath = master_key_file_path(&sealing_path);
     info!("Unseal master key from {}", filepath.as_path().display());
-    let sealed_data = match sys
+    let UnsealedData { data, .. } = match sys
         .unseal_data(&filepath)
         .expect("Unseal master key failed")
     {
@@ -96,7 +96,7 @@ pub fn try_unseal(
     };
 
     let versioned_data =
-        MasterKeySeal::decode(&mut &sealed_data[..]).expect("Failed to decode sealed master key");
+        MasterKeySeal::decode(&mut &data[..]).expect("Failed to decode sealed master key");
 
     #[allow(clippy::infallible_destructuring_match)]
     let secrets = match versioned_data {
