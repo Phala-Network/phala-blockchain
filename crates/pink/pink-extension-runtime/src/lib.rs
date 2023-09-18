@@ -57,13 +57,16 @@ pub fn batch_http_request(requests: Vec<HttpRequest>, timeout_ms: u64) -> ext::B
     if requests.len() > MAX_CONCURRENT_REQUESTS {
         return Err(ext::HttpRequestError::TooManyRequests);
     }
-    let futs = requests
-        .into_iter()
-        .map(|request| async_http_request(request, timeout_ms));
-    block_on(tokio::time::timeout(
-        Duration::from_millis(timeout_ms + 200),
-        futures::future::join_all(futs),
-    ))
+    block_on(async move {
+        let futs = requests
+            .into_iter()
+            .map(|request| async_http_request(request, timeout_ms));
+        tokio::time::timeout(
+            Duration::from_millis(timeout_ms + 200),
+            futures::future::join_all(futs),
+        )
+        .await
+    })
     .or(Err(ext::HttpRequestError::Timeout))
 }
 
