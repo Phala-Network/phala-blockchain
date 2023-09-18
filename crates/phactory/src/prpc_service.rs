@@ -322,7 +322,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     }
 
     fn maybe_apply_cluster_state(&mut self) {
-        let (Some(system), Some(runtime_state)) = (&mut self.system, &mut self.runtime_state) else {
+        let (Some(system), Some(runtime_state)) = (&mut self.system, &mut self.runtime_state)
+        else {
             // unreachable
             return;
         };
@@ -876,7 +877,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     }
 
     pub fn get_cluster_info(&self) -> RpcResult<pb::GetClusterInfoResponse> {
-        let Some(System{ contract_cluster: Some(cluster), contracts, .. }) = &self.system else {
+        let Some(System {
+            contract_cluster: Some(cluster),
+            contracts,
+            ..
+        }) = &self.system
+        else {
             return Ok(Default::default());
         };
         let ver = cluster.config.runtime_version;
@@ -886,8 +892,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             info: Some(pb::ClusterInfo {
                 id: hex(cluster.id),
                 state_root: cluster.storage.root().map(hex).unwrap_or_default(),
-                contracts: contracts.keys().map(hex).collect(),
                 runtime_version,
+                number_of_contracts: contracts.len() as _,
+                system_contract: cluster.system_contract().map(hex).unwrap_or_default(),
+                logger_contract: cluster
+                    .config
+                    .log_handler
+                    .as_ref()
+                    .map(hex)
+                    .unwrap_or_default(),
             }),
         })
     }
