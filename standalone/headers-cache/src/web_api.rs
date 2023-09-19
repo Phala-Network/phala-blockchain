@@ -202,16 +202,16 @@ async fn put_storage_changes(
     .await
 }
 
-#[get("/check?<what>&<from>&<to>&<count>")]
+#[get("/check?<chain>&<from>&<to>&<count>")]
 async fn api_check_blocks(
     _auth: Authorized,
     app: &State<App>,
-    what: &str,
+    chain: &str,
     from: BlockNumber,
     to: Option<BlockNumber>,
     count: Option<BlockNumber>,
 ) -> Result<String, String> {
-    crate::grab::check_and_fix_headers(&app.db, &app.config, what, from, to, count)
+    crate::grab::check_and_fix_headers(&app.db, &app.config, chain, from, to, count)
         .await
         .map_err(|e| e.to_string())
 }
@@ -246,7 +246,7 @@ pub(crate) async fn serve(db: CacheDB, config: ServeConfig, token: Option<String
         )
         .attach(phala_rocket_middleware::TimeMeter)
         .launch()
-        .await;
+        .await?;
     Ok(())
 }
 

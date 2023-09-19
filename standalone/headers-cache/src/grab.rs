@@ -277,20 +277,21 @@ async fn sleep(secs: u64) {
 pub(crate) async fn check_and_fix_headers(
     db: &CacheDB,
     config: &Serve,
-    what: &str,
+    chain: &str,
     from: BlockNumber,
     to: Option<BlockNumber>,
     count: Option<BlockNumber>,
 ) -> Result<String> {
     let to = to.unwrap_or(from + count.unwrap_or(1));
-    info!("Checking {what} headers from {from} to {to}");
-    if to <= from {
+    info!("Checking {chain} headers from {from} to {to}");
+    if to < from {
         bail!("Invalid range");
     }
-    let result = match what {
+    let from = from.saturating_sub(1);
+    let result = match chain {
         "relay" => db.get_header(from),
         "para" => db.get_para_header(from),
-        _ => bail!("Unknown check type {}", what),
+        _ => bail!("Unknown check type {}", chain),
     };
     let Some(prev) = result else {
         bail!("Header {} not found", from);
@@ -301,7 +302,7 @@ pub(crate) async fn check_and_fix_headers(
     let mut mismatches = 0;
     let mut codec_errors = 0;
     for block in (from + 1)..=to {
-        match what {
+        match chain {
             "relay" => {
                 let cur_header = db
                     .get_header(block)
@@ -348,9 +349,10 @@ pub(crate) async fn check_and_fix_headers(
                 }
                 prev = cur_header;
             }
-            _ => bail!("Unknown check type {}", what),
+            _ => bail!("Unknown check type {}", chain),
         }
     }
+    let from = from + 1;
     let response = if mismatches > 0 || codec_errors > 0 {
         format!("Checked blocks from {from} to {to}, {mismatches} mismatches, {codec_errors} codec errors")
     } else {
