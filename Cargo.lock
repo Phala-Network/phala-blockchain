@@ -4501,7 +4501,7 @@ checksum = "d2411eed028cdf8c8034eaf21f9915f956b6c3abec4d4c7949ee67f0721127bd"
 dependencies = [
  "futures-io",
  "rustls 0.20.8",
- "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki 0.22.0",
 ]
 
 [[package]]
@@ -6394,10 +6394,10 @@ dependencies = [
  "libp2p-core",
  "libp2p-identity",
  "rcgen 0.10.0",
- "ring 0.16.20",
+ "ring",
  "rustls 0.20.8",
  "thiserror",
- "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki 0.22.0",
  "x509-parser 0.14.0",
  "yasna",
 ]
@@ -7444,6 +7444,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ae39348c8bc5fbd7f40c727a9925f03517afd2ab27d46702108b6a7e5414c19"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "num-derive"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "876a53fff98e03a936a674b29568b0e605f06b29372c2489ff4de23f1949743d"
+dependencies = [
+ "proc-macro2 1.0.66",
+ "quote 1.0.31",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -8966,7 +8977,7 @@ dependencies = [
  "regex",
  "reqwest",
  "reqwest-env-proxy",
- "ring 0.16.20",
+ "ring",
  "rmp-serde",
  "ron",
  "scopeguard",
@@ -9062,7 +9073,7 @@ dependencies = [
  "curve25519-dalek 2.1.3",
  "hex",
  "rand 0.8.5",
- "ring 0.16.20",
+ "ring",
  "schnorrkel",
  "sp-application-crypto",
  "sp-core",
@@ -9304,7 +9315,7 @@ name = "phala-pallets"
 version = "4.1.0"
 dependencies = [
  "assert_matches",
- "base64 0.13.0",
+ "base64 0.21.3",
  "chrono",
  "fixed",
  "fixed-macro",
@@ -9332,6 +9343,7 @@ dependencies = [
  "primitive-types",
  "rand 0.8.5",
  "rmrk-traits",
+ "rustls-webpki 0.102.0-alpha.3",
  "scale-info",
  "serde",
  "serde_json",
@@ -9341,8 +9353,6 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "untrusted 0.9.0",
- "webpki 0.22.0",
- "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -9773,7 +9783,7 @@ dependencies = [
  "pink-extension",
  "reqwest",
  "reqwest-env-proxy",
- "ring 0.16.20",
+ "ring",
  "sp-core",
  "sp-runtime-interface",
  "tokio",
@@ -10548,14 +10558,14 @@ checksum = "72ef4ced82a24bb281af338b9e8f94429b6eca01b4e66d899f40031f074e74c9"
 dependencies = [
  "bytes",
  "rand 0.8.5",
- "ring 0.16.20",
+ "ring",
  "rustc-hash",
  "rustls 0.20.8",
  "slab",
  "thiserror",
  "tinyvec",
  "tracing",
- "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki 0.22.0",
 ]
 
 [[package]]
@@ -10755,7 +10765,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6413f3de1edee53342e6138e75b56d32e7bc6e332b3bd62d497b1929d4cfbcdd"
 dependencies = [
  "pem",
- "ring 0.16.20",
+ "ring",
  "time 0.3.11",
  "x509-parser 0.13.2",
  "yasna",
@@ -10768,7 +10778,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ffbe84efe2f38dea12e9bfc1f65377fdf03e53a18cb3b995faedf7934c7e785b"
 dependencies = [
  "pem",
- "ring 0.16.20",
+ "ring",
  "time 0.3.11",
  "yasna",
 ]
@@ -11032,29 +11042,20 @@ dependencies = [
 
 [[package]]
 name = "ring"
-version = "0.16.20-1"
-dependencies = [
- "cc",
- "libc",
- "once_cell",
- "spin 0.5.2",
- "untrusted 0.7.1",
- "winapi",
-]
-
-[[package]]
-name = "ring"
 version = "0.16.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3053cf52e236a3ed746dfc745aa9cacf1b791d846bdaf412f60a8d7d6e17c8fc"
+source = "git+https://github.com/jasl/ring-xous?branch=better-wasm32-support#2319016c733d13f78f107368724048fee296551e"
 dependencies = [
  "cc",
  "libc",
+ "log",
  "once_cell",
+ "rkyv 0.4.3",
  "spin 0.5.2",
  "untrusted 0.7.1",
- "web-sys",
  "winapi",
+ "xous",
+ "xous-api-names",
+ "xous-ipc",
 ]
 
 [[package]]
@@ -11064,6 +11065,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd124222d17ad93a644ed9d011a40f4fb64aa54275c08cc216524a9ea82fb09f"
 dependencies = [
  "digest 0.10.7",
+]
+
+[[package]]
+name = "rkyv"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70de01b38fe7baba4ecdd33b777096d2b326993d8ea99bc5b6ede691883d3010"
+dependencies = [
+ "memoffset 0.6.5",
+ "ptr_meta",
+ "rkyv_derive 0.4.0",
 ]
 
 [[package]]
@@ -11078,10 +11090,21 @@ dependencies = [
  "indexmap 1.9.1",
  "ptr_meta",
  "rend",
- "rkyv_derive",
+ "rkyv_derive 0.7.42",
  "seahash",
  "tinyvec",
  "uuid 1.3.3",
+]
+
+[[package]]
+name = "rkyv_derive"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95a169f6bc5a81033e86ed39d0f4150e2608160b73d2b93c6e8e6a3efa873f14"
+dependencies = [
+ "proc-macro2 1.0.66",
+ "quote 1.0.31",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -11440,7 +11463,7 @@ checksum = "35edb675feee39aec9c99fa5ff985081995a06d594114ae14cbe797ad7b7a6d7"
 dependencies = [
  "base64 0.13.0",
  "log",
- "ring 0.16.20",
+ "ring",
  "sct 0.6.1",
  "webpki 0.21.4",
 ]
@@ -11452,9 +11475,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fff78fc74d175294f4e83b28343315ffcfb114b156f0185e9741cb5570f50e2f"
 dependencies = [
  "log",
- "ring 0.16.20",
+ "ring",
  "sct 0.7.0",
- "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki 0.22.0",
 ]
 
 [[package]]
@@ -11464,8 +11487,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79ea77c539259495ce8ca47f53e66ae0330a8819f67e23ac96ca02f50e7b7d36"
 dependencies = [
  "log",
- "ring 0.16.20",
- "rustls-webpki 0.101.1",
+ "ring",
+ "rustls-webpki 0.101.5",
  "sct 0.7.0",
 ]
 
@@ -11491,22 +11514,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustls-pki-types"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a47003264dea418db67060fa420ad16d0d2f8f0a0360d825c00e177ac52cb5d8"
+
+[[package]]
 name = "rustls-webpki"
 version = "0.100.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6207cd5ed3d8dca7816f8f3725513a34609c0c765bf652b8c3cb4cfd87db46b"
 dependencies = [
- "ring 0.16.20",
+ "ring",
  "untrusted 0.7.1",
 ]
 
 [[package]]
 name = "rustls-webpki"
-version = "0.101.1"
+version = "0.101.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15f36a6828982f422756984e47912a7a51dcbc2a197aa791158f8ca61cd8204e"
+checksum = "45a27e3b59326c16e23d30aeb7a36a24cc0d29e71d68ff611cdfb4a01d013bed"
 dependencies = [
- "ring 0.16.20",
+ "ring",
+ "untrusted 0.7.1",
+]
+
+[[package]]
+name = "rustls-webpki"
+version = "0.102.0-alpha.3"
+source = "git+https://github.com/rustls/webpki#2ed9a4324f48c2c46ffdd7dc9d3eb315af25fce2"
+dependencies = [
+ "ring",
+ "rustls-pki-types",
  "untrusted 0.7.1",
 ]
 
@@ -12864,7 +12903,7 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b362b83898e0e69f38515b82ee15aa80636befe47c3b6d3d89a911e78fc228ce"
 dependencies = [
- "ring 0.16.20",
+ "ring",
  "untrusted 0.7.1",
 ]
 
@@ -12874,7 +12913,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d53dcdb7c9f8158937a7981b48accfd39a43af418591a5d008c7b22b5e1b7ca4"
 dependencies = [
- "ring 0.16.20",
+ "ring",
  "untrusted 0.7.1",
 ]
 
@@ -13504,7 +13543,7 @@ dependencies = [
  "chacha20poly1305",
  "curve25519-dalek 4.0.0-rc.1",
  "rand_core 0.6.4",
- "ring 0.16.20",
+ "ring",
  "rustc_version 0.4.0",
  "sha2 0.10.7",
  "subtle",
@@ -14589,7 +14628,7 @@ dependencies = [
  "lazy_static",
  "md-5",
  "rand 0.8.5",
- "ring 0.16.20",
+ "ring",
  "subtle",
  "thiserror",
  "tokio",
@@ -15362,7 +15401,7 @@ checksum = "c43ee83903113e03984cb9e5cebe6c04a5116269e900e3ddba8f068a62adda59"
 dependencies = [
  "rustls 0.20.8",
  "tokio",
- "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki 0.22.0",
 ]
 
 [[package]]
@@ -15794,7 +15833,7 @@ dependencies = [
  "thiserror",
  "url",
  "utf-8",
- "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki 0.22.0",
 ]
 
 [[package]]
@@ -15809,7 +15848,7 @@ dependencies = [
  "log",
  "md-5",
  "rand 0.8.5",
- "ring 0.16.20",
+ "ring",
  "stun",
  "thiserror",
  "tokio",
@@ -16572,7 +16611,7 @@ dependencies = [
  "enumset",
  "indexmap 1.9.1",
  "more-asserts",
- "rkyv",
+ "rkyv 0.7.42",
  "target-lexicon",
  "thiserror",
 ]
@@ -16928,16 +16967,7 @@ version = "0.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8e38c0608262c46d4a56202ebabdeb094cef7e560ca7a226c6bf055188aa4ea"
 dependencies = [
- "ring 0.16.20",
- "untrusted 0.7.1",
-]
-
-[[package]]
-name = "webpki"
-version = "0.22.0"
-dependencies = [
- "ring 0.16.20",
- "ring 0.16.20-1",
+ "ring",
  "untrusted 0.7.1",
 ]
 
@@ -16947,7 +16977,7 @@ version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f095d78192e208183081cc07bc5515ef55216397af48b873e5edcd72637fa1bd"
 dependencies = [
- "ring 0.16.20",
+ "ring",
  "untrusted 0.7.1",
 ]
 
@@ -16966,7 +16996,7 @@ version = "0.22.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1c760f0d366a6c24a02ed7816e23e691f5d92291f94d15e836006fd11b04daf"
 dependencies = [
- "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki 0.22.0",
 ]
 
 [[package]]
@@ -16994,7 +17024,7 @@ dependencies = [
  "rand 0.8.5",
  "rcgen 0.9.3",
  "regex",
- "ring 0.16.20",
+ "ring",
  "rtcp",
  "rtp",
  "rustls 0.19.1",
@@ -17059,7 +17089,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_core 0.6.4",
  "rcgen 0.9.3",
- "ring 0.16.20",
+ "ring",
  "rustls 0.19.1",
  "sec1 0.3.0",
  "serde",
@@ -17618,7 +17648,7 @@ dependencies = [
  "lazy_static",
  "nom",
  "oid-registry 0.4.0",
- "ring 0.16.20",
+ "ring",
  "rusticata-macros",
  "thiserror",
  "time 0.3.11",
@@ -17667,6 +17697,54 @@ dependencies = [
  "proc-macro2 1.0.66",
  "quote 1.0.31",
  "syn 2.0.26",
+]
+
+[[package]]
+name = "xous"
+version = "0.9.51"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4d8c91009ed676410e747425107cfe4afc3dd9d3bf502a87542a353173b09e8"
+dependencies = [
+ "lazy_static",
+]
+
+[[package]]
+name = "xous-api-log"
+version = "0.1.47"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4eafb373d7e40d7ee4afc0489bd3d26bfab4d9a7b70791ef61a5d5cc8451071f"
+dependencies = [
+ "log",
+ "num-derive",
+ "num-traits",
+ "xous",
+ "xous-ipc",
+]
+
+[[package]]
+name = "xous-api-names"
+version = "0.9.49"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "021f7059279bc3fd94d2c9e5201c2e70f9b4ca569852f6e33504f7fa0c0f9f91"
+dependencies = [
+ "log",
+ "num-derive",
+ "num-traits",
+ "rkyv 0.4.3",
+ "xous",
+ "xous-api-log",
+ "xous-ipc",
+]
+
+[[package]]
+name = "xous-ipc"
+version = "0.9.51"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "549eacc8d02d5e4c49559840fc3ec7f16e9a2c0a5bd27ae94da9c3e6ef9bc210"
+dependencies = [
+ "bitflags 1.3.2",
+ "rkyv 0.4.3",
+ "xous",
 ]
 
 [[package]]

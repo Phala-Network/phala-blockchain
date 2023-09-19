@@ -1,5 +1,3 @@
-#[cfg(not(feature = "std"))]
-use alloc::format;
 #[allow(unused_imports)]
 use frame_support::{
 	traits::{

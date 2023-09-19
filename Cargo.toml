@@ -26,8 +26,6 @@ metadata.dylint.libraries = [
 
 exclude = [
 	"subxt",
-	"vendor/webpki",
-	"vendor/ring",
 	"standalone/pruntime",
 	"standalone/prouter",
 	"standalone/crate-version",
@@ -100,6 +98,8 @@ members = [
 [patch.crates-io]
 # TODO.kevin: Move back to crates.io once it released 1.0
 derive_more = { version = "0.99.17", git = "https://github.com/JelteF/derive_more" }
+
+ring = { git = "https://github.com/jasl/ring-xous", branch = "better-wasm32-support" }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
 sp-core-hashing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }

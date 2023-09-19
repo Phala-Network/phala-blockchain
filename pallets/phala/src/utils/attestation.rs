@@ -3,6 +3,7 @@ use crate::constants::*;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_std::{borrow::ToOwned, convert::TryFrom, vec::Vec};
+use base64::{Engine as _, engine::general_purpose};
 
 use phala_types::{AttestationProvider, AttestationReport};
 
@@ -46,7 +47,7 @@ impl IasFields {
 		let raw_quote_body = parsed_report["isvEnclaveQuoteBody"]
 			.as_str()
 			.ok_or(Error::UnknownQuoteBodyFormat)?;
-		let quote_body = base64::decode(raw_quote_body).or(Err(Error::UnknownQuoteBodyFormat))?;
+		let quote_body = general_purpose::STANDARD.decode(raw_quote_body).or(Err(Error::UnknownQuoteBodyFormat))?;
 		let mr_enclave = &quote_body[112..144];
 		let mr_signer = &quote_body[176..208];
 		let isv_prod_id = &quote_body[304..306];
@@ -165,19 +166,22 @@ pub fn validate_ias_report(
 	pruntime_allowlist: Vec<Vec<u8>>,
 ) -> Result<ConfidentialReport, Error> {
 	// Validate report
-	let sig_cert = webpki::EndEntityCert::try_from(raw_signing_cert);
+	let sig_cert_der = webpki::types::CertificateDer::from(raw_signing_cert);
+	let sig_cert = webpki::EndEntityCert::try_from(&sig_cert_der);
 	let sig_cert = sig_cert.or(Err(Error::InvalidIASSigningCert))?;
 	let verify_result =
-		sig_cert.verify_signature(&webpki::RSA_PKCS1_2048_8192_SHA256, report, signature);
+		sig_cert.verify_signature(webpki::RSA_PKCS1_2048_8192_SHA256, report, signature);
 	verify_result.or(Err(Error::InvalidIASSigningCert))?;
 	// Validate certificate
-	let chain: Vec<&[u8]> = Vec::new();
-	let time_now = webpki::Time::from_seconds_since_unix_epoch(now);
-	let tls_server_cert_valid = sig_cert.verify_is_valid_tls_server_cert(
+	let chain: Vec<webpki::types::CertificateDer> = Vec::new();
+	let time_now = webpki::types::UnixTime::since_unix_epoch(sp_std::time::Duration::from_secs(now));
+	let tls_server_cert_valid = sig_cert.verify_for_usage(
 		SUPPORTED_SIG_ALGS,
-		&IAS_SERVER_ROOTS,
+		IAS_SERVER_ROOTS,
 		&chain,
 		time_now,
+		webpki::KeyUsage::server_auth(),
+		None
 	);
 	tls_server_cert_valid.or(Err(Error::InvalidIASSigningCert))?;
 
@@ -227,7 +231,7 @@ mod test {
 
 		let parsed_report: serde_json::Value = serde_json::from_slice(report).unwrap();
 		let raw_quote_body = parsed_report["isvEnclaveQuoteBody"].as_str().unwrap();
-		let quote_body = base64::decode(raw_quote_body).unwrap();
+		let quote_body = general_purpose::STANDARD.decode(raw_quote_body).unwrap();
 		let report_data = &quote_body[368..432];
 		let commit = &report_data[..32];
 
