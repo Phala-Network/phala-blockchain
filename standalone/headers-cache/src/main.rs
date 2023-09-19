@@ -117,7 +117,7 @@ enum Grab {
         output: String,
     },
 }
-#[derive(Args)]
+#[derive(Args, Clone)]
 struct Serve {
     /// The database file to use
     #[arg(long, default_value = "cache.db")]
@@ -157,6 +157,9 @@ struct Serve {
     /// Token for uploading APIs.
     #[arg(long)]
     token: Option<String>,
+    /// The max batch size to check headers
+    #[clap(long, default_value_t = 100000)]
+    check_batch: BlockNumber,
 }
 
 #[derive(Subcommand)]
@@ -268,6 +271,7 @@ async fn serve(config: Serve) -> anyhow::Result<()> {
         });
     } else if config.grab_headers {
         let db = db.clone();
+        let config = config.clone();
         tokio::spawn(async move {
             let result = grab::run(db, config).await;
             if let Err(err) = result {
@@ -276,7 +280,7 @@ async fn serve(config: Serve) -> anyhow::Result<()> {
             std::process::exit(1);
         });
     }
-    web_api::serve(db, token).await?;
+    web_api::serve(db, config, token).await?;
     Ok(())
 }
 

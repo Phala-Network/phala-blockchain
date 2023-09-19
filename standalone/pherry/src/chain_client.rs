@@ -123,14 +123,7 @@ pub async fn search_suitable_genesis_for_worker(
 ) -> Result<(BlockNumber, Vec<(Vec<u8>, Vec<u8>)>)> {
     let ceil = match prefer {
         Some(ceil) => ceil,
-        None => {
-            let node_state = api
-                .extra_rpc()
-                .system_sync_state()
-                .await
-                .context("Failed to get system state")?;
-            node_state.current_block as _
-        }
+        None => api.latest_finalized_block_number().await?,
     };
     let block = get_worker_unregistered_block(api, pubkey, ceil)
         .await

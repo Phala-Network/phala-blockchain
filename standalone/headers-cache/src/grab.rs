@@ -1,10 +1,13 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use anyhow::{Context as _, Result};
-use log::{error, info};
-use scale::Encode;
+use anyhow::{anyhow, bail, Context as _, Result};
+use log::{error, info, warn};
+use scale::{Decode, Encode};
 
-use pherry::{headers_cache as cache, types::phaxt::ChainApi};
+use pherry::{
+    headers_cache as cache,
+    types::{phaxt::ChainApi, Header},
+};
 
 use crate::{
     db::{CacheDB, Metadata},
@@ -205,11 +208,47 @@ impl<'c> Crawler<'c> {
         Ok(())
     }
 
+    async fn continue_check_headers(&mut self) -> Result<()> {
+        let db = self.db;
+        let config = self.config;
+        let metadata = &mut *self.metadata;
+
+        let relay_start = metadata.checked.header.unwrap_or(config.genesis_block);
+        let relay_end = metadata
+            .recent_imported
+            .header
+            .unwrap_or(0)
+            .min(relay_start + config.check_batch);
+        if relay_start < relay_end {
+            check_and_fix_headers(db, config, "relay", relay_start, Some(relay_end), None).await?;
+            metadata.checked.header = Some(relay_end);
+            db.put_metadata(metadata)
+                .context("Failed to update metadata")?;
+        }
+
+        let para_start = metadata.checked.para_header.unwrap_or(0);
+        let para_end = metadata
+            .recent_imported
+            .para_header
+            .unwrap_or(0)
+            .min(para_start + config.check_batch);
+        if para_start < para_end {
+            check_and_fix_headers(db, config, "para", para_start, Some(para_end), None).await?;
+            metadata.checked.para_header = Some(para_end);
+            db.put_metadata(metadata)
+                .context("Failed to update metadata")?;
+        }
+        Ok(())
+    }
+
     async fn run(&mut self) -> Result<()> {
         loop {
             self.grab_headers().await?;
             self.grab_para_headers().await?;
             self.grab_storage_changes().await?;
+            if let Err(err) = self.continue_check_headers().await {
+                error!("Error fixing headers: {err:?}");
+            }
             sleep(self.config.interval).await;
         }
     }
@@ -233,4 +272,139 @@ pub(crate) fn update_404_block(block: BlockNumber) {
 async fn sleep(secs: u64) {
     info!("Sleeping for {secs} seconds...");
     tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
+}
+
+pub(crate) async fn check_and_fix_headers(
+    db: &CacheDB,
+    config: &Serve,
+    what: &str,
+    from: BlockNumber,
+    to: Option<BlockNumber>,
+    count: Option<BlockNumber>,
+) -> Result<String> {
+    let to = to.unwrap_or(from + count.unwrap_or(1));
+    info!("Checking {what} headers from {from} to {to}");
+    if to <= from {
+        bail!("Invalid range");
+    }
+    let result = match what {
+        "relay" => db.get_header(from),
+        "para" => db.get_para_header(from),
+        _ => bail!("Unknown check type {}", what),
+    };
+    let Some(prev) = result else {
+        bail!("Header {} not found", from);
+    };
+    let Ok(mut prev) = decode_header(&prev) else {
+        bail!("Failed to decode header {}", from);
+    };
+    let mut mismatches = 0;
+    let mut codec_errors = 0;
+    for block in (from + 1)..=to {
+        match what {
+            "relay" => {
+                let cur_header = db
+                    .get_header(block)
+                    .ok_or_else(|| anyhow!("Header {} not found", block))?;
+                let mut cur_header = match decode_header(&cur_header) {
+                    Ok(cur_header) => cur_header,
+                    Err(_) => {
+                        codec_errors += 1;
+                        regrab_header(db, config, block).await?
+                    }
+                };
+                if prev.hash() != cur_header.parent_hash {
+                    mismatches += 1;
+                    prev = regrab_header(db, config, prev.number)
+                        .await
+                        .context("Failed to regrab header")?;
+                    cur_header = regrab_header(db, config, cur_header.number).await?;
+                    if prev.hash() != cur_header.parent_hash {
+                        bail!("Cannot fix mismatch at {block}");
+                    }
+                }
+                prev = cur_header;
+            }
+            "para" => {
+                let cur_header = db
+                    .get_para_header(block)
+                    .ok_or_else(|| anyhow!("Parachain header {} not found", block))?;
+                let mut cur_header = match decode_header(&cur_header) {
+                    Ok(cur_header) => cur_header,
+                    Err(_) => {
+                        codec_errors += 1;
+                        regrab_para_header(db, config, block).await?
+                    }
+                };
+                if prev.hash() != cur_header.parent_hash {
+                    mismatches += 1;
+                    prev = regrab_para_header(db, config, prev.number)
+                        .await
+                        .context("Failed to regrab parachain header")?;
+                    cur_header = regrab_para_header(db, config, cur_header.number).await?;
+                    if prev.hash() != cur_header.parent_hash {
+                        bail!("Cannot fix mismatch at {block}");
+                    }
+                }
+                prev = cur_header;
+            }
+            _ => bail!("Unknown check type {}", what),
+        }
+    }
+    let response = if mismatches > 0 || codec_errors > 0 {
+        format!("Checked blocks from {from} to {to}, {mismatches} mismatches, {codec_errors} codec errors")
+    } else {
+        format!("Checked blocks from {from} to {to}, All OK")
+    };
+    info!("{}", response);
+    Ok(response)
+}
+
+fn decode_header(data: &[u8]) -> Result<Header> {
+    let header = Header::decode(&mut &data[..]).context("Failed to decode header")?;
+    Ok(header)
+}
+
+async fn regrab_header(db: &CacheDB, config: &Serve, number: BlockNumber) -> Result<Header> {
+    if !config.grab_headers {
+        warn!("Trying to regrab header {number} while grab headers disabled");
+        bail!("Grab headers disabled");
+    }
+    info!("Regrabbing header {}", number);
+    let api = pherry::subxt_connect(&config.node_uri)
+        .await
+        .context(format!("Failed to connect to {}", config.node_uri))?;
+    let para_api = pherry::subxt_connect(&config.para_node_uri)
+        .await
+        .context(format!("Failed to connect to {}", config.para_node_uri))?;
+    let mut header = None;
+    cache::grab_headers(&api, &para_api, number, 1, 1, |info| {
+        db.put_header(info.header.number, &info.encode())
+            .context("Failed to put record to DB")?;
+        header = Some(info.header);
+        Ok(())
+    })
+    .await?;
+    header.ok_or(anyhow!("Failed to grab header"))
+}
+
+async fn regrab_para_header(db: &CacheDB, config: &Serve, number: BlockNumber) -> Result<Header> {
+    if !config.grab_para_headers {
+        warn!("Trying to regrab paraheader {number} while grab headers disabled");
+        bail!("Grab parachain headers disabled");
+    }
+    info!("Regrabbing parachain header {}", number);
+    let para_api = pherry::subxt_connect(&config.para_node_uri)
+        .await
+        .context(format!("Failed to connect to {}", config.para_node_uri))?;
+    let mut grabed = None;
+    cache::grab_para_headers(&para_api, number, 1, |header| {
+        db.put_para_header(header.number, &header.encode())
+            .context("Failed to put record to DB")?;
+        grabed = Some(header);
+        Ok(())
+    })
+    .await?;
+
+    grabed.ok_or(anyhow!("Failed to grab parachain header"))
 }

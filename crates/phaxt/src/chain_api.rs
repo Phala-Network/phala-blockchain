@@ -121,9 +121,10 @@ impl ChainApi {
             .await?
             .fetch(&address)
             .await
-            .context("Failed to get worker info")? else {
-                return Ok(None);
-            };
+            .context("Failed to get worker info")?
+        else {
+            return Ok(None);
+        };
         let block_number = block
             .to_value()?
             .as_u128()
@@ -149,9 +150,10 @@ impl ChainApi {
             .await?
             .fetch(&address)
             .await
-            .context("Failed to get worker endpoints")? else {
-                return Ok(None);
-            };
+            .context("Failed to get worker endpoints")?
+        else {
+            return Ok(None);
+        };
         Ok(Some(Decode::decode(&mut &data.encoded()[..])?))
     }
 
@@ -167,7 +169,7 @@ impl ChainApi {
             .fetch("PhalaRegistry", "Endpoints", Some(worker))
             .await?;
         let Some(VersionedWorkerEndpoints::V1(endpoints)) = result else {
-            return Ok(vec![])
+            return Ok(vec![]);
         };
         Ok(endpoints)
     }
@@ -188,5 +190,21 @@ impl ChainApi {
             result.into_iter().for_each(|key| keys.push(key.0));
         }
         Ok(keys)
+    }
+
+    pub async fn latest_finalized_block_number(&self) -> Result<BlockNumber> {
+        let latest_block_hash = self
+            .rpc()
+            .finalized_head()
+            .await
+            .context("Failed to get finalized head")?;
+        let block = self
+            .rpc()
+            .header(Some(latest_block_hash))
+            .await
+            .context("Failed to get block number")?
+            .ok_or(anyhow::anyhow!("Block number not found"))?
+            .number;
+        Ok(block)
     }
 }
