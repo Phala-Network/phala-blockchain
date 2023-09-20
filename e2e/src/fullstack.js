@@ -852,7 +852,7 @@ describe('A full stack', function () {
             await sleep(1000);
             const clusterInfo = await pruntime[0].rpc.getClusterInfo({});
             assert.equal(clusterInfo?.info?.id, clusterId);
-            assert.isTrue(clusterInfo?.info?.contracts.length > 0);
+            assert.isTrue(clusterInfo?.info?.numberOfContracts > 0);
         });
 
         it('can destory cluster', async function () {
