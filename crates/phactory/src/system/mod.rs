@@ -758,7 +758,8 @@ impl<Platform: pal::Platform> System<Platform> {
             self.contracts.weight_changed = false;
             self.contracts.apply_local_cache_quotas();
         }
-        self.contracts.try_restart_sidevms(&self.sidevm_spawner, self.block_number);
+        self.contracts
+            .try_restart_sidevms(&self.sidevm_spawner, self.block_number);
 
         let contract_running = self.contract_cluster.is_some();
         benchmark::set_flag(benchmark::Flags::CONTRACT_RUNNING, contract_running);
@@ -1590,7 +1591,8 @@ impl<P: pal::Platform> System<P> {
         if safe_mode_level > 0 {
             return Ok(());
         }
-        self.contracts.try_restart_sidevms(&self.sidevm_spawner, self.block_number);
+        self.contracts
+            .try_restart_sidevms(&self.sidevm_spawner, self.block_number);
         self.contracts.apply_local_cache_quotas();
         Ok(())
     }
@@ -1899,6 +1901,24 @@ pub(crate) fn apply_pink_events(
                             Some(run_until_block),
                         ) {
                             error!(target: "sidevm", %vmid, ?err, "Start sidevm failed");
+                        }
+                    }
+                    SidevmOperation::SetDeadLine {
+                        contract: target_contract,
+                        workers,
+                        run_until_block,
+                    } => {
+                        if let Workers::List(workers) = workers {
+                            if !workers.contains(&this_worker.0) {
+                                continue;
+                            }
+                        }
+                        let vmid = sidevm::ShortId(&target_contract);
+                        let target_contract = get_contract!(&target_contract);
+                        if let Some(info) = &mut target_contract.sidevm_info {
+                            info.run_until_block = Some(run_until_block);
+                        } else {
+                            error!(target: "sidevm", %vmid, "Failed to set deadline, sidevm not found");
                         }
                     }
                 }
