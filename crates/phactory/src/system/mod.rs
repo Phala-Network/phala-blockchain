@@ -1633,19 +1633,11 @@ impl<P: pal::Platform> System<P> {
         let Some(info) = &contract.sidevm_info else {
             anyhow::bail!("Sidevm not found");
         };
-        if let Some(until) = info.run_until_block {
-            if until < self.block_number {
-                anyhow::bail!("Sidevm is expired");
-            }
+        if self.block_number > info.config.run_until_block {
+            anyhow::bail!("Sidevm is expired");
         }
-        contract.start_sidevm(
-            &self.sidevm_spawner,
-            SidevmCode::Code(code),
-            true,
-            info.max_memory_pages,
-            info.vital_capacity,
-            info.run_until_block,
-        )
+        let config = info.config.clone();
+        contract.start_sidevm(&self.sidevm_spawner, SidevmCode::Code(code), true, config)
     }
 }
 
@@ -1818,7 +1810,7 @@ pub(crate) fn apply_pink_events(
                 };
 
                 if let Err(err) =
-                    target_contract.start_sidevm(spawner, code, false, None, None, None)
+                    target_contract.start_sidevm(spawner, code, false, Default::default())
                 {
                     error!(target: "sidevm", %vmid, ?err, "Start sidevm failed");
                 }
@@ -1875,9 +1867,7 @@ pub(crate) fn apply_pink_events(
                         contract: target_contract,
                         code_hash,
                         workers,
-                        run_until_block,
-                        max_memory_pages,
-                        vital_capacity,
+                        config,
                     } => {
                         if let Workers::List(workers) = workers {
                             if !workers.contains(&this_worker.0) {
@@ -1892,14 +1882,8 @@ pub(crate) fn apply_pink_events(
                             Some(code) => SidevmCode::Code(code),
                             None => SidevmCode::Hash(code_hash),
                         };
-                        if let Err(err) = target_contract.start_sidevm(
-                            spawner,
-                            code,
-                            false,
-                            Some(max_memory_pages),
-                            Some(vital_capacity),
-                            Some(run_until_block),
-                        ) {
+                        if let Err(err) = target_contract.start_sidevm(spawner, code, false, config)
+                        {
                             error!(target: "sidevm", %vmid, ?err, "Start sidevm failed");
                         }
                     }
@@ -1916,7 +1900,7 @@ pub(crate) fn apply_pink_events(
                         let vmid = sidevm::ShortId(&target_contract);
                         let target_contract = get_contract!(&target_contract);
                         if let Some(info) = &mut target_contract.sidevm_info {
-                            info.run_until_block = Some(run_until_block);
+                            info.config.run_until_block = run_until_block;
                         } else {
                             error!(target: "sidevm", %vmid, "Failed to set deadline, sidevm not found");
                         }

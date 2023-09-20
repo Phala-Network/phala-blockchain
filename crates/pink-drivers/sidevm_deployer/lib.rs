@@ -9,7 +9,7 @@ mod sidevm_deployer {
     use super::pink;
     use ink::storage::Mapping;
     use pink::system::DriverError as Error;
-    use pink::PinkEnvironment;
+    use pink::{PinkEnvironment, WorkerId};
 
     type Result<T> = core::result::Result<T, Error>;
 
@@ -19,6 +19,11 @@ mod sidevm_deployer {
         owner: AccountId,
         /// Contracts that are allowed to deploy sidevm.
         whitelist: Mapping<AccountId, ()>,
+        vm_price: Balance,
+        mem_price: Balance,
+        ///
+        paid_instances: Mapping<WorkerId, ()>,
+        max_paid_instances_vms_per_worker: u32,
     }
 
     impl SidevmOp {
@@ -28,6 +33,10 @@ mod sidevm_deployer {
             Self {
                 owner: Self::env().caller(),
                 whitelist: Default::default(),
+                vm_price: 0,
+                mem_price: 0,
+                paid_instances: Default::default(),
+                max_paid_instances_vms_per_worker: 5,
             }
         }
 

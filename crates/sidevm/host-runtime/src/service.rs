@@ -40,6 +40,7 @@ pub enum ExitReason {
     Restore,
     /// The sidevm was deployed without code, so it it waiting to a custom code uploading.
     WaitingForCode,
+    CodeTooLarge,
 }
 
 pub enum Command {
