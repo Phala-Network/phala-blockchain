@@ -111,7 +111,11 @@ impl ChainExtension<PinkRuntime> for PinkExtension {
             };
             dispatch_ext_call!(env.func_id(), call, env)
         }
-        .ok_or(Error::UnknownChainExtensionFunction)?;
+        .ok_or(Error::UnknownChainExtensionFunction)
+        .map_err(|err| {
+            error!(target: "pink", "Called an unregistered `func_id`: {:}", env.func_id());
+            err
+        })?;
         env.write(&output, false, None)
             .or(Err(Error::ContractIoBufferOverflow))?;
         Ok(RetVal::Converging(ret))
