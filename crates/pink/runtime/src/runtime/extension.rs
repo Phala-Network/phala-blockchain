@@ -21,8 +21,9 @@ use crate::{capi::OCallImpl, types::AccountId};
 
 use pink_capi::{types::ExecSideEffects, v1::ocall::OCallsRo};
 
-use super::SystemEvents;
+use super::{pallet_pink, PinkRuntime, SystemEvents};
 use crate::runtime::Pink as PalletPink;
+type Error = pallet_pink::Error<PinkRuntime>;
 
 fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
     let topics = [pink_extension::PinkEvent::event_topic().into()];
@@ -88,43 +89,35 @@ pub fn get_side_effects() -> (SystemEvents, ExecSideEffects) {
 #[derive(Default)]
 pub struct PinkExtension;
 
-impl ChainExtension<super::PinkRuntime> for PinkExtension {
-    fn call<E: Ext<T = super::PinkRuntime>>(
+impl ChainExtension<PinkRuntime> for PinkExtension {
+    fn call<E: Ext<T = PinkRuntime>>(
         &mut self,
         env: Environment<E, InitState>,
     ) -> ExtResult<RetVal> {
         let mut env = env.buf_in_buf_out();
         if env.ext_id() != 0 {
             error!(target: "pink", "Unknown extension id: {:}", env.ext_id());
-            return Err(DispatchError::Other(
-                "PinkExtension::call: unknown extension id",
-            ));
+            return Err(Error::UnknownChainExtensionId.into());
         }
 
         let address = env.ext().address().clone();
         let call_in_query = CallInQuery { address };
         let mode = OCallImpl.exec_context().mode;
-        let result = if mode.is_query() {
+        let (ret, output) = if mode.is_query() {
             dispatch_ext_call!(env.func_id(), call_in_query, env)
         } else {
             let call = CallInCommand {
                 as_in_query: call_in_query,
             };
             dispatch_ext_call!(env.func_id(), call, env)
-        };
-        let (ret, output) = match result {
-            Some(output) => output,
-            None => {
-                error!(target: "pink", "Called an unregistered `func_id`: {:}", env.func_id());
-                return Err(DispatchError::Other(
-                    "PinkExtension::call: unknown function",
-                ));
-            }
-        };
+        }
+        .ok_or(Error::UnknownChainExtensionFunction)
+        .map_err(|err| {
+            error!(target: "pink", "Called an unregistered `func_id`: {:}", env.func_id());
+            err
+        })?;
         env.write(&output, false, None)
-            .or(Err(DispatchError::Other(
-                "PinkExtension::call: failed to write output",
-            )))?;
+            .or(Err(Error::ContractIoBufferOverflow))?;
         Ok(RetVal::Converging(ret))
     }
 
@@ -195,12 +188,12 @@ impl PinkExtBackend for CallInQuery {
     }
 
     fn derive_sr25519_key(&self, salt: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
-        let privkey = PalletPink::key().ok_or(DispatchError::Other("Key seed missing"))?;
+        let privkey = PalletPink::key().ok_or(Error::KeySeedMissing)?;
         let privkey = sp_core::sr25519::Pair::restore_from_secret_key(&privkey);
         let contract_address: &[u8] = self.address.as_ref();
         let derived_pair = privkey
             .derive_sr25519_pair(&[contract_address, &salt, b"keygen"])
-            .or(Err(DispatchError::Other("Failed to derive sr25519 pair")))?;
+            .or(Err(Error::DeriveKeyFailed))?;
         let priviate_key = derived_pair.dump_secret_key();
         let priviate_key: &[u8] = priviate_key.as_ref();
         Ok(priviate_key.to_vec())
@@ -264,7 +257,7 @@ impl PinkExtBackend for CallInQuery {
     fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
         PalletPink::system_contract()
             .map(|address| address.convert_to())
-            .ok_or(DispatchError::Other("No system contract installed"))
+            .ok_or(Error::SystemContractMissing.into())
     }
 
     fn balance_of(
