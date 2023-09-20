@@ -186,8 +186,6 @@ pub enum SidevmOperation {
     SetDeadLine {
         /// The target contract address
         contract: AccountId,
-        /// The workers to deploy the sidevm instance.
-        workers: Workers,
         /// Time to live of the sidevm instance.
         run_until_block: u32,
     },

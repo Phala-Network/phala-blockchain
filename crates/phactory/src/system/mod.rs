@@ -1889,20 +1889,15 @@ pub(crate) fn apply_pink_events(
                     }
                     SidevmOperation::SetDeadLine {
                         contract: target_contract,
-                        workers,
                         run_until_block,
                     } => {
-                        if let Workers::List(workers) = workers {
-                            if !workers.contains(&this_worker.0) {
-                                continue;
-                            }
-                        }
                         let vmid = sidevm::ShortId(&target_contract);
                         let target_contract = get_contract!(&target_contract);
                         if let Some(info) = &mut target_contract.sidevm_info {
                             info.config.run_until_block = run_until_block;
+                            info!(target: "sidevm", vmid=%vmid, "Set deadline to {run_until_block}");
                         } else {
-                            error!(target: "sidevm", %vmid, "Failed to set deadline, sidevm not found");
+                            info!(target: "sidevm", vmid=%vmid, "Ignored deadline update");
                         }
                     }
                 }
