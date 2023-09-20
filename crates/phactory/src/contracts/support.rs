@@ -103,13 +103,19 @@ impl<'de> Deserialize<'de> for SidevmHandle {
 }
 
 #[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
-struct SidevmInfo {
+pub struct SidevmInfo {
     code: Vec<u8>,
     code_hash: H256,
     start_time: String,
     auto_restart: bool,
     #[codec(skip)]
     handle: Arc<Mutex<SidevmHandle>>,
+    #[serde(default)]
+    pub max_memory_pages: Option<u32>,
+    #[serde(default)]
+    pub vital_capacity: Option<u64>,
+    #[serde(default)]
+    pub run_until_block: Option<u32>,
 }
 
 pub(crate) enum SidevmCode {
@@ -127,7 +133,7 @@ pub struct Contract {
     ecdh_key: KeyPair,
     cluster_id: phala_mq::ContractClusterId,
     address: AccountId,
-    sidevm_info: Option<SidevmInfo>,
+    pub sidevm_info: Option<SidevmInfo>,
     weight: u32,
     code_hash: Option<H256>,
     on_block_end: Option<OnBlockEnd>,
@@ -201,7 +207,11 @@ impl Contract {
     }
 
     pub(crate) fn on_block_end(&mut self, env: &mut ExecuteEnv) -> TransactionResult {
-        let Some(OnBlockEnd { selector, gas_limit }) = self.on_block_end else {
+        let Some(OnBlockEnd {
+            selector,
+            gas_limit,
+        }) = self.on_block_end
+        else {
             return Ok(None);
         };
 
@@ -236,6 +246,9 @@ impl Contract {
         spawner: &sidevm::service::Spawner,
         code: SidevmCode,
         ensure_waiting_code: bool,
+        max_memory_pages: Option<u32>,
+        vital_capacity: Option<u64>,
+        run_until_block: Option<u32>,
     ) -> Result<()> {
         let handle = self.sidevm_handle();
         if let Some(SidevmHandle::Running(_)) = &handle {
@@ -274,7 +287,14 @@ impl Contract {
                 ExitReason::WaitingForCode,
             )))
         } else {
-            do_start_sidevm(spawner, &code, *self.address.as_ref(), self.weight)?
+            do_start_sidevm(
+                spawner,
+                &code,
+                *self.address.as_ref(),
+                self.weight,
+                max_memory_pages,
+                vital_capacity,
+            )?
         };
 
         let start_time = chrono::Utc::now().to_rfc3339();
@@ -284,6 +304,9 @@ impl Contract {
             start_time,
             handle,
             auto_restart: true,
+            max_memory_pages,
+            vital_capacity,
+            run_until_block,
         });
         Ok(())
     }
@@ -291,10 +314,11 @@ impl Contract {
     pub(crate) fn restart_sidevm_if_needed(
         &mut self,
         spawner: &sidevm::service::Spawner,
+        current_block: BlockNumber,
     ) -> Result<()> {
         if let Some(sidevm_info) = &mut self.sidevm_info {
-            let guard = sidevm_info.handle.lock().unwrap();
-            let handle = if let SidevmHandle::Stopped(reason) = &*guard {
+            let handle = sidevm_info.handle.lock().unwrap().clone();
+            if let SidevmHandle::Stopped(reason) = &handle {
                 let need_restart = match reason {
                     ExitReason::Exited(_) => false,
                     ExitReason::Stopped => false,
@@ -312,17 +336,25 @@ impl Contract {
                     return Ok(());
                 }
                 sidevm_info.start_time = chrono::Utc::now().to_rfc3339();
-                do_start_sidevm(
+                let handle = do_start_sidevm(
                     spawner,
                     &sidevm_info.code,
                     *self.address.as_ref(),
                     self.weight,
-                )?
+                    sidevm_info.max_memory_pages,
+                    sidevm_info.vital_capacity,
+                )?;
+                sidevm_info.handle = handle;
             } else {
+                if let Some(until) = sidevm_info.run_until_block {
+                    if current_block > until {
+                        let id = sidevm::ShortId(&self.address);
+                        info!(target: "sidevm", id=%id, "Sidevm run_until_block reached, stopping");
+                        return self.push_message_to_sidevm(SidevmCommand::Stop);
+                    }
+                }
                 return Ok(());
             };
-            drop(guard);
-            sidevm_info.handle = handle;
         }
         Ok(())
     }
@@ -415,11 +447,17 @@ impl Contract {
                 let handle = info.handle.lock().unwrap().clone();
                 let start_time = info.start_time.clone();
                 let code_hash = hex(info.code_hash);
+                let max_memory_pages = info.max_memory_pages.unwrap_or_default();
+                let vital_capacity = info.vital_capacity.unwrap_or_default();
+                let run_until_block = info.run_until_block.unwrap_or_default();
                 match handle {
                     SidevmHandle::Running(_) => pb::SidevmInfo {
                         state: "running".into(),
                         code_hash,
                         start_time,
+                        max_memory_pages,
+                        vital_capacity,
+                        run_until_block,
                         ..Default::default()
                     },
                     SidevmHandle::Stopped(reason) => pb::SidevmInfo {
@@ -427,6 +465,9 @@ impl Contract {
                         code_hash,
                         start_time,
                         stop_reason: format!("{reason}"),
+                        max_memory_pages,
+                        vital_capacity,
+                        run_until_block,
                     },
                 }
             }),
@@ -440,10 +481,14 @@ fn do_start_sidevm(
     code: &[u8],
     id: VmId,
     weight: u32,
+    max_memory_pages: Option<u32>,
+    gas_per_breath: Option<u64>,
 ) -> Result<Arc<Mutex<SidevmHandle>>> {
     info!(target: "sidevm", "Starting sidevm...");
-    let max_memory_pages: u32 = 1024; // 64MB
-    let gas_per_breath = 50_000_000_000_u64; // about 20 ms bench
+    let default_max_memory_pages: u32 = 1024; // 64MB
+    let default_gas_per_breath = 50_000_000_000_u64; // about 20 ms bench
+    let max_memory_pages = max_memory_pages.unwrap_or(default_max_memory_pages);
+    let gas_per_breath = gas_per_breath.unwrap_or(default_gas_per_breath);
     let (sender, join_handle) = spawner.start(
         code,
         max_memory_pages,

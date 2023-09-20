@@ -1,4 +1,5 @@
-use pink::types::AccountId;
+use im::OrdMap as BTreeMap;
+use pink::types::{AccountId, BlockNumber};
 use serde::{Deserialize, Serialize};
 use sidevm::service::Spawner;
 
@@ -37,9 +38,9 @@ impl ContractsKeeper {
         self.contracts.len()
     }
 
-    pub fn try_restart_sidevms(&mut self, spawner: &Spawner) {
+    pub fn try_restart_sidevms(&mut self, spawner: &Spawner, current_block: BlockNumber) {
         ordmap_for_each_mut(&mut self.contracts, |(_k, contract)| {
-            if let Err(err) = contract.restart_sidevm_if_needed(spawner) {
+            if let Err(err) = contract.restart_sidevm_if_needed(spawner, current_block) {
                 error!("Failed to restart sidevm instance: {:?}", err);
             }
         });
