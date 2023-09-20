@@ -59,6 +59,9 @@ impl IoHandler for StreamResponse {
 impl<'r> Responder<'r, 'r> for StreamResponse {
     fn respond_to(mut self, _req: &'r Request<'_>) -> rocket::response::Result<'r> {
         let mut builder = rocket::response::Response::build();
+        self.head
+            .headers
+            .retain(|(name, _)| name.to_lowercase() != "set-cookie");
         if Status::new(self.head.status) == Status::SwitchingProtocols {
             // As Rocket requires to not set status to 101 and do not set headers 'Connection', 'Upgrade',
             // we need to remove them from the response header.
@@ -97,7 +100,13 @@ impl<'r> FromRequest<'r> for RequestInfo {
         let headers = req
             .headers()
             .iter()
-            .map(|header| (header.name.to_string(), header.value.to_string()))
+            .filter_map(|header| {
+                if header.name.as_uncased_str() == "cookie" {
+                    None
+                } else {
+                    Some((header.name.to_string(), header.value.to_string()))
+                }
+            })
             .collect();
         Outcome::Success(Self {
             method,
