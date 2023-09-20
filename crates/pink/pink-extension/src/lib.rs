@@ -24,6 +24,7 @@ pub use logger::ResultExt;
 
 const PINK_EVENT_TOPIC: &[u8] = b"phala.pink.event";
 
+pub type WorkerId = [u8; 32];
 pub type EcdhPublicKey = [u8; 32];
 pub type Hash = [u8; 32];
 pub type EcdsaPublicKey = [u8; 33];
@@ -200,7 +201,7 @@ pub enum SidevmOperation {
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum Workers {
     All,
-    List(Vec<EcdhPublicKey>),
+    List(Vec<WorkerId>),
 }
 
 impl PinkEvent {

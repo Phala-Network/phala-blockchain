@@ -154,6 +154,27 @@ pub trait System {
     /// Returns (next event block number, last event block hash)
     #[ink(message)]
     fn current_event_chain_head(&self) -> (u64, Hash);
+
+    /// Deploys a sidevm instance attached to a contract on selected workers. Must be called by an administrator.
+    #[ink(message)]
+    fn deploy_sidevm_to_workers(
+        &self,
+        contract_id: AccountId,
+        code_hash: Hash,
+        workers: Vec<crate::WorkerId>,
+        run_until: crate::BlockNumber,
+        max_memory_pages: u32,
+        vital_capacity: u64,
+    ) -> Result<()>;
+
+    /// Sets a deadline for sidevm instances attached to a contract on selected workers. Must be called by an administrator.
+    #[ink(message)]
+    fn set_sidevm_deadline(
+        &self,
+        contract_id: AccountId,
+        workers: Vec<crate::WorkerId>,
+        run_until: crate::BlockNumber,
+    ) -> Result<()>;
 }
 
 /// Errors that can occur upon calling a driver contract.
