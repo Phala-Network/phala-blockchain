@@ -61,7 +61,7 @@ pub mod messaging {
     use sp_core::crypto::AccountId32;
 
     bind_topic!(ClusterEvent, b"phala/cluster/event");
-    #[derive(Encode, Decode, Debug)]
+    #[derive(Encode, Decode, Debug, ::scale_info::TypeInfo)]
     pub enum ClusterEvent {
         // TODO.shelven: enable add and remove workers
         DeployCluster {
@@ -77,7 +77,7 @@ pub mod messaging {
     }
 
     bind_topic!(ContractOperation<CodeHash, AccountId>, b"phala/contract/op");
-    #[derive(Encode, Decode, Debug)]
+    #[derive(Encode, Decode, Debug, ::scale_info::TypeInfo)]
     pub enum ContractOperation<CodeHash, AccountId> {
         InstantiateCode {
             contract_info: ContractInfo<CodeHash, AccountId>,

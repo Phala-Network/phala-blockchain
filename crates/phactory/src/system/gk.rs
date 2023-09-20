@@ -23,7 +23,10 @@ use phala_types::{
 use serde::{Deserialize, Serialize};
 use sp_core::{hashing, sr25519, Pair};
 
-use crate::{im_helpers::ordmap_for_each_mut, types::BlockInfo};
+use crate::{
+    im_helpers::{ordmap_for_each_mut, OrdMap},
+    types::BlockInfo,
+};
 
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -77,14 +80,16 @@ struct WorkerStat {
     last_gk_responsive_event_at_block: chain::BlockNumber,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 pub struct WorkerInfo {
     state: WorkerState,
     waiting_heartbeats: VecDeque<chain::BlockNumber>,
     unresponsive: bool,
+    #[codec(skip)]
     tokenomic: TokenomicInfo,
     heartbeat_flag: bool,
     #[cfg(feature = "gk-stat")]
+    #[codec(skip)]
     stat: WorkerStat,
 }
 
@@ -110,10 +115,11 @@ impl WorkerInfo {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 pub(crate) struct Gatekeeper<MsgChan> {
     /// The current master key in use
     #[serde(with = "more::key_bytes")]
+    #[codec(skip)]
     master_key: sr25519::Pair,
     /// This will be switched once when the first master key is uploaded
     master_pubkey_on_chain: bool,
@@ -626,15 +632,18 @@ impl<F: FnMut(EconomicEvent, &WorkerInfo)> EconomicEventListener for F {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 pub struct ComputingEconomics<MsgChan> {
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     computing_events: TypedReceiver<WorkingReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
-    workers: im::OrdMap<WorkerPublicKey, WorkerInfo>,
+    #[cfg_attr(not(test), codec(skip))]
+    workers: OrdMap<WorkerPublicKey, WorkerInfo>,
+    #[codec(skip)]
     tokenomic_params: tokenomic::Params,
     #[serde(skip, default)]
+    #[codec(skip)]
     eco_cache: EconomicCalcCache,
 }
 

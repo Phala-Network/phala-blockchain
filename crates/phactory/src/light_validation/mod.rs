@@ -39,7 +39,11 @@ mod justification;
 pub mod storage_proof;
 mod types;
 
+#[cfg(not(test))]
 use im::OrdMap as BTreeMap;
+#[cfg(test)]
+// For TypeInfo derivation
+use std::collections::BTreeMap;
 use std::fmt;
 use std::marker::PhantomData;
 
@@ -61,7 +65,7 @@ use sp_runtime::EncodedJustification;
 
 pub use types::{AuthoritySet, AuthoritySetChange, BlockHeader};
 
-#[derive(Encode, Decode, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Encode, Decode, Clone, PartialEq, Serialize, Deserialize, ::scale_info::TypeInfo)]
 pub struct BridgeInfo<T: Config> {
     #[serde(skip)]
     _marker: PhantomData<T>,
@@ -94,7 +98,7 @@ impl Config for chain::Runtime {
     type Block = chain::Block;
 }
 
-#[derive(Encode, Decode, Clone, Serialize, Deserialize)]
+#[derive(Encode, Decode, Clone, Serialize, Deserialize, ::scale_info::TypeInfo)]
 pub struct LightValidation<T: Config> {
     num_bridges: BridgeId,
     #[serde(bound(

@@ -15,6 +15,7 @@ libc = "0.2"
 log = "0.4"
 tracing = "0.1"
 environmental = "1"
+scale-info = { version = "2.9", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
 pink = { path = "../runtime" }

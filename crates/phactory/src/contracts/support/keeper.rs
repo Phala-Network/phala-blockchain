@@ -1,15 +1,16 @@
-use im::OrdMap as BTreeMap;
 use pink::types::AccountId;
 use serde::{Deserialize, Serialize};
 use sidevm::service::Spawner;
 
-use crate::{contracts::Contract, im_helpers::ordmap_for_each_mut};
+use crate::{contracts::Contract, im_helpers::{ordmap_for_each_mut, OrdMap}};
 
-type ContractMap = BTreeMap<AccountId, Contract>;
+type ContractMap = OrdMap<AccountId, Contract>;
 
-#[derive(Default, Serialize, Deserialize, Clone)]
+#[derive(Default, Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 pub struct ContractsKeeper {
+    #[cfg_attr(not(test), codec(skip))]
     contracts: ContractMap,
+    #[codec(skip)]
     #[serde(skip)]
     pub(crate) weight_changed: bool,
 }
@@ -45,6 +46,7 @@ impl ContractsKeeper {
     }
 
     pub fn drain(&mut self) -> impl Iterator<Item = Contract> {
+        #[allow(clippy::iter_kv_map)]
         std::mem::take(&mut self.contracts)
             .into_iter()
             .map(|(_, v)| v)
@@ -71,7 +73,7 @@ impl ToWeight for Contract {
 }
 
 pub(super) fn calc_cache_quotas<K: AsRef<[u8]> + Ord, C: ToWeight>(
-    contracts: &BTreeMap<K, C>,
+    contracts: &OrdMap<K, C>,
 ) -> impl Iterator<Item = (&[u8], usize)> {
     let total_weight = contracts
         .values()
@@ -97,7 +99,7 @@ mod tests {
 
     #[test]
     fn zero_quotas_works() {
-        let mut contracts = BTreeMap::new();
+        let mut contracts = OrdMap::new();
         contracts.insert(b"foo", 0_u32);
         contracts.insert(b"bar", 0_u32);
 
@@ -107,7 +109,7 @@ mod tests {
 
     #[test]
     fn little_quotas_works() {
-        let mut contracts = BTreeMap::new();
+        let mut contracts = OrdMap::new();
         contracts.insert(b"foo", 0_u32);
         contracts.insert(b"bar", 1_u32);
 
@@ -120,7 +122,7 @@ mod tests {
 
     #[test]
     fn it_wont_overflow() {
-        let mut contracts = BTreeMap::new();
+        let mut contracts = OrdMap::new();
         contracts.insert(b"foo", 0_u32);
         contracts.insert(b"bar", u32::MAX);
         contracts.insert(b"baz", u32::MAX);
@@ -138,7 +140,7 @@ mod tests {
 
     #[test]
     fn fraction_works() {
-        let mut contracts = BTreeMap::new();
+        let mut contracts = OrdMap::new();
         contracts.insert(b"foo", 0_u32);
         contracts.insert(b"bar", 1);
         contracts.insert(b"baz", u32::MAX);

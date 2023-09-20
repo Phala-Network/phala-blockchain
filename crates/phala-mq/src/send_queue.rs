@@ -144,8 +144,9 @@ mod msg_channel {
     use super::*;
     use crate::{types::Path, MessageSigner, SenderId};
 
-    #[derive(Clone, Serialize, Deserialize)]
+    #[derive(Clone, Serialize, Deserialize, ::scale_info::TypeInfo)]
     pub struct MessageChannel<Si> {
+        #[codec(skip)]
         #[serde(skip)]
         #[serde(default = "crate::checkpoint_helper::global_send_mq")]
         queue: MessageSendQueue,

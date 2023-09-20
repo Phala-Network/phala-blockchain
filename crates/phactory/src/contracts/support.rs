@@ -102,12 +102,13 @@ impl<'de> Deserialize<'de> for SidevmHandle {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 struct SidevmInfo {
     code: Vec<u8>,
     code_hash: H256,
     start_time: String,
     auto_restart: bool,
+    #[codec(skip)]
     handle: Arc<Mutex<SidevmHandle>>,
 }
 
@@ -116,10 +117,12 @@ pub(crate) enum SidevmCode {
     Code(Vec<u8>),
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 pub struct Contract {
     send_mq: SignedMessageChannel,
+    #[codec(skip)]
     cmd_rcv_mq: SecretReceiver<RawData>,
+    #[codec(skip)]
     #[serde(with = "crate::secret_channel::ecdh_serde")]
     ecdh_key: KeyPair,
     cluster_id: phala_mq::ContractClusterId,
@@ -130,7 +133,7 @@ pub struct Contract {
     on_block_end: Option<OnBlockEnd>,
 }
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Copy, Clone, Serialize, Deserialize, ::scale_info::TypeInfo)]
 struct OnBlockEnd {
     selector: u32,
     gas_limit: u64,

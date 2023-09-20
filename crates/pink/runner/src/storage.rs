@@ -2,9 +2,10 @@ use im::OrdMap;
 use pink_capi::{types::Hash, v1::ocall::StorageChanges};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize, ::scale_info::TypeInfo)]
 pub struct ClusterStorage {
     root: Option<Hash>,
+    #[codec(skip)]
     kv_store: OrdMap<Vec<u8>, (i32, Vec<u8>)>,
 }
 

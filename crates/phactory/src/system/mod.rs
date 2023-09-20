@@ -125,7 +125,7 @@ impl From<String> for TransactionError {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 struct BenchState {
     start_block: chain::BlockNumber,
     start_time: u64,
@@ -133,13 +133,13 @@ struct BenchState {
     duration: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 enum WorkingState {
     Computing,
     Paused,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 struct WorkingInfo {
     session_id: u32,
     state: WorkingState,
@@ -148,8 +148,9 @@ struct WorkingInfo {
 }
 
 // Minimum worker state machine can be reused to replay in GK.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 struct WorkerState {
+    #[codec(skip)]
     #[serde(with = "more::pubkey_bytes")]
     pubkey: WorkerPublicKey,
     hashed_id: U256,
@@ -429,7 +430,7 @@ fn get_contract_key(cluster_key: &sr25519::Pair, contract_id: &ContractId) -> sr
         .expect("should not fail with valid info")
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 pub struct System<Platform> {
     platform: Platform,
     // Configuration
@@ -445,7 +446,9 @@ pub struct System<Platform> {
     cluster_key_distribution_events: TypedReceiver<ClusterOperation<chain::AccountId>>,
     contract_operation_events: TypedReceiver<ContractOperation<chain::Hash, chain::AccountId>>,
     // Worker
+    #[codec(skip)]
     pub(crate) identity_key: WorkerIdentityKey,
+    #[codec(skip)]
     #[serde(with = "ecdh_serde")]
     pub(crate) ecdh_key: EcdhKey,
     /// Be careful to use this field, as it is not updated in safe mode.
@@ -455,6 +458,7 @@ pub struct System<Platform> {
 
     pub(crate) contracts: ContractsKeeper,
     pub(crate) contract_cluster: Option<Cluster>,
+    #[codec(skip)]
     #[serde(skip)]
     #[serde(default = "create_sidevm_service_default")]
     sidevm_spawner: Spawner,

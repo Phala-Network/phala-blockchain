@@ -1,6 +1,7 @@
 use core::marker::PhantomData;
 
 use alloc::vec::Vec;
+use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 
 use crate::simple_mpsc::{channel, ReceiveError, Receiver as RawReceiver, Sender, Seq};
@@ -26,6 +27,21 @@ pub struct MessageDispatcher {
 pub struct Receiver<T> {
     inner: RawReceiver<(u64, T)>,
     topic: Vec<u8>,
+}
+
+#[derive(::scale_info::TypeInfo)]
+#[allow(dead_code)]
+pub struct ReceiverTypeInfo {
+    inner: (),
+    topic: Vec<u8>,
+}
+
+impl<T> scale_info::TypeInfo for Receiver<T> {
+    type Identity = <ReceiverTypeInfo as TypeInfo>::Identity;
+
+    fn type_info() -> scale_info::Type {
+        <ReceiverTypeInfo as TypeInfo>::type_info()
+    }
 }
 
 impl core::ops::Deref for Receiver<Message> {
@@ -129,9 +145,10 @@ impl From<CodecError> for TypedReceiveError {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ::scale_info::TypeInfo)]
 pub struct TypedReceiver<T> {
     queue: Receiver<Message>,
+    #[codec(skip)]
     #[serde(skip)]
     _t: PhantomData<T>,
 }
