@@ -161,6 +161,38 @@ pub enum PinkEvent {
     /// System contract
     #[codec(index = 10)]
     UpgradeRuntimeTo { version: (u32, u32) },
+    /// Deploy a sidevm instance to given contract instance on given workers.
+    ///
+    /// # Availability
+    /// System contract
+    #[codec(index = 11)]
+    SidevmOperation(SidevmOperation),
+}
+
+#[derive(Encode, Decode, Debug, Clone)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub enum SidevmOperation {
+    Start {
+        /// The target contract address
+        contract: AccountId,
+        /// The hash of the sidevm code.
+        code_hash: Hash,
+        /// The workers to deploy the sidevm instance.
+        workers: Workers,
+        /// Time to live of the sidevm instance.
+        run_until_block: u32,
+        /// The amount of memory to allocate for the sidevm instance.
+        max_memory_pages: u32,
+        /// The gas limit between two sleep in sidevm.
+        vital_capacity: u64,
+    },
+}
+
+#[derive(Encode, Decode, Debug, Clone)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub enum Workers {
+    All,
+    List(Vec<EcdhPublicKey>),
 }
 
 impl PinkEvent {
@@ -175,6 +207,7 @@ impl PinkEvent {
             PinkEvent::SetLogHandler(_) => false,
             PinkEvent::SetContractWeight { .. } => false,
             PinkEvent::UpgradeRuntimeTo { .. } => false,
+            PinkEvent::SidevmOperation(_) => true,
         }
     }
 
@@ -189,6 +222,7 @@ impl PinkEvent {
             PinkEvent::SetLogHandler(_) => "SetLogHandler",
             PinkEvent::SetContractWeight { .. } => "SetContractWeight",
             PinkEvent::UpgradeRuntimeTo { .. } => "UpgradeRuntimeTo",
+            PinkEvent::SidevmOperation(_) => "SidevmOperation",
         }
     }
 
@@ -203,6 +237,7 @@ impl PinkEvent {
             PinkEvent::SetLogHandler(_) => false,
             PinkEvent::SetContractWeight { .. } => false,
             PinkEvent::UpgradeRuntimeTo { .. } => false,
+            PinkEvent::SidevmOperation(_) => false,
         }
     }
 }
@@ -264,7 +299,7 @@ impl PinkEvent {
 /// * `gas_limit`: The maximum amount of gas that can be used when calling the receiver contract.
 ///
 /// Note: The cost of the execution would be charged to the contract itself.
-/// 
+///
 /// This api is only available for the system contract. User contracts should use `System::set_hook` instead.
 pub fn set_hook(hook: HookPoint, contract: AccountId, selector: u32, gas_limit: u64) {
     emit_event::<PinkEnvironment, _>(PinkEvent::SetHook {

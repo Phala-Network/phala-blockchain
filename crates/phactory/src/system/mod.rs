@@ -57,6 +57,7 @@ use sidevm::service::{Command as SidevmCommand, CommandSender, Report, Spawner, 
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
 use pink::types::{HookPoint, PinkEvent};
+use pink_extension::{SidevmOperation, Workers};
 use std::cell::Cell;
 use std::convert::TryFrom;
 use std::future::Future;
@@ -696,6 +697,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     None => break,
                 };
                 handle_contract_command_result(
+                    self.identity_key.public(),
                     result,
                     &mut self.contracts,
                     cluster,
@@ -740,6 +742,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 };
                 let result = contract.on_block_end(&mut env);
                 handle_contract_command_result(
+                    self.identity_key.public(),
                     result,
                     &mut self.contracts,
                     cluster,
@@ -755,7 +758,7 @@ impl<Platform: pal::Platform> System<Platform> {
             self.contracts.weight_changed = false;
             self.contracts.apply_local_cache_quotas();
         }
-        self.contracts.try_restart_sidevms(&self.sidevm_spawner);
+        self.contracts.try_restart_sidevms(&self.sidevm_spawner, self.block_number);
 
         let contract_running = self.contract_cluster.is_some();
         benchmark::set_flag(benchmark::Flags::CONTRACT_RUNNING, contract_running);
@@ -1133,11 +1136,9 @@ impl<Platform: pal::Platform> System<Platform> {
                 if !sender.is_pallet() {
                     anyhow::bail!("Invalid origin");
                 }
-                let Some(cluster) = self
-                    .contract_cluster
-                    .get_cluster_mut(&cluster_id) else {
-                        return Ok(());
-                    };
+                let Some(cluster) = self.contract_cluster.get_cluster_mut(&cluster_id) else {
+                    return Ok(());
+                };
                 let system_contract = cluster.system_contract().ok_or_else(|| {
                     anyhow!(
                         "Failed to upload resource to cluster {cluster_id:?}: No system contract"
@@ -1191,11 +1192,9 @@ impl<Platform: pal::Platform> System<Platform> {
                 if !sender.is_pallet() {
                     anyhow::bail!("Invalid origin");
                 }
-                let Some(cluster) = self
-                    .contract_cluster
-                    .get_cluster_mut(&cluster_id) else {
-                        return Ok(());
-                    };
+                let Some(cluster) = self.contract_cluster.get_cluster_mut(&cluster_id) else {
+                    return Ok(());
+                };
                 cluster.deposit(&account, amount);
             }
             ClusterOperation::RemoveWorker { cluster_id, worker } => {
@@ -1206,7 +1205,10 @@ impl<Platform: pal::Platform> System<Platform> {
                     return Ok(());
                 }
                 let Some(_cluster) = self.contract_cluster.remove_cluster(&cluster_id) else {
-                    warn!("Cluster {} is not deployed on this worker", hex_fmt::HexFmt(&cluster_id));
+                    warn!(
+                        "Cluster {} is not deployed on this worker",
+                        hex_fmt::HexFmt(&cluster_id)
+                    );
                     return Ok(());
                 };
                 for contract in self.contracts.drain() {
@@ -1243,11 +1245,9 @@ impl<Platform: pal::Platform> System<Platform> {
             } => {
                 let log_handler = self.get_system_message_handler();
                 let cluster_id = contract_info.cluster_id;
-                let Some(cluster) = self
-                    .contract_cluster
-                    .get_cluster_mut(&cluster_id) else {
-                        return Ok(());
-                    };
+                let Some(cluster) = self.contract_cluster.get_cluster_mut(&cluster_id) else {
+                    return Ok(());
+                };
                 if cluster.system_contract().is_none() {
                     anyhow::bail!("The system contract is missing, Cannot deploy contract");
                 }
@@ -1272,6 +1272,7 @@ impl<Platform: pal::Platform> System<Platform> {
                         );
                         if let Some(effects) = effects {
                             apply_pink_side_effects(
+                                self.identity_key.public(),
                                 effects,
                                 &mut self.contracts,
                                 cluster,
@@ -1522,6 +1523,7 @@ impl<Platform: pal::Platform> System<Platform> {
             }
             if let Some(effects) = runtime.effects {
                 apply_pink_side_effects(
+                    self.identity_key.public(),
                     effects,
                     &mut self.contracts,
                     &mut cluster,
@@ -1588,7 +1590,7 @@ impl<P: pal::Platform> System<P> {
         if safe_mode_level > 0 {
             return Ok(());
         }
-        self.contracts.try_restart_sidevms(&self.sidevm_spawner);
+        self.contracts.try_restart_sidevms(&self.sidevm_spawner, self.block_number);
         self.contracts.apply_local_cache_quotas();
         Ok(())
     }
@@ -1608,6 +1610,7 @@ impl<P: pal::Platform> System<P> {
             instantiated: _,
         } = effects;
         apply_pink_events(
+            self.identity_key.public(),
             pink_events,
             &mut self.contracts,
             cluster,
@@ -1625,12 +1628,28 @@ impl<P: pal::Platform> System<P> {
             .contracts
             .get_mut(&contract_id)
             .ok_or_else(|| anyhow!("Contract not found"))?;
-        contract.start_sidevm(&self.sidevm_spawner, SidevmCode::Code(code), true)
+        let Some(info) = &contract.sidevm_info else {
+            anyhow::bail!("Sidevm not found");
+        };
+        if let Some(until) = info.run_until_block {
+            if until < self.block_number {
+                anyhow::bail!("Sidevm is expired");
+            }
+        }
+        contract.start_sidevm(
+            &self.sidevm_spawner,
+            SidevmCode::Code(code),
+            true,
+            info.max_memory_pages,
+            info.vital_capacity,
+            info.run_until_block,
+        )
     }
 }
 
 #[allow(clippy::too_many_arguments)]
 pub fn handle_contract_command_result(
+    this_worker: WorkerPublicKey,
     result: TransactionResult,
     contracts: &mut ContractsKeeper,
     cluster: &mut Cluster,
@@ -1649,6 +1668,7 @@ pub fn handle_contract_command_result(
         Ok(None) => return,
     };
     apply_pink_side_effects(
+        this_worker,
         effects,
         contracts,
         cluster,
@@ -1662,6 +1682,7 @@ pub fn handle_contract_command_result(
 
 #[allow(clippy::too_many_arguments)]
 pub fn apply_pink_side_effects(
+    this_worker: WorkerPublicKey,
     effects: ExecSideEffects,
     contracts: &mut ContractsKeeper,
     cluster: &mut Cluster,
@@ -1677,7 +1698,14 @@ pub fn apply_pink_side_effects(
         instantiated,
     } = effects;
     apply_instantiating_events(instantiated, contracts, cluster, block, egress);
-    apply_pink_events(pink_events, contracts, cluster, spawner, chain_storage);
+    apply_pink_events(
+        this_worker,
+        pink_events,
+        contracts,
+        cluster,
+        spawner,
+        chain_storage,
+    );
     apply_ink_side_effects(ink_events, block, log_handler);
 }
 
@@ -1727,6 +1755,7 @@ fn apply_instantiating_events(
 }
 
 pub(crate) fn apply_pink_events(
+    this_worker: WorkerPublicKey,
     pink_events: Vec<(AccountId, PinkEvent)>,
     contracts: &mut ContractsKeeper,
     cluster: &mut Cluster,
@@ -1785,7 +1814,10 @@ pub(crate) fn apply_pink_events(
                     Some(code) => SidevmCode::Code(code),
                     None => SidevmCode::Hash(code_hash),
                 };
-                if let Err(err) = target_contract.start_sidevm(spawner, code, false) {
+
+                if let Err(err) =
+                    target_contract.start_sidevm(spawner, code, false, None, None, None)
+                {
                     error!(target: "sidevm", %vmid, ?err, "Start sidevm failed");
                 }
             }
@@ -1833,6 +1865,43 @@ pub(crate) fn apply_pink_events(
             PinkEvent::UpgradeRuntimeTo { version } => {
                 ensure_system!();
                 cluster.upgrade_runtime(version);
+            }
+            PinkEvent::SidevmOperation(event) => {
+                ensure_system!();
+                match event {
+                    SidevmOperation::Start {
+                        contract: target_contract,
+                        code_hash,
+                        workers,
+                        run_until_block,
+                        max_memory_pages,
+                        vital_capacity,
+                    } => {
+                        if let Workers::List(workers) = workers {
+                            if !workers.contains(&this_worker.0) {
+                                continue;
+                            }
+                        }
+                        let vmid = sidevm::ShortId(&target_contract);
+                        let target_contract = get_contract!(&target_contract);
+                        let code_hash = code_hash.into();
+                        let code = match cluster.get_resource(ResourceType::SidevmCode, &code_hash)
+                        {
+                            Some(code) => SidevmCode::Code(code),
+                            None => SidevmCode::Hash(code_hash),
+                        };
+                        if let Err(err) = target_contract.start_sidevm(
+                            spawner,
+                            code,
+                            false,
+                            Some(max_memory_pages),
+                            Some(vital_capacity),
+                            Some(run_until_block),
+                        ) {
+                            error!(target: "sidevm", %vmid, ?err, "Start sidevm failed");
+                        }
+                    }
+                }
             }
         }
     }
