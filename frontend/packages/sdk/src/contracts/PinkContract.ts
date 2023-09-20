@@ -403,8 +403,15 @@ export class PinkContractPromise<
       if (!query) {
         throw new Error(`Message not found: ${messageOrId}`)
       }
+      const gasPrice = this.phatRegistry.clusterInfo?.gasPrice
+      if (!gasPrice) {
+        throw new Error('No Gas price from cluster info.')
+      }
       const { gasRequired, storageDeposit } = await query(cert.address, { cert }, ...args)
-      const required = gasRequired.refTime.toBn().add(storageDeposit.isCharge ? storageDeposit.asCharge : BN_ZERO)
+      const required = gasRequired.refTime
+        .toBn()
+        .mul(gasPrice)
+        .add(storageDeposit.isCharge ? storageDeposit.asCharge : BN_ZERO)
       if (balance.free.lt(required)) {
         txOptions.deposit = required.sub(balance.free)
       }
