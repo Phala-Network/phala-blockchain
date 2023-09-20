@@ -170,7 +170,6 @@ pub trait System {
     fn set_sidevm_deadline(
         &self,
         contract_id: AccountId,
-        workers: Vec<crate::WorkerId>,
         run_until: crate::BlockNumber,
     ) -> Result<()>;
 }
@@ -210,6 +209,7 @@ pub trait SidevmOperation {
         workers: Vec<WorkerId>,
         deadline: u32,
         max_memory_pages: u32,
+        code_size: u32,
     ) -> Result<(), DriverError>;
 }
 
