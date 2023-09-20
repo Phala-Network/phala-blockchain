@@ -6,7 +6,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use scale::{Decode, Encode};
 
-use crate::{AccountId, Balance, Hash};
+use crate::{AccountId, Balance, Hash, SidevmConfig, WorkerId};
 
 /// Errors that can occur upon calling the system contract.
 #[derive(Debug, PartialEq, Eq, Encode, Decode)]
@@ -162,9 +162,7 @@ pub trait System {
         contract_id: AccountId,
         code_hash: Hash,
         workers: Vec<crate::WorkerId>,
-        run_until: crate::BlockNumber,
-        max_memory_pages: u32,
-        vital_capacity: u64,
+        config: SidevmConfig,
     ) -> Result<()>;
 
     /// Sets a deadline for sidevm instances attached to a contract on selected workers. Must be called by an administrator.
@@ -203,6 +201,16 @@ pub trait SidevmOperation {
     /// Check if given address has the permission to deploy a sidevm.
     #[ink(message)]
     fn can_deploy(&self, contract_id: AccountId) -> bool;
+
+    /// Invoked by a contract to deploy a sidevm instance that attached to itself to selected workers.
+    #[ink(message)]
+    fn deploy_to_workers(
+        &self,
+        code_hash: Hash,
+        workers: Vec<WorkerId>,
+        deadline: u32,
+        max_memory_pages: u32,
+    ) -> Result<(), DriverError>;
 }
 
 /// Contracts receiving processing deposit events. Can be a driver and the system.

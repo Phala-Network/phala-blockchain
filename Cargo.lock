@@ -10110,6 +10110,7 @@ dependencies = [
  "parity-scale-codec",
  "pink-extension-macro",
  "scale-info",
+ "serde",
  "this-crate",
 ]
 

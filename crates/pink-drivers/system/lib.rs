@@ -294,9 +294,7 @@ mod system {
             contract: AccountId,
             code_hash: pink::Hash,
             workers: Vec<pink::WorkerId>,
-            run_until_block: pink::BlockNumber,
-            max_memory_pages: u32,
-            vital_capacity: u64,
+            config: pink::SidevmConfig,
         ) -> Result<()> {
             self.ensure_admin()?;
             ink::env::emit_event::<PinkEnvironment, _>(pink::PinkEvent::SidevmOperation(
@@ -304,9 +302,7 @@ mod system {
                     contract,
                     code_hash,
                     workers: pink::Workers::List(workers),
-                    run_until_block,
-                    max_memory_pages,
-                    vital_capacity,
+                    config,
                 },
             ));
             Ok(())

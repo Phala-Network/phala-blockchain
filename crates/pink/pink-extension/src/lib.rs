@@ -21,6 +21,7 @@ pub mod system;
 mod allocator_dlmalloc;
 
 pub use logger::ResultExt;
+use serde::{Deserialize, Serialize};
 
 const PINK_EVENT_TOPIC: &[u8] = b"phala.pink.event";
 
@@ -180,12 +181,7 @@ pub enum SidevmOperation {
         code_hash: Hash,
         /// The workers to deploy the sidevm instance.
         workers: Workers,
-        /// Time to live of the sidevm instance.
-        run_until_block: u32,
-        /// The amount of memory to allocate for the sidevm instance.
-        max_memory_pages: u32,
-        /// The gas limit between two sleep in sidevm.
-        vital_capacity: u64,
+        config: SidevmConfig,
     },
     SetDeadLine {
         /// The target contract address
@@ -195,6 +191,28 @@ pub enum SidevmOperation {
         /// Time to live of the sidevm instance.
         run_until_block: u32,
     },
+}
+
+#[derive(Encode, Decode, Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct SidevmConfig {
+    pub max_code_size: u32,
+    pub max_memory_pages: u32,
+    pub vital_capacity: u64,
+    pub run_until_block: u32,
+}
+
+impl Default for SidevmConfig {
+    fn default() -> Self {
+        Self {
+            max_code_size: 1024 * 1024 * 10,
+            // 64MB
+            max_memory_pages: 1024,
+            // about 20 ms
+            vital_capacity: 50_000_000_000_u64,
+            run_until_block: u32::MAX,
+        }
+    }
 }
 
 #[derive(Encode, Decode, Debug, Clone)]

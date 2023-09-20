@@ -1,5 +1,6 @@
 use anyhow::{anyhow, bail, Result};
 use pink::types::{AccountId, ExecutionMode, TransactionArguments};
+use pink_extension::SidevmConfig;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
@@ -111,11 +112,7 @@ pub struct SidevmInfo {
     #[codec(skip)]
     handle: Arc<Mutex<SidevmHandle>>,
     #[serde(default)]
-    pub max_memory_pages: Option<u32>,
-    #[serde(default)]
-    pub vital_capacity: Option<u64>,
-    #[serde(default)]
-    pub run_until_block: Option<u32>,
+    pub config: SidevmConfig,
 }
 
 pub(crate) enum SidevmCode {
@@ -246,9 +243,7 @@ impl Contract {
         spawner: &sidevm::service::Spawner,
         code: SidevmCode,
         ensure_waiting_code: bool,
-        max_memory_pages: Option<u32>,
-        vital_capacity: Option<u64>,
-        run_until_block: Option<u32>,
+        config: SidevmConfig,
     ) -> Result<()> {
         let handle = self.sidevm_handle();
         if let Some(SidevmHandle::Running(_)) = &handle {
@@ -286,15 +281,15 @@ impl Contract {
             Arc::new(Mutex::new(SidevmHandle::Stopped(
                 ExitReason::WaitingForCode,
             )))
+        } else if code.len() > config.max_code_size as usize {
+            warn!(
+                "Sidevm code size {} exceeds max_code_size {}",
+                code.len(),
+                config.max_code_size
+            );
+            Arc::new(Mutex::new(SidevmHandle::Stopped(ExitReason::CodeTooLarge)))
         } else {
-            do_start_sidevm(
-                spawner,
-                &code,
-                *self.address.as_ref(),
-                self.weight,
-                max_memory_pages,
-                vital_capacity,
-            )?
+            do_start_sidevm(spawner, &code, *self.address.as_ref(), self.weight, &config)?
         };
 
         let start_time = chrono::Utc::now().to_rfc3339();
@@ -304,9 +299,7 @@ impl Contract {
             start_time,
             handle,
             auto_restart: true,
-            max_memory_pages,
-            vital_capacity,
-            run_until_block,
+            config,
         });
         Ok(())
     }
@@ -331,6 +324,7 @@ impl Contract {
                     ExitReason::OcallAborted(OcallAborted::Stifled) => true,
                     ExitReason::Restore => true,
                     ExitReason::WaitingForCode => false,
+                    ExitReason::CodeTooLarge => false,
                 };
                 if !need_restart {
                     return Ok(());
@@ -341,17 +335,14 @@ impl Contract {
                     &sidevm_info.code,
                     *self.address.as_ref(),
                     self.weight,
-                    sidevm_info.max_memory_pages,
-                    sidevm_info.vital_capacity,
+                    &sidevm_info.config,
                 )?;
                 sidevm_info.handle = handle;
             } else {
-                if let Some(until) = sidevm_info.run_until_block {
-                    if current_block > until {
-                        let id = sidevm::ShortId(&self.address);
-                        info!(target: "sidevm", id=%id, "Sidevm run_until_block reached, stopping");
-                        return self.push_message_to_sidevm(SidevmCommand::Stop);
-                    }
+                if current_block > sidevm_info.config.run_until_block {
+                    let id = sidevm::ShortId(&self.address);
+                    info!(target: "sidevm", id=%id, "Sidevm run_until_block reached, stopping");
+                    return self.push_message_to_sidevm(SidevmCommand::Stop);
                 }
                 return Ok(());
             };
@@ -447,9 +438,10 @@ impl Contract {
                 let handle = info.handle.lock().unwrap().clone();
                 let start_time = info.start_time.clone();
                 let code_hash = hex(info.code_hash);
-                let max_memory_pages = info.max_memory_pages.unwrap_or_default();
-                let vital_capacity = info.vital_capacity.unwrap_or_default();
-                let run_until_block = info.run_until_block.unwrap_or_default();
+                let max_code_size = info.config.max_code_size;
+                let max_memory_pages = info.config.max_memory_pages;
+                let vital_capacity = info.config.vital_capacity;
+                let run_until_block = info.config.run_until_block;
                 match handle {
                     SidevmHandle::Running(_) => pb::SidevmInfo {
                         state: "running".into(),
@@ -458,6 +450,7 @@ impl Contract {
                         max_memory_pages,
                         vital_capacity,
                         run_until_block,
+                        max_code_size,
                         ..Default::default()
                     },
                     SidevmHandle::Stopped(reason) => pb::SidevmInfo {
@@ -468,6 +461,7 @@ impl Contract {
                         max_memory_pages,
                         vital_capacity,
                         run_until_block,
+                        max_code_size,
                     },
                 }
             }),
@@ -481,19 +475,14 @@ fn do_start_sidevm(
     code: &[u8],
     id: VmId,
     weight: u32,
-    max_memory_pages: Option<u32>,
-    gas_per_breath: Option<u64>,
+    config: &SidevmConfig,
 ) -> Result<Arc<Mutex<SidevmHandle>>> {
-    info!(target: "sidevm", "Starting sidevm...");
-    let default_max_memory_pages: u32 = 1024; // 64MB
-    let default_gas_per_breath = 50_000_000_000_u64; // about 20 ms bench
-    let max_memory_pages = max_memory_pages.unwrap_or(default_max_memory_pages);
-    let gas_per_breath = gas_per_breath.unwrap_or(default_gas_per_breath);
+    info!(target: "sidevm", ?config, "Starting sidevm...");
     let (sender, join_handle) = spawner.start(
         code,
-        max_memory_pages,
+        config.max_memory_pages,
         id,
-        gas_per_breath,
+        config.vital_capacity,
         local_cache_ops(),
         weight,
     )?;
