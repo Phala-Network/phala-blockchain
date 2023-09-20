@@ -20,7 +20,7 @@ export default function createPruntimeClient(baseURL: string) {
       if (resp.status === 200) {
         const buffer = await (await resp.blob()).arrayBuffer()
         callback(null, new Uint8Array(buffer))
-      } else if (resp.status === 500) {
+      } else if (resp.status === 400 || resp.status === 500) {
         // We assume it's an error message from PRPC so we try to decode it first,
         // then fail back to plain text.
         let error: Error
