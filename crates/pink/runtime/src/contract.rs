@@ -75,7 +75,11 @@ define_mask_fn!(mask_low_bits64, 64, u64);
 define_mask_fn!(mask_low_bits128, 128, u128);
 
 fn mask_deposit(deposit: u128, deposit_per_byte: u128) -> u128 {
-    let min_mask_bits = 128 - (deposit_per_byte * 1024).leading_zeros();
+    const MIN_MASKED_BYTES: u128 = 256;
+    let min_masked_value = deposit_per_byte
+        .saturating_mul(MIN_MASKED_BYTES)
+        .saturating_sub(1);
+    let min_mask_bits = 128 - min_masked_value.leading_zeros();
     mask_low_bits128(deposit, min_mask_bits)
 }
 
@@ -103,9 +107,11 @@ fn mask_low_bits_works() {
     );
 
     let price = 10;
-    assert_eq!(mask_deposit(0, price), 0x3fff);
-    assert_eq!(mask_deposit(0x10, price), 0x3fff);
-    assert_eq!(mask_deposit(0x10_0000, price), 0x10_3fff);
+    assert_eq!(mask_deposit(0, 0), 0);
+    assert_eq!(mask_deposit(0, 1), 255);
+    assert_eq!(mask_deposit(0, price), 4095);
+    assert_eq!(mask_deposit(0x10, price), 4095);
+    assert_eq!(mask_deposit(0x10_0000, price), 0x10_0fff);
     assert_eq!(mask_deposit(0x10_0000_0000, price), 0x10_0fff_ffff);
     assert_eq!(
         mask_deposit(0x10_0000_0000_0000, price),

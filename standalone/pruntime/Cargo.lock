@@ -340,9 +340,9 @@ checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
 name = "base64"
-version = "0.21.2"
+version = "0.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "604178f6c5c21f02dc555784810edfb88d34ac2c73b2eae109655649ee73ce3d"
+checksum = "9ba43ea6f343b788c8764558649e08df62f86c6ef251fdaeb1ffd010a9ae50a2"
 
 [[package]]
 name = "base64ct"
@@ -867,7 +867,7 @@ version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b949a1c63fb7eb591eb7ba438746326aedf0ae843e51ec92ba6bec5bb382c4f"
 dependencies = [
- "base64 0.21.2",
+ "base64 0.21.4",
  "bech32 0.7.3",
  "bs58",
  "digest 0.10.7",
@@ -2040,7 +2040,7 @@ checksum = "b411b119f1cf0efb69e2190883dee731251882bb21270f893ee9513b3a697c48"
 dependencies = [
  "async-trait",
  "auto_impl",
- "base64 0.21.2",
+ "base64 0.21.4",
  "bytes",
  "enr",
  "ethers-core",
@@ -5287,8 +5287,8 @@ dependencies = [
  "regex",
  "reqwest",
  "reqwest-env-proxy",
- "ring 0.16.20",
  "scale-info",
+ "ring",
  "scopeguard",
  "serde",
  "serde_cbor",
@@ -5368,7 +5368,7 @@ dependencies = [
  "aead",
  "aead-io",
  "curve25519-dalek 2.1.3",
- "ring 0.16.20",
+ "ring",
  "schnorrkel",
  "sp-application-crypto",
  "sp-core",
@@ -5487,7 +5487,7 @@ dependencies = [
 name = "phala-pallets"
 version = "4.1.0"
 dependencies = [
- "base64 0.13.0",
+ "base64 0.21.4",
  "chrono",
  "fixed",
  "fixed-macro",
@@ -5509,6 +5509,7 @@ dependencies = [
  "phala-types",
  "primitive-types",
  "rmrk-traits",
+ "rustls-webpki 0.102.0-alpha.3",
  "scale-info",
  "serde",
  "serde_json",
@@ -5518,8 +5519,6 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "untrusted 0.9.0",
- "webpki 0.22.0",
- "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -5726,7 +5725,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "ink",
  "log",
@@ -5739,7 +5738,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension-macro"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "heck 0.4.1",
  "ink_ir",
@@ -5752,7 +5751,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension-runtime"
-version = "0.4.4"
+version = "0.4.6"
 dependencies = [
  "futures",
  "getrandom 0.2.10",
@@ -5762,7 +5761,7 @@ dependencies = [
  "pink-extension",
  "reqwest",
  "reqwest-env-proxy",
- "ring 0.16.20",
+ "ring",
  "sp-core",
  "sp-runtime-interface",
  "tokio",
@@ -6518,7 +6517,7 @@ version = "0.11.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cde824a14b7c14f85caff81225f411faacc04a2013f41670f41443742b1c1c55"
 dependencies = [
- "base64 0.21.2",
+ "base64 0.21.4",
  "bytes",
  "encoding_rs",
  "futures-core",
@@ -6578,18 +6577,6 @@ checksum = "f8dd2a808d456c4a54e300a23e9f5a67e122c3024119acbfd73e3bf664491cb2"
 dependencies = [
  "hmac 0.12.1",
  "subtle",
-]
-
-[[package]]
-name = "ring"
-version = "0.16.20-1"
-dependencies = [
- "cc",
- "libc",
- "once_cell",
- "spin 0.5.2",
- "untrusted 0.7.1",
- "winapi",
 ]
 
 [[package]]
@@ -6858,9 +6845,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5aab8ee6c7097ed6057f43c187a62418d0c05a4bd5f18b3571db50ee0f9ce033"
 dependencies = [
  "log",
- "ring 0.16.20",
+ "ring",
  "sct",
- "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki",
 ]
 
 [[package]]
@@ -6870,7 +6857,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79ea77c539259495ce8ca47f53e66ae0330a8819f67e23ac96ca02f50e7b7d36"
 dependencies = [
  "log",
- "ring 0.16.20",
+ "ring",
  "rustls-webpki 0.101.1",
  "sct",
 ]
@@ -6885,12 +6872,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustls-pki-types"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a47003264dea418db67060fa420ad16d0d2f8f0a0360d825c00e177ac52cb5d8"
+
+[[package]]
 name = "rustls-webpki"
 version = "0.100.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e98ff011474fa39949b7e5c0428f9b4937eda7da7848bbb947786b7be0b27dab"
 dependencies = [
- "ring 0.16.20",
+ "ring",
  "untrusted 0.7.1",
 ]
 
@@ -6900,7 +6893,17 @@ version = "0.101.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "15f36a6828982f422756984e47912a7a51dcbc2a197aa791158f8ca61cd8204e"
 dependencies = [
- "ring 0.16.20",
+ "ring",
+ "untrusted 0.7.1",
+]
+
+[[package]]
+name = "rustls-webpki"
+version = "0.102.0-alpha.3"
+source = "git+https://github.com/rustls/webpki#2ed9a4324f48c2c46ffdd7dc9d3eb315af25fce2"
+dependencies = [
+ "ring",
+ "rustls-pki-types",
  "untrusted 0.7.1",
 ]
 
@@ -7098,7 +7101,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d53dcdb7c9f8158937a7981b48accfd39a43af418591a5d008c7b22b5e1b7ca4"
 dependencies = [
- "ring 0.16.20",
+ "ring",
  "untrusted 0.7.1",
 ]
 
@@ -8706,7 +8709,7 @@ checksum = "c43ee83903113e03984cb9e5cebe6c04a5116269e900e3ddba8f068a62adda59"
 dependencies = [
  "rustls 0.20.6",
  "tokio",
- "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki",
 ]
 
 [[package]]
@@ -9021,7 +9024,7 @@ dependencies = [
  "thiserror",
  "url",
  "utf-8",
- "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki",
 ]
 
 [[package]]
@@ -9857,19 +9860,10 @@ dependencies = [
 [[package]]
 name = "webpki"
 version = "0.22.0"
-dependencies = [
- "ring 0.16.20",
- "ring 0.16.20-1",
- "untrusted 0.7.1",
-]
-
-[[package]]
-name = "webpki"
-version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f095d78192e208183081cc07bc5515ef55216397af48b873e5edcd72637fa1bd"
 dependencies = [
- "ring 0.16.20",
+ "ring",
  "untrusted 0.7.1",
 ]
 
@@ -9879,7 +9873,7 @@ version = "0.22.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1c760f0d366a6c24a02ed7816e23e691f5d92291f94d15e836006fd11b04daf"
 dependencies = [
- "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki",
 ]
 
 [[package]]

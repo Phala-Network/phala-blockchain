@@ -1,0 +1,34 @@
+name: CI for JS-SDK
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - frontend/packages/sdk/**
+  pull_request:
+    paths:
+      - frontend/packages/sdk/**
+
+jobs:
+  test-jssdk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend/packages/sdk
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '18'
+          cache: yarn
+          cache-dependency-path: ./frontend/packages/sdk/yarn.lock
+      - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+      - run: yarn install --frozen-lockfile --check-files
+      - name: Prettier
+        run: yarn prettier:ci
+      - name: Lint
+        run: yarn eslint:ci
+      - name: Type
+        run: yarn pretest
+      - name: Test
+        run: yarn test:ci

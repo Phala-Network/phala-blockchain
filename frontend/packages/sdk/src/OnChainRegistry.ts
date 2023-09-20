@@ -1,19 +1,16 @@
-import { Keyring, type ApiPromise } from '@polkadot/api';
-import type { U64, Result } from '@polkadot/types';
+import { type ApiPromise, Keyring } from '@polkadot/api'
+import type { Result, U64 } from '@polkadot/types'
+import { Enum, Map, Option, Text, U8aFixed, Vec } from '@polkadot/types'
+import { AccountId } from '@polkadot/types/interfaces'
+import { BN } from '@polkadot/util'
+import { waitReady } from '@polkadot/wasm-crypto'
+import systemAbi from './abis/system.json'
+import { PinkContractPromise } from './contracts/PinkContract'
+import { type CertificateData, signCertificate } from './pruntime/certificate'
+import createPruntimeClient from './pruntime/createPruntimeClient'
+import { pruntime_rpc } from './pruntime/proto'
 
-import { waitReady } from "@polkadot/wasm-crypto";
-import { BN } from '@polkadot/util';
-import { Option, Map, Enum, Vec, U8aFixed, Text } from '@polkadot/types';
-import { AccountId } from '@polkadot/types/interfaces';
-
-import createPruntimeClient from './createPruntimeClient'
-import { signCertificate, type CertificateData } from './certificate';
-import { pruntime_rpc } from './proto';
-import { PinkContractPromise } from './contracts/PinkContract';
-import systemAbi from './abis/system.json';
-
-export class UnexpectedEndpointError extends Error {
-}
+export class UnexpectedEndpointError extends Error {}
 
 // @FIXME: We not yet cover `as` and the `OnlyOwner` scenario.
 interface ClusterPermission extends Enum {
@@ -44,9 +41,7 @@ interface CreateOptions {
   skipCheck?: boolean
 }
 
-
 export class OnChainRegistry {
-
   public api: ApiPromise
 
   public clusterId: string | undefined
@@ -64,19 +59,19 @@ export class OnChainRegistry {
   }
 
   public async getContractKey(contractId: AccountId | string) {
-    const contractKey = await this.api.query.phalaRegistry.contractKeys(contractId);
+    const contractKey = await this.api.query.phalaRegistry.contractKeys(contractId)
     if (!contractKey) {
       return undefined
     }
-    return contractKey.toString();
+    return contractKey.toString()
   }
 
   public async getContractKeyOrFail(contractId: string) {
-    const contractKey = await this.getContractKey(contractId);
+    const contractKey = await this.getContractKey(contractId)
     if (!contractKey) {
-      throw new Error(`Contract ${contractId} not found in cluster.`);
+      throw new Error(`Contract ${contractId} not found in cluster.`)
     }
-    return contractKey;
+    return contractKey
   }
 
   public isReady() {
@@ -105,7 +100,13 @@ export class OnChainRegistry {
     const instance = new OnChainRegistry(api)
     await waitReady()
     if (options.autoConnect) {
-      await instance.connect(options.clusterId, options.workerId, options.pruntimeURL, options.systemContractId, !!options.skipCheck)
+      await instance.connect(
+        options.clusterId,
+        options.workerId,
+        options.pruntimeURL,
+        options.systemContractId,
+        !!options.skipCheck
+      )
     }
     return instance
   }
@@ -120,7 +121,7 @@ export class OnChainRegistry {
     } else {
       const result = await this.api.query.phalaPhatContracts.clusters.entries()
       return result.map(([storageKey, value]) => {
-        const clusterId = storageKey.args.map(i => i.toPrimitive())[0] as string
+        const clusterId = storageKey.args.map((i) => i.toPrimitive())[0] as string
         const clusterInfo = (value as Option<ClusterInfo>).unwrap()
         return [clusterId, clusterInfo]
       })
@@ -136,20 +137,26 @@ export class OnChainRegistry {
     }
     const result = await this.api.query.phalaRegistry.endpoints.entries()
     return result.map(([storageKey, value]) => {
-      const workerId = storageKey.args.map(i => i.toPrimitive())[0] as string
-      return [workerId, (value as Option<VersionedEndpoints>)]
+      const workerId = storageKey.args.map((i) => i.toPrimitive())[0] as string
+      return [workerId, value as Option<VersionedEndpoints>]
     })
   }
 
   /**
-    * ClusterId: string | null  - Cluster ID, if empty, will try to use the first cluster found in the chain registry.
-    * WorkerId: string | null - Worker ID, if empty, will try to use the first worker found in the cluster.
-    * PruntimeURL: string | null - Pruntime URL, if empty, will try to use the pruntime URL of the selected worker.
-    * systemContractId: string | AccountId | null - System contract ID, if empty, will try to use the system contract ID of the selected cluster.
-    * skipCheck: boolean | undefined - Skip the check of cluster and worker has been registry on chain or not, it's for cluster
-    *                      deployment scenario, where the cluster and worker has not been registry on chain yet.
-    */
-  public async connect(clusterId?: string | null, workerId?: string | null, pruntimeURL?: string | null, systemContractId?: string | AccountId, skipCheck: boolean = false) {
+   * ClusterId: string | null  - Cluster ID, if empty, will try to use the first cluster found in the chain registry.
+   * WorkerId: string | null - Worker ID, if empty, will try to use the first worker found in the cluster.
+   * PruntimeURL: string | null - Pruntime URL, if empty, will try to use the pruntime URL of the selected worker.
+   * systemContractId: string | AccountId | null - System contract ID, if empty, will try to use the system contract ID of the selected cluster.
+   * skipCheck: boolean | undefined - Skip the check of cluster and worker has been registry on chain or not, it's for cluster
+   *                      deployment scenario, where the cluster and worker has not been registry on chain yet.
+   */
+  public async connect(
+    clusterId?: string | null,
+    workerId?: string | null,
+    pruntimeURL?: string | null,
+    systemContractId?: string | AccountId,
+    skipCheck: boolean = false
+  ) {
     this.#ready = false
 
     let clusterInfo
@@ -172,28 +179,28 @@ export class OnChainRegistry {
     }
 
     if (!skipCheck) {
-        const endpoints = await this.getEndpints()
-        if (!Array.isArray(endpoints) || endpoints.length === 0) {
-          throw new Error('No worker found.')
+      const endpoints = await this.getEndpints()
+      if (!Array.isArray(endpoints) || endpoints.length === 0) {
+        throw new Error('No worker found.')
+      }
+      if (!workerId && !pruntimeURL) {
+        workerId = endpoints[0][0] as string
+        pruntimeURL = (endpoints[0][1] as Option<VersionedEndpoints>).unwrap().asV1[0].toPrimitive() as string
+      } else if (pruntimeURL) {
+        const endpoint = endpoints.find(([_, v]) => {
+          const url = (v as Option<VersionedEndpoints>).unwrap().asV1[0].toPrimitive() as string
+          return url === pruntimeURL
+        })
+        if (endpoint) {
+          workerId = endpoint[0] as string
         }
-        if (!workerId && !pruntimeURL) {
-          workerId = endpoints[0][0] as string
-          pruntimeURL = (endpoints[0][1] as Option<VersionedEndpoints>).unwrap().asV1[0].toPrimitive() as string
-        } else if (pruntimeURL) {
-          const endpoint = endpoints.find(([_, v]) => {
-            const url = (v as Option<VersionedEndpoints>).unwrap().asV1[0].toPrimitive() as string
-            return url === pruntimeURL
-          })
-          if (endpoint) {
-            workerId = endpoint[0] as string
-          }
-        } else if (workerId) {
-          const endpoint = endpoints.find(([id, _]) => id === workerId)
-          if (!endpoint) {
-            throw new Error(`Worker not found: ${workerId}`)
-          }
-          pruntimeURL = (endpoint[1] as Option<VersionedEndpoints>).unwrap().asV1[0].toPrimitive() as string
+      } else if (workerId) {
+        const endpoint = endpoints.find(([id, _]) => id === workerId)
+        if (!endpoint) {
+          throw new Error(`Worker not found: ${workerId}`)
         }
+        pruntimeURL = (endpoint[1] as Option<VersionedEndpoints>).unwrap().asV1[0].toPrimitive() as string
+      }
     }
 
     this.#phactory = createPruntimeClient(pruntimeURL!)
@@ -203,7 +210,9 @@ export class OnChainRegistry {
     try {
       await this.#phactory.getInfo({})
     } catch (err) {
-      throw new Error('Phactory API not compatible, you might need downgrade your @phala/sdk or connect to an up-to-date endpoint.')
+      throw new Error(
+        'Phactory API not compatible, you might need downgrade your @phala/sdk or connect to an up-to-date endpoint.'
+      )
     }
     this.clusterId = clusterId!
     this.remotePubkey = workerId!

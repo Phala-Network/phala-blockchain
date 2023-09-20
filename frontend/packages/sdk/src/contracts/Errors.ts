@@ -1,4 +1,1 @@
-
-export class ContractInitialError extends Error {
-}
-
+export class ContractInitialError extends Error {}

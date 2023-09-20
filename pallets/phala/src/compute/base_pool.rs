@@ -10,10 +10,7 @@ pub mod pallet {
 	use crate::vault;
 	use crate::wrapped_balances;
 	use crate::BalanceOf;
-	#[cfg(not(feature = "std"))]
 	use alloc::format;
-	#[cfg(feature = "std")]
-	use std::format;
 
 	pub use rmrk_traits::{
 		primitives::{CollectionId, NftId},
