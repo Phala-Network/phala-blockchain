@@ -27,6 +27,16 @@ pub struct StorageChanges {
 /// Response for the `pha_getStorageChanges` RPC.
 pub type GetStorageChangesResponse = Vec<StorageChanges>;
 
+#[derive(Serialize, Deserialize, Clone, Debug, Encode, Decode, TypeInfo)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageChangesWithRoot {
+    pub changes: StorageChanges,
+    pub state_root: Vec<u8>,
+}
+
+/// Response for the `pha_getStorageChangesWithRoot` RPC.
+pub type GetStorageChangesResponseWithRoot = Vec<StorageChangesWithRoot>;
+
 // Stuffs to convert ChildStorageCollection and StorageCollection types,
 // in order to dump the keys values into hex strings instead of list of dec numbers.
 pub trait MakeInto<T>: Sized {
