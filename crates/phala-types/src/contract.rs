@@ -5,7 +5,6 @@ use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_core::{bounded::BoundedVec, ConstU32};
 
-use crate::WorkerPublicKey;
 pub use phala_mq::{ContractClusterId, ContractId};
 
 pub type ContractId32 = u32;
@@ -201,7 +200,6 @@ pub enum ClusterPermission<AccountId> {
 pub struct ClusterInfo<AccountId> {
     pub owner: AccountId,
     pub permission: ClusterPermission<AccountId>,
-    pub workers: Vec<WorkerPublicKey>,
     pub system_contract: ContractId,
     pub gas_price: u128,
     pub deposit_per_item: u128,

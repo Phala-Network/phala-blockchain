@@ -73,7 +73,7 @@ pub mod pallet {
 		type Currency: Currency<Self::AccountId>;
 	}
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(8);
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -258,6 +258,7 @@ pub mod pallet {
 				);
 				ClusterByWorkers::<T>::insert(worker, cluster);
 			}
+			ClusterWorkers::<T>::insert(cluster, deploy_workers);
 
 			let system_code_hash =
 				PinkSystemCodeHash::<T>::get().ok_or(Error::<T>::NoPinkSystemCode)?;
@@ -275,7 +276,6 @@ pub mod pallet {
 			let cluster_info = ClusterInfo {
 				owner: owner.clone(),
 				permission,
-				workers: deploy_workers,
 				system_contract,
 				gas_price: gas_price.unique_saturated_into(),
 				deposit_per_item: deposit_per_item.unique_saturated_into(),
@@ -488,8 +488,7 @@ pub mod pallet {
 			cluster_id: ContractClusterId,
 		) -> DispatchResult {
 			let origin = ensure_signed(origin)?;
-			let mut cluster_info =
-				Clusters::<T>::get(cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
+			let cluster_info = Clusters::<T>::get(cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
 			ensure!(
 				cluster_info.owner == origin,
 				Error::<T>::ClusterPermissionDenied
@@ -505,7 +504,6 @@ pub mod pallet {
 			// TODO: Do we need to check whether the worker agree to join the cluster?
 			ClusterByWorkers::<T>::insert(worker_pubkey, cluster_id);
 			ClusterWorkers::<T>::append(cluster_id, worker_pubkey);
-			cluster_info.workers.push(worker_pubkey);
 			Clusters::<T>::insert(cluster_id, cluster_info);
 			Self::deposit_event(Event::WorkerAddedToCluster {
 				worker: worker_pubkey,
@@ -619,7 +617,6 @@ pub mod pallet {
 			match message.payload {
 				WorkerClusterReport::ClusterDeployed { id, pubkey } => {
 					// TODO.shelven: scalability concern for large number of workers
-					ClusterWorkers::<T>::append(id, worker_pubkey);
 					Self::deposit_event(Event::ClusterDeployed {
 						cluster: id,
 						pubkey,
@@ -661,6 +658,10 @@ pub mod pallet {
 			});
 			Weight::zero()
 		}
+		fn on_runtime_upgrade() -> Weight {
+			use frame_support::traits::OnRuntimeUpgrade;
+			migration::Migration::<T>::on_runtime_upgrade()
+		}
 	}
 
 	impl<T: Config + crate::mq::Config> MessageOriginInfo for Pallet<T> {
@@ -671,5 +672,60 @@ pub mod pallet {
 		let mut buf = b"cluster:".to_vec();
 		buf.extend(cluster_id.as_ref());
 		AccountId32::unchecked_from(crate::hashing::blake2_256(&buf).into())
+	}
+
+	mod migration {
+		use super::*;
+		use frame_support::traits::OnRuntimeUpgrade;
+		use sp_std::marker::PhantomData;
+
+		pub struct Migration<T>(PhantomData<T>);
+
+		impl<T: Config + frame_system::Config> OnRuntimeUpgrade for Migration<T> {
+			fn on_runtime_upgrade() -> Weight {
+				migrate_v7_to_v8::<T>()
+			}
+		}
+
+		fn migrate_v7_to_v8<T: Config + frame_system::Config>() -> Weight {
+			let onchain_version = Pallet::<T>::on_chain_storage_version();
+			let mut nreads = 0;
+
+			if onchain_version < 8 {
+				#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+				pub struct ClusterInfoV7<AccountId> {
+					pub owner: AccountId,
+					pub permission: ClusterPermission<AccountId>,
+					pub workers: Vec<WorkerPublicKey>,
+					pub system_contract: ContractId,
+					pub gas_price: u128,
+					pub deposit_per_item: u128,
+					pub deposit_per_byte: u128,
+				}
+
+				Clusters::<T>::translate(|id, old: ClusterInfoV7<T::AccountId>| {
+					nreads += 2;
+					let mut workers = ClusterWorkers::<T>::get(id);
+					for worker in old.workers {
+						if !workers.contains(&worker) {
+							workers.push(worker);
+						}
+					}
+					ClusterWorkers::<T>::insert(id, workers);
+					Some(ClusterInfo {
+						owner: old.owner,
+						permission: old.permission,
+						system_contract: old.system_contract,
+						gas_price: old.gas_price,
+						deposit_per_item: old.deposit_per_item,
+						deposit_per_byte: old.deposit_per_byte,
+					})
+				});
+
+				StorageVersion::new(8).put::<Pallet<T>>();
+			}
+			// Roughly estimate the weight of this migration
+			T::DbWeight::get().reads_writes(nreads, nreads)
+		}
 	}
 }
