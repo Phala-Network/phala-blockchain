@@ -79,6 +79,12 @@ pub enum DataSource {
 pub struct SubstrateWebSocketSource {
     pub endpoint: String,
     pub pruned: bool,
+    #[serde(default = "default_max_concurrent_requests")]
+    pub max_concurrent_requests: usize,
+}
+
+fn default_max_concurrent_requests() -> usize {
+    1024
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -544,7 +550,9 @@ impl DataSourceManager {
             .max_request_body_size(u32::MAX)
             .build(uri)
             .await?;
-        let ws_client = ClientBuilder::default().build_with_tokio(sender, receiver);
+        let ws_client = ClientBuilder::default()
+            .max_concurrent_requests(config.max_concurrent_requests)
+            .build_with_tokio(sender, receiver);
         let ws_client = Arc::new(ws_client);
 
         let client = RpcClient::from_rpc_client(ws_client.clone())
