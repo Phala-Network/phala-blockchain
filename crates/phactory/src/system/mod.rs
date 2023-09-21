@@ -1839,7 +1839,7 @@ pub(crate) fn apply_pink_events(
             } => {
                 ensure_system!();
                 let vmid = sidevm::ShortId(&target_contract);
-                let contract = get_contract!(&origin);
+                let contract = get_contract!(&target_contract);
                 if let Err(err) = contract.push_message_to_sidevm(SidevmCommand::Stop) {
                     error!(target: "sidevm", %vmid, ?err, "Push message to sidevm failed");
                 }
@@ -1869,20 +1869,25 @@ pub(crate) fn apply_pink_events(
                         workers,
                         config,
                     } => {
+                        let vmid = sidevm::ShortId(&target_contract);
+                        let contract = get_contract!(&target_contract);
+                        if let Err(err) =
+                            contract.push_message_to_sidevm(SidevmCommand::Stop)
+                        {
+                            error!(target: "sidevm", %vmid, ?err, "Push message to sidevm failed");
+                        }
                         if let Workers::List(workers) = workers {
                             if !workers.contains(&this_worker.0) {
                                 continue;
                             }
                         }
-                        let vmid = sidevm::ShortId(&target_contract);
-                        let target_contract = get_contract!(&target_contract);
                         let code_hash = code_hash.into();
                         let code = match cluster.get_resource(ResourceType::SidevmCode, &code_hash)
                         {
                             Some(code) => SidevmCode::Code(code),
                             None => SidevmCode::Hash(code_hash),
                         };
-                        if let Err(err) = target_contract.start_sidevm(spawner, code, false, config)
+                        if let Err(err) = contract.start_sidevm(spawner, code, false, config)
                         {
                             error!(target: "sidevm", %vmid, ?err, "Start sidevm failed");
                         }
