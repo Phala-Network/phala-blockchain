@@ -658,6 +658,10 @@ pub mod pallet {
 			});
 			Weight::zero()
 		}
+		fn on_runtime_upgrade() -> Weight {
+			use frame_support::traits::OnRuntimeUpgrade;
+			migration::Migration::<T>::on_runtime_upgrade()
+		}
 	}
 
 	impl<T: Config + crate::mq::Config> MessageOriginInfo for Pallet<T> {
@@ -685,7 +689,7 @@ pub mod pallet {
 
 		fn migrate_v7_to_v8<T: Config + frame_system::Config>() -> Weight {
 			let onchain_version = Pallet::<T>::on_chain_storage_version();
-			let mut bytes_read = 0;
+			let mut nreads = 0;
 
 			if onchain_version < 8 {
 				#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
@@ -700,9 +704,9 @@ pub mod pallet {
 				}
 
 				Clusters::<T>::translate(|id, old: ClusterInfoV7<T::AccountId>| {
+					nreads += 2;
 					let mut workers = ClusterWorkers::<T>::get(id);
 					for worker in old.workers {
-						bytes_read += worker.0.len() as u64;
 						if !workers.contains(&worker) {
 							workers.push(worker);
 						}
@@ -721,7 +725,7 @@ pub mod pallet {
 				StorageVersion::new(8).put::<Pallet<T>>();
 			}
 			// Roughly estimate the weight of this migration
-			T::DbWeight::get().reads_writes(bytes_read.saturating_mul(2), bytes_read)
+			T::DbWeight::get().reads_writes(nreads, nreads)
 		}
 	}
 }
