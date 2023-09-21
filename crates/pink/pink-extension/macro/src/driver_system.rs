@@ -158,14 +158,24 @@ fn patch_or_err(
             }
 
             #[cfg(feature = "std")]
-            thread_local! {
-                static MOCK: core::cell::RefCell<Option<(AccountId, Box<
+            enum MockObj {
+                Boxed(Box<
                         dyn #trait_ident<
                             Env = PinkEnvironment,
                             __ink_TraitInfo = TraitInfo,
                             #(#associated_types_t = #associated_types_v,)*
                         >,
-                    >)>,
+                    >),
+                Ref(&'static mut dyn #trait_ident<
+                        Env = PinkEnvironment,
+                        __ink_TraitInfo = TraitInfo,
+                        #(#associated_types_t = #associated_types_v,)*
+                    >),
+            }
+
+            #[cfg(feature = "std")]
+            thread_local! {
+                static MOCK: core::cell::RefCell<Option<(AccountId, MockObj)>,
                 > = Default::default();
             }
 
@@ -180,7 +190,21 @@ fn patch_or_err(
                 ) {
                     MOCK.with(|x| {
                         let callee = #crate_ink_env::test::callee::<PinkEnvironment>();
-                        *x.borrow_mut() = Some((callee, Box::new(contract)));
+                        *x.borrow_mut() = Some((callee, MockObj::Boxed(Box::new(contract))));
+                    });
+                }
+
+                #[cfg(feature = "std")]
+                pub unsafe fn unsafe_mock_with(
+                    contract: &mut dyn #trait_ident<
+                        Env = PinkEnvironment,
+                        __ink_TraitInfo = TraitInfo,
+                        #(#associated_types_t = #associated_types_v,)*
+                    >,
+                ) {
+                    MOCK.with(|x| {
+                        let callee = #crate_ink_env::test::callee::<PinkEnvironment>();
+                        *x.borrow_mut() = Some((callee, MockObj::Ref(core::mem::transmute(contract))));
                     });
                 }
 
@@ -214,7 +238,10 @@ fn patch_or_err(
                                     let prev_caller = #crate_ink_env::caller::<PinkEnvironment>();
                                     #crate_ink_env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
                                     #crate_ink_env::test::set_callee::<PinkEnvironment>(callee.clone());
-                                    let ret = forwarder.#method_forward_calls;
+                                    let ret = match forwarder {
+                                        MockObj::Boxed(contract) => contract.#method_forward_calls,
+                                        MockObj::Ref(contract) => contract.#method_forward_calls,
+                                    };
                                     #crate_ink_env::test::set_callee::<PinkEnvironment>(prev_callee);
                                     #crate_ink_env::test::set_caller::<PinkEnvironment>(prev_caller);
                                     ret

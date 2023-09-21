@@ -201,10 +201,21 @@ pub trait SidevmOperation {
     #[ink(message)]
     fn can_deploy(&self, contract_id: AccountId) -> bool;
 
-    /// Invoked by a contract to deploy a sidevm instance that attached to itself to selected workers.
+    /// Deploys a paid side VM instance to a set of worker nodes with the specified configurations.
+    ///
+    /// # Parameters
+    /// - `code_hash`: The hash of the code to be deployed.
+    /// - `code_size`: Size of the code.
+    /// - `workers`: A vector of worker IDs to which the code will be deployed.
+    /// - `max_memory_pages`: Maximum memory pages allowed for the side VM.
+    /// - `blocks_to_live`: How many blocks the deployment will live.
+    ///
+    /// # Returns
+    /// - `Ok(())` if the deployment was commited.
+    /// - Various `Err` variants for different types of failures.
     #[ink(message, payable)]
     fn deploy_to_workers(
-        &self,
+        &mut self,
         code_hash: Hash,
         code_size: u32,
         workers: Vec<WorkerId>,
@@ -212,9 +223,44 @@ pub trait SidevmOperation {
         blocks_to_live: u32,
     ) -> Result<(), DriverError>;
 
-    /// Invoked by a contract to deploy a sidevm instance that attached to itself to selected workers.
+    /// Calculates the price for deploying a paid side VM.
+    ///
+    /// # Parameters
+    /// - `code_size`: Size of the code.
+    /// - `max_memory_pages`: Maximum memory pages.
+    /// - `n_workers`: Number of worker nodes.
+    ///
+    /// # Returns
+    /// - `Result<Balance>` representing the price of the deployment.
+    #[ink(message)]
+    fn calc_price(
+        &self,
+        code_size: u32,
+        max_memory_pages: u32,
+        n_workers: u32,
+    ) -> Result<Balance, DriverError>;
+
+    /// Updates the deadline for a previously deployed side VM.
+    ///
+    /// # Parameters
+    /// - `deadline`: The new deadline (in blocks) for the side VM.
+    ///
+    /// # Returns
+    /// - `Ok(())` if the update was successful.
+    /// - `Err` variants for different types of failures.
     #[ink(message, payable)]
-    fn update_deadline(&self, deadline: u32) -> Result<(), DriverError>;
+    fn update_deadline(&mut self, deadline: u32) -> Result<(), DriverError>;
+
+    /// Retrieves the deadline (in blocks) for the deployed side VM of a given account.
+    ///
+    /// # Parameters
+    /// - `account`: The account ID to query.
+    ///
+    /// # Returns
+    /// - `Some(u32)` containing the deadline if found.
+    /// - `None` if the account has not deployed a side VM.
+    #[ink(message)]
+    fn deadline_of(&self, account: AccountId) -> Option<u32>;
 }
 
 /// Contracts receiving processing deposit events. Can be a driver and the system.
