@@ -16,9 +16,11 @@ use sp_api::{ApiExt, Core, ProvideRuntimeApi, StateBackend};
 use sp_runtime::traits::Header;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::fmt::Display;
-use storage_changes::Error as StorageChangesError;
 
-pub use storage_changes::{GetStorageChangesResponse, MakeInto, StorageChanges};
+pub use storage_changes::{
+    GetStorageChangesResponse, GetStorageChangesResponseWithRoot, MakeInto, StorageChanges,
+    StorageChangesWithRoot,
+};
 
 mod mq_seq;
 mod storage_changes;
@@ -38,6 +40,14 @@ pub trait NodeRpcExtApi<BlockHash> {
         to: BlockHash,
     ) -> RpcResult<GetStorageChangesResponse>;
 
+    /// Same as get_storage_changes but also return the state root of each block.
+    #[method(name = "pha_getStorageChangesWithRoot")]
+    fn get_storage_changes_with_root(
+        &self,
+        from: BlockHash,
+        to: BlockHash,
+    ) -> RpcResult<GetStorageChangesResponseWithRoot>;
+
     /// Get storage changes made by given block.
     /// Returns `hex_encode(scale_encode(StorageChanges))`
     #[method(name = "pha_getStorageChangesAt")]
@@ -52,17 +62,15 @@ pub trait NodeRpcExtApi<BlockHash> {
 struct NodeRpcExt<BE, Block: BlockT, Client, P> {
     client: Arc<Client>,
     backend: Arc<BE>,
-    is_archive_mode: bool,
     pool: Arc<P>,
     _phantom: PhantomData<Block>,
 }
 
 impl<BE, Block: BlockT, Client, P> NodeRpcExt<BE, Block, Client, P> {
-    fn new(client: Arc<Client>, backend: Arc<BE>, is_archive_mode: bool, pool: Arc<P>) -> Self {
+    fn new(client: Arc<Client>, backend: Arc<BE>, _is_archive_mode: bool, pool: Arc<P>) -> Self {
         Self {
             client,
             backend,
-            is_archive_mode,
             pool,
             _phantom: Default::default(),
         }
@@ -91,20 +99,28 @@ where
         from: Block::Hash,
         to: Block::Hash,
     ) -> RpcResult<GetStorageChangesResponse> {
-        if !self.is_archive_mode {
-            Err(JsonRpseeError::from(StorageChangesError::Unavailable(
-                r#"Add "--pruning=archive" to the command line to enable this RPC"#.into(),
-            )))
-        } else {
-            let result = storage_changes::get_storage_changes(
-                self.client.as_ref(),
-                self.backend.as_ref(),
-                from,
-                to,
-            );
+        let changes = storage_changes::get_storage_changes(
+            self.client.as_ref(),
+            self.backend.as_ref(),
+            from,
+            to,
+            false,
+        )?;
+        Ok(changes.into_iter().map(|c| c.changes).collect())
+    }
 
-            Ok(result?)
-        }
+    fn get_storage_changes_with_root(
+        &self,
+        from: Block::Hash,
+        to: Block::Hash,
+    ) -> RpcResult<GetStorageChangesResponseWithRoot> {
+        Ok(storage_changes::get_storage_changes(
+            self.client.as_ref(),
+            self.backend.as_ref(),
+            from,
+            to,
+            true,
+        )?)
     }
 
     fn get_storage_changes_at(&self, block: Block::Hash) -> RpcResult<String> {

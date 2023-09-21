@@ -1,5 +1,6 @@
 use super::*;
 pub use ext_types::*;
+use sp_runtime::StateVersion;
 
 /// State RPC errors.
 #[derive(Debug, thiserror::Error)]
@@ -47,7 +48,8 @@ pub(super) fn get_storage_changes<Client, BE, Block>(
     backend: &BE,
     from: Block::Hash,
     to: Block::Hash,
-) -> Result<GetStorageChangesResponse, Error>
+    with_roots: bool,
+) -> Result<GetStorageChangesResponseWithRoot, Error>
 where
     BE: Backend<Block>,
     Client: StorageProvider<Block, BE>
@@ -68,6 +70,20 @@ where
             .header(hash)
             .map_err(|e| Error::invalid_block(BlockId::<Block>::Hash(hash), e))?
             .ok_or_else(|| Error::invalid_block(BlockId::<Block>::Hash(hash), "header not found"))
+    }
+
+    macro_rules! get_state_root {
+        ($state:expr) => {
+            if with_roots {
+                $state
+                    .storage_root(core::iter::empty(), StateVersion::V0)
+                    .0
+                    .as_ref()
+                    .to_vec()
+            } else {
+                Vec::new()
+            }
+        };
     }
 
     let n_from: u64 = (*header(client, from)?.number()).into();
@@ -112,16 +128,20 @@ where
                 let state = backend
                     .state_at(hash)
                     .map_err(|e| Error::invalid_block(id, e))?;
-                return Ok(StorageChanges {
-                    main_storage_changes: state
-                        .pairs(Default::default())
-                        .expect("Should get the pairs iter")
-                        .map(|pair| {
-                            let (k, v) = pair.expect("Should get the key and value");
-                            (StorageKey(k), Some(StorageKey(v)))
-                        })
-                        .collect(),
-                    child_storage_changes: vec![],
+                let state_root = get_state_root!(&state);
+                return Ok(StorageChangesWithRoot {
+                    changes: StorageChanges {
+                        main_storage_changes: state
+                            .pairs(Default::default())
+                            .expect("Should get the pairs iter")
+                            .map(|pair| {
+                                let (k, v) = pair.expect("Should get the key and value");
+                                (StorageKey(k), Some(StorageKey(v)))
+                            })
+                            .collect(),
+                        child_storage_changes: vec![],
+                    },
+                    state_root,
                 });
             }
 
@@ -147,9 +167,13 @@ where
                 .into_storage_changes(&state, parent_hash)
                 .map_err(|e| Error::invalid_block(BlockId::<Block>::Hash(parent_hash), e))?;
 
-            Ok(StorageChanges {
-                main_storage_changes: storage_changes.main_storage_changes.into_(),
-                child_storage_changes: storage_changes.child_storage_changes.into_(),
+            let state_root = get_state_root!(&state);
+            Ok(StorageChangesWithRoot {
+                changes: StorageChanges {
+                    main_storage_changes: storage_changes.main_storage_changes.into_(),
+                    child_storage_changes: storage_changes.child_storage_changes.into_(),
+                },
+                state_root,
             })
         })
         .collect()
