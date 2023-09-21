@@ -202,15 +202,19 @@ pub trait SidevmOperation {
     fn can_deploy(&self, contract_id: AccountId) -> bool;
 
     /// Invoked by a contract to deploy a sidevm instance that attached to itself to selected workers.
-    #[ink(message)]
+    #[ink(message, payable)]
     fn deploy_to_workers(
         &self,
         code_hash: Hash,
-        workers: Vec<WorkerId>,
-        deadline: u32,
-        max_memory_pages: u32,
         code_size: u32,
+        workers: Vec<WorkerId>,
+        max_memory_pages: u32,
+        blocks_to_live: u32,
     ) -> Result<(), DriverError>;
+
+    /// Invoked by a contract to deploy a sidevm instance that attached to itself to selected workers.
+    #[ink(message, payable)]
+    fn update_deadline(&self, deadline: u32) -> Result<(), DriverError>;
 }
 
 /// Contracts receiving processing deposit events. Can be a driver and the system.

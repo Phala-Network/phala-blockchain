@@ -21,8 +21,8 @@ mod sidevm_deployer {
         whitelist: Mapping<AccountId, ()>,
         vm_price: Balance,
         mem_price: Balance,
-        ///
-        paid_instances: Mapping<WorkerId, ()>,
+        paid_instances_by_workers: Mapping<WorkerId, Vec<(AccountId, BlockNumber)>>,
+        paid_instances_by_contracts: Mapping<AccountId, ()>,
         max_paid_instances_vms_per_worker: u32,
     }
 
@@ -35,7 +35,8 @@ mod sidevm_deployer {
                 whitelist: Default::default(),
                 vm_price: 0,
                 mem_price: 0,
-                paid_instances: Default::default(),
+                paid_instances_by_workers: Default::default(),
+                paid_instances_by_contracts: Default::default(),
                 max_paid_instances_vms_per_worker: 5,
             }
         }
@@ -86,6 +87,26 @@ mod sidevm_deployer {
         #[ink(message)]
         fn can_deploy(&self, contract: AccountId) -> bool {
             self.whitelist.contains(contract)
+        }
+
+        #[ink(message, payable)]
+        fn deploy_to_workers(
+            &self,
+            code_hash: pink::Hash,
+            code_size: u32,
+            workers: Vec<WorkerId>,
+            max_memory_pages: u32,
+            blocks_to_live: u32,
+        ) -> Result<()> {
+            let caller = self.env().caller();
+            let code_size = code_size.min(1024 * 1024 * 16);
+            let max_memory_pages = max_memory_pages.min(1024);
+            todo!()
+        }
+
+        #[ink(message, payable)]
+        fn update_deadline(&self, deadline: u32) -> Result<()> {
+            todo!()
         }
     }
 

@@ -1,7 +1,7 @@
 use crate::env::DynCacheOps;
 use crate::{env::OcallAborted, run::WasmRun};
 use crate::{ShortId, VmId};
-use anyhow::{Context as _, Result};
+use anyhow::Result;
 use phala_scheduler::TaskScheduler;
 use serde::{Deserialize, Serialize};
 use sidevm_env::messages::{AccountId, HttpHead, HttpResponseHead};
@@ -10,6 +10,7 @@ use tokio::io::DuplexStream;
 use tokio::{
     sync::mpsc::{channel, Receiver, Sender},
     sync::oneshot::Sender as OneshotSender,
+    sync::watch::Receiver as WatchReceiver,
     task::JoinHandle,
 };
 use tracing::{debug, error, info, trace, warn, Instrument};
@@ -40,7 +41,10 @@ pub enum ExitReason {
     Restore,
     /// The sidevm was deployed without code, so it it waiting to a custom code uploading.
     WaitingForCode,
+    /// The Code of the sidevm is too large.
     CodeTooLarge,
+    /// Failed to create the sidevm instance.
+    FailedToStart,
 }
 
 pub enum Command {
@@ -129,6 +133,7 @@ impl ServiceRun {
 
 impl Spawner {
     #[tracing::instrument(parent=None, name="sidevm", fields(id = %ShortId(id)), skip_all)]
+    #[allow(clippy::too_many_arguments)]
     pub fn start(
         &self,
         wasm_bytes: &[u8],
@@ -137,19 +142,12 @@ impl Spawner {
         gas_per_breath: u64,
         cache_ops: DynCacheOps,
         weight: u32,
+        prev_stopped: Option<WatchReceiver<bool>>,
     ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
         let (cmd_tx, mut cmd_rx) = channel(128);
-        let (mut wasm_run, env) = WasmRun::run(
-            wasm_bytes,
-            max_memory_pages,
-            id,
-            gas_per_breath,
-            cache_ops,
-            self.scheduler.clone(),
-            weight,
-        )
-        .context("Failed to create sidevm instance")?;
         let spawner = self.runtime_handle.clone();
+        let scheduler = self.scheduler.clone();
+        let wasm_bytes = wasm_bytes.to_vec();
         let handle = self.spawn(async move {
             macro_rules! push_msg {
                 ($expr: expr, $level: ident, $msg: expr) => {{
@@ -177,6 +175,58 @@ impl Spawner {
                     }
                 };
             }
+            let mut weight = weight;
+            if let Some(mut prev_stopped) = prev_stopped {
+                if !*prev_stopped.borrow() {
+                    info!(target: "sidevm", "Waiting for the previous instance to be stopped...");
+                    tokio::select! {
+                        _ = prev_stopped.changed() => {},
+                        cmd = cmd_rx.recv() => {
+                            match cmd {
+                                None => {
+                                    info!(target: "sidevm", "The command channel is closed. Exiting...");
+                                    return ExitReason::InputClosed;
+                                }
+                                Some(Command::Stop) => {
+                                    info!(target: "sidevm", "Received stop command. Exiting...");
+                                    return ExitReason::Stopped;
+                                }
+                                Some(Command::UpdateWeight(w)) => {
+                                    weight = w;
+                                }
+                                Some(
+                                    Command::PushMessage(_) |
+                                    Command::PushSystemMessage(_) |
+                                    Command::PushQuery { .. } |
+                                    Command::HttpRequest(_)
+                                ) => {
+                                    info!(
+                                        target: "sidevm",
+                                        "Ignored command while waiting for the previous instance to be stopped"
+                                    );
+                                }
+                            }
+                        },
+                    }
+                }
+            }
+            info!(target: "sidevm", "Starting sidevm instance...");
+            let instance = WasmRun::run(
+                &wasm_bytes,
+                max_memory_pages,
+                id,
+                gas_per_breath,
+                cache_ops,
+                scheduler,
+                weight,
+            );
+            let (mut wasm_run, env) = match instance {
+                Ok(i) => i,
+                Err(err) => {
+                    error!(target: "sidevm", "Failed to create sidevm instance: {err:?}");
+                    return ExitReason::FailedToStart;
+                }
+            };
             loop {
                 tokio::select! {
                     cmd = cmd_rx.recv() => {
