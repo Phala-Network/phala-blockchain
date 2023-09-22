@@ -69,6 +69,13 @@ mod sidevm_deployer {
         }
     }
 
+    fn ensure_tx() -> Result<()> {
+        if !pink::ext().is_in_transaction() {
+            return Err(Error::Other("Transaction required".to_string()));
+        }
+        Ok(())
+    }
+
     impl SidevmOp {
         #[ink(constructor)]
         #[allow(clippy::should_implement_trait)]
@@ -301,6 +308,7 @@ mod sidevm_deployer {
             max_memory_pages: u32,
             blocks_to_live: u32,
         ) -> Result<()> {
+            ensure_tx()?;
             let mut workers = workers;
             workers.dedup();
             if workers.is_empty() {
@@ -373,6 +381,7 @@ mod sidevm_deployer {
 
         #[ink(message, payable)]
         fn update_deadline(&mut self, deadline: u32) -> Result<()> {
+            ensure_tx()?;
             let caller = self.env().caller();
             let paid_value = self.env().transferred_value();
             let mut current = self
@@ -580,6 +589,7 @@ mod sidevm_deployer {
         fn paid_vm_works() {
             tracing_subscriber::fmt::init();
             pink_extension_runtime::mock_ext::mock_all_ext();
+            pink_extension_runtime::mock_ext::set_mode(true);
 
             use pink::system::{SidevmOperationRef, SystemRef};
             use pink_extension::system::System as _;
