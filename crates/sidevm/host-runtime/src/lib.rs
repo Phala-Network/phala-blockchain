@@ -9,7 +9,9 @@ mod run;
 pub mod service;
 mod tls;
 
-pub use env::{vm_count, CacheOps, DynCacheOps, OcallAborted, ShortId};
+pub use env::{
+    vm_count, CacheOps, DynCacheOps, OcallAborted, OutgoingRequest, OutgoingRequestChannel, ShortId,
+};
 
 pub type VmId = [u8; 32];
 pub use run::WasmRun;

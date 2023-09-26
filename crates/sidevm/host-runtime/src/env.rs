@@ -14,13 +14,13 @@ use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use tokio::{
     net::TcpListener,
-    sync::oneshot::Sender as OneshotSender,
     sync::{
         mpsc::{error::TrySendError, Sender},
         oneshot,
     },
+    sync::{oneshot::Sender as OneshotSender, Semaphore},
 };
-use tracing::{info, Instrument, Span};
+use tracing::{error, info, warn, Instrument, Span};
 use wasmer::{
     self, imports, AsStoreMut, Function, FunctionEnv, FunctionEnvMut, Imports, Instance, Memory,
     Store, StoreMut,
@@ -87,8 +87,13 @@ fn _sizeof_i32_must_eq_to_intptr() {
     let _ = core::mem::transmute::<i32, IntPtr>;
 }
 
-pub fn create_env(id: VmId, store: &mut Store, cache_ops: DynCacheOps) -> (Env, Imports) {
-    let raw_env = Env::new(id, cache_ops);
+pub fn create_env(
+    id: VmId,
+    store: &mut Store,
+    cache_ops: DynCacheOps,
+    out_tx: OutgoingRequestChannel,
+) -> (Env, Imports) {
+    let raw_env = Env::new(id, cache_ops, out_tx);
     let env = FunctionEnv::new(store, raw_env.clone());
     let wasi_imports = wasi_env::wasi_imports(store, &env);
     (
@@ -156,6 +161,17 @@ pub trait CacheOps {
 
 pub type DynCacheOps = &'static (dyn CacheOps + Send + Sync);
 
+pub type OutgoingRequestChannel = Sender<OutgoingRequest>;
+
+pub enum OutgoingRequest {
+    Query {
+        contract_id: [u8; 32],
+        is_sidevm: bool,
+        input_data: Vec<u8>,
+        reply_tx: OneshotSender<Vec<u8>>,
+    },
+}
+
 struct VmMemory(Option<Memory>);
 
 pub(crate) struct EnvInner {
@@ -174,6 +190,8 @@ pub(crate) struct EnvInner {
     cache_ops: DynCacheOps,
     weight: u32,
     instance: Option<Instance>,
+    outgoing_query_guard: Arc<Semaphore>,
+    outgoing_request_tx: OutgoingRequestChannel,
     _counter: vm_counter::Counter,
 }
 
@@ -232,7 +250,7 @@ pub struct Env {
 }
 
 impl Env {
-    fn new(id: VmId, cache_ops: DynCacheOps) -> Self {
+    fn new(id: VmId, cache_ops: DynCacheOps, outgoing_request_tx: OutgoingRequestChannel) -> Self {
         Self {
             inner: Arc::new(Mutex::new(EnvInner {
                 memory: VmMemory(None),
@@ -250,6 +268,8 @@ impl Env {
                 cache_ops,
                 weight: 1,
                 instance: None,
+                outgoing_query_guard: Arc::new(Semaphore::new(1)),
+                outgoing_request_tx,
                 _counter: Default::default(),
             })),
         }
@@ -627,6 +647,47 @@ impl<'a, 'b> env::OcallFuncs for FnEnvMut<'a, &'b mut EnvInner> {
         } else {
             (self.inner.gas_to_breath(&mut self.store) * 100 / self.gas_per_breath) as u8
         })
+    }
+
+    fn query_local_contract(
+        &mut self,
+        is_sidevm: bool,
+        contract_id: [u8; 32],
+        input_data: Vec<u8>,
+    ) -> Result<i32> {
+        let sem = self
+            .inner
+            .outgoing_query_guard
+            .clone()
+            .try_acquire_owned()
+            .or(Err(OcallError::ResourceLimited))?;
+        let (res_tx, res_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(1);
+        let res_id = self.resources.push(Resource::ChannelRx(res_rx))?;
+        let (reply_tx, reply_rx) = oneshot::channel();
+        let request = OutgoingRequest::Query {
+            contract_id,
+            is_sidevm,
+            input_data,
+            reply_tx,
+        };
+        self.inner
+            .outgoing_request_tx
+            .try_send(request)
+            .or(Err(OcallError::IoError))?;
+        tokio::spawn(async move {
+            let _sem = sem;
+            let result = match reply_rx.await {
+                Ok(reply) => res_tx.send(reply).await,
+                Err(_) => {
+                    warn!(target: "sidevm", "Failed to receive query result");
+                    res_tx.send(Vec::new()).await
+                }
+            };
+            if result.is_err() {
+                error!(target: "sidevm", "Failed to send query result");
+            }
+        });
+        Ok(res_id)
     }
 }
 

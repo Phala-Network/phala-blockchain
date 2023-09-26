@@ -110,6 +110,19 @@ pub trait OcallFuncs {
     /// Create input channel
     #[ocall(id = 240, encode_output)]
     fn create_input_channel(ch: InputChannel) -> Result<i32>;
+
+    /// Query a contract
+    ///
+    /// Returns a channel id for the query result.
+    ///
+    /// # Limitation
+    /// Only one query can be processed at a time.
+    #[ocall(id = 241, encode_input)]
+    fn query_local_contract(
+        is_sidevm: bool,
+        contract_id: [u8; 32],
+        input_data: Vec<u8>,
+    ) -> Result<i32>;
 }
 
 #[repr(u8)]
