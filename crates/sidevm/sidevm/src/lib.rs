@@ -16,5 +16,6 @@ pub mod channel;
 pub mod exec;
 pub mod net;
 pub mod time;
+pub mod local_contract;
 
 mod res_id;

@@ -143,6 +143,7 @@ impl Spawner {
         cache_ops: DynCacheOps,
         weight: u32,
         prev_stopped: Option<WatchReceiver<bool>>,
+        out_tx: crate::OutgoingRequestChannel,
     ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
         let (cmd_tx, mut cmd_rx) = channel(128);
         let spawner = self.runtime_handle.clone();
@@ -219,6 +220,7 @@ impl Spawner {
                 cache_ops,
                 scheduler,
                 weight,
+                out_tx,
             );
             let (mut wasm_run, env) = match instance {
                 Ok(i) => i,
