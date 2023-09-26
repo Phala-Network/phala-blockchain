@@ -187,7 +187,7 @@ pub enum SidevmOperation {
         /// The target contract address
         contract: AccountId,
         /// Time to live of the sidevm instance.
-        run_until_block: u32,
+        deadline: u32,
     },
 }
 
@@ -197,7 +197,7 @@ pub struct SidevmConfig {
     pub max_code_size: u32,
     pub max_memory_pages: u32,
     pub vital_capacity: u64,
-    pub run_until_block: u32,
+    pub deadline: u32,
 }
 
 impl Default for SidevmConfig {
@@ -208,7 +208,7 @@ impl Default for SidevmConfig {
             max_memory_pages: 1024,
             // about 20 ms
             vital_capacity: 50_000_000_000_u64,
-            run_until_block: u32::MAX,
+            deadline: u32::MAX,
         }
     }
 }

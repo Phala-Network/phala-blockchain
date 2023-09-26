@@ -13,6 +13,7 @@ scale-info = { version = "2", default-features = false, features = ["derive"], o
 pink-extension = { version = "0.4", default-features = false, path = "../../pink/pink-extension", features = ["ink-as-dependency"] }
 system = { version = "1.0", default-features = false, path = "../system", features = ["ink-as-dependency"] }
 this-crate = { path = "../../this-crate" }
+hex_fmt = "0.3"
 
 [dev-dependencies]
 insta = "1.32"

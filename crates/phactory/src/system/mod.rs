@@ -1633,7 +1633,7 @@ impl<P: pal::Platform> System<P> {
         let Some(info) = &contract.sidevm_info else {
             anyhow::bail!("Sidevm not found");
         };
-        if self.block_number > info.config.run_until_block {
+        if self.block_number > info.config.deadline {
             anyhow::bail!("Sidevm is expired");
         }
         let config = info.config.clone();
@@ -1894,13 +1894,13 @@ pub(crate) fn apply_pink_events(
                     }
                     SidevmOperation::SetDeadLine {
                         contract: target_contract,
-                        run_until_block,
+                        deadline,
                     } => {
                         let vmid = sidevm::ShortId(&target_contract);
                         let target_contract = get_contract!(&target_contract);
                         if let Some(info) = &mut target_contract.sidevm_info {
-                            info.config.run_until_block = run_until_block;
-                            info!(target: "sidevm", vmid=%vmid, "Set deadline to {run_until_block}");
+                            info.config.deadline = deadline;
+                            info!(target: "sidevm", vmid=%vmid, "Set deadline to {deadline}");
                         } else {
                             info!(target: "sidevm", vmid=%vmid, "Ignored deadline update");
                         }

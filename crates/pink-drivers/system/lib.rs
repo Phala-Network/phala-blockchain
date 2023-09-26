@@ -312,13 +312,13 @@ mod system {
         fn set_sidevm_deadline(
             &self,
             contract: AccountId,
-            run_until_block: pink::BlockNumber,
+            deadline: pink::BlockNumber,
         ) -> Result<()> {
             self.ensure_admin()?;
             ink::env::emit_event::<PinkEnvironment, _>(pink::PinkEvent::SidevmOperation(
                 pink::SidevmOperation::SetDeadLine {
                     contract,
-                    run_until_block,
+                    deadline,
                 },
             ));
             Ok(())
