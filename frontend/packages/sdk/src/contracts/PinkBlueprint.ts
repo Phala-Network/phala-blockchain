@@ -1,14 +1,14 @@
 import { SubmittableResult, toPromiseMethod } from '@polkadot/api'
 import { ApiBase } from '@polkadot/api/base'
 import type { SubmittableExtrinsic } from '@polkadot/api/submittable/types'
-import type { ApiTypes, DecorateMethod } from '@polkadot/api/types'
+import type { ApiTypes, DecorateMethod, Signer as InjectedSigner } from '@polkadot/api/types'
 import { Abi } from '@polkadot/api-contract/Abi'
 import type { ContractCallResult, MessageMeta } from '@polkadot/api-contract/base/types'
 import { createBluePrintTx, withMeta } from '@polkadot/api-contract/base/util'
-import type { AbiConstructor, AbiMessage, BlueprintOptions, ContractCallOutcome } from '@polkadot/api-contract/types'
+import type { AbiConstructor, BlueprintOptions, ContractCallOutcome } from '@polkadot/api-contract/types'
 import { type Option } from '@polkadot/types'
 import type { AccountId, ContractInstantiateResult, Hash } from '@polkadot/types/interfaces'
-import type { ISubmittableResult } from '@polkadot/types/types'
+import type { IKeyringPair, ISubmittableResult } from '@polkadot/types/types'
 import { BN, BN_ZERO, hexAddPrefix, hexToU8a, isUndefined } from '@polkadot/util'
 import { sr25519Agree, sr25519KeypairFromSeed } from '@polkadot/wasm-crypto'
 import { from } from 'rxjs'
@@ -17,9 +17,10 @@ import { phalaTypes } from '../options'
 import type { CertificateData } from '../pruntime/certificate'
 import { InkQueryInstantiate } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
-import type { AbiLike, InkQueryError, InkResponse } from '../types'
+import type { AbiLike, FrameSystemAccountInfo, InkQueryError, InkResponse } from '../types'
 import assert from '../utils/assert'
 import { randomHex } from '../utils/hex'
+import signAndSend from '../utils/signAndSend'
 import { PinkContractPromise } from './PinkContract'
 
 export interface PinkContractInstantiateCallOutcome extends ContractCallOutcome {
@@ -62,22 +63,20 @@ export interface PinkMapConstructorExec<ApiType extends ApiTypes> {
   [message: string]: PinkBlueprintDeploy<ApiType>
 }
 
-function createQuery(
-  meta: AbiMessage,
-  fn: (
-    origin: string | AccountId | Uint8Array,
-    options: PinkInstantiateQueryOptions,
-    params: unknown[]
-  ) => ContractCallResult<'promise', PinkContractInstantiateCallOutcome>
-): ContractInkQuery<'promise'> {
-  return withMeta(
-    meta,
-    (
-      origin: string | AccountId | Uint8Array,
-      options: PinkInstantiateQueryOptions,
-      ...params: unknown[]
-    ): ContractCallResult<'promise', PinkContractInstantiateCallOutcome> => fn(origin, options, params)
-  )
+interface SendOptions {
+  cert?: CertificateData
+}
+
+export type PinkBlueprintSendOptions =
+  | (PinkBlueprintOptions & SendOptions & { address: string | AccountId; signer: InjectedSigner })
+  | (PinkBlueprintOptions & SendOptions & { pair: IKeyringPair })
+
+export interface PinkBlueprintSend<TParams extends Array<any> = any[]> extends MessageMeta {
+  (options: PinkBlueprintSendOptions, ...params: TParams): Promise<PinkBlueprintSubmittableResult>
+}
+
+interface MapBlueprintSend {
+  [message: string]: PinkBlueprintSend
 }
 
 export class PinkBlueprintSubmittableResult extends SubmittableResult {
@@ -194,10 +193,20 @@ export class PinkBlueprintPromise {
 
     this.codeHash = phalaTypes.createType('Hash', codeHash)
 
-    this.abi.constructors.forEach((c): void => {
-      if (isUndefined(this.#tx[c.method])) {
-        this.#tx[c.method] = createBluePrintTx(c, (o, p) => this.#deploy(c, o, p)) as PinkBlueprintDeploy<'promise'>
-        this.#query[c.method] = createQuery(c, (f, o, p) => this.#estimateGas(c, o, p).send(f))
+    this.abi.constructors.forEach((meta): void => {
+      if (isUndefined(this.#tx[meta.method])) {
+        this.#tx[meta.method] = createBluePrintTx(meta, (o, p) =>
+          this.#deploy(meta, o, p)
+        ) as PinkBlueprintDeploy<'promise'>
+        this.#query[meta.method] = withMeta(
+          meta,
+          (
+            origin: string | AccountId | Uint8Array,
+            options: PinkInstantiateQueryOptions,
+            ...params: unknown[]
+          ): ContractCallResult<'promise', PinkContractInstantiateCallOutcome> =>
+            this.#estimateGas(meta, options, params).send(origin)
+        )
       }
     })
   }
@@ -208,6 +217,23 @@ export class PinkBlueprintPromise {
 
   public get query(): MapMessageInkQuery<'promise'> {
     return this.#query
+  }
+
+  public get send() {
+    return new Proxy(
+      {},
+      {
+        get: (_target, prop, _receiver) => {
+          const meta = this.abi.constructors.filter((i) => i.method === prop)
+          if (!meta || !meta.length) {
+            throw new Error('Method not found')
+          }
+          return withMeta(meta[0], (options: PinkBlueprintSendOptions, ...arags: unknown[]) => {
+            return this.#send(prop as string, options, ...arags)
+          })
+        },
+      }
+    ) as MapBlueprintSend
   }
 
   #deploy = (
@@ -294,6 +320,64 @@ export class PinkBlueprintPromise {
 
     return {
       send: this._decorateMethod((origin: string | AccountId | Uint8Array) => from(inkQueryInternal(origin))),
+    }
+  }
+
+  async #send(constructorOrId: string, options: PinkBlueprintSendOptions, ...args: unknown[]) {
+    const { cert: userCert, ...rest } = options
+    const txOptions: PinkBlueprintOptions = {
+      gasLimit: options.gasLimit,
+      value: options.value,
+      storageDepositLimit: options.storageDepositLimit,
+    }
+
+    const tx = this.#tx[constructorOrId]
+    if (!tx) {
+      throw new Error(`Constructor not found: ${constructorOrId}`)
+    }
+
+    const address = 'signer' in rest ? rest.address : rest.pair.address
+    const cert = userCert || (await this.phatRegistry.getAnonymousCert())
+    const estimate = this.#query[constructorOrId]
+    if (!estimate) {
+      throw new Error(`Constructor not found: ${constructorOrId}`)
+    }
+
+    const gasPrice = this.phatRegistry.clusterInfo?.gasPrice
+    const depositPerByte = this.phatRegistry.clusterInfo?.depositPerByte
+    if (!gasPrice || !depositPerByte) {
+      throw new Error('No Gas Price or deposit Per Byte from cluster info.')
+    }
+
+    const [clusterBalance, onchainBalance, { gasRequired }] = await Promise.all([
+      this.phatRegistry.getClusterBalance(address),
+      this.api.query.system.account<FrameSystemAccountInfo>(address),
+      estimate(cert.address, { cert }, ...args),
+    ])
+
+    const msg = this.abi.findConstructor(constructorOrId).toU8a(args)
+    const storageDepositRequired = depositPerByte.mul(new BN(msg.length * 2.2))
+
+    const minRequired = gasRequired.refTime.toBn().mul(gasPrice).add(storageDepositRequired)
+
+    // Auto deposit.
+    if (clusterBalance.free.lt(minRequired)) {
+      const deposit = minRequired.sub(clusterBalance.free)
+      if (onchainBalance.data.free.toBn().lt(deposit)) {
+        throw new Error(`Not enough balance to pay for gas and storage deposit: ${minRequired.toNumber()}`)
+      }
+      txOptions.deposit = deposit
+    }
+
+    // gasLimit is required, so we set it to the estimated value if not provided.
+    if (!txOptions.gasLimit) {
+      txOptions.gasLimit = gasRequired.refTime.toBn()
+    }
+
+    if ('signer' in rest) {
+      return await signAndSend(tx(txOptions, ...args), rest.address, rest.signer)
+    } else {
+      return await signAndSend(tx(txOptions, ...args), rest.pair)
     }
   }
 }

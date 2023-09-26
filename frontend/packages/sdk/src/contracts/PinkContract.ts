@@ -19,7 +19,7 @@ import type { OnChainRegistry } from '../OnChainRegistry'
 import type { CertificateData } from '../pruntime/certificate'
 import { EncryptedInkCommand, InkQueryMessage, PlainInkCommand } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
-import type { AbiLike } from '../types'
+import type { AbiLike, FrameSystemAccountInfo } from '../types'
 import assert from '../utils/assert'
 import { randomHex } from '../utils/hex'
 import signAndSend from '../utils/signAndSend'
@@ -61,7 +61,6 @@ export interface PinkContractOptions extends ContractOptions {
 }
 
 interface SendOptions {
-  autoDeposit?: boolean
   cert?: CertificateData
 }
 
@@ -146,6 +145,14 @@ class PinkContractSubmittableResult extends ContractSubmittableResult {
   }
 }
 
+export interface PinkContractSend<TParams extends Array<any> = any[]> extends MessageMeta {
+  (options: PinkContractSendOptions, ...params: TParams): Promise<PinkContractSubmittableResult>
+}
+
+export interface MapMessageSend {
+  [message: string]: PinkContractSend
+}
+
 interface InkQueryOk extends IEnum {
   readonly isInkMessageReturn: boolean
   readonly asInkMessageReturn: Vec<u8>
@@ -174,34 +181,6 @@ interface InkQueryError extends IEnum {
 interface InkResponse extends Struct {
   nonce: Text
   result: Result<InkQueryOk, InkQueryError>
-}
-
-function createQuery(
-  meta: AbiMessage,
-  fn: (
-    origin: string | AccountId | Uint8Array,
-    options: PinkContractQueryOptions,
-    params: unknown[]
-  ) => ContractCallResult<'promise', ContractCallOutcome>
-): PinkContractQuery {
-  return withMeta(
-    meta,
-    (
-      origin: string | AccountId | Uint8Array,
-      options: PinkContractQueryOptions,
-      ...params: unknown[]
-    ): ContractCallResult<'promise', ContractCallOutcome> => fn(origin, options, params)
-  )
-}
-
-function createTx(
-  meta: AbiMessage,
-  fn: (options: PinkContractOptions, params: unknown[]) => SubmittableExtrinsic<'promise'>
-): PinkContractTx {
-  return withMeta(
-    meta,
-    (options: PinkContractOptions, ...params: unknown[]): SubmittableExtrinsic<'promise'> => fn(options, params)
-  )
 }
 
 export class PinkContractPromise<
@@ -241,14 +220,44 @@ export class PinkContractPromise<
     this.address = this.registry.createType('AccountId', address)
     this.contractKey = contractKey
 
-    this.abi.messages.forEach((m): void => {
-      if (m.isMutating) {
-        this.#tx[m.method] = createTx(m, (o, p) => this.#inkCommand(m, o, p))
-        this.#query[m.method] = createQuery(m, (f, c, p) => this.#inkQuery(true, m, c, p).send(f))
-      } else {
-        this.#query[m.method] = createQuery(m, (f, c, p) => this.#inkQuery(false, m, c, p).send(f))
+    this.abi.messages.forEach((meta): void => {
+      this.#query[meta.method] = withMeta(
+        meta,
+        (
+          origin: string | AccountId | Uint8Array,
+          options: PinkContractQueryOptions,
+          ...params: unknown[]
+        ): ContractCallResult<'promise', ContractCallOutcome> => {
+          return this.#inkQuery(true, meta, options, params).send(origin)
+        }
+      )
+
+      if (meta.isMutating) {
+        this.#tx[meta.method] = withMeta(
+          meta,
+          (options: PinkContractOptions, ...params: unknown[]): SubmittableExtrinsic<'promise'> => {
+            return this.#inkCommand(meta, options, params)
+          }
+        )
       }
     })
+  }
+
+  public get send() {
+    return new Proxy(
+      {},
+      {
+        get: (_target, prop, _receiver) => {
+          const meta = this.abi.messages.filter((i) => i.method === prop)
+          if (!meta || !meta.length) {
+            throw new Error('Method not found')
+          }
+          return withMeta(meta[0], (options: PinkContractSendOptions, ...arags: unknown[]) => {
+            return this.#send(prop as string, options, ...arags)
+          })
+        },
+      }
+    ) as MapMessageSend
   }
 
   public get registry(): Registry {
@@ -381,8 +390,8 @@ export class PinkContractPromise<
       })
   }
 
-  public async send(messageOrId: string, options: PinkContractSendOptions, ...args: unknown[]) {
-    const { autoDeposit, cert: userCert, ...rest } = options
+  async #send(messageOrId: string, options: PinkContractSendOptions, ...args: unknown[]) {
+    const { cert: userCert, ...rest } = options
     const txOptions: PinkContractOptions = {
       gasLimit: options.gasLimit,
       value: options.value,
@@ -395,29 +404,42 @@ export class PinkContractPromise<
       throw new Error(`Message not found: ${messageOrId}`)
     }
 
-    if (autoDeposit) {
-      const address = 'signer' in rest ? rest.address : rest.pair.address
-      const balance = await this.phatRegistry.getClusterBalance(address)
-      const cert = userCert || (await this.phatRegistry.getAnonymousCert())
-      const query = this.#query[messageOrId]
-      if (!query) {
-        throw new Error(`Message not found: ${messageOrId}`)
+    const address = 'signer' in rest ? rest.address : rest.pair.address
+    const cert = userCert || (await this.phatRegistry.getAnonymousCert())
+    const estimate = this.#query[messageOrId]
+    if (!estimate) {
+      throw new Error(`Message not found: ${messageOrId}`)
+    }
+
+    const gasPrice = this.phatRegistry.clusterInfo?.gasPrice
+    const depositPerByte = this.phatRegistry.clusterInfo?.depositPerByte
+    if (!gasPrice || !depositPerByte) {
+      throw new Error('No Gas Price or deposit Per Byte from cluster info.')
+    }
+
+    const [clusterBalance, onchainBalance, { gasRequired, storageDeposit }] = await Promise.all([
+      this.phatRegistry.getClusterBalance(address),
+      this.api.query.system.account<FrameSystemAccountInfo>(address),
+      estimate(cert.address, { cert }, ...args),
+    ])
+
+    const required = gasRequired.refTime
+      .toBn()
+      .mul(gasPrice)
+      .add(storageDeposit.isCharge ? storageDeposit.asCharge : BN_ZERO)
+
+    // Auto deposit.
+    if (clusterBalance.free.lt(required)) {
+      const deposit = required.sub(clusterBalance.free)
+      if (onchainBalance.data.free.toBn().lt(deposit)) {
+        throw new Error(`Not enough balance to pay for gas and storage deposit: ${required.toNumber()}`)
       }
-      const gasPrice = this.phatRegistry.clusterInfo?.gasPrice
-      if (!gasPrice) {
-        throw new Error('No Gas price from cluster info.')
-      }
-      const { gasRequired, storageDeposit } = await query(cert.address, { cert }, ...args)
-      const required = gasRequired.refTime
-        .toBn()
-        .mul(gasPrice)
-        .add(storageDeposit.isCharge ? storageDeposit.asCharge : BN_ZERO)
-      if (balance.free.lt(required)) {
-        txOptions.deposit = required.sub(balance.free)
-      }
-      if (!txOptions.gasLimit) {
-        txOptions.gasLimit = gasRequired.refTime.toBn()
-      }
+      txOptions.deposit = deposit
+    }
+
+    // gasLimit is required, so we set it to the estimated value if not provided.
+    if (!txOptions.gasLimit) {
+      txOptions.gasLimit = gasRequired.refTime.toBn()
     }
 
     if ('signer' in rest) {
