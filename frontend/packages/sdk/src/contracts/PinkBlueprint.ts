@@ -55,7 +55,7 @@ export interface PinkBlueprintOptions extends BlueprintOptions {
 }
 
 export interface PinkBlueprintDeploy<ApiType extends ApiTypes> extends MessageMeta {
-  (options: BlueprintOptions, ...params: unknown[]): SubmittableExtrinsic<ApiType, PinkBlueprintSubmittableResult>
+  (options: PinkBlueprintOptions, ...params: unknown[]): SubmittableExtrinsic<ApiType, PinkBlueprintSubmittableResult>
 }
 
 export interface PinkMapConstructorExec<ApiType extends ApiTypes> {
