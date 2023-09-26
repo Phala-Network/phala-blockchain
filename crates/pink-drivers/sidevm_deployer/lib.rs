@@ -326,8 +326,10 @@ mod sidevm_deployer {
             let available_value = paid_value.saturating_add(remaining_value);
             let price = self.calc_price(code_size, max_memory_pages, workers.len() as u32)?;
             let n_workers = workers.len();
+            let hex_caller = hex_fmt::HexFmt(&caller);
             pink::info!(
                 "Deploying sidevm to workers: \
+                            caller={hex_caller:?}, \
                             value={paid_value}, \
                             remaining={remaining_value}, \
                             code_size={code_size}, \
@@ -355,7 +357,7 @@ mod sidevm_deployer {
             let config = pink::SidevmConfig {
                 max_code_size: code_size,
                 max_memory_pages,
-                run_until_block: deadline,
+                deadline,
                 ..Default::default()
             };
             system.deploy_sidevm_to_workers(caller, code_hash, workers, config)?;
@@ -392,8 +394,10 @@ mod sidevm_deployer {
             let deadline = u32::max(deadline, now);
             let current_deadline = current.deadline;
             let price = current.price;
+            let hex_caller = hex_fmt::HexFmt(&caller);
             pink::info!(
                 "Updating deadline: \
+                            caller={hex_caller:?}, \
                             value={paid_value}, \
                             now={now}, \
                             price={price}, \

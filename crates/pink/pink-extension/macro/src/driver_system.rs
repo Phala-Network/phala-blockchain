@@ -103,11 +103,12 @@ fn patch_or_err(
             pub fn instance_with_call_flags(call_flags: CallFlags) -> Self {
                 #[cfg(feature = "std")]
                 if MOCK.with(|x| { x.borrow_mut().is_some() }) {
-                    return Self::Mock;
+                    return Self::Mock { value: 0 };
                 }
                 Self::Instance {
                     address: #crate_pink::ext().system_contract_id(),
                     call_flags,
+                    value: 0,
                 }
             }
         },
@@ -120,12 +121,13 @@ fn patch_or_err(
                 pub fn instance_with_call_flags(flags: CallFlags) -> Option<Self> {
                     #[cfg(feature = "std")]
                     if MOCK.with(|x| { x.borrow_mut().is_some() }) {
-                        return Some(Self::Mock);
+                        return Some(Self::Mock { value: 0 });
                     }
                     let system = #crate_pink::system::SystemRef::instance_with_call_flags(flags.clone());
                     Some(Self::Instance {
                         address: system.get_driver(#driver_name.into())?,
                         call_flags: flags,
+                        value: 0,
                     })
                 }
             }
@@ -146,15 +148,20 @@ fn patch_or_err(
             use #crate_ink_env::call::FromAccountId;
             use #crate_ink_env::CallFlags;
 
+            type Balance = <PinkEnvironment as #crate_ink_env::Environment>::Balance;
             type TraitInfo = <TraitDefinitionRegistry<PinkEnvironment> as #trait_ident>::__ink_TraitInfo;
             type Forwarder = <TraitInfo as TraitCallForwarder>::Forwarder;
+            #[derive(Clone)]
             pub enum #impl_type {
                 Instance {
                     address: AccountId,
                     call_flags: CallFlags,
+                    value: Balance,
                 },
                 #[cfg(feature = "std")]
-                Mock,
+                Mock {
+                    value: Balance,
+                },
             }
 
             #[cfg(feature = "std")]
@@ -214,23 +221,38 @@ fn patch_or_err(
                     }
                 }
 
+                pub fn set_value_transferred(&self, transferred_value: Balance) -> Self {
+                    let mut me = self.clone();
+                    match &mut me {
+                        Self::Instance { value, .. } => {
+                            *value = transferred_value;
+                        }
+                        #[cfg(feature = "std")]
+                        Self::Mock { value } => {
+                            *value = transferred_value;
+                        }
+                    }
+                    me
+                }
+
                 #fn_instance
             }
 
             impl #impl_type {
                 #(pub #method_sigs {
                         match self {
-                            #impl_type::Instance { address, call_flags } => {
+                            #impl_type::Instance { address, call_flags, value } => {
                                 use #crate_ink_lang::codegen::TraitCallBuilder;
                                 let mut forwarder = Forwarder::from_account_id(*address);
                                 forwarder
                                     .#call_fns()
                                     .#method_forward_calls
+                                    .transferred_value(*value)
                                     .call_flags(call_flags.clone())
                                     .invoke()
                             }
                             #[cfg(feature = "std")]
-                            #impl_type::Mock => {
+                            #impl_type::Mock { value } => {
                                 MOCK.with(move |x| {
                                     let mut borrow = x.borrow_mut();
                                     let (callee, forwarder) = borrow.as_mut().unwrap();
@@ -238,12 +260,14 @@ fn patch_or_err(
                                     let prev_caller = #crate_ink_env::caller::<PinkEnvironment>();
                                     #crate_ink_env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
                                     #crate_ink_env::test::set_callee::<PinkEnvironment>(callee.clone());
+                                    #crate_ink_env::test::set_value_transferred::<PinkEnvironment>(*value);
                                     let ret = match forwarder {
                                         MockObj::Boxed(contract) => contract.#method_forward_calls,
                                         MockObj::Ref(contract) => contract.#method_forward_calls,
                                     };
                                     #crate_ink_env::test::set_callee::<PinkEnvironment>(prev_callee);
                                     #crate_ink_env::test::set_caller::<PinkEnvironment>(prev_caller);
+                                    #crate_ink_env::test::set_value_transferred::<PinkEnvironment>(0);
                                     ret
                                 })
                             }

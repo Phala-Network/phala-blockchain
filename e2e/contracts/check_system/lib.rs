@@ -9,15 +9,16 @@ mod check_system {
     use super::pink;
     use alloc::vec::Vec;
     use pink::system::{ContractDeposit, DriverError, Result, SystemRef};
-    use pink::PinkEnvironment;
+    use pink::{PinkEnvironment, WorkerId};
 
-    use phat_js as js;
     use alloc::string::String;
     use indeterministic_functions::Usd;
+    use phat_js as js;
 
     #[ink(storage)]
     pub struct CheckSystem {
         on_block_end_called: bool,
+        flag: String,
     }
 
     impl CheckSystem {
@@ -26,12 +27,23 @@ mod check_system {
         pub fn default() -> Self {
             Self {
                 on_block_end_called: false,
+                flag: String::new(),
             }
         }
 
         #[ink(message)]
         pub fn on_block_end_called(&self) -> bool {
             self.on_block_end_called
+        }
+
+        #[ink(message)]
+        pub fn set_flag(&mut self, flag: String) {
+            self.flag = flag;
+        }
+
+        #[ink(message)]
+        pub fn flag(&self) -> String {
+            self.flag.clone()
         }
 
         #[ink(message)]
@@ -152,6 +164,63 @@ mod check_system {
                 response.status_code,
                 String::from_utf8(response.body).unwrap_or_default(),
             )
+        }
+
+        #[ink(message)]
+        pub fn stop_sidevm(&mut self) {
+            pink::force_stop_sidevm()
+        }
+
+        #[ink(message)]
+        pub fn deploy_paid_sidevm(
+            &mut self,
+            wokers: Vec<WorkerId>,
+            ttl: u32,
+            mem_pages: u32,
+            pay: Balance,
+        ) -> Result<(), pink::system::DriverError> {
+            use pink::system::SidevmOperationRef;
+            use pink::ResultExt;
+
+            const HASH: [u8; 32] = *include_bytes!("./sideprog.wasm.hash");
+            const CODE_LEN: usize = include_bytes!("./sideprog.wasm").len();
+            let driver = SidevmOperationRef::instance()
+                .ok_or(pink::system::Error::DriverNotFound)
+                .log_err("SidevmDeployer not found")?;
+            driver
+                .set_value_transferred(pay)
+                .deploy_to_workers(HASH, CODE_LEN as _, wokers, mem_pages, ttl)
+                .log_err("Failed to deploy sidevm")
+        }
+
+        #[ink(message)]
+        pub fn calc_paid_sidevm_price(
+            &mut self,
+            n_wokers: u32,
+            mem_pages: u32,
+        ) -> Result<Balance, pink::system::DriverError> {
+            use pink::system::SidevmOperationRef;
+
+            const CODE_LEN: usize = include_bytes!("./sideprog.wasm").len();
+            let driver =
+                SidevmOperationRef::instance().ok_or(pink::system::Error::DriverNotFound)?;
+            driver.calc_price(CODE_LEN as _, mem_pages, n_wokers)
+        }
+
+        #[ink(message)]
+        pub fn set_sidevm_deadline(
+            &mut self,
+            deadline: BlockNumber,
+            pay: Balance,
+        ) -> Result<(), pink::system::DriverError> {
+            use pink::system::SidevmOperationRef;
+            use pink::ResultExt;
+            let driver =
+                SidevmOperationRef::instance().ok_or(pink::system::Error::DriverNotFound)?;
+            driver
+                .set_value_transferred(pay)
+                .update_deadline(deadline)
+                .log_err("Failed to update deadline")
         }
     }
 

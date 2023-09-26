@@ -360,9 +360,9 @@ impl Contract {
                 )?;
                 sidevm_info.handle = handle;
             } else {
-                if current_block > sidevm_info.config.run_until_block {
+                if current_block > sidevm_info.config.deadline {
                     let id = sidevm::ShortId(&self.address);
-                    info!(target: "sidevm", id=%id, "Sidevm run_until_block reached, stopping");
+                    info!(target: "sidevm", id=%id, "Sidevm deadline reached, stopping");
                     return self.push_message_to_sidevm(SidevmCommand::Stop);
                 }
                 return Ok(());
@@ -462,7 +462,7 @@ impl Contract {
                 let max_code_size = info.config.max_code_size;
                 let max_memory_pages = info.config.max_memory_pages;
                 let vital_capacity = info.config.vital_capacity;
-                let run_until_block = info.config.run_until_block;
+                let deadline = info.config.deadline;
                 match handle {
                     SidevmHandle::Running { .. } => pb::SidevmInfo {
                         state: "running".into(),
@@ -470,7 +470,7 @@ impl Contract {
                         start_time,
                         max_memory_pages,
                         vital_capacity,
-                        run_until_block,
+                        deadline,
                         max_code_size,
                         ..Default::default()
                     },
@@ -481,7 +481,7 @@ impl Contract {
                         stop_reason: format!("{reason}"),
                         max_memory_pages,
                         vital_capacity,
-                        run_until_block,
+                        deadline,
                         max_code_size,
                     },
                 }
