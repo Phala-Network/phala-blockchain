@@ -3,6 +3,10 @@ import type { Signer as InjectedSigner } from '@polkadot/api/types'
 import type { ApiTypes } from '@polkadot/api-base/types/base'
 import type { AddressOrPair, SubmittableExtrinsic } from '@polkadot/api-base/types/submittable'
 
+export class SignAndSendError extends Error {
+  readonly isCancelled: boolean = false
+}
+
 function callback<TSubmittableResult>(
   resolve: (value: TSubmittableResult) => void,
   reject: (reason?: any) => void,
@@ -55,8 +59,12 @@ function signAndSend(target: SubmittableExtrinsic<ApiTypes>, address: AddressOrP
         })
       }
     } catch (error) {
-      console.debug('signAndSend error', error)
-      reject(error)
+      const isCancelled = (error as Error).message.indexOf('Cancelled') !== -1
+      Object.defineProperty(error, 'isCancelled', {
+        enumerable: false,
+        value: isCancelled,
+      })
+      reject(error as SignAndSendError)
     }
   })
 }
