@@ -222,6 +222,8 @@ enum Action {
         para_header: Option<BlockNumber>,
         #[arg(long)]
         storage_changes: Option<BlockNumber>,
+        #[arg(long)]
+        checked: bool,
     },
 }
 
@@ -247,7 +249,8 @@ async fn main() -> anyhow::Result<()> {
             header,
             para_header,
             storage_changes,
-        } => reset(db, header, para_header, storage_changes)?,
+            checked,
+        } => reset(db, header, para_header, storage_changes, checked)?,
     }
     Ok(())
 }
@@ -374,6 +377,7 @@ fn reset(
     header: Option<u32>,
     para_header: Option<u32>,
     storage_changes: Option<u32>,
+    checked: bool,
 ) -> anyhow::Result<()> {
     let cache = db::CacheDB::open(&db)?;
     let mut metadata = cache.get_metadata()?.unwrap_or_default();
@@ -388,6 +392,9 @@ fn reset(
     if let Some(storage_changes) = storage_changes {
         metadata.higest.storage_changes = Some(storage_changes);
         metadata.recent_imported.storage_changes = Some(storage_changes);
+    }
+    if checked {
+        metadata.checked = Default::default();
     }
     cache
         .put_metadata(&metadata)

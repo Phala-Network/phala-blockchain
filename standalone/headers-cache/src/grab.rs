@@ -282,79 +282,36 @@ pub(crate) async fn check_and_fix_headers(
     to: Option<BlockNumber>,
     count: Option<BlockNumber>,
 ) -> Result<String> {
+    let parachain = match chain {
+        "relay" => false,
+        "para" => true,
+        _ => bail!("Unknown check type {chain}"),
+    };
     let to = to.unwrap_or(from + count.unwrap_or(1));
     info!("Checking {chain} headers from {from} to {to}");
     if to < from {
         bail!("Invalid range");
     }
     let from = from.saturating_sub(1);
-    let result = match chain {
-        "relay" => db.get_header(from),
-        "para" => db.get_para_header(from),
-        _ => bail!("Unknown check type {}", chain),
-    };
-    let Some(prev) = result else {
-        bail!("Header {} not found", from);
-    };
-    let Ok(mut prev) = decode_header(&prev) else {
-        bail!("Failed to decode header {}", from);
-    };
+    let mut prev = load_header_or_regrab(db, config, parachain, from).await?;
     let mut mismatches = 0;
-    let mut codec_errors = 0;
     for block in (from + 1)..=to {
-        match chain {
-            "relay" => {
-                let cur_header = db
-                    .get_header(block)
-                    .ok_or_else(|| anyhow!("Header {} not found", block))?;
-                let mut cur_header = match decode_header(&cur_header) {
-                    Ok(cur_header) => cur_header,
-                    Err(_) => {
-                        codec_errors += 1;
-                        regrab_header(db, config, block).await?
-                    }
-                };
-                if prev.hash() != cur_header.parent_hash {
-                    mismatches += 1;
-                    prev = regrab_header(db, config, prev.number)
-                        .await
-                        .context("Failed to regrab header")?;
-                    cur_header = regrab_header(db, config, cur_header.number).await?;
-                    if prev.hash() != cur_header.parent_hash {
-                        bail!("Cannot fix mismatch at {block}");
-                    }
-                }
-                prev = cur_header;
+        let cur_header = load_header_or_regrab(db, config, parachain, block).await?;
+        if prev.hash() != cur_header.parent_hash {
+            mismatches += 1;
+            let prev = regrab_header(db, config, prev.number, parachain)
+                .await
+                .context("Failed to regrab header")?;
+            let cur_header = regrab_header(db, config, cur_header.number, parachain).await?;
+            if prev.hash() != cur_header.parent_hash {
+                bail!("Cannot fix mismatch at {block}");
             }
-            "para" => {
-                let cur_header = db
-                    .get_para_header(block)
-                    .ok_or_else(|| anyhow!("Parachain header {} not found", block))?;
-                let mut cur_header = match decode_header(&cur_header) {
-                    Ok(cur_header) => cur_header,
-                    Err(_) => {
-                        codec_errors += 1;
-                        regrab_para_header(db, config, block).await?
-                    }
-                };
-                if prev.hash() != cur_header.parent_hash {
-                    mismatches += 1;
-                    prev = regrab_para_header(db, config, prev.number)
-                        .await
-                        .context("Failed to regrab parachain header")?;
-                    cur_header = regrab_para_header(db, config, cur_header.number).await?;
-                    if prev.hash() != cur_header.parent_hash {
-                        bail!("Cannot fix mismatch at {block}");
-                    }
-                }
-                prev = cur_header;
-            }
-            _ => bail!("Unknown check type {}", chain),
         }
+        prev = cur_header;
     }
     let from = from + 1;
-    let response = if mismatches > 0 || codec_errors > 0 {
-        format!("Checked blocks from {from} to {to}, {mismatches} mismatches, {codec_errors} codec errors")
+    let response = if mismatches > 0 {
+        format!("Checked blocks from {from} to {to}, {mismatches} mismatches")
     } else {
         format!("Checked blocks from {from} to {to}, All OK")
     };
@@ -367,46 +324,69 @@ fn decode_header(data: &[u8]) -> Result<Header> {
     Ok(header)
 }
 
-async fn regrab_header(db: &CacheDB, config: &Serve, number: BlockNumber) -> Result<Header> {
-    if !config.grab_headers {
-        warn!("Trying to regrab header {number} while grab headers disabled");
-        bail!("Grab headers disabled");
+async fn load_header_or_regrab(
+    db: &CacheDB,
+    config: &Serve,
+    parachain: bool,
+    block: BlockNumber,
+) -> Result<Header> {
+    let header = if parachain {
+        db.get_para_header(block)
+    } else {
+        db.get_header(block)
     }
-    info!("Regrabbing header {}", number);
-    let api = pherry::subxt_connect(&config.node_uri)
-        .await
-        .context(format!("Failed to connect to {}", config.node_uri))?;
-    let para_api = pherry::subxt_connect(&config.para_node_uri)
-        .await
-        .context(format!("Failed to connect to {}", config.para_node_uri))?;
-    let mut header = None;
-    cache::grab_headers(&api, &para_api, number, 1, 1, |info| {
-        db.put_header(info.header.number, &info.encode())
-            .context("Failed to put record to DB")?;
-        header = Some(info.header);
-        Ok(())
-    })
-    .await?;
-    header.ok_or(anyhow!("Failed to grab header"))
+    .and_then(|header| decode_header(&header).ok());
+
+    let header = match header {
+        Some(header) => header,
+        None => {
+            warn!("Header {block} not found, trying to regrab");
+            regrab_header(db, config, block, parachain).await?
+        }
+    };
+    Ok(header)
 }
 
-async fn regrab_para_header(db: &CacheDB, config: &Serve, number: BlockNumber) -> Result<Header> {
-    if !config.grab_para_headers {
-        warn!("Trying to regrab paraheader {number} while grab headers disabled");
-        bail!("Grab parachain headers disabled");
+async fn regrab_header(
+    db: &CacheDB,
+    config: &Serve,
+    number: BlockNumber,
+    parachain: bool,
+) -> Result<Header> {
+    let chain = if parachain { "para" } else { "relay" };
+    let enabled = if parachain {
+        config.grab_para_headers
+    } else {
+        config.grab_headers
+    };
+    if !enabled {
+        warn!("Trying to regrab {chain} header {number} while grab headers disabled");
+        bail!("Grab {chain} headers disabled");
     }
-    info!("Regrabbing parachain header {}", number);
+    info!("Regrabbing {chain}chain header {}", number);
     let para_api = pherry::subxt_connect(&config.para_node_uri)
         .await
         .context(format!("Failed to connect to {}", config.para_node_uri))?;
     let mut grabed = None;
-    cache::grab_para_headers(&para_api, number, 1, |header| {
-        db.put_para_header(header.number, &header.encode())
-            .context("Failed to put record to DB")?;
-        grabed = Some(header);
-        Ok(())
-    })
-    .await?;
-
-    grabed.ok_or(anyhow!("Failed to grab parachain header"))
+    if parachain {
+        cache::grab_para_headers(&para_api, number, 1, |header| {
+            db.put_para_header(header.number, &header.encode())
+                .context("Failed to put record to DB")?;
+            grabed = Some(header);
+            Ok(())
+        })
+        .await?;
+    } else {
+        let api = pherry::subxt_connect(&config.node_uri)
+            .await
+            .context(format!("Failed to connect to {}", config.node_uri))?;
+        cache::grab_headers(&api, &para_api, number, 1, 1, |info| {
+            db.put_header(info.header.number, &info.encode())
+                .context("Failed to put record to DB")?;
+            grabed = Some(info.header);
+            Ok(())
+        })
+        .await?;
+    };
+    grabed.ok_or(anyhow!("Failed to grab {chain}chain header {number}"))
 }
