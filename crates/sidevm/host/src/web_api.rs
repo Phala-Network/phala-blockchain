@@ -1,24 +1,28 @@
-use log::{info, warn};
 use rocket::data::ToByteUnit;
 use rocket::http::Status;
 use rocket::response::status::Custom;
 use rocket::{get, post, routes};
 use rocket::{Data, State};
+use tracing::{info, warn};
 
 use scale::Decode;
+use sidevm_host_runtime::ShortId;
 use sp_core::crypto::AccountId32;
 use tokio::task::JoinHandle;
 
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 
 use sidevm::{Command, CommandSender, Spawner, SystemMessage};
 use sidevm_host_runtime::rocket_stream::{connect, RequestInfo, StreamResponse};
-use sidevm_host_runtime::service::{self as sidevm, ExitReason};
+use sidevm_host_runtime::{
+    service::{self as sidevm, ExitReason},
+    OutgoingRequest,
+};
 
 use crate::Args;
 struct VmHandle {
@@ -96,6 +100,7 @@ impl App {
                 inner.args.gas_per_breath,
                 crate::simple_cache(),
                 weight,
+                None,
             )
             .unwrap();
         inner.instances.insert(id, VmHandle { sender, handle });
@@ -224,7 +229,9 @@ async fn connect_vm<'r>(
     let Some(command_tx) = app.sender_for(id).await else {
         return Err((Status::NotFound, Default::default()));
     };
-    let path = path.to_str().ok_or((Status::BadRequest, "Invalid path".to_string()))?;
+    let path = path
+        .to_str()
+        .ok_or((Status::BadRequest, "Invalid path".to_string()))?;
     let result = connect(head, path, body, command_tx).await;
     match result {
         Ok(response) => Ok(response),
@@ -284,11 +291,25 @@ async fn info(app: &State<App>) -> String {
         "running": sidevm_host_runtime::vm_count(),
         "deployed": inner.instances.len(),
         "ids": inner.instances.keys().cloned().collect::<Vec<_>>(),
-    }).to_string()
+    })
+    .to_string()
 }
 
 pub async fn serve(args: Args) -> anyhow::Result<()> {
-    let (run, spawner) = sidevm::service(args.workers);
+    let (tx, mut rx) = tokio::sync::mpsc::channel(10);
+    let (run, spawner) = sidevm::service(args.workers, tx);
+    tokio::spawn(async move {
+        while let Some((id, message)) = rx.recv().await {
+            let OutgoingRequest::Query {
+                contract_id,
+                payload,
+                reply_tx,
+            } = message;
+            let vmid = ShortId(id);
+            info!(%vmid, "Outgoing message from {contract_id:?} payload: {payload:?}");
+            _ = reply_tx.send(Vec::new());
+        }
+    });
     std::thread::spawn(move || {
         run.blocking_run(|evt| {
             println!("event: {:?}", evt);

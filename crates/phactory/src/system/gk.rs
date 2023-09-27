@@ -25,7 +25,7 @@ use sp_core::{hashing, sr25519, Pair};
 
 use crate::{
     im_helpers::{ordmap_for_each_mut, OrdMap},
-    types::BlockInfo,
+    BaseBlockInfo as BlockInfo,
 };
 
 use std::{

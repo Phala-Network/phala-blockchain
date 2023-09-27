@@ -8,9 +8,7 @@ use phactory_api::{
 use tracing::info;
 
 pub(crate) async fn handover_from(url: &str, args: InitArgs) -> Result<()> {
-    let mut this = RpcService::new(GraminePlatform);
-    this.lock_phactory(true, false).expect("Failed to lock Phactory").init(args);
-
+    let mut this = RpcService::new(GraminePlatform, args);
     let from_pruntime = new_pruntime_client(url.into());
     info!("Requesting for challenge");
     let challenge = from_pruntime

@@ -1,14 +1,18 @@
 use anyhow::Result;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use phala_types::contract::ContractQueryError;
-use std::fmt::Debug;
+use sidevm::service::Spawner;
+use std::{
+    fmt::Debug,
+    ops::{Deref, DerefMut},
+};
 use thiserror::Error;
 
 extern crate runtime as chain;
 
 // supportive
 
-pub struct BlockInfo<'a> {
+pub struct BaseBlockInfo<'a> {
     /// The block number.
     pub block_number: chain::BlockNumber,
     /// The timestamp of this block.
@@ -18,6 +22,25 @@ pub struct BlockInfo<'a> {
     /// The message queue
     pub send_mq: &'a phala_mq::MessageSendQueue,
     pub recv_mq: &'a mut phala_mq::MessageDispatcher,
+}
+
+pub struct BlockInfo<'a> {
+    pub base: BaseBlockInfo<'a>,
+    pub sidevm_spawner: &'a Spawner,
+}
+
+impl<'a> Deref for BlockInfo<'a> {
+    type Target = BaseBlockInfo<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
+impl DerefMut for BlockInfo<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.base
+    }
 }
 
 #[derive(Encode, Decode, Debug, Clone)]

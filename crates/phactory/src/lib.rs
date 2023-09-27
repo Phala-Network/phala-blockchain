@@ -6,7 +6,7 @@ extern crate log;
 extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
-use ::pink::types::AccountId;
+use ::pink::types::{AccountId, ExecSideEffects};
 use contracts::{
     pink::{http_counters, Cluster},
     ContractsKeeper,
@@ -20,7 +20,13 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
-use std::{borrow::Cow, collections::BTreeMap, str::FromStr, sync::Arc};
+use std::{
+    borrow::Cow,
+    collections::BTreeMap,
+    future::Future,
+    str::FromStr,
+    sync::{Arc, Mutex, Weak},
+};
 use std::{fs::File, io::ErrorKind, path::PathBuf};
 use std::{io::Write, marker::PhantomData};
 use std::{path::Path, str};
@@ -32,7 +38,7 @@ use phala_types::{AttestationProvider, HandoverChallenge};
 use ring::rand::SecureRandom;
 use scale_info::TypeInfo;
 use serde_json::{json, Value};
-use sp_core::{crypto::Pair, sr25519, H256};
+use sp_core::{blake2_256, crypto::Pair, sr25519, H256};
 
 // use pink::InkModule;
 
@@ -53,14 +59,14 @@ use phala_mq::{BindTopic, ChannelState, MessageDispatcher, MessageOrigin, Messag
 use phala_scheduler::RequestScheduler;
 use phala_serde_more as more;
 use std::time::Instant;
-use types::Error;
+use types::{Error, OpaqueError};
 
 pub use chain::BlockNumber;
 pub use contracts::pink;
 pub use prpc_service::RpcService;
 pub use storage::ChainStorage;
 pub use system::gk;
-pub use types::BlockInfo;
+pub use types::{BaseBlockInfo, BlockInfo};
 pub type PRuntimeLightValidation = LightValidation<chain::Runtime>;
 
 pub mod benchmark;
@@ -288,6 +294,47 @@ pub struct Phactory<Platform> {
     #[codec(skip)]
     #[serde(skip)]
     pub(crate) cluster_state_to_apply: Option<ClusterState<'static>>,
+
+    #[codec(skip)]
+    #[serde(skip)]
+    #[serde(default = "sidevm_helper::create_sidevm_service_default")]
+    sidevm_spawner: sidevm::service::Spawner,
+}
+
+mod sidevm_helper {
+    use sidevm::service::{Report, Spawner};
+    use std::cell::Cell;
+
+    thread_local! {
+        // Used only when deserializing the Spawner.
+        static N_WORKERS: Cell<usize> = Cell::new(2);
+        static SIDEVM_OUT_TX: Cell<Option<sidevm::OutgoingRequestChannel>> = Cell::new(None);
+    }
+
+    pub fn sidevm_config(n_workers: usize, out_tx: sidevm::OutgoingRequestChannel) {
+        N_WORKERS.with(|v| v.set(n_workers));
+        SIDEVM_OUT_TX.with(|v| v.set(Some(out_tx)));
+    }
+
+    pub fn create_sidevm_service_default() -> Spawner {
+        let out_tx = SIDEVM_OUT_TX.with(|v| v.take().expect("sidevm_config not called"));
+        let n_workers = N_WORKERS.with(|n| n.get());
+        create_sidevm_service(n_workers, out_tx)
+    }
+
+    pub fn create_sidevm_service(
+        worker_threads: usize,
+        out_tx: sidevm::OutgoingRequestChannel,
+    ) -> Spawner {
+        let (service, spawner) = sidevm::service::service(worker_threads, out_tx);
+        spawner.spawn(service.run(|report| match report {
+            Report::VmTerminated { id, reason } => {
+                let id = hex_fmt::HexFmt(&id[..4]);
+                tracing::info!(%id, %reason, "Sidevm instance terminated");
+            }
+        }));
+        spawner
+    }
 }
 
 #[test]
@@ -315,9 +362,9 @@ fn create_query_scheduler(cores: u32) -> RequestScheduler<AccountId> {
 }
 
 impl<Platform: pal::Platform> Phactory<Platform> {
-    pub fn new(platform: Platform) -> Self {
+    pub fn new(platform: Platform, args: InitArgs, weak_self: Weak<Mutex<Self>>) -> Self {
         let machine_id = platform.machine_id();
-        Phactory {
+        let mut me = Phactory {
             platform,
             args: Default::default(),
             dev_mode: false,
@@ -339,10 +386,16 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             pending_effects: Vec::new(),
             started_at: Instant::now(),
             cluster_state_to_apply: None,
-        }
+            sidevm_spawner: sidevm_helper::create_sidevm_service(
+                args.cores as _,
+                create_sidevm_outgoing_channel(weak_self),
+            ),
+        };
+        me.init(args);
+        me
     }
 
-    pub fn init(&mut self, args: InitArgs) {
+    fn init(&mut self, args: InitArgs) {
         if args.init_bench {
             benchmark::resume();
         }
@@ -480,7 +533,7 @@ impl<P: pal::Platform> Phactory<P> {
         self.trusted_sk =
             Self::load_runtime_data(&self.platform, &self.args.sealing_path)?.trusted_sk;
         if let Some(system) = &mut self.system {
-            system.on_restored(self.args.safe_mode_level)?;
+            system.on_restored(self.args.safe_mode_level, &self.sidevm_spawner)?;
         }
         if self.args.safe_mode_level >= 2 {
             if let Some(state) = &mut self.runtime_state {
@@ -540,6 +593,86 @@ impl<P: pal::Platform> Phactory<P> {
     fn compat_app_version() -> u32 {
         let version = P::app_version();
         (version.major << 16) + (version.minor << 8) + version.patch
+    }
+
+    fn handle_sidevm_ocall(
+        &self,
+        from: [u8; 32],
+        request: sidevm::OutgoingRequest,
+        weak_phactory: Weak<Mutex<Phactory<P>>>,
+    ) -> impl Future<Output = ()> {
+        let sidevm::OutgoingRequest::Query {
+            contract_id,
+            payload,
+            reply_tx,
+        } = request;
+        let query_scheduler = self.query_scheduler.clone();
+        let mut derived_from = from.to_vec();
+        derived_from.extend_from_slice(b"/sidevm");
+        let origin = AccountId::new(blake2_256(&derived_from));
+        let req_id = {
+            use std::sync::atomic::{AtomicU64, Ordering};
+            static REQ_ID: AtomicU64 = AtomicU64::new(0);
+            REQ_ID.fetch_add(2, Ordering::Relaxed)
+        };
+        // Dispatch
+        let query_future = self
+            .system
+            .as_ref()
+            .expect("system always exists here")
+            .make_query(
+                req_id,
+                &AccountId::new(contract_id),
+                Some(&origin),
+                payload,
+                query_scheduler,
+                &self
+                    .runtime_state
+                    .as_ref()
+                    .expect("runtime state always exists here")
+                    .chain_storage,
+            );
+        async move {
+            let result: Result<Vec<u8>, OpaqueError> = async move {
+                let (output, effects) = query_future?.await?;
+                if let Some(effects) = effects {
+                    match weak_phactory.upgrade() {
+                        Some(phactory) => {
+                            phactory.lock().unwrap().apply_side_effects(effects);
+                        }
+                        None => {
+                            error!("Phactory dropped while processing sidevm query");
+                        }
+                    }
+                }
+                Ok(output)
+            }
+            .await;
+            if reply_tx.send(result.encode()).is_err() {
+                error!("Failed to send sidevm query reply");
+            }
+        }
+    }
+
+    pub fn apply_side_effects(&mut self, effects: ExecSideEffects) {
+        if self.rcu_dispatching {
+            const MAX_PENDING: usize = 64;
+            if self.pending_effects.len() >= MAX_PENDING {
+                error!("Too many pending effects, dropping this");
+                return;
+            }
+            self.pending_effects.push(effects);
+            return;
+        }
+        let Some(state) = self.runtime_state.as_ref() else {
+            error!("Failed to apply side effects: chain storage missing");
+            return;
+        };
+        let Some(system) = self.system.as_mut() else {
+            error!("Failed to apply side effects: system missing");
+            return;
+        };
+        system.apply_side_effects(effects, &state.chain_storage, &self.sidevm_spawner);
     }
 }
 
@@ -602,6 +735,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     pub fn restore_from_checkpoint(
         platform: &Platform,
         args: &InitArgs,
+        weak_self: Weak<Mutex<Self>>,
     ) -> anyhow::Result<Option<Self>> {
         let runtime_data = match Self::load_runtime_data(platform, &args.sealing_path) {
             Err(Error::PersistentRuntimeNotFound) => return Ok(None),
@@ -632,7 +766,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         };
 
         info!("Loading checkpoint from file {ckpt_filename:?}");
-        match Self::restore_from_checkpoint_reader(&runtime_data.sk, file, args) {
+        match Self::restore_from_checkpoint_reader(
+            &runtime_data.sk,
+            file,
+            args,
+            create_sidevm_outgoing_channel(weak_self),
+        ) {
             Ok(state) => {
                 info!("Succeeded to load checkpoint file {ckpt_filename:?}");
                 Ok(Some(state))
@@ -653,10 +792,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         key: &[u8],
         reader: R,
         args: &InitArgs,
+        out_tx: sidevm::OutgoingRequestChannel,
     ) -> anyhow::Result<Self> {
         let key128 = derive_key_for_checkpoint(key);
         let dec_reader = aead::stream::new_aes128gcm_reader(key128, reader);
-        system::sidevm_config(args.cores as _);
+        sidevm_helper::sidevm_config(args.cores as _, out_tx);
 
         let mut factory = deserialize_phactory_from_reader(dec_reader, args.safe_mode_level)
             .context("Failed to deserialize Phactory")?;
@@ -829,6 +969,35 @@ impl<Platform: Serialize + DeserializeOwned> Phactory<Platform> {
             _marker: PhantomData,
         })
     }
+}
+
+fn create_sidevm_outgoing_channel<Platform: pal::Platform>(
+    weak_phactory: Weak<Mutex<Phactory<Platform>>>,
+) -> sidevm::OutgoingRequestChannel {
+    let (tx, mut rx) = tokio::sync::mpsc::channel(128);
+    tokio::spawn(async move {
+        while let Some((from, request)) = rx.recv().await {
+            match weak_phactory.upgrade() {
+                Some(phactory) => {
+                    tokio::spawn(async move {
+                        let weak_phactory = Arc::downgrade(&phactory);
+                        let fut = phactory.lock().unwrap().handle_sidevm_ocall(
+                            from,
+                            request,
+                            weak_phactory,
+                        );
+                        fut.await
+                    });
+                }
+                None => {
+                    error!("Sidevm outgoing channel: phactory dropped");
+                    break;
+                }
+            }
+        }
+        info!("Sidevm outgoing channel: stopped");
+    });
+    tx
 }
 
 fn deserialize_phactory_from_reader<Platform, R>(
