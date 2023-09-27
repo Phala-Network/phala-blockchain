@@ -289,6 +289,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             let chain_storage = state.chain_storage.snapshot();
             let block_number = block.block_header.number;
             let pubkey = self.system()?.identity_key.public().0;
+            let contracts = self.system()?.contracts.clone();
             let mut context = contracts::pink::context::ContractExecContext::new(
                 ExecutionMode::Transaction,
                 now_ms,
@@ -296,6 +297,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 pubkey,
                 chain_storage,
                 req_id,
+                contracts,
             );
             self.check_requirements();
             contracts::pink::context::using(&mut context, || {

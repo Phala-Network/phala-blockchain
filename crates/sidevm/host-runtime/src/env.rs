@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use tokio::{
     net::TcpListener,
     sync::{
-        mpsc::{error::TrySendError, Receiver, Sender},
+        mpsc::{error::TrySendError, Sender},
         oneshot,
     },
     sync::{oneshot::Sender as OneshotSender, Semaphore},

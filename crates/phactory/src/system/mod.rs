@@ -567,9 +567,10 @@ impl<Platform: pal::Platform> System<Platform> {
         let origin = origin.cloned();
         let query = deopaque_query(&query)?;
         let contract_id = contract_id.clone();
+        let contracts = self.contracts.clone();
         Ok(async move {
             let result = cluster
-                .handle_query(&contract_id, origin.as_ref(), query, context)
+                .handle_query(&contract_id, origin.as_ref(), query, context, contracts)
                 .await;
             let (result, effects) = match result {
                 Ok((reply, effects)) => (Ok(reply), effects),
