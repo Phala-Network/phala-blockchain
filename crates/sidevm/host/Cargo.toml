@@ -18,3 +18,4 @@ rocket = { git = "https://github.com/SergioBenitez/Rocket.git" }
 scale = { package = "parity-scale-codec", version = "3.3" }
 sp-core = "21"
 serde_json = "1.0"
+tracing = "0.1"

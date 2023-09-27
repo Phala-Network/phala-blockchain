@@ -11,7 +11,7 @@ use std::{
 
 use anyhow::Error;
 use anyhow::Result;
-use phactory::{gk, BlockInfo, ChainStorage};
+use phactory::{gk, BaseBlockInfo, ChainStorage};
 use phactory_api::blocks::BlockHeaderWithChanges;
 use phala_mq::{MessageDispatcher, Path as MqPath, Sr25519Signer, Topic};
 use phala_types::WorkerPublicKey;
@@ -100,7 +100,7 @@ impl ReplayFactory {
 
         let now_ms = self.storage.timestamp_now();
 
-        let block = BlockInfo {
+        let block = BaseBlockInfo {
             block_number,
             now_ms,
             storage: &self.storage,

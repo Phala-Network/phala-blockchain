@@ -7,9 +7,10 @@ use rocket::http::Status;
 use sidevm_host_runtime::rocket_stream::{connect, RequestInfo, StreamResponse};
 use std::path::PathBuf;
 use tracing::info;
+use clap::Parser;
 
 lazy_static::lazy_static! {
-    static ref APPLICATION: RpcService<GraminePlatform> = RpcService::new(GraminePlatform);
+    static ref APPLICATION: RpcService<GraminePlatform> = RpcService::new(GraminePlatform, crate::Args::parse().to_init_args());
 }
 
 pub fn ecall_handle(req_id: u64, action: u8, input: &[u8]) -> Result<Vec<u8>> {
@@ -38,9 +39,9 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
     if INITIALIZED.fetch_add(1, Ordering::SeqCst) != 0 {
         anyhow::bail!("Enclave already initialized.");
     }
-
+    let weak_phactory = APPLICATION.weak_phactory();
     if args.enable_checkpoint {
-        match Phactory::restore_from_checkpoint(&GraminePlatform, &args) {
+        match Phactory::restore_from_checkpoint(&GraminePlatform, &args, weak_phactory) {
             Ok(Some(factory)) => {
                 info!("Loaded checkpoint");
                 **APPLICATION
@@ -58,9 +59,6 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
     } else {
         info!("Checkpoint disabled.");
     }
-
-    APPLICATION.lock_phactory(true, true).unwrap().init(args);
-
     info!("Enclave init OK");
     Ok(())
 }

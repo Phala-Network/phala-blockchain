@@ -118,11 +118,7 @@ pub trait OcallFuncs {
     /// # Limitation
     /// Only one query can be processed at a time.
     #[ocall(id = 241, encode_input)]
-    fn query_local_contract(
-        is_sidevm: bool,
-        contract_id: [u8; 32],
-        input_data: Vec<u8>,
-    ) -> Result<i32>;
+    fn query_local_contract(contract_id: [u8; 32], payload: Vec<u8>) -> Result<i32>;
 }
 
 #[repr(u8)]

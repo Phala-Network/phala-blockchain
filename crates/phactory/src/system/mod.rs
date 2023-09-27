@@ -53,12 +53,11 @@ use phala_types::{
     wrap_content_to_sign, EcdhPublicKey, SignedContentType, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
-use sidevm::service::{Command as SidevmCommand, CommandSender, Report, Spawner, SystemMessage};
+use sidevm::service::{Command as SidevmCommand, CommandSender, Spawner, SystemMessage};
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
 use pink::types::{HookPoint, PinkEvent};
 use pink_extension::{SidevmOperation, Workers};
-use std::cell::Cell;
 use std::convert::TryFrom;
 use std::future::Future;
 use tracing::{error, info};
@@ -176,7 +175,7 @@ impl WorkerState {
 
     pub fn process_event(
         &mut self,
-        block: &BlockInfo,
+        block: &crate::BaseBlockInfo,
         event: &SystemEvent,
         callback: &mut impl WorkerStateMachineCallback,
         log_on: bool,
@@ -269,7 +268,7 @@ impl WorkerState {
 
     fn handle_heartbeat_challenge(
         &mut self,
-        block: &BlockInfo,
+        block: &crate::BaseBlockInfo,
         seed_info: &HeartbeatChallenge,
         callback: &mut impl WorkerStateMachineCallback,
         log_on: bool,
@@ -316,7 +315,7 @@ impl WorkerState {
 
     fn on_block_processed(
         &mut self,
-        block: &BlockInfo,
+        block: &crate::BaseBlockInfo,
         callback: &mut impl WorkerStateMachineCallback,
     ) {
         // Handle registering benchmark report
@@ -459,10 +458,6 @@ pub struct System<Platform> {
 
     pub(crate) contracts: ContractsKeeper,
     pub(crate) contract_cluster: Option<Cluster>,
-    #[codec(skip)]
-    #[serde(skip)]
-    #[serde(default = "create_sidevm_service_default")]
-    sidevm_spawner: Spawner,
 
     // Cached for query
     /// The block number of the last block that the worker has synced.
@@ -476,30 +471,6 @@ pub struct System<Platform> {
     pub(crate) genesis_block: BlockNumber,
 }
 
-thread_local! {
-    // Used only when deserializing the Spawner.
-    static N_WORKERS: Cell<usize> = Cell::new(2);
-}
-
-pub fn sidevm_config(n_workers: usize) {
-    N_WORKERS.with(|v| v.set(n_workers))
-}
-
-fn create_sidevm_service_default() -> Spawner {
-    create_sidevm_service(N_WORKERS.with(|n| n.get()))
-}
-
-fn create_sidevm_service(worker_threads: usize) -> Spawner {
-    let (service, spawner) = sidevm::service::service(worker_threads);
-    spawner.spawn(service.run(|report| match report {
-        Report::VmTerminated { id, reason } => {
-            let id = hex_fmt::HexFmt(&id[..4]);
-            tracing::info!(%id, %reason, "Sidevm instance terminated");
-        }
-    }));
-    spawner
-}
-
 impl<Platform: pal::Platform> System<Platform> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -511,7 +482,6 @@ impl<Platform: pal::Platform> System<Platform> {
         ecdh_key: EcdhKey,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
-        worker_threads: usize,
     ) -> Self {
         // Trigger panic early if platform is not properly implemented.
         let _ = Platform::app_version();
@@ -540,7 +510,6 @@ impl<Platform: pal::Platform> System<Platform> {
             contract_cluster: None,
             block_number: 0,
             now_ms: 0,
-            sidevm_spawner: create_sidevm_service(worker_threads),
             genesis_block: 0,
         }
     }
@@ -703,7 +672,6 @@ impl<Platform: pal::Platform> System<Platform> {
                     cluster,
                     block,
                     &self.egress,
-                    &self.sidevm_spawner,
                     log_handler,
                     block.storage,
                 );
@@ -748,7 +716,6 @@ impl<Platform: pal::Platform> System<Platform> {
                     cluster,
                     block,
                     &self.egress,
-                    &self.sidevm_spawner,
                     log_handler.clone(),
                     block.storage,
                 );
@@ -759,7 +726,7 @@ impl<Platform: pal::Platform> System<Platform> {
             self.contracts.apply_local_cache_quotas();
         }
         self.contracts
-            .try_restart_sidevms(&self.sidevm_spawner, self.block_number);
+            .try_restart_sidevms(block.sidevm_spawner, self.block_number);
 
         let contract_running = self.contract_cluster.is_some();
         benchmark::set_flag(benchmark::Flags::CONTRACT_RUNNING, contract_running);
@@ -832,6 +799,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 .expect("empty master key history")
                 .secret,
         );
+        let block = &mut block.base;
         let mut gatekeeper = gk::Gatekeeper::new(
             master_key_history,
             block.recv_mq,
@@ -1122,7 +1090,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     Some(cluster) => cluster,
                 };
                 for contract in self.contracts.drain() {
-                    contract.destroy(&self.sidevm_spawner);
+                    contract.destroy(block.sidevm_spawner);
                 }
                 warn!("The cluster {} is destroyed", hex_fmt::HexFmt(&cluster_id));
                 warn!("The worker will exit now.");
@@ -1213,7 +1181,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     return Ok(());
                 };
                 for contract in self.contracts.drain() {
-                    contract.destroy(&self.sidevm_spawner);
+                    contract.destroy(block.sidevm_spawner);
                 }
                 warn!(
                     "This worker is removed from cluster {}.",
@@ -1279,7 +1247,6 @@ impl<Platform: pal::Platform> System<Platform> {
                                 cluster,
                                 block,
                                 &self.egress,
-                                &self.sidevm_spawner,
                                 log_handler,
                                 block.storage,
                             );
@@ -1530,7 +1497,6 @@ impl<Platform: pal::Platform> System<Platform> {
                     &mut cluster,
                     block,
                     &self.egress,
-                    &self.sidevm_spawner,
                     None,
                     block.storage,
                 );
@@ -1587,12 +1553,12 @@ impl<Platform: pal::Platform> System<Platform> {
 }
 
 impl<P: pal::Platform> System<P> {
-    pub fn on_restored(&mut self, safe_mode_level: u8) -> Result<()> {
+    pub fn on_restored(&mut self, safe_mode_level: u8, sidevm_spawner: &Spawner) -> Result<()> {
         if safe_mode_level > 0 {
             return Ok(());
         }
         self.contracts
-            .try_restart_sidevms(&self.sidevm_spawner, self.block_number);
+            .try_restart_sidevms(sidevm_spawner, self.block_number);
         self.contracts.apply_local_cache_quotas();
         Ok(())
     }
@@ -1601,6 +1567,7 @@ impl<P: pal::Platform> System<P> {
         &mut self,
         effects: ExecSideEffects,
         chain_storage: &ChainStorage,
+        sidevm_spawner: &Spawner,
     ) {
         let Some(cluster) = &mut self.contract_cluster else {
             error!("Can not apply effects: no cluster deployed");
@@ -1616,7 +1583,7 @@ impl<P: pal::Platform> System<P> {
             pink_events,
             &mut self.contracts,
             cluster,
-            &self.sidevm_spawner,
+            sidevm_spawner,
             chain_storage,
         );
     }
@@ -1625,6 +1592,7 @@ impl<P: pal::Platform> System<P> {
         &mut self,
         contract_id: AccountId,
         code: Vec<u8>,
+        sidevm_spawner: &Spawner,
     ) -> Result<()> {
         let contract = self
             .contracts
@@ -1637,7 +1605,7 @@ impl<P: pal::Platform> System<P> {
             anyhow::bail!("Sidevm is expired");
         }
         let config = info.config.clone();
-        contract.start_sidevm(&self.sidevm_spawner, SidevmCode::Code(code), true, config)
+        contract.start_sidevm(sidevm_spawner, SidevmCode::Code(code), true, config)
     }
 }
 
@@ -1649,7 +1617,6 @@ pub fn handle_contract_command_result(
     cluster: &mut Cluster,
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
-    spawner: &Spawner,
     log_handler: Option<CommandSender>,
     chain_storage: &ChainStorage,
 ) {
@@ -1668,7 +1635,6 @@ pub fn handle_contract_command_result(
         cluster,
         block,
         egress,
-        spawner,
         log_handler,
         chain_storage,
     );
@@ -1682,7 +1648,6 @@ pub fn apply_pink_side_effects(
     cluster: &mut Cluster,
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
-    spawner: &Spawner,
     log_handler: Option<CommandSender>,
     chain_storage: &ChainStorage,
 ) {
@@ -1697,7 +1662,7 @@ pub fn apply_pink_side_effects(
         pink_events,
         contracts,
         cluster,
-        spawner,
+        block.sidevm_spawner,
         chain_storage,
     );
     apply_ink_side_effects(ink_events, block, log_handler);
@@ -1871,9 +1836,7 @@ pub(crate) fn apply_pink_events(
                     } => {
                         let vmid = sidevm::ShortId(&target_contract);
                         let contract = get_contract!(&target_contract);
-                        if let Err(err) =
-                            contract.push_message_to_sidevm(SidevmCommand::Stop)
-                        {
+                        if let Err(err) = contract.push_message_to_sidevm(SidevmCommand::Stop) {
                             error!(target: "sidevm", %vmid, ?err, "Push message to sidevm failed");
                         }
                         if let Workers::List(workers) = workers {
@@ -1887,8 +1850,7 @@ pub(crate) fn apply_pink_events(
                             Some(code) => SidevmCode::Code(code),
                             None => SidevmCode::Hash(code_hash),
                         };
-                        if let Err(err) = contract.start_sidevm(spawner, code, false, config)
-                        {
+                        if let Err(err) = contract.start_sidevm(spawner, code, false, config) {
                             error!(target: "sidevm", %vmid, ?err, "Start sidevm failed");
                         }
                     }

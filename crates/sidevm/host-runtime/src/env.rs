@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use tokio::{
     net::TcpListener,
     sync::{
-        mpsc::{error::TrySendError, Sender},
+        mpsc::{error::TrySendError, Receiver, Sender},
         oneshot,
     },
     sync::{oneshot::Sender as OneshotSender, Semaphore},
@@ -161,13 +161,12 @@ pub trait CacheOps {
 
 pub type DynCacheOps = &'static (dyn CacheOps + Send + Sync);
 
-pub type OutgoingRequestChannel = Sender<OutgoingRequest>;
+pub type OutgoingRequestChannel = Sender<(VmId, OutgoingRequest)>;
 
 pub enum OutgoingRequest {
     Query {
         contract_id: [u8; 32],
-        is_sidevm: bool,
-        input_data: Vec<u8>,
+        payload: Vec<u8>,
         reply_tx: OneshotSender<Vec<u8>>,
     },
 }
@@ -649,12 +648,7 @@ impl<'a, 'b> env::OcallFuncs for FnEnvMut<'a, &'b mut EnvInner> {
         })
     }
 
-    fn query_local_contract(
-        &mut self,
-        is_sidevm: bool,
-        contract_id: [u8; 32],
-        input_data: Vec<u8>,
-    ) -> Result<i32> {
+    fn query_local_contract(&mut self, contract_id: [u8; 32], payload: Vec<u8>) -> Result<i32> {
         let sem = self
             .inner
             .outgoing_query_guard
@@ -666,13 +660,13 @@ impl<'a, 'b> env::OcallFuncs for FnEnvMut<'a, &'b mut EnvInner> {
         let (reply_tx, reply_rx) = oneshot::channel();
         let request = OutgoingRequest::Query {
             contract_id,
-            is_sidevm,
-            input_data,
+            payload,
             reply_tx,
         };
+        let from = self.inner.id;
         self.inner
             .outgoing_request_tx
-            .try_send(request)
+            .try_send((from, request))
             .or(Err(OcallError::IoError))?;
         tokio::spawn(async move {
             let _sem = sem;
