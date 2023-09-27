@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{convert::TryInto, time::Duration};
 
 use crate::{
     contracts::{self, QueryContext, TransactionContext},
@@ -34,6 +34,8 @@ use tracing::info;
 
 pub use phactory_api::contracts::{Query, QueryError, Response};
 pub use phala_types::contract::InkCommand;
+
+use super::ContractsKeeper;
 
 pub(crate) mod http_counters;
 
@@ -126,12 +128,13 @@ impl RuntimeHandle<'_> {
 pub(crate) mod context {
     use std::time::{Duration, Instant};
 
+    use anyhow::anyhow;
     use pink::{
         capi::v1::ocall::ExecContext,
         types::{AccountId, BlockNumber, ExecutionMode},
     };
 
-    use crate::ChainStorage;
+    use crate::{contracts::ContractsKeeper, ChainStorage};
 
     environmental::environmental!(exec_context: trait GetContext);
 
@@ -140,6 +143,12 @@ pub(crate) mod context {
         fn exec_context(&self) -> ExecContext;
         fn worker_pubkey(&self) -> [u8; 32];
         fn call_elapsed(&self) -> Duration;
+        fn sidevm_query(
+            &self,
+            origin: [u8; 32],
+            vmid: [u8; 32],
+            input: Vec<u8>,
+        ) -> anyhow::Result<Vec<u8>>;
     }
 
     pub struct ContractExecContext {
@@ -148,6 +157,7 @@ pub(crate) mod context {
         pub block_number: BlockNumber,
         pub worker_pubkey: [u8; 32],
         pub chain_storage: ChainStorage,
+        pub contracts: ContractsKeeper,
         pub start_at: Instant,
         pub req_id: u64,
     }
@@ -160,6 +170,7 @@ pub(crate) mod context {
             worker_pubkey: [u8; 32],
             chain_storage: ChainStorage,
             req_id: u64,
+            contracts: ContractsKeeper,
         ) -> Self {
             Self {
                 mode,
@@ -169,6 +180,7 @@ pub(crate) mod context {
                 chain_storage,
                 start_at: Instant::now(),
                 req_id,
+                contracts,
             }
         }
     }
@@ -193,6 +205,40 @@ pub(crate) mod context {
 
         fn call_elapsed(&self) -> Duration {
             self.start_at.elapsed()
+        }
+
+        fn sidevm_query(
+            &self,
+            origin: [u8; 32],
+            vmid: [u8; 32],
+            payload: Vec<u8>,
+        ) -> anyhow::Result<Vec<u8>> {
+            let contract_id = AccountId::new(vmid);
+            let contract = self
+                .contracts
+                .get(&contract_id)
+                .ok_or(anyhow!("Contract not found: {contract_id:?}"))?;
+            let tx = contract
+                .sidevm_handle()
+                .ok_or(anyhow!("Sidevm not found: {contract_id:?}"))?
+                .cmd_sender()
+                .ok_or(anyhow!("Sidevm stopped: {contract_id:?}"))?;
+            tokio::runtime::Runtime::new()?.block_on(async move {
+                let timeout = Duration::from_millis(time_remaining());
+                tokio::time::timeout(timeout, async {
+                    let (reply_tx, rx) = tokio::sync::oneshot::channel();
+                    tx.send(sidevm::service::Command::PushQuery {
+                        origin: Some(origin),
+                        payload,
+                        reply_tx,
+                    })
+                    .await
+                    .or(Err(anyhow!("Sidevm send query failed")))?;
+                    rx.await.or(Err(anyhow!("Broken pipe")))
+                })
+                .await
+                .or(Err(anyhow!("Sidevm query timeout")))?
+            })
         }
     }
 
@@ -219,6 +265,15 @@ pub(crate) mod context {
     pub fn time_remaining() -> u64 {
         const MAX_QUERY_TIME: Duration = Duration::from_secs(10);
         MAX_QUERY_TIME.saturating_sub(call_elapsed()).as_millis() as _
+    }
+
+    pub fn sidevm_query(
+        origin: [u8; 32],
+        vmid: [u8; 32],
+        payload: Vec<u8>,
+    ) -> anyhow::Result<Vec<u8>> {
+        exec_context::with(|ctx| ctx.sidevm_query(origin, vmid, payload))
+            .ok_or(anyhow!("sidevm_query called outside of contract execution"))?
     }
 
     pub use entry::{get_entry_contract, using_entry_contract};
@@ -341,6 +396,31 @@ impl OCalls for RuntimeHandle<'_> {
         contract: AccountId,
         request: HttpRequest,
     ) -> Result<HttpResponse, HttpRequestError> {
+        if request.url.starts_with("sidevm://") {
+            let dest = hex::decode(request.url.trim_start_matches("sidevm://"))
+                .or(Err(HttpRequestError::InvalidUrl))?
+                .try_into()
+                .or(Err(HttpRequestError::InvalidUrl))?;
+            let origin = contract.into();
+            let result = context::sidevm_query(origin, dest, request.body);
+            return match result {
+                Ok(r) => Ok(HttpResponse {
+                    status_code: 200,
+                    reason_phrase: "OK".into(),
+                    headers: vec![],
+                    body: r,
+                }),
+                Err(err) => {
+                    error!("sidevm query failed: {:?}", err);
+                    Ok(HttpResponse {
+                        status_code: 500,
+                        reason_phrase: "Internal Server Error".into(),
+                        headers: vec![],
+                        body: err.to_string().into_bytes(),
+                    })
+                }
+            };
+        }
         let result = pink_extension_runtime::http_request(request, context::time_remaining());
         match &result {
             Ok(response) => {
@@ -597,6 +677,7 @@ impl Cluster {
         origin: Option<&AccountId>,
         req: Query,
         context: QueryContext,
+        contracts: ContractsKeeper,
     ) -> Result<(Response, Option<ExecSideEffects>), QueryError> {
         match req {
             Query::InkMessage {
@@ -633,6 +714,7 @@ impl Cluster {
                     context.worker_pubkey,
                     context.chain_storage,
                     context.req_id,
+                    contracts,
                 );
                 let log_handler = context.log_handler.clone();
                 let span = tracing::Span::current();
@@ -716,6 +798,7 @@ impl Cluster {
                     context.worker_pubkey,
                     context.chain_storage,
                     context.req_id,
+                    contracts,
                 );
                 let log_handler = context.log_handler.clone();
                 context::using(&mut ctx, move || {

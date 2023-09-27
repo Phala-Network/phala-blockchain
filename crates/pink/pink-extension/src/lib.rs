@@ -423,6 +423,19 @@ pub fn vrf(salt: &[u8]) -> Vec<u8> {
     ext().derive_sr25519_key(key_salt.into())
 }
 
+/// Query to a sidevm in current worker.
+pub fn query_local_sidevm(address: AccountId, payload: Vec<u8>) -> Result<Vec<u8>, String> {
+    let url = format!("sidevm://{}", hex::encode(address));
+    let response = http_post!(url, payload);
+    if response.status_code != 200 {
+        return Err(format!(
+            "SideVM query failed: {}",
+            String::from_utf8_lossy(&response.body)
+        ));
+    }
+    Ok(response.body)
+}
+
 /// Pink defined environment. This environment is used to access the phat contract extended runtime features.
 ///
 /// # Example
