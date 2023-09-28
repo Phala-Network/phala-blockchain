@@ -119,6 +119,10 @@ pub trait OcallFuncs {
     /// Only one query can be processed at a time.
     #[ocall(id = 241, encode_input)]
     fn query_local_contract(contract_id: [u8; 32], payload: Vec<u8>) -> Result<i32>;
+
+    /// Returns the vmid of the current instance.
+    #[ocall(id = 242, encode_output)]
+    fn vmid() -> Result<[u8; 32]>;
 }
 
 #[repr(u8)]

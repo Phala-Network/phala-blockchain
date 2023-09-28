@@ -683,6 +683,11 @@ impl<'a, 'b> env::OcallFuncs for FnEnvMut<'a, &'b mut EnvInner> {
         });
         Ok(res_id)
     }
+
+    /// Returns the vmid of the current instance.
+    fn vmid(&mut self) -> Result<[u8; 32]> {
+        Ok(self.id)
+    }
 }
 
 impl EnvInner {
