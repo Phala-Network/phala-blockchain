@@ -228,6 +228,8 @@ export class OnChainRegistry {
       const systemContractKey = await this.getContractKey(systemContractId)
       if (systemContractKey) {
         this.#systemContract = new PinkContractPromise(this.api, this, systemAbi, systemContractId, systemContractKey)
+      } else {
+        throw new Error(`System contract not found: ${systemContractId}`)
       }
     }
   }
