@@ -337,7 +337,7 @@ impl PinkExtBackend for CallInCommand {
             status_code: 523,
             reason_phrase: "API Unavailable".into(),
             headers: vec![],
-            body: vec![],
+            body: b"HTTP request is not supported in transaction".to_vec(),
         })
     }
     fn batch_http_request(

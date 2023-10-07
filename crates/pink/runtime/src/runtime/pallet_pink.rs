@@ -19,9 +19,10 @@ pub mod pallet {
 
     use crate::types::Hash;
 
-    type CodeHash<T> = <T as frame_system::Config>::Hash;
     type BalanceOf<T> =
         <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+    type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
+    type HashOf<T> = <T as frame_system::Config>::Hash;
 
     #[pallet::error]
     pub enum Error<T> {
@@ -101,14 +102,14 @@ pub mod pallet {
 
     impl<T: Config + pallet_contracts::Config> AddressGenerator<T> for Pallet<T>
     where
-        T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]>,
+        AccountIdOf<T>: UncheckedFrom<HashOf<T>> + AsRef<[u8]>,
     {
         fn contract_address(
-            deploying_address: &T::AccountId,
-            code_hash: &CodeHash<T>,
+            deploying_address: &AccountIdOf<T>,
+            code_hash: &HashOf<T>,
             _input_data: &[u8],
             salt: &[u8],
-        ) -> T::AccountId {
+        ) -> AccountIdOf<T> {
             let cluster_id = <ClusterId<T>>::get();
             let buf = phala_types::contract::contract_id_preimage(
                 deploying_address.as_ref(),

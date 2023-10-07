@@ -16,9 +16,9 @@ log = "0.4"
 tracing = "0.1"
 environmental = "1"
 scale-info = { version = "2.9", default-features = false, features = ["derive"] }
+pink = { path = "../runtime", default-features = false }
 
 [dev-dependencies]
-pink = { path = "../runtime" }
 scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = [
     "derive",
 ] }

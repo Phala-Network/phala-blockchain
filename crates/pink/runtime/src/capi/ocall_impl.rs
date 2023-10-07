@@ -21,9 +21,11 @@ pub(super) fn set_ocall_fn(ocalls: ocalls_t) -> Result<(), &'static str> {
     };
     unsafe {
         OCALL = ocall;
+        #[cfg(feature = "allocator")]
         if let Some(alloc) = ocalls.alloc {
             allocator::ALLOC_FUNC = alloc;
         }
+        #[cfg(feature = "allocator")]
         if let Some(dealloc) = ocalls.dealloc {
             allocator::DEALLOC_FUNC = dealloc;
         }
@@ -53,6 +55,7 @@ impl CrossCall for OCallImpl {
 }
 impl OCall for OCallImpl {}
 
+#[cfg(feature = "allocator")]
 mod allocator {
     //! # Rust memory allocator in dynamic runtimes
     //!

@@ -148,6 +148,7 @@ pub(crate) mod context {
             origin: [u8; 32],
             vmid: [u8; 32],
             input: Vec<u8>,
+            timeout: Duration,
         ) -> anyhow::Result<Vec<u8>>;
     }
 
@@ -212,6 +213,7 @@ pub(crate) mod context {
             origin: [u8; 32],
             vmid: [u8; 32],
             payload: Vec<u8>,
+            timeout: Duration,
         ) -> anyhow::Result<Vec<u8>> {
             let contract_id = AccountId::new(vmid);
             let contract = self
@@ -224,7 +226,6 @@ pub(crate) mod context {
                 .cmd_sender()
                 .ok_or(anyhow!("Sidevm stopped: {contract_id:?}"))?;
             tokio::runtime::Runtime::new()?.block_on(async move {
-                let timeout = Duration::from_millis(time_remaining());
                 tokio::time::timeout(timeout, async {
                     let (reply_tx, rx) = tokio::sync::oneshot::channel();
                     tx.send(sidevm::service::Command::PushQuery {
@@ -272,7 +273,8 @@ pub(crate) mod context {
         vmid: [u8; 32],
         payload: Vec<u8>,
     ) -> anyhow::Result<Vec<u8>> {
-        exec_context::with(|ctx| ctx.sidevm_query(origin, vmid, payload))
+        let timeout = Duration::from_millis(time_remaining());
+        exec_context::with(|ctx| ctx.sidevm_query(origin, vmid, payload, timeout))
             .ok_or(anyhow!("sidevm_query called outside of contract execution"))?
     }
 

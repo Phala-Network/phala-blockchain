@@ -2,9 +2,12 @@
 #![cfg_attr(not(feature = "std"), feature(alloc_error_handler))]
 #![doc = include_str!("../README.md")]
 
+#[macro_use]
 extern crate alloc;
 
+use alloc::string::String;
 use alloc::vec::Vec;
+
 use ink::env::{emit_event, topics::state::HasRemainingTopics, Environment, Topics};
 
 use ink::EnvAccess;
@@ -429,7 +432,9 @@ pub fn query_local_sidevm(address: AccountId, payload: Vec<u8>) -> Result<Vec<u8
     let response = http_post!(url, payload);
     if response.status_code != 200 {
         return Err(format!(
-            "SideVM query failed: {}",
+            "SideVM query failed: {} {}: {}",
+            response.status_code,
+            response.reason_phrase,
             String::from_utf8_lossy(&response.body)
         ));
     }
