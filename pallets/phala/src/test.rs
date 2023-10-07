@@ -1362,8 +1362,8 @@ fn test_on_reward_for_vault() {
 		));
 		set_block_1();
 		setup_workers(1);
-		setup_vault(3); // pid = 0
-		setup_stake_pool_with_workers(1, &[1]);
+		setup_vault(3); // pid = 0, owner = 3
+		setup_stake_pool_with_workers(1, &[1]); // pid = 1, owner = 1
 		assert_ok!(PhalaStakePoolv2::set_payout_pref(
 			RuntimeOrigin::signed(1),
 			1,
@@ -1508,12 +1508,19 @@ fn test_vault_owner_shares() {
 		));
 		let vault_info = ensure_vault::<Test>(0).unwrap();
 		assert_eq!(vault_info.commission.unwrap(), Permill::from_percent(50));
+		// Gain no share becuase of zero income
 		assert_ok!(PhalaVault::maybe_gain_owner_shares(
 			RuntimeOrigin::signed(3),
 			0
 		));
 		let vault_info = ensure_vault::<Test>(0).unwrap();
 		assert_eq!(vault_info.owner_shares, 0);
+		// Adjust the stake to
+		//   Account2 -> Vault:2 100
+		//   Vault0 -> StakePool1: 50
+		//   Account3 -> StakePool1: 50
+		//   StakePool1 stake: 100
+		// and distribute 100 PHA
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(2),
 			1,
@@ -1542,6 +1549,7 @@ fn test_vault_owner_shares() {
 			50 * DOLLARS
 		);
 		assert_eq!(vault_info.basepool.total_shares, 100 * DOLLARS);
+		// Should get 25 PHA ~ 20 share
 		assert_ok!(PhalaVault::maybe_gain_owner_shares(
 			RuntimeOrigin::signed(3),
 			0
@@ -1575,6 +1583,77 @@ fn test_vault_owner_shares() {
 				.clone();
 			assert_eq!(nft_attr.shares, 10 * DOLLARS);
 		}
+	});
+}
+
+#[test]
+fn test_settle_vault_before_changing_commission() {
+	use crate::computation::pallet::OnReward;
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(3),
+			500 * DOLLARS
+		));
+		set_block_1();
+		setup_workers(1);
+		setup_vault(3); // pid = 0, owner = 3
+		setup_stake_pool_with_workers(1, &[1]); // pid = 1, owner = 1
+
+		// Stake:
+		//   Account2 -> Vault0:2 100
+		//   Vault0 -> StakePool1: 100
+		//   StakePool1 stake: 100
+		// and distribute 100 PHA
+		assert_ok!(PhalaVault::contribute(
+			RuntimeOrigin::signed(3),
+			0,
+			100 * DOLLARS
+		));
+		assert_ok!(PhalaStakePoolv2::contribute(
+			RuntimeOrigin::signed(3),
+			1,
+			100 * DOLLARS,
+			Some(0)
+		));
+		assert_ok!(PhalaStakePoolv2::start_computing(
+			RuntimeOrigin::signed(1),
+			1,
+			worker_pubkey(1),
+			100 * DOLLARS
+		));
+		PhalaStakePoolv2::on_reward(&[SettleInfo {
+			pubkey: worker_pubkey(1),
+			v: FixedPoint::from_num(1u32).to_bits(),
+			payout: FixedPoint::from_num(100u32).to_bits(),
+			treasury: 0,
+		}]);
+		let pool = ensure_stake_pool::<Test>(1).unwrap();
+		assert_eq!(get_balance(pool.basepool.pool_account_id), 100 * DOLLARS);
+		assert_eq!(pool.basepool.total_value, 200 * DOLLARS);
+		let vault_info = ensure_vault::<Test>(0).unwrap();
+		assert_eq!(vault_info.basepool.total_value, 200 * DOLLARS);
+		assert_eq!(vault_info.basepool.total_shares, 100 * DOLLARS);
+		assert_ok!(PhalaVault::set_payout_pref(
+			RuntimeOrigin::signed(3),
+			0,
+			Some(Permill::from_percent(100))
+		));
+		// Should get 0 share because the pre-settle commission rate is zero.
+		assert_ok!(PhalaVault::maybe_gain_owner_shares(
+			RuntimeOrigin::signed(3),
+			0
+		));
+		let vault_info = ensure_vault::<Test>(0).unwrap();
+		assert_eq!(vault_info.owner_shares, 0);
 	});
 }
 
