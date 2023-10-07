@@ -1607,6 +1607,7 @@ fn test_settle_vault_before_changing_commission() {
 		setup_workers(1);
 		setup_vault(3); // pid = 0, owner = 3
 		setup_stake_pool_with_workers(1, &[1]); // pid = 1, owner = 1
+
 		// Stake:
 		//   Account2 -> Vault0:2 100
 		//   Vault0 -> StakePool1: 100
@@ -1641,11 +1642,11 @@ fn test_settle_vault_before_changing_commission() {
 		let vault_info = ensure_vault::<Test>(0).unwrap();
 		assert_eq!(vault_info.basepool.total_value, 200 * DOLLARS);
 		assert_eq!(vault_info.basepool.total_shares, 100 * DOLLARS);
-		assert_ok!(
-			PhalaVault::set_payout_pref(
-				RuntimeOrigin::signed(3), 0, Some(Permill::from_percent(100))
-			)
-		);
+		assert_ok!(PhalaVault::set_payout_pref(
+			RuntimeOrigin::signed(3),
+			0,
+			Some(Permill::from_percent(100))
+		));
 		// Should get 0 share because the pre-settle commission rate is zero.
 		assert_ok!(PhalaVault::maybe_gain_owner_shares(
 			RuntimeOrigin::signed(3),
@@ -1654,7 +1655,6 @@ fn test_settle_vault_before_changing_commission() {
 		let vault_info = ensure_vault::<Test>(0).unwrap();
 		assert_eq!(vault_info.owner_shares, 0);
 	});
-
 }
 
 #[test]

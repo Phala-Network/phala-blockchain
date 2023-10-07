@@ -221,7 +221,7 @@ pub mod pallet {
 			);
 
 			if pool_info.commission == payout_commission {
-				return Err(Error::<T>::CommissionNotChanged.into())
+				return Err(Error::<T>::CommissionNotChanged.into());
 			}
 			// Settle the shares anyway to ensure all the old commission is paid out
 			Self::maybe_gain_owner_shares(origin, pid)?;
