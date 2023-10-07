@@ -51,7 +51,6 @@ pub struct TxRef {
 
 // for contracts
 pub type OpaqueQuery = Vec<u8>;
-pub type OpaqueReply = Vec<u8>;
 pub type OpaqueError = ContractQueryError;
 
 pub fn deopaque_query<T>(mut data: &[u8]) -> Result<T, ContractQueryError>

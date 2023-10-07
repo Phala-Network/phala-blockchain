@@ -659,10 +659,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             )?;
 
         Ok(async move {
-            let (response, effects) = query_future.await?;
+            let (_, response, effects) = query_future.await?;
             let response = contract::ContractQueryResponse {
                 nonce: head.nonce,
-                result: contract::Data(response),
+                result: contract::Data(response.encode()),
             };
             let response_data = response.encode();
 

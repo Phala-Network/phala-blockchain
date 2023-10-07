@@ -1,0 +1,12 @@
+[package]
+name = "sideabi"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+scale = { package = "parity-scale-codec", version = "3", default-features = false }
+scale-info = { version = "2", default-features = false }
+serde = { version = "1", features = ["derive"], default-features = false }
+
+[features]
+std = ["scale/std", "scale-info/std", "serde/std"]

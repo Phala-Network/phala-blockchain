@@ -1,5 +1,5 @@
-SIDE_PROG_DIR=sleep
-SIDE_PROG=sleep
+SIDE_PROG_DIR=sideprog
+SIDE_PROG=sideprog
 TARGET=wasm32-wasi
 
 SIDE_WASM=${SIDE_PROG_DIR}/target/${TARGET}/release/${SIDE_PROG}.wasm

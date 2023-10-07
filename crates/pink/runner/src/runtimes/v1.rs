@@ -19,7 +19,7 @@ unsafe impl Send for Runtime {}
 unsafe impl Sync for Runtime {}
 
 macro_rules! define_runtimes {
-    ($(($major: expr, $minor: expr),)*) => {
+    ($(($major: expr, $minor: expr, $name: ident),)*) => {
         pub fn get_runtime(version: (u32, u32)) -> &'static Runtime {
             match version {
                 $(
@@ -34,13 +34,28 @@ macro_rules! define_runtimes {
         pub fn runtime_versions() -> &'static [(u32, u32)] {
             &[$(($major, $minor)),*]
         }
+        pub enum PinkRuntimeVersion {
+            $(
+                $name,
+            )*
+        }
+        impl PinkRuntimeVersion {
+            pub fn from_ver(version: (u32, u32)) -> Option<Self> {
+                match version {
+                    $(
+                        ($major, $minor) => Some(PinkRuntimeVersion::$name),
+                    )*
+                    _ => None
+                }
+            }
+        }
     };
 }
 
 define_runtimes! {
-    (1, 0),
-    (1, 1),
-    (1, 2),
+    (1, 0, V1_0),
+    (1, 1, V1_1),
+    (1, 2, V1_2),
 }
 
 impl Default for Runtime {

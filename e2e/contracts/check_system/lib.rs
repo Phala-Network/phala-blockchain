@@ -11,7 +11,7 @@ mod check_system {
     use pink::system::{ContractDeposit, DriverError, Result, SystemRef};
     use pink::{PinkEnvironment, WorkerId};
 
-    use alloc::string::String;
+    use alloc::string::{String, ToString};
     use indeterministic_functions::Usd;
     use phat_js as js;
 
@@ -221,6 +221,26 @@ mod check_system {
                 .set_value_transferred(pay)
                 .update_deadline(deadline)
                 .log_err("Failed to update deadline")
+        }
+
+        #[ink(message)]
+        pub fn query_sidevm(&self, action: String) -> Result<Vec<u8>, String> {
+            use sideabi::Request;
+
+            let request = match action.as_str() {
+                "ping" => Request::Ping,
+                "callback" => Request::Callback {
+                    call_data: ink::selector_bytes!("sidevm_callbak").to_vec(),
+                },
+                _ => return Err("Invalid action".into()),
+            };
+            let request = pink_json::to_vec(&request).map_err(|err| err.to_string())?;
+            pink::query_local_sidevm(self.env().account_id(), request)
+        }
+
+        #[ink(message)]
+        pub fn sidevm_callbak(&self) -> u8 {
+            42
         }
     }
 

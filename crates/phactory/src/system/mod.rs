@@ -6,11 +6,12 @@ use crate::{
     contracts::{ContractsKeeper, ExecuteEnv, SidevmCode},
     pink::{Cluster, ClusterContainer},
     secret_channel::{ecdh_serde, SecretReceiver},
-    types::{deopaque_query, BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
+    types::{deopaque_query, BlockInfo, OpaqueError, OpaqueQuery},
     ChainStorage,
 };
 use anyhow::{anyhow, Result};
 use core::fmt;
+use phactory_api::contracts::{Query, QueryError, QueryType, Response};
 use phala_scheduler::RequestScheduler;
 use pink::{
     capi::v1::ecall::{ClusterSetupConfig, ECalls},
@@ -539,7 +540,16 @@ impl<Platform: pal::Platform> System<Platform> {
         query_scheduler: RequestScheduler<AccountId>,
         chain_storage: &ChainStorage,
     ) -> Result<
-        impl Future<Output = Result<(OpaqueReply, Option<ExecSideEffects>), OpaqueError>>,
+        impl Future<
+            Output = Result<
+                (
+                    QueryType,
+                    Result<Response, QueryError>,
+                    Option<ExecSideEffects>,
+                ),
+                OpaqueError,
+            >,
+        >,
         OpaqueError,
     > {
         let contract = self
@@ -565,10 +575,11 @@ impl<Platform: pal::Platform> System<Platform> {
             req_id,
         };
         let origin = origin.cloned();
-        let query = deopaque_query(&query)?;
+        let query = deopaque_query::<Query>(&query)?;
         let contract_id = contract_id.clone();
         let contracts = self.contracts.clone();
         Ok(async move {
+            let query_type = query.query_type();
             let result = cluster
                 .handle_query(&contract_id, origin.as_ref(), query, context, contracts)
                 .await;
@@ -579,7 +590,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     (Err(err), None)
                 }
             };
-            Ok((result.encode(), effects))
+            Ok((query_type, result, effects))
         })
     }
 

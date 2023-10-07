@@ -6,7 +6,10 @@ extern crate log;
 extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
-use ::pink::types::{AccountId, ExecSideEffects};
+use ::pink::{
+    runtimes::v1::PinkRuntimeVersion,
+    types::{AccountId, ContractExecResult, ExecSideEffects},
+};
 use contracts::{
     pink::{http_counters, Cluster},
     ContractsKeeper,
@@ -44,6 +47,7 @@ use sp_core::{blake2_256, crypto::Pair, sr25519, H256};
 
 use phactory_api::{
     blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq},
+    contracts::QueryType,
     ecall_args::InitArgs,
     endpoints::EndpointType,
     prpc::{self as pb, GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
@@ -59,7 +63,7 @@ use phala_mq::{BindTopic, ChannelState, MessageDispatcher, MessageOrigin, Messag
 use phala_scheduler::RequestScheduler;
 use phala_serde_more as more;
 use std::time::Instant;
-use types::{Error, OpaqueError};
+use types::Error;
 
 pub use chain::BlockNumber;
 pub use contracts::pink;
@@ -632,9 +636,39 @@ impl<P: pal::Platform> Phactory<P> {
                     .expect("runtime state always exists here")
                     .chain_storage,
             );
+        let pink_runtime_version = self
+            .cluster_runtime_version()
+            .expect("BUG: no runtime version");
         async move {
-            let result: Result<Vec<u8>, OpaqueError> = async move {
-                let (output, effects) = query_future?.await?;
+            use phactory_api::contracts::QueryError;
+            use phala_types::contract::ContractQueryError;
+            use sidevm_env::messages::QueryError as SidevmQueryError;
+
+            fn opaqure_to_sidevm_err(err: ContractQueryError) -> SidevmQueryError {
+                match err {
+                    ContractQueryError::InvalidSignature => SidevmQueryError::InvalidSignature,
+                    ContractQueryError::ContractNotFound => SidevmQueryError::ContractNotFound,
+                    ContractQueryError::DecodeError => SidevmQueryError::DecodeError,
+                    ContractQueryError::OtherError(err) => SidevmQueryError::OtherError(err),
+                }
+            }
+            fn to_sidevm_err(err: QueryError) -> SidevmQueryError {
+                match err {
+                    QueryError::BadOrigin => SidevmQueryError::BadOrigin,
+                    QueryError::RuntimeError(err) => SidevmQueryError::RuntimeError(err),
+                    QueryError::SidevmNotFound => SidevmQueryError::SidevmNotFound,
+                    QueryError::NoResponse => SidevmQueryError::NoResponse,
+                    QueryError::ServiceUnavailable => SidevmQueryError::ServiceUnavailable,
+                    QueryError::Timeout => SidevmQueryError::Timeout,
+                }
+            }
+            let result: Result<Vec<u8>, SidevmQueryError> = async move {
+                let (query_type, output, effects) = query_future
+                    .map_err(opaqure_to_sidevm_err)?
+                    .await
+                    .map_err(opaqure_to_sidevm_err)?;
+                let phactory_api::contracts::Response::Payload(output) =
+                    output.map_err(to_sidevm_err)?;
                 if let Some(effects) = effects {
                     match weak_phactory.upgrade() {
                         Some(phactory) => {
@@ -645,7 +679,21 @@ impl<P: pal::Platform> Phactory<P> {
                         }
                     }
                 }
-                Ok(output)
+                match query_type {
+                    QueryType::InkMessage => {
+                        use PinkRuntimeVersion::*;
+                        let result = match pink_runtime_version {
+                            V1_0 | V1_1 | V1_2 => ContractExecResult::decode(&mut &output[..])
+                                .map_err(|_| SidevmQueryError::InvalidContractExecResult)?,
+                        };
+                        match result.result {
+                            Ok(value) => Ok(value.data),
+                            Err(err) => Err(SidevmQueryError::DispatchError(format!("{err:?}"))),
+                        }
+                    }
+                    // Only support ink! message for now
+                    _ => Err(SidevmQueryError::Unsupported),
+                }
             }
             .await;
             if reply_tx.send(result.encode()).is_err() {
@@ -673,6 +721,17 @@ impl<P: pal::Platform> Phactory<P> {
             return;
         };
         system.apply_side_effects(effects, &state.chain_storage, &self.sidevm_spawner);
+    }
+
+    fn cluster_runtime_version(&self) -> Option<PinkRuntimeVersion> {
+        let ver = self
+            .system
+            .as_ref()?
+            .contract_cluster
+            .as_ref()?
+            .config
+            .runtime_version;
+        PinkRuntimeVersion::from_ver(ver)
     }
 }
 
