@@ -20,7 +20,7 @@ use hash_db::{
 pub(crate) use im::ordmap::{Entry, OrdMap as Map};
 use std::{borrow::Borrow, cmp::Eq, hash, marker::PhantomData};
 
-use sp_state_machine::{backend::Consolidate, DefaultError, TrieBackendStorage};
+use sp_state_machine::{DefaultError, TrieBackendStorage};
 use trie_db::DBValue;
 
 pub trait MaybeDebug: std::fmt::Debug {}
@@ -28,21 +28,10 @@ impl<T: std::fmt::Debug> MaybeDebug for T {}
 
 pub type GenericMemoryDB<H> = MemoryDB<H, HashKey<H>, trie_db::DBValue>;
 
-impl<H: KeyHasher> Consolidate for GenericMemoryDB<H>
-where
-    H::Out: Ord,
-{
-    fn consolidate(&mut self, other: Self) {
-        MemoryDB::consolidate(self, other)
-    }
-}
-
 impl<H: KeyHasher> TrieBackendStorage<H> for GenericMemoryDB<H>
 where
     H::Out: Ord,
 {
-    type Overlay = Self;
-
     fn get(
         &self,
         key: &<H as KeyHasher>::Out,

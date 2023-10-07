@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use frame_support::log::error;
+use log::error;
 use frame_support::traits::Currency;
 use pallet_contracts::chain_extension::{
     ChainExtension, Environment, Ext, InitState, Result as ExtResult, RetVal,

@@ -10,7 +10,7 @@ use std::iter::FromIterator;
 use parity_scale_codec::Codec;
 use sp_core::storage::ChildInfo;
 use sp_core::Hasher;
-use sp_state_machine::{Backend, IterArgs, TrieBackend, TrieBackendBuilder};
+use sp_state_machine::{Backend, BackendTransaction, IterArgs, TrieBackend, TrieBackendBuilder};
 use sp_trie::{trie_types::TrieDBMutBuilderV0 as TrieDBMutBuilder, TrieMut};
 
 pub use memdb::GenericMemoryDB as MemoryDB;
@@ -128,7 +128,7 @@ where
         &self,
         delta: &'a StorageCollection,
         child_deltas: &'a ChildStorageCollection,
-    ) -> (H::Out, MemoryDB<H>) {
+    ) -> (H::Out, BackendTransaction<H>) {
         let child_deltas: Vec<(ChildInfo, &StorageCollection)> = child_deltas
             .iter()
             .map(|(k, v)| {

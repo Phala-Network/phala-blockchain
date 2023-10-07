@@ -27,6 +27,7 @@ mod msg_routing;
 
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_election_provider_support::{
+    bounds::{ElectionBounds, ElectionBoundsBuilder},
     onchain, BalancingConfig, ElectionDataProvider, SequentialPhragmen, VoteWeight,
 };
 use frame_support::{
@@ -45,7 +46,7 @@ use frame_support::{
         },
         IdentityFee, Weight,
     },
-    PalletId, RuntimeDebug,
+    PalletId,
 };
 use frame_system::{
     limits::{BlockLength, BlockWeights},
@@ -74,7 +75,7 @@ use sp_runtime::{
     },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
     AccountId32, ApplyExtrinsicResult, FixedPointNumber, FixedU128, Perbill, Percent, Permill,
-    Perquintill,
+    Perquintill, RuntimeDebug,
 };
 use sp_std::prelude::*;
 #[cfg(any(feature = "std", test))]
@@ -439,10 +440,11 @@ impl pallet_babe::Config for Runtime {
     type DisabledValidators = Session;
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
+    type MaxNominators = MaxNominatorRewardedPerValidator;
     type KeyOwnerProof =
         <Historical as KeyOwnerProofSystem<(KeyTypeId, pallet_babe::AuthorityId)>>::Proof;
     type EquivocationReportSystem =
-        pallet_babe::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
+    pallet_babe::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
 parameter_types! {
@@ -568,6 +570,9 @@ parameter_types! {
     pub HistoryDepth: u32 = 84;
 }
 
+/// Upper limit on the number of NPOS nominations.
+const MAX_QUOTA_NOMINATIONS: u32 = 16;
+
 pub struct StakingBenchmarkingConfig;
 impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
     type MaxNominators = ConstU32<1000>;
@@ -575,7 +580,6 @@ impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
 }
 
 impl pallet_staking::Config for Runtime {
-    type MaxNominations = MaxNominations;
     type Currency = Balances;
     type CurrencyBalance = Balance;
     type UnixTime = Timestamp;
@@ -600,6 +604,7 @@ impl pallet_staking::Config for Runtime {
     type ElectionProvider = ElectionProviderMultiPhase;
     type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type VoterList = VoterList;
+    type NominationsQuota = pallet_staking::FixedNominationsQuota<MAX_QUOTA_NOMINATIONS>;
     // This a placeholder, to be introduced in the next PR as an instance of bags-list
     type TargetList = pallet_staking::UseValidatorsMap<Self>;
     type MaxUnlockingChunks = ConstU32<32>;
@@ -611,7 +616,7 @@ impl pallet_staking::Config for Runtime {
 
 impl pallet_fast_unstake::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    type ControlOrigin = EnsureRoot<AccountId>;
+    type ControlOrigin = frame_system::EnsureRoot<AccountId>;
     type BatchSize = ConstU32<64>;
     type Deposit = ConstU128<{ DOLLARS }>;
     type Currency = Balances;
@@ -634,7 +639,7 @@ parameter_types! {
 
     pub BetterUnsignedThreshold: Perbill = Perbill::from_rational(1u32, 10_000);
 
-    // worker configs
+    // miner configs
     pub const MultiPhaseUnsignedPriority: TransactionPriority = StakingUnsignedPriority::get() - 1u64;
     pub MinerMaxWeight: Weight = RuntimeBlockWeights::get()
         .get(DispatchClass::Normal)
@@ -653,17 +658,20 @@ frame_election_provider_support::generate_solution_type!(
         VoterIndex = u32,
         TargetIndex = u16,
         Accuracy = sp_runtime::PerU16,
-        MaxVoters = MaxElectingVoters,
+        MaxVoters = MaxElectingVotersSolution,
     >(16)
 );
 
 parameter_types! {
+    // Note: the EPM in this runtime runs the election on-chain. The election bounds must be
+    // carefully set so that an election round fits in one block.
+    pub ElectionBoundsMultiPhase: ElectionBounds = ElectionBoundsBuilder::default()
+        .voters_count(10_000.into()).targets_count(1_500.into()).build();
+    pub ElectionBoundsOnChain: ElectionBounds = ElectionBoundsBuilder::default()
+        .voters_count(5_000.into()).targets_count(1_250.into()).build();
+
     pub MaxNominations: u32 = <NposSolution16 as frame_election_provider_support::NposSolution>::LIMIT as u32;
-    pub MaxElectingVoters: u32 = 40_000;
-    pub MaxElectableTargets: u16 = 10_000;
-    // OnChain values are lower.
-    pub MaxOnChainElectingVoters: u32 = 5000;
-    pub MaxOnChainElectableTargets: u16 = 1250;
+    pub MaxElectingVotersSolution: u32 = 40_000;
     // The maximum winners that can be elected by the Election pallet which is equivalent to the
     // maximum active validators the staking pallet can have.
     pub MaxActiveValidators: u32 = 1000;
@@ -684,28 +692,25 @@ impl pallet_election_provider_multi_phase::BenchmarkingConfig for ElectionProvid
 }
 
 /// Maximum number of iterations for balancing that will be executed in the embedded OCW
-/// worker of election provider multi phase.
-pub const WORKER_MAX_ITERATIONS: u32 = 10;
+/// miner of election provider multi phase.
+pub const MINER_MAX_ITERATIONS: u32 = 10;
 
-/// A source of random balance for NposSolver, which is meant to be run by the OCW election worker.
+/// A source of random balance for NposSolver, which is meant to be run by the OCW election miner.
 pub struct OffchainRandomBalancing;
 impl Get<Option<BalancingConfig>> for OffchainRandomBalancing {
     fn get() -> Option<BalancingConfig> {
-        let iterations = match WORKER_MAX_ITERATIONS {
+        let iterations = match MINER_MAX_ITERATIONS {
             0 => 0,
             max => {
                 let seed = sp_io::offchain::random_seed();
                 let random = <u32>::decode(&mut TrailingZeroInput::new(&seed))
-                    .expect("input is padded with zeroes; qed")
-                    % max.saturating_add(1);
+                    .expect("input is padded with zeroes; qed") %
+                    max.saturating_add(1);
                 random as usize
-            }
+            },
         };
 
-        let config = BalancingConfig {
-            iterations,
-            tolerance: 0,
-        };
+        let config = BalancingConfig { iterations, tolerance: 0 };
         Some(config)
     }
 }
@@ -720,8 +725,7 @@ impl onchain::Config for OnChainSeqPhragmen {
     type DataProvider = <Runtime as pallet_election_provider_multi_phase::Config>::DataProvider;
     type WeightInfo = frame_election_provider_support::weights::SubstrateWeight<Runtime>;
     type MaxWinners = <Runtime as pallet_election_provider_multi_phase::Config>::MaxWinners;
-    type VotersBound = MaxOnChainElectingVoters;
-    type TargetsBound = MaxOnChainElectableTargets;
+    type Bounds = ElectionBoundsOnChain;
 }
 
 impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
@@ -769,9 +773,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
     type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type Solver = SequentialPhragmen<AccountId, SolutionAccuracyOf<Self>, OffchainRandomBalancing>;
     type ForceOrigin = EnsureRootOrHalfCouncil;
-    type MaxElectableTargets = MaxElectableTargets;
     type MaxWinners = MaxActiveValidators;
-    type MaxElectingVoters = MaxElectingVoters;
+    type ElectionBounds = ElectionBoundsMultiPhase;
     type BenchmarkingConfig = ElectionProviderBenchmarkConfig;
     type WeightInfo = pallet_election_provider_multi_phase::weights::SubstrateWeight<Self>;
 }
@@ -1190,10 +1193,11 @@ impl pallet_grandpa::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
+    type MaxNominators = MaxNominatorRewardedPerValidator;
     type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
     type KeyOwnerProof = <Historical as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
     type EquivocationReportSystem =
-        pallet_grandpa::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
+    pallet_grandpa::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
 parameter_types! {
