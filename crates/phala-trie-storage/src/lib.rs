@@ -10,10 +10,11 @@ use std::iter::FromIterator;
 use parity_scale_codec::Codec;
 use sp_core::storage::ChildInfo;
 use sp_core::Hasher;
-use sp_state_machine::{Backend, BackendTransaction, IterArgs, TrieBackend, TrieBackendBuilder};
+use sp_state_machine::{Backend, IterArgs, TrieBackend, TrieBackendBuilder};
 use sp_trie::{trie_types::TrieDBMutBuilderV0 as TrieDBMutBuilder, TrieMut};
 
 pub use memdb::GenericMemoryDB as MemoryDB;
+pub use sp_state_machine::BackendTransaction;
 
 /// Storage key.
 pub type StorageKey = Vec<u8>;
@@ -152,7 +153,10 @@ where
     }
 
     /// Apply storage changes calculated from `calc_root_if_changes`.
-    pub fn apply_changes(&mut self, root: H::Out, transaction: MemoryDB<H>) {
+    pub fn apply_changes(&mut self, root: H::Out, transaction: BackendTransaction<H>)
+    where
+        H::Out: From<[u8; 32]>,
+    {
         let mut storage = core::mem::take(self).0.into_storage();
         storage.consolidate(transaction);
         let _ = core::mem::replace(&mut self.0, TrieBackendBuilder::new(storage, root).build());

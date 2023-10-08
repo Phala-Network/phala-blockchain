@@ -5,15 +5,13 @@ use crate::{
 };
 use pink_capi::v1::ocall::ExecContext;
 use scale::Encode;
-use sp_state_machine::{
-    backend::AsTrieBackend, Backend as StorageBackend, Ext, OverlayedChanges,
-    StorageTransactionCache,
-};
+use sp_state_machine::{backend::AsTrieBackend, Backend as StorageBackend, Ext, OverlayedChanges};
 
 pub use external_backend::ExternalStorage;
+use phala_trie_storage::BackendTransaction;
 
 pub trait CommitTransaction: StorageBackend<Hashing> {
-    fn commit_transaction(&mut self, root: Hash, transaction: Self::Transaction);
+    fn commit_transaction(&mut self, root: Hash, transaction: BackendTransaction<Hashing>);
 }
 
 pub struct Storage<Backend> {
@@ -34,13 +32,12 @@ where
         &self,
         exec_context: &ExecContext,
         f: impl FnOnce() -> R,
-    ) -> (R, ExecSideEffects, OverlayedChanges) {
+    ) -> (R, ExecSideEffects, OverlayedChanges<Hashing>) {
         let backend = self.backend.as_trie_backend();
 
         let mut overlay = OverlayedChanges::default();
         overlay.start_transaction();
-        let mut cache = StorageTransactionCache::default();
-        let mut ext = Ext::new(&mut overlay, &mut cache, backend, None);
+        let mut ext = Ext::new(&mut overlay, backend, None);
         let (rv, effects) = sp_externalities::set_and_run_with_externalities(&mut ext, move || {
             Timestamp::set_timestamp(exec_context.now_ms);
             System::set_block_number(exec_context.block_number);
@@ -66,7 +63,10 @@ where
         (rv, effects)
     }
 
-    pub fn changes_transaction(&self, changes: OverlayedChanges) -> (Hash, Backend::Transaction) {
+    pub fn changes_transaction(
+        &self,
+        changes: OverlayedChanges<Hashing>,
+    ) -> (Hash, BackendTransaction<Hashing>) {
         let delta = changes
             .changes()
             .map(|(k, v)| (&k[..], v.value().map(|v| &v[..])));
@@ -81,7 +81,7 @@ where
             .full_storage_root(delta, child_delta, sp_core::storage::StateVersion::V0)
     }
 
-    pub fn commit_changes(&mut self, changes: OverlayedChanges) {
+    pub fn commit_changes(&mut self, changes: OverlayedChanges<Hashing>) {
         let (root, transaction) = self.changes_transaction(changes);
         self.backend.commit_transaction(root, transaction)
     }

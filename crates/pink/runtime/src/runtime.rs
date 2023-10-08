@@ -1,6 +1,5 @@
 mod extension;
 mod pallet_pink;
-mod weights;
 
 use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Nonce};
 use frame_support::{
@@ -10,7 +9,8 @@ use frame_support::{
 };
 use log::info;
 use pallet_contracts::{
-    migration::{v09, v10, v11, v12},
+    migration::{v11, v12},
+    weights::SubstrateWeight,
     Config, Frame, Migration, Schedule,
 };
 use sp_runtime::{traits::IdentityLookup, Perbill};
@@ -68,7 +68,7 @@ impl pallet_balances::Config for PinkRuntime {
     type FreezeIdentifier = ();
     type MaxHolds = ();
     type MaxFreezes = ();
-    type RuntimeHoldReason = ();
+    type RuntimeHoldReason = RuntimeHoldReason;
 }
 
 impl frame_system::Config for PinkRuntime {
@@ -142,7 +142,7 @@ impl Config for PinkRuntime {
     type CallFilter = frame_support::traits::Nothing;
     type CallStack = [Frame<Self>; 5];
     type WeightPrice = Pink;
-    type WeightInfo = weights::PinkWeights<Self>;
+    type WeightInfo = SubstrateWeight<Self>;
     type ChainExtension = extension::PinkExtension;
     type Schedule = DefaultSchedule;
     type DepositPerByte = DepositPerStorageByte;
@@ -153,12 +153,7 @@ impl Config for PinkRuntime {
     type MaxStorageKeyLen = MaxStorageKeyLen;
     type UnsafeUnstableInterface = ConstBool<false>;
     type MaxDebugBufferLen = MaxDebugBufferLen;
-    type Migrations = (
-        v09::Migration<Self>,
-        v10::Migration<Self>,
-        v11::Migration<Self>,
-        v12::Migration<Self, Balances>,
-    );
+    type Migrations = (v11::Migration<Self>, v12::Migration<Self, Balances>);
     type CodeHashLockupDepositPercent = CodeHashLockupDepositPercent;
     type MaxDelegateDependencies = ConstU32<32>;
     type RuntimeHoldReason = RuntimeHoldReason;
