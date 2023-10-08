@@ -1,7 +1,7 @@
 //! Support for query to local contract
 
 use scale::{Decode, Encode};
-use sidevm_env::messages::QueryError;
+use sidevm_env::messages::{QueryError, QueryResponse};
 
 use crate::{channel, ocall};
 
@@ -34,7 +34,11 @@ pub async fn query_pink(contract_id: [u8; 32], payload: Vec<u8>) -> Result<Vec<u
     let Some(reply) = rx.next().await else {
         return Err(sidevm_env::OcallError::EndOfFile.into());
     };
-    let reply = Result::<Vec<u8>, QueryError>::decode(&mut &reply[..])
-        .map_err(|_| QueryError::DecodeError)?;
-    reply
+    let result = Result::<QueryResponse, QueryError>::decode(&mut &reply[..])
+        .map_err(|_| QueryError::DecodeError)??;
+    match result {
+        QueryResponse::EstimatedOutput { output, .. } | QueryResponse::SimpleOutput(output) => {
+            Ok(output)
+        }
+    }
 }

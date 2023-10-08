@@ -8,7 +8,7 @@ extern crate runtime as chain;
 
 use ::pink::{
     runtimes::v1::PinkRuntimeVersion,
-    types::{AccountId, ContractExecResult, ExecSideEffects},
+    types::{AccountId, ExecSideEffects},
 };
 use contracts::{
     pink::{http_counters, Cluster},
@@ -77,6 +77,7 @@ pub type PRuntimeLightValidation = LightValidation<chain::Runtime>;
 pub mod benchmark;
 
 mod bin_api_service;
+mod contract_result;
 pub mod contracts;
 mod cryptography;
 mod im_helpers;
@@ -643,7 +644,7 @@ impl<P: pal::Platform> Phactory<P> {
         async move {
             use phactory_api::contracts::QueryError;
             use phala_types::contract::ContractQueryError;
-            use sidevm_env::messages::QueryError as SidevmQueryError;
+            use sidevm_env::messages::{QueryError as SidevmQueryError, QueryResponse};
 
             fn opaqure_to_sidevm_err(err: ContractQueryError) -> SidevmQueryError {
                 match err {
@@ -663,7 +664,7 @@ impl<P: pal::Platform> Phactory<P> {
                     QueryError::Timeout => SidevmQueryError::Timeout,
                 }
             }
-            let result: Result<Vec<u8>, SidevmQueryError> = async move {
+            let result: Result<QueryResponse, SidevmQueryError> = async move {
                 let (query_type, output, effects) = query_future
                     .map_err(opaqure_to_sidevm_err)?
                     .await
@@ -680,20 +681,50 @@ impl<P: pal::Platform> Phactory<P> {
                         }
                     }
                 }
-                match query_type {
-                    QueryType::InkMessage => {
+                macro_rules! convert_result {
+                    ($typ: ident) => {{
                         use PinkRuntimeVersion::*;
                         let result = match pink_runtime_version {
-                            V1_0 | V1_1 | V1_2 => ContractExecResult::decode(&mut &output[..])
+                            V1_0 | V1_1 | V1_2 => $typ::decode(&mut &output[..])
                                 .map_err(|_| SidevmQueryError::InvalidContractExecResult)?,
                         };
                         match result.result {
-                            Ok(value) => Ok(value.data),
+                            Ok(value) => {
+                                use contract_result::StorageDeposit::*;
+
+                                let storage_deposit_value;
+                                let storage_deposit_is_charge;
+                                match result.storage_deposit {
+                                    Charge(value) => {
+                                        storage_deposit_value = value;
+                                        storage_deposit_is_charge = true;
+                                    }
+                                    Refund(value) => {
+                                        storage_deposit_value = value;
+                                        storage_deposit_is_charge = false;
+                                    }
+                                }
+                                Ok(QueryResponse::EstimatedOutput {
+                                    output: value.data,
+                                    gas_consumed: result.gas_consumed.ref_time,
+                                    gas_required: result.gas_required.ref_time,
+                                    storage_deposit_value,
+                                    storage_deposit_is_charge,
+                                })
+                            }
                             Err(err) => Err(SidevmQueryError::DispatchError(format!("{err:?}"))),
                         }
+                    }};
+                }
+                use contract_result::{ContractExecResult, ContractInstantiateResult};
+                match query_type {
+                    QueryType::InkMessage => {
+                        convert_result!(ContractExecResult)
                     }
-                    // Only support ink! message for now
-                    _ => Err(SidevmQueryError::Unsupported),
+                    QueryType::InkInstantiate => {
+                        convert_result!(ContractInstantiateResult)
+                    }
+                    QueryType::SidevmQuery => Ok(QueryResponse::SimpleOutput(output)),
                 }
             }
             .await;
