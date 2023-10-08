@@ -98,7 +98,8 @@ export class OnChainRegistry {
   static async create(api: ApiPromise, options?: CreateOptions) {
     options = { autoConnect: true, ...(options || {}) }
     const instance = new OnChainRegistry(api)
-    await waitReady()
+    // We should ensure the wasm & api has been initialized here.
+    await Promise.all([waitReady(), api.isReady])
     if (options.autoConnect) {
       await instance.connect(
         options.clusterId,
