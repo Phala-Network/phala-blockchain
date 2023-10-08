@@ -349,21 +349,34 @@ export class PinkBlueprintPromise {
       throw new Error('No Gas Price or deposit Per Byte from cluster info.')
     }
 
-    const [clusterBalance, onchainBalance, { gasRequired }] = await Promise.all([
-      this.phatRegistry.getClusterBalance(address),
-      this.api.query.system.account<FrameSystemAccountInfo>(address),
-      estimate(cert.address, { cert }, ...args),
-    ])
+    //
+    // Even the estimate result already large then the real cost, we still need deposit more
+    // for the peak usage.
+    //
+    const mutlipiler = 1.05
 
     const msg = this.abi.findConstructor(constructorOrId).toU8a(args)
-    const storageDepositRequired = depositPerByte.mul(new BN(msg.length * 2.2))
+    const deposit = depositPerByte.mul(new BN(msg.length * mutlipiler))
 
-    const minRequired = gasRequired.refTime.toBn().mul(gasPrice).add(storageDepositRequired)
+    const [clusterBalance, onchainBalance, { gasRequired, storageDeposit }] = await Promise.all([
+      this.phatRegistry.getClusterBalance(address),
+      this.api.query.system.account<FrameSystemAccountInfo>(address),
+      // We estimating the gas & storage deposit cost with deposit propose.
+      estimate(cert.address, { cert, deposit }, ...args),
+    ])
+
+    // We calculate the minimal cost based on the estimated result. Even the estimated result already higher than
+    // the real-cost, we still need to deposit more for the peak usage.
+    let minRequired = gasRequired.refTime
+      .toBn()
+      .add(storageDeposit.isCharge ? storageDeposit.asCharge.toBn() : new BN(0))
+    // BN not support floating-point number calculation, so we need to convert it to native number and then convert back.
+    minRequired = new BN(minRequired.toNumber() * mutlipiler)
 
     // Auto deposit.
     if (clusterBalance.free.lt(minRequired)) {
       const deposit = minRequired.sub(clusterBalance.free)
-      if (onchainBalance.data.free.toBn().lt(deposit)) {
+      if (onchainBalance.data.free.lt(deposit)) {
         throw new Error(`Not enough balance to pay for gas and storage deposit: ${minRequired.toNumber()}`)
       }
       txOptions.deposit = deposit
