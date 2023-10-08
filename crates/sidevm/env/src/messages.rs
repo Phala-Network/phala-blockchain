@@ -114,3 +114,15 @@ impl From<OcallError> for QueryError {
         Self::OcallError(err)
     }
 }
+
+#[derive(Encode, Decode)]
+pub enum QueryResponse {
+    EstimatedOutput {
+        output: Vec<u8>,
+        gas_consumed: u64,
+        gas_required: u64,
+        storage_deposit_value: u128,
+        storage_deposit_is_charge: bool,
+    },
+    SimpleOutput(Vec<u8>),
+}

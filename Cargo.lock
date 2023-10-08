@@ -9314,6 +9314,7 @@ dependencies = [
  "num-bigint 0.4.3",
  "num-traits",
  "once_cell",
+ "pallet-contracts-primitives",
  "parity-scale-codec",
  "phactory-api",
  "phactory-pal",
