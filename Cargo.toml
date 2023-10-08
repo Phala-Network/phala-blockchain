@@ -110,3 +110,6 @@ sp-runtime-interface = { git = "https://github.com/paritytech/polkadot-sdk.git",
 # For pink-extension-runtime, it will introduce Substrate from crates-io which usually different with polkadot-branch
 pink-extension = { path = "crates/pink/pink-extension" }
 pink-extension-runtime = { path = "crates/pink/pink-extension-runtime" }
+
+[patch."https://github.com/paritytech/substrate"]
+pallet-contracts = { path = "/home/kvin/codes/chain/phala/substrate/frame/contracts" }
