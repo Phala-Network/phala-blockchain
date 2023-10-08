@@ -1,4 +1,6 @@
 set -e
+# Workaround for https://github.com/orgs/community/discussions/47863
+apt-mark hold grub-efi-amd64-signed
 apt update
 apt upgrade -y
 apt install -y apt-utils \
