@@ -1,6 +1,6 @@
 ---
 source: crates/phactory/src/lib.rs
-assertion_line: 302
+assertion_line: 353
 expression: "travel_types::<Phactory<()>>()"
 ---
 [
