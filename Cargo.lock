@@ -18337,3 +18337,7 @@ dependencies = [
  "libc",
  "pkg-config",
 ]
+
+[[patch.unused]]
+name = "pallet-contracts"
+version = "4.0.0-dev"
