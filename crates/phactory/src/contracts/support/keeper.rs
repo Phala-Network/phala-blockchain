@@ -1,9 +1,11 @@
-use im::OrdMap as BTreeMap;
 use pink::types::{AccountId, BlockNumber};
 use serde::{Deserialize, Serialize};
 use sidevm::service::Spawner;
 
-use crate::{contracts::Contract, im_helpers::{ordmap_for_each_mut, OrdMap}};
+use crate::{
+    contracts::Contract,
+    im_helpers::{ordmap_for_each_mut, OrdMap},
+};
 
 type ContractMap = OrdMap<AccountId, Contract>;
 
