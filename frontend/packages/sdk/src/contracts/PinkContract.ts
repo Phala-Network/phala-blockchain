@@ -221,22 +221,32 @@ export class PinkContractPromise<
     this.contractKey = contractKey
 
     this.abi.messages.forEach((meta): void => {
-      this.#query[meta.method] = withMeta(
-        meta,
-        (
-          origin: string | AccountId | Uint8Array,
-          options: PinkContractQueryOptions,
-          ...params: unknown[]
-        ): ContractCallResult<'promise', ContractCallOutcome> => {
-          return this.#inkQuery(true, meta, options, params).send(origin)
-        }
-      )
-
       if (meta.isMutating) {
         this.#tx[meta.method] = withMeta(
           meta,
           (options: PinkContractOptions, ...params: unknown[]): SubmittableExtrinsic<'promise'> => {
             return this.#inkCommand(meta, options, params)
+          }
+        )
+        this.#query[meta.method] = withMeta(
+          meta,
+          (
+            origin: string | AccountId | Uint8Array,
+            options: PinkContractQueryOptions,
+            ...params: unknown[]
+          ): ContractCallResult<'promise', ContractCallOutcome> => {
+            return this.#inkQuery(true, meta, options, params).send(origin)
+          }
+        )
+      } else {
+        this.#query[meta.method] = withMeta(
+          meta,
+          (
+            origin: string | AccountId | Uint8Array,
+            options: PinkContractQueryOptions,
+            ...params: unknown[]
+          ): ContractCallResult<'promise', ContractCallOutcome> => {
+            return this.#inkQuery(false, meta, options, params).send(origin)
           }
         )
       }
