@@ -49,6 +49,7 @@ parameter_types! {
     pub const ExistentialDeposit: Balance = 1;
     pub const MaxLocks: u32 = 50;
     pub const MaxReserves: u32 = 50;
+    pub const MaxHolds: u32 = 10;
 }
 
 impl pallet_pink::Config for PinkRuntime {
@@ -66,7 +67,7 @@ impl pallet_balances::Config for PinkRuntime {
     type MaxReserves = MaxReserves;
     type ReserveIdentifier = [u8; 8];
     type FreezeIdentifier = ();
-    type MaxHolds = ();
+    type MaxHolds = MaxHolds;
     type MaxFreezes = ();
     type RuntimeHoldReason = RuntimeHoldReason;
 }

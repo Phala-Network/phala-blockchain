@@ -5,15 +5,15 @@ expression: result
 ---
 ContractResult {
     gas_consumed: Weight {
-        ref_time: 969413227,
+        ref_time: 1004638278,
         proof_size: 24635,
     },
     gas_required: Weight {
-        ref_time: 1275617451,
+        ref_time: 1582359686,
         proof_size: 1073211,
     },
     storage_deposit: StorageDeposit::Charge(
-        2,
+        1,
     ),
     debug_message: [],
     result: Ok(

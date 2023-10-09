@@ -505,6 +505,10 @@ describe('A full stack', function () {
         it('can upload system code', async function () {
             const systemCode = systemMetadata.source.wasm;
             await assert.txAccepted(
+                api.tx.sudo.sudo(api.tx.phalaPhatContracts.setPinkRuntimeVersion([1, 2])),
+                alice,
+            );
+            await assert.txAccepted(
                 api.tx.sudo.sudo(api.tx.phalaPhatContracts.setPinkSystemCode(systemCode)),
                 alice,
             );
@@ -1300,7 +1304,7 @@ function newNode(rpcPort, tmpPath, name = 'node') {
     const cli = [
         pathNode, [
             '--dev',
-            '--block-millisecs=1000',
+            '--block-millisecs=100',
             '--base-path=' + path.resolve(tmpPath, 'phala-node'),
             `--rpc-port=${rpcPort}`,
             '--rpc-methods=Unsafe',
@@ -1357,7 +1361,7 @@ function newRelayer(wsPort, teePort, tmpPath, gasAccountKey, key = '', name = 'r
         `--mnemonic=${gasAccountKey}`,
         `--substrate-ws-endpoint=ws://localhost:${wsPort}`,
         `--pruntime-endpoint=http://localhost:${teePort}`,
-        '--dev-wait-block-ms=1000',
+        '--dev-wait-block-ms=100',
         '--attestation-provider', 'none',
     ];
 

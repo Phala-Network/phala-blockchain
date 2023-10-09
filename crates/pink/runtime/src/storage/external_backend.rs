@@ -55,7 +55,7 @@ pub mod helper {
     fn code_owner_key(code_hash: &Hash) -> Vec<u8> {
         let mut key = Vec::new();
         key.extend(twox_128("Contracts".as_bytes()));
-        key.extend(twox_128("OwnerInfoOf".as_bytes()));
+        key.extend(twox_128("CodeInfoOf".as_bytes()));
         key.extend(&code_hash.encode());
         key
     }

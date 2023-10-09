@@ -81,7 +81,7 @@ impl ecall::ECalls for ECallImpl {
         self.deposit(owner.clone(), deposit);
         let code_hash = self
             .upload_code(owner.clone(), system_code, true)
-            .or(Err("FailedToUploadResourceToCluster"))?;
+            .map_err(|err| format!("FailedToUploadSystemCode: {err:?}"))?;
         info!("Worker: pink system code hash {:?}", code_hash);
         let selector = vec![0xed, 0x4b, 0x9d, 0x1b]; // The default() constructor
         let args = TransactionArguments {
