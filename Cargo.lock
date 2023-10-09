@@ -8704,7 +8704,7 @@ dependencies = [
 [[package]]
 name = "pallet-rmrk-core"
 version = "0.0.1"
-source = "git+https://github.com/Phala-Network/rmrk-substrate?branch=release-polkadot-v1.1.0#f3b76e57f9e9eb3037d376cf689353a1074b21f2"
+source = "git+https://github.com/Phala-Network/rmrk-substrate?branch=release-polkadot-v1.1.0#4f322ae65af29976bc73782b9ef213447cf89595"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11549,7 +11549,7 @@ dependencies = [
 [[package]]
 name = "rmrk-traits"
 version = "0.0.1"
-source = "git+https://github.com/Phala-Network/rmrk-substrate?branch=release-polkadot-v1.1.0#f3b76e57f9e9eb3037d376cf689353a1074b21f2"
+source = "git+https://github.com/Phala-Network/rmrk-substrate?branch=release-polkadot-v1.1.0#4f322ae65af29976bc73782b9ef213447cf89595"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -16284,7 +16284,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.7",
- "rand 0.4.6",
+ "rand 0.8.5",
  "static_assertions",
 ]
 
