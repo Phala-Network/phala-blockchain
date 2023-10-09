@@ -30,7 +30,7 @@ use sc_client_api::{Backend, BlockBackend};
 use sc_consensus_babe::{self, SlotProportion};
 use sc_executor::NativeElseWasmExecutor;
 use sc_network::{event::Event, NetworkEventStream, NetworkService};
-use sc_network_common::sync::warp::WarpSyncParams;
+use sc_network_sync::warp::WarpSyncParams;
 use sc_network_sync::SyncingService;
 use sc_service::{
     config::Configuration, error::Error as ServiceError, PruningMode, RpcHandlers, TaskManager,
@@ -49,6 +49,10 @@ type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 type FullGrandpaBlockImport =
     grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
+
+/// The minimum period of blocks on which justifications will be
+/// imported and generated.
+const GRANDPA_JUSTIFICATION_PERIOD: u32 = 512;
 
 /// The transaction pool type defintion.
 pub type TransactionPool = sc_transaction_pool::FullPool<Block, FullClient>;
@@ -140,7 +144,7 @@ pub fn new_partial(
         FullClient,
         FullBackend,
         FullSelectChain,
-        sc_consensus::DefaultImportQueue<Block, FullClient>,
+        sc_consensus::DefaultImportQueue<Block>,
         sc_transaction_pool::FullPool<Block, FullClient>,
         (
             impl Fn(
@@ -171,13 +175,13 @@ pub fn new_partial(
 
     let executor = sc_service::new_native_or_wasm_executor(config);
 
-	let (client, backend, keystore_container, task_manager) =
-		sc_service::new_full_parts::<Block, RuntimeApi, _>(
-			config,
-			telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
-			executor,
-		)?;
-	let client = Arc::new(client);
+    let (client, backend, keystore_container, task_manager) =
+        sc_service::new_full_parts::<Block, RuntimeApi, _>(
+            config,
+            telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
+            executor,
+        )?;
+    let client = Arc::new(client);
 
     let telemetry = telemetry.map(|(worker, telemetry)| {
         task_manager
@@ -198,6 +202,7 @@ pub fn new_partial(
 
     let (grandpa_block_import, grandpa_link) = grandpa::block_import(
         client.clone(),
+        GRANDPA_JUSTIFICATION_PERIOD,
         &(client.clone() as Arc<_>),
         select_chain.clone(),
         telemetry.as_ref().map(|x| x.handle()),
@@ -396,7 +401,7 @@ pub fn new_full_base(
     let name = config.network.node_name.clone();
     let enable_grandpa = !config.disable_grandpa;
     let prometheus_registry = config.prometheus_registry().cloned();
-	let enable_offchain_worker = config.offchain_worker.enabled;
+    let enable_offchain_worker = config.offchain_worker.enabled;
 
     let rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
         config,
@@ -526,68 +531,68 @@ pub fn new_full_base(
         None
     };
 
-	let grandpa_config = grandpa::Config {
-		// FIXME #1578 make this available through chainspec
-		gossip_duration: std::time::Duration::from_millis(333),
-		justification_period: 1,
-		name: Some(name),
-		observer_enabled: false,
-		keystore,
-		local_role: role.clone(),
-		telemetry: telemetry.as_ref().map(|x| x.handle()),
-		protocol_name: grandpa_protocol_name,
-	};
+    let grandpa_config = grandpa::Config {
+        // FIXME #1578 make this available through chainspec
+        gossip_duration: std::time::Duration::from_millis(333),
+        justification_generation_period: 1, // https://github.com/paritytech/substrate/pull/14423#issuecomment-1633837906
+        name: Some(name),
+        observer_enabled: false,
+        keystore,
+        local_role: role.clone(),
+        telemetry: telemetry.as_ref().map(|x| x.handle()),
+        protocol_name: grandpa_protocol_name,
+    };
 
     if enable_grandpa {
-		// start the full GRANDPA voter
-		// NOTE: non-authorities could run the GRANDPA observer protocol, but at
-		// this point the full voter should provide better guarantees of block
-		// and vote data availability than the observer. The observer has not
-		// been tested extensively yet and having most nodes in a network run it
-		// could lead to finality stalls.
-		let grandpa_config = grandpa::GrandpaParams {
-			config: grandpa_config,
-			link: grandpa_link,
-			network: network.clone(),
-			sync: Arc::new(sync_service.clone()),
-			telemetry: telemetry.as_ref().map(|x| x.handle()),
-			voting_rule: grandpa::VotingRulesBuilder::default().build(),
-			prometheus_registry: prometheus_registry.clone(),
-			shared_voter_state,
-			offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool.clone()),
-		};
+        // start the full GRANDPA voter
+        // NOTE: non-authorities could run the GRANDPA observer protocol, but at
+        // this point the full voter should provide better guarantees of block
+        // and vote data availability than the observer. The observer has not
+        // been tested extensively yet and having most nodes in a network run it
+        // could lead to finality stalls.
+        let grandpa_config = grandpa::GrandpaParams {
+            config: grandpa_config,
+            link: grandpa_link,
+            network: network.clone(),
+            sync: Arc::new(sync_service.clone()),
+            telemetry: telemetry.as_ref().map(|x| x.handle()),
+            voting_rule: grandpa::VotingRulesBuilder::default().build(),
+            prometheus_registry: prometheus_registry.clone(),
+            shared_voter_state,
+            offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool.clone()),
+        };
 
-		// the GRANDPA voter task is considered infallible, i.e.
-		// if it fails we take down the service with it.
-		task_manager.spawn_essential_handle().spawn_blocking(
-			"grandpa-voter",
-			None,
-			grandpa::run_grandpa_voter(grandpa_config)?,
-		);
+        // the GRANDPA voter task is considered infallible, i.e.
+        // if it fails we take down the service with it.
+        task_manager.spawn_essential_handle().spawn_blocking(
+            "grandpa-voter",
+            None,
+            grandpa::run_grandpa_voter(grandpa_config)?,
+        );
     }
 
-	if enable_offchain_worker {
-		task_manager.spawn_handle().spawn(
-			"offchain-workers-runner",
-			"offchain-work",
-			sc_offchain::OffchainWorkers::new(sc_offchain::OffchainWorkerOptions {
-				runtime_api_provider: client.clone(),
-				keystore: Some(keystore_container.keystore()),
-				offchain_db: backend.offchain_storage(),
-				transaction_pool: Some(OffchainTransactionPoolFactory::new(
-					transaction_pool.clone(),
-				)),
-				network_provider: network.clone(),
-				is_validator: role.is_authority(),
-				enable_http_requests: true,
-				custom_extensions: move |_| {
-					vec![]
-				},
-			})
-				.run(client.clone(), task_manager.spawn_handle())
-				.boxed(),
-		);
-	}
+    if enable_offchain_worker {
+        task_manager.spawn_handle().spawn(
+            "offchain-workers-runner",
+            "offchain-work",
+            sc_offchain::OffchainWorkers::new(sc_offchain::OffchainWorkerOptions {
+                runtime_api_provider: client.clone(),
+                keystore: Some(keystore_container.keystore()),
+                offchain_db: backend.offchain_storage(),
+                transaction_pool: Some(OffchainTransactionPoolFactory::new(
+                    transaction_pool.clone(),
+                )),
+                network_provider: network.clone(),
+                is_validator: role.is_authority(),
+                enable_http_requests: true,
+                custom_extensions: move |_| {
+                    vec![]
+                },
+            })
+                .run(client.clone(), task_manager.spawn_handle())
+                .boxed(),
+        );
+    }
 
     network_starter.start_network();
     Ok(NewFullBase {
