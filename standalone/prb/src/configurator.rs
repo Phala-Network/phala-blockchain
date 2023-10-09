@@ -104,13 +104,12 @@ pub async fn cli_main(args: ConfigCliArgs) -> Result<()> {
         ConfigCommands::GetPoolOperator { pid } => {
             let pid = *pid;
             let po = po_db.get_po(pid)?;
-            if po.is_some() {
-                let po = po.unwrap();
+            if let Some(po) = po {
                 let po = serde_json::to_string_pretty::<PoolOperatorForSerialize>(&(&po).into())?;
                 println!("{po}");
             } else {
                 return Err(anyhow!("Record not found!"));
-            }
+            };
         }
         ConfigCommands::SetPoolOperator {
             pid,
@@ -233,10 +232,8 @@ pub async fn api_handler(db: WrappedDb, po_db: Arc<DB>, command: ConfigCommands)
         }
         ConfigCommands::GetPoolOperator { pid } => {
             let po = po_db.get_po(pid)?;
-            if po.is_some() {
-                let po = po.unwrap();
-                let po = serde_json::to_string_pretty::<PoolOperatorForSerialize>(&(&po).into())?;
-                Ok(po)
+            if let Some(po) = po {
+                Ok(serde_json::to_string_pretty::<PoolOperatorForSerialize>(&(&po).into())?)
             } else {
                 Err(anyhow!("Record not found!"))
             }
