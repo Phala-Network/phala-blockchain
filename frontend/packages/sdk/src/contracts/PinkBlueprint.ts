@@ -367,9 +367,7 @@ export class PinkBlueprintPromise {
 
     // We calculate the minimal cost based on the estimated result. Even the estimated result already higher than
     // the real-cost, we still need to deposit more for the peak usage.
-    let minRequired = gasRequired.refTime
-      .toBn()
-      .add(storageDeposit.isCharge ? storageDeposit.asCharge.toBn() : new BN(0))
+    let minRequired = gasRequired.refTime.toBn().add(storageDeposit.isCharge ? storageDeposit.asCharge.toBn() : BN_ZERO)
     // BN not support floating-point number calculation, so we need to convert it to native number and then convert back.
     minRequired = new BN(minRequired.toNumber() * mutlipiler)
 

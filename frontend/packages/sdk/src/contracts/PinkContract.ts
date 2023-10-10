@@ -427,22 +427,29 @@ export class PinkContractPromise<
       throw new Error('No Gas Price or deposit Per Byte from cluster info.')
     }
 
+    //
+    // Even the estimate result already large then the real cost, we still need deposit more
+    // for the peak usage.
+    //
+    const mutlipiler = 1.05
+
+    const msg = this.abi.findMessage(messageOrId).toU8a(args)
+    const deposit = depositPerByte.mul(new BN(msg.length * mutlipiler))
+
     const [clusterBalance, onchainBalance, { gasRequired, storageDeposit }] = await Promise.all([
       this.phatRegistry.getClusterBalance(address),
       this.api.query.system.account<FrameSystemAccountInfo>(address),
-      estimate(cert.address, { cert }, ...args),
+      estimate(cert.address, { cert, deposit }, ...args),
     ])
 
-    const required = gasRequired.refTime
-      .toBn()
-      .mul(gasPrice)
-      .add(storageDeposit.isCharge ? storageDeposit.asCharge : BN_ZERO)
+    let minRequired = gasRequired.refTime.toBn().add(storageDeposit.isCharge ? storageDeposit.asCharge : BN_ZERO)
+    minRequired = new BN(minRequired.toNumber() * mutlipiler)
 
     // Auto deposit.
-    if (clusterBalance.free.lt(required)) {
-      const deposit = required.sub(clusterBalance.free)
-      if (onchainBalance.data.free.toBn().lt(deposit)) {
-        throw new Error(`Not enough balance to pay for gas and storage deposit: ${required.toNumber()}`)
+    if (clusterBalance.free.lt(minRequired)) {
+      const deposit = minRequired.sub(clusterBalance.free)
+      if (onchainBalance.data.free.lt(deposit)) {
+        throw new Error(`Not enough balance to pay for gas and storage deposit: ${minRequired.toNumber()}`)
       }
       txOptions.deposit = deposit
     }
