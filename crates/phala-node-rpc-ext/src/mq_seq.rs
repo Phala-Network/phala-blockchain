@@ -37,7 +37,7 @@ where
         + ProvideRuntimeApi<Block>,
     Block: BlockT + 'static,
     Client::Api:
-        sp_api::Metadata<Block> + ApiExt<Block, StateBackend = backend::StateBackendFor<BE, Block>>,
+        sp_api::Metadata<Block> + ApiExt<Block>,
     Client::Api: MqApi<Block>,
     <<Block as BlockT>::Header as Header>::Number: Into<u64>,
     P: TransactionPool,

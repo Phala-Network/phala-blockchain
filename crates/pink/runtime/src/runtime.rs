@@ -1,16 +1,16 @@
 mod extension;
 mod pallet_pink;
-mod weights;
 
 use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Nonce};
 use frame_support::{
     parameter_types,
-    traits::ConstBool,
+    traits::{ConstBool, ConstU32},
     weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
 };
 use log::info;
 use pallet_contracts::{
-    migration::{v10, v11, v12, v9},
+    migration::{v11, v12},
+    weights::SubstrateWeight,
     Config, Frame, Migration, Schedule,
 };
 use sp_runtime::{traits::IdentityLookup, Perbill};
@@ -49,6 +49,7 @@ parameter_types! {
     pub const ExistentialDeposit: Balance = 1;
     pub const MaxLocks: u32 = 50;
     pub const MaxReserves: u32 = 50;
+    pub const MaxHolds: u32 = 10;
 }
 
 impl pallet_pink::Config for PinkRuntime {
@@ -66,9 +67,9 @@ impl pallet_balances::Config for PinkRuntime {
     type MaxReserves = MaxReserves;
     type ReserveIdentifier = [u8; 8];
     type FreezeIdentifier = ();
-    type MaxHolds = ();
+    type MaxHolds = MaxHolds;
     type MaxFreezes = ();
-    type RuntimeHoldReason = ();
+    type RuntimeHoldReason = RuntimeHoldReason;
 }
 
 impl frame_system::Config for PinkRuntime {
@@ -119,7 +120,6 @@ parameter_types! {
     pub const MaxCodeLen: u32 = MAX_CODE_LEN;
     pub const MaxStorageKeyLen: u32 = 128;
     pub const MaxDebugBufferLen: u32 = 128 * 1024;
-
     pub DefaultSchedule: Schedule<PinkRuntime> = {
         let mut schedule = Schedule::<PinkRuntime>::default();
         const MB: u32 = 16;  // 64KiB * 16
@@ -131,6 +131,7 @@ parameter_types! {
         schedule.limits.payload_len = 1024 * 1024; // Max size for storage value
         schedule
     };
+    pub CodeHashLockupDepositPercent: Perbill = Perbill::from_percent(30);
 }
 
 impl Config for PinkRuntime {
@@ -142,7 +143,7 @@ impl Config for PinkRuntime {
     type CallFilter = frame_support::traits::Nothing;
     type CallStack = [Frame<Self>; 5];
     type WeightPrice = Pink;
-    type WeightInfo = weights::PinkWeights<Self>;
+    type WeightInfo = SubstrateWeight<Self>;
     type ChainExtension = extension::PinkExtension;
     type Schedule = DefaultSchedule;
     type DepositPerByte = DepositPerStorageByte;
@@ -153,12 +154,12 @@ impl Config for PinkRuntime {
     type MaxStorageKeyLen = MaxStorageKeyLen;
     type UnsafeUnstableInterface = ConstBool<false>;
     type MaxDebugBufferLen = MaxDebugBufferLen;
-    type Migrations = (
-        v9::Migration<Self>,
-        v10::Migration<Self>,
-        v11::Migration<Self>,
-        v12::Migration<Self>,
-    );
+    type Migrations = (v11::Migration<Self>, v12::Migration<Self, Balances>);
+    type CodeHashLockupDepositPercent = CodeHashLockupDepositPercent;
+    type MaxDelegateDependencies = ConstU32<32>;
+    type RuntimeHoldReason = RuntimeHoldReason;
+    type Debug = ();
+    type Environment = ();
 }
 
 #[test]

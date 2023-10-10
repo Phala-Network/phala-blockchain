@@ -5,8 +5,8 @@ edition = "2018"
 resolver = "2"
 
 [dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0", default-features = false }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0", default-features = false }
+sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0", default-features = false }
+sp-application-crypto = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0", default-features = false }
 
 ring = { version = "0.16.20", default-features = false, features = ["alloc"] }
 curve25519-dalek = { version = "2.0", default-features = false }

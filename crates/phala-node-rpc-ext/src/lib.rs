@@ -10,7 +10,7 @@ use jsonrpsee::{
 };
 use pallet_mq_runtime_api::MqApi;
 use sc_client_api::blockchain::{HeaderBackend, HeaderMetadata};
-use sc_client_api::{backend, Backend, BlockBackend, StorageProvider};
+use sc_client_api::{Backend, BlockBackend, StorageProvider};
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
 use sp_api::{ApiExt, Core, ProvideRuntimeApi, StateBackend};
 use sp_runtime::traits::Header;
@@ -88,7 +88,7 @@ where
         + HeaderMetadata<Block, Error = sp_blockchain::Error>
         + ProvideRuntimeApi<Block>,
     Client::Api:
-        sp_api::Metadata<Block> + ApiExt<Block, StateBackend = backend::StateBackendFor<BE, Block>>,
+        sp_api::Metadata<Block> + ApiExt<Block>,
     Client::Api: MqApi<Block>,
     Block: BlockT + 'static,
     <<Block as BlockT>::Header as Header>::Number: Into<u64>,
@@ -153,7 +153,7 @@ pub fn extend_rpc<Client, BE, Block, P>(
         + 'static,
     Block: BlockT + 'static,
     Client::Api:
-        sp_api::Metadata<Block> + ApiExt<Block, StateBackend = backend::StateBackendFor<BE, Block>>,
+        sp_api::Metadata<Block> + ApiExt<Block>,
     Client::Api: MqApi<Block>,
     <<Block as BlockT>::Header as Header>::Number: Into<u64>,
     P: TransactionPool + 'static,

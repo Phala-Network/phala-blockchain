@@ -18,9 +18,9 @@ use hash_db::{
     AsHashDB, AsPlainDB, HashDB, HashDBRef, Hasher as KeyHasher, PlainDB, PlainDBRef, Prefix,
 };
 pub(crate) use im::ordmap::{Entry, OrdMap as Map};
-use std::{borrow::Borrow, cmp::Eq, hash, marker::PhantomData};
+use std::{borrow::Borrow, cmp::Eq, convert::TryFrom, hash, marker::PhantomData};
 
-use sp_state_machine::{backend::Consolidate, DefaultError, TrieBackendStorage};
+use sp_state_machine::{DefaultError, TrieBackendStorage};
 use trie_db::DBValue;
 
 pub trait MaybeDebug: std::fmt::Debug {}
@@ -28,21 +28,10 @@ impl<T: std::fmt::Debug> MaybeDebug for T {}
 
 pub type GenericMemoryDB<H> = MemoryDB<H, HashKey<H>, trie_db::DBValue>;
 
-impl<H: KeyHasher> Consolidate for GenericMemoryDB<H>
-where
-    H::Out: Ord,
-{
-    fn consolidate(&mut self, other: Self) {
-        MemoryDB::consolidate(self, other)
-    }
-}
-
 impl<H: KeyHasher> TrieBackendStorage<H> for GenericMemoryDB<H>
 where
     H::Out: Ord,
 {
-    type Overlay = Self;
-
     fn get(
         &self,
         key: &<H as KeyHasher>::Out,
@@ -272,12 +261,18 @@ where
     }
 
     /// Consolidate all the entries of `other` into `self`.
-    pub fn consolidate(&mut self, other: Self) {
-        for (key, (value, rc)) in other.data {
+    pub fn consolidate(&mut self, mut other: crate::BackendTransaction<H>)
+    where
+        KF::Key: From<[u8; 32]>,
+        T: From<Vec<u8>>,
+    {
+        for (key, (value, rc)) in other.drain() {
+            let key: [u8; 32] = TryFrom::try_from(&key[key.len() - 32..]).expect("Should never fail");
+            let key = key.into();
             match self.data.entry(key) {
                 Entry::Occupied(mut entry) => {
                     if entry.get().1 < 0 {
-                        entry.get_mut().0 = value;
+                        entry.get_mut().0 = value.into();
                     }
 
                     entry.get_mut().1 += rc;
@@ -286,7 +281,7 @@ where
                     }
                 }
                 Entry::Vacant(entry) => {
-                    entry.insert((value, rc));
+                    entry.insert((value.into(), rc));
                 }
             }
         }
@@ -562,7 +557,7 @@ mod tests {
     #[test]
     fn consolidate() {
         let mut main = MemoryDB::<KeccakHasher, HashKey<_>, Vec<u8>>::default();
-        let mut other = MemoryDB::<KeccakHasher, HashKey<_>, Vec<u8>>::default();
+        let mut other = crate::BackendTransaction::<KeccakHasher>::default();
         let remove_key = other.insert(EMPTY_PREFIX, b"doggo");
         main.remove(&remove_key, EMPTY_PREFIX);
 
@@ -583,7 +578,7 @@ mod tests {
         );
         assert_eq!(
             main.raw(&negative_remove_key, EMPTY_PREFIX).unwrap(),
-            (&"".as_bytes().to_vec(), -2),
+            (&"negative".as_bytes().to_vec(), -2),
         );
     }
 

@@ -43,7 +43,7 @@ mod storage_ext {
     use phala_trie_storage::TrieStorage;
     use phala_types::messaging::TokenomicParameters;
     use serde::{Deserialize, Serialize};
-    use sp_state_machine::{Ext, OverlayedChanges, StorageTransactionCache};
+    use sp_state_machine::{Ext, OverlayedChanges};
 
     #[derive(Serialize, Deserialize, Default)]
     pub struct ChainStorage {
@@ -117,8 +117,7 @@ mod storage_ext {
         pub fn execute_with<R>(&self, f: impl FnOnce() -> R) -> R {
             let backend = self.trie_storage.as_trie_backend();
             let mut overlay = OverlayedChanges::default();
-            let mut cache = StorageTransactionCache::default();
-            let mut ext = Ext::new(&mut overlay, &mut cache, backend, None);
+            let mut ext = Ext::new(&mut overlay, backend, None);
             sp_externalities::set_and_run_with_externalities(&mut ext, f)
         }
 

@@ -1,5 +1,5 @@
 mod protos_codec_extensions;
-#[allow(clippy::derive_partial_eq_without_eq)]
+#[allow(clippy::derive_partial_eq_without_eq, clippy::let_unit_value)]
 mod pruntime_rpc;
 
 pub use protos_codec_extensions::*;

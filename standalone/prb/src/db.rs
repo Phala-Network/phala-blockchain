@@ -260,7 +260,7 @@ pub fn get_all_raw_pools(db: WrappedDb) -> Result<Vec<VertexProperties>> {
 pub fn get_all_workers(db: WrappedDb) -> Result<Vec<Worker>> {
     let workers = get_all_pools_with_workers(db)?
         .into_iter()
-        .flat_map(|p| p.workers.unwrap_or(vec![]))
+        .flat_map(|p| p.workers.unwrap_or_default())
         .collect::<Vec<_>>();
     Ok(workers)
 }

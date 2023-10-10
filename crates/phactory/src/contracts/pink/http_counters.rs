@@ -54,7 +54,7 @@ pub(super) fn add(contract: AccountId, status_code: u16) {
     let counters = counters
         .by_contract
         .entry(contract)
-        .or_insert_with(HttpCoutners::default);
+        .or_default();
     counters.latest_activity = now;
     counters.requests += 1;
     if !success {

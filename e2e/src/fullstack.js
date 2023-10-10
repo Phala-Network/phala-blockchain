@@ -505,6 +505,10 @@ describe('A full stack', function () {
         it('can upload system code', async function () {
             const systemCode = systemMetadata.source.wasm;
             await assert.txAccepted(
+                api.tx.sudo.sudo(api.tx.phalaPhatContracts.setPinkRuntimeVersion([1, 2])),
+                alice,
+            );
+            await assert.txAccepted(
                 api.tx.sudo.sudo(api.tx.phalaPhatContracts.setPinkSystemCode(systemCode)),
                 alice,
             );
@@ -1189,7 +1193,6 @@ class Cluster {
 
     _createWorkerProcess(i) {
         const AVAILABLE_ACCOUNTS = [
-            '//Alice',
             '//Bob',
             '//Charlie',
             '//Dave',

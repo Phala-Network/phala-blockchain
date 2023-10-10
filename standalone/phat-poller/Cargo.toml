@@ -10,9 +10,9 @@ phala-crypto = { path = "../../crates/phala-crypto" }
 phala-types = { path = "../../crates/phala-types" }
 phala-clap-parsers = { path = "../../crates/phala-clap-parsers" }
 
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-pallet-contracts-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
+sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
+sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
+pallet-contracts-primitives = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
 
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "socks"] }
 tracing = "0.1"
@@ -33,4 +33,4 @@ once_cell = "1"
 
 # For our forked legacy ContractResult
 scale-info = { version = "2.5.0", features = ["derive"] }
-sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v1.0.0" }
+sp-weights = { git = "https://github.com/paritytech/polkadot-sdk.git", default-features = false, branch = "release-polkadot-v1.1.0" }

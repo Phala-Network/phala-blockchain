@@ -1,6 +1,7 @@
 use super::pallet_mq;
 use codec::Decode;
-use frame_support::dispatch::{DispatchError, DispatchResult};
+use frame_support::dispatch::DispatchResult;
+use sp_runtime::DispatchError;
 use phala_types::messaging::{BindTopic, DecodedMessage, Message};
 
 pub struct MessageRouteConfig;

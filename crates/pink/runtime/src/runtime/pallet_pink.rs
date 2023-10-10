@@ -118,11 +118,6 @@ pub mod pallet {
             );
             UncheckedFrom::unchecked_from(<T as frame_system::Config>::Hashing::hash(&buf))
         }
-
-        fn deposit_address(contract_addr: &T::AccountId) -> T::AccountId {
-            let entropy = (b"contract_depo_v1", contract_addr).using_encoded(T::Hashing::hash);
-            UncheckedFrom::unchecked_from(entropy)
-        }
     }
 
     impl<T: Config> Pallet<T> {

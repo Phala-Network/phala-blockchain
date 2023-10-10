@@ -2,7 +2,7 @@ use super::{CommitTransaction, Storage};
 use crate::{capi::OCallImpl, types::Hashing};
 use hash_db::Prefix;
 pub use helper::code_exists;
-use phala_trie_storage::MemoryDB;
+use phala_trie_storage::BackendTransaction;
 use pink_capi::v1::ocall::OCalls;
 use sp_core::Hasher;
 use sp_state_machine::{
@@ -16,19 +16,17 @@ pub type ExternalBackend = TrieBackend<ExternalDB, Hashing>;
 pub type ExternalStorage = Storage<ExternalBackend>;
 
 impl TrieBackendStorage<Hashing> for ExternalDB {
-    type Overlay = MemoryDB<Hashing>;
-
     fn get(&self, key: &Hash, _prefix: Prefix) -> Result<Option<DBValue>, DefaultError> {
         Ok(OCallImpl.storage_get(key.as_ref().to_vec()))
     }
 }
 
 impl CommitTransaction for ExternalBackend {
-    fn commit_transaction(&mut self, root: Hash, mut transaction: Self::Transaction) {
+    fn commit_transaction(&mut self, root: Hash, mut transaction: BackendTransaction<Hashing>) {
         let changes = transaction
             .drain()
             .into_iter()
-            .map(|(k, v)| (k.as_bytes().to_vec(), v))
+            .map(|(k, v)| (k[k.len() - 32..].to_vec(), v))
             .collect();
         OCallImpl.storage_commit(root, changes)
     }
@@ -57,7 +55,7 @@ pub mod helper {
     fn code_owner_key(code_hash: &Hash) -> Vec<u8> {
         let mut key = Vec::new();
         key.extend(twox_128("Contracts".as_bytes()));
-        key.extend(twox_128("OwnerInfoOf".as_bytes()));
+        key.extend(twox_128("CodeInfoOf".as_bytes()));
         key.extend(&code_hash.encode());
         key
     }

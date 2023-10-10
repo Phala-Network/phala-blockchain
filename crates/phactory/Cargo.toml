@@ -36,11 +36,11 @@ prpc = { path = "../prpc" }
 pink = { path = "../pink/runner", package = "pink-runner" }
 pink-extension-runtime = { path = "../pink/pink-extension-runtime" }
 
-sp-io                = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0", features = ["disable_panic_handler", "disable_oom", "disable_allocator"] }
-sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0", features = ["disable_target_static_assertions"] }
-sp-runtime           = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-externalities     = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-state-machine     = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
+sp-io                = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0", features = ["disable_panic_handler", "disable_oom", "disable_allocator"] }
+sp-runtime-interface = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0", features = ["disable_target_static_assertions"] }
+sp-runtime           = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
+sp-externalities     = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
+sp-state-machine     = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
 parity-scale-codec   = { package = "parity-scale-codec", version = "3.3", default-features = false, features = ["derive", "full", "chain-error"] }
 scopeguard   = { version = "1.1", default-features = false }
 
@@ -56,11 +56,11 @@ derive_more = "0.99.0"
 hash-db = { version = "0.16.0", default-features = false }
 num = { package = "num-traits", version = "0.2", default-features = false }
 finality-grandpa = { version = "0.16.1", default-features = false, features = ["derive-codec"] }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-consensus-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v1.0.0" }
+frame-system = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
+sp-trie = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
+sp-consensus-grandpa = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
+sp-application-crypto = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
+sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
 
 fixed = "1.9.0"
 fixed-sqrt = "0.2.4"

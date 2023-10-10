@@ -40,6 +40,7 @@ macro_rules! define_runtimes {
 define_runtimes! {
     (1, 0),
     (1, 1),
+    (1, 2),
 }
 
 impl Default for Runtime {
