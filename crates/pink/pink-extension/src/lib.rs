@@ -350,6 +350,19 @@ pub fn upgrade_runtime(version: (u32, u32)) {
     emit_event::<PinkEnvironment, _>(PinkEvent::UpgradeRuntimeTo { version });
 }
 
+/// Generate a slice of verifiable random bytes.
+///
+/// When called in a contract with the same salt, the same random bytes will be generated.
+/// Different contracts with the same salt will generate different random bytes.
+///
+/// # Availability
+/// any contract | query | transaction
+pub fn vrf(salt: &[u8]) -> Vec<u8> {
+    let mut key_salt = b"vrf:".to_vec();
+    key_salt.extend_from_slice(salt);
+    ext().derive_sr25519_key(key_salt.into())
+}
+
 /// Pink defined environment. This environment is used to access the phat contract extended runtime features.
 ///
 /// # Example
