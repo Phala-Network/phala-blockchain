@@ -211,9 +211,21 @@ async fn api_check_blocks(
     to: Option<BlockNumber>,
     count: Option<BlockNumber>,
 ) -> Result<String, String> {
-    crate::grab::check_and_fix_headers(&app.db, &app.config, chain, from, to, count)
-        .await
-        .map_err(|e| e.to_string())
+    if chain == "state" {
+        let mismatches =
+            crate::grab::check_and_fix_storages_changes(&app.db, &app.config, from, to, count)
+                .await
+                .map_err(|e| e.to_string())?;
+        if mismatches == 0 {
+            Ok("No mismatches".into())
+        } else {
+            Ok(format!("Mismatches: {:?}", mismatches))
+        }
+    } else {
+        crate::grab::check_and_fix_headers(&app.db, &app.config, chain, from, to, count)
+            .await
+            .map_err(|e| e.to_string())
+    }
 }
 
 pub(crate) async fn serve(db: CacheDB, config: ServeConfig, token: Option<String>) -> Result<()> {

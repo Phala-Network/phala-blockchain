@@ -213,30 +213,53 @@ impl<'c> Crawler<'c> {
         let config = self.config;
         let metadata = &mut *self.metadata;
 
-        let relay_start = metadata.checked.header.unwrap_or(config.genesis_block);
-        let relay_end = metadata
-            .recent_imported
-            .header
-            .unwrap_or(0)
-            .min(relay_start + config.check_batch);
-        if relay_start < relay_end {
-            check_and_fix_headers(db, config, "relay", relay_start, Some(relay_end), None).await?;
-            metadata.checked.header = Some(relay_end);
-            db.put_metadata(metadata)
-                .context("Failed to update metadata")?;
+        {
+            let relay_start = metadata.checked.header.unwrap_or(config.genesis_block);
+            let relay_end = metadata
+                .recent_imported
+                .header
+                .unwrap_or(0)
+                .min(relay_start + config.check_batch);
+            if relay_start < relay_end {
+                check_and_fix_headers(db, config, "relay", relay_start, Some(relay_end), None)
+                    .await?;
+                metadata.checked.header = Some(relay_end);
+                db.put_metadata(metadata)
+                    .context("Failed to update metadata")?;
+            }
         }
 
-        let para_start = metadata.checked.para_header.unwrap_or(0);
-        let para_end = metadata
-            .recent_imported
-            .para_header
-            .unwrap_or(0)
-            .min(para_start + config.check_batch);
-        if para_start < para_end {
-            check_and_fix_headers(db, config, "para", para_start, Some(para_end), None).await?;
-            metadata.checked.para_header = Some(para_end);
-            db.put_metadata(metadata)
-                .context("Failed to update metadata")?;
+        {
+            let para_start = metadata.checked.para_header.unwrap_or(0);
+            let para_end = metadata
+                .recent_imported
+                .para_header
+                .unwrap_or(0)
+                .min(para_start + config.check_batch);
+            if para_start < para_end {
+                check_and_fix_headers(db, config, "para", para_start, Some(para_end), None).await?;
+                metadata.checked.para_header = Some(para_end);
+                db.put_metadata(metadata)
+                    .context("Failed to update metadata")?;
+            }
+        }
+
+        {
+            let changes_start = metadata.checked.storage_changes.unwrap_or(0);
+            let max_checked_header = metadata.checked.para_header.unwrap_or_default();
+            let changes_end = metadata
+                .recent_imported
+                .storage_changes
+                .unwrap_or(0)
+                .min(changes_start + config.check_batch)
+                .min(max_checked_header);
+            if changes_start < changes_end {
+                check_and_fix_storages_changes(db, config, changes_start, Some(changes_end), None)
+                    .await?;
+                metadata.checked.storage_changes = Some(changes_end);
+                db.put_metadata(metadata)
+                    .context("Failed to update metadata")?;
+            }
         }
         Ok(())
     }
@@ -317,6 +340,45 @@ pub(crate) async fn check_and_fix_headers(
     };
     info!("{}", response);
     Ok(response)
+}
+
+pub(crate) async fn check_and_fix_storages_changes(
+    db: &CacheDB,
+    config: &Serve,
+    from: BlockNumber,
+    to: Option<BlockNumber>,
+    count: Option<BlockNumber>,
+) -> Result<u32> {
+    let to = to.unwrap_or(from + count.unwrap_or(1));
+    info!("Checking storage changes from {from} to {to}");
+    let mut state_root_mismatches = 0_u32;
+    for block in from..to {
+        let header = db
+            .get_header(block)
+            .ok_or(anyhow!("Header {block} not found"))?;
+        let header = decode_header(&header)?;
+        let changes = db
+            .get_storage_changes(block)
+            .ok_or(anyhow!("Storage changes {block} not found"))?;
+        let actual_root = decode_header(&changes)
+            .map(|h| h.state_root)
+            .unwrap_or_default();
+        if header.state_root != actual_root {
+            info!("Storage changes {block} mismatch, trying to regrab");
+            let para_api = pherry::subxt_connect(&config.para_node_uri)
+                .await
+                .context(format!("Failed to connect to {}", config.para_node_uri))?;
+            cache::grab_storage_changes(&para_api, header.number, 1, 1, |info| {
+                db.put_storage_changes(info.block_header.number, &info.encode())
+                    .context("Failed to put record to DB")?;
+                Ok(())
+            })
+            .await
+            .context("Failed to grab storage changes from node")?;
+            state_root_mismatches += 1;
+        }
+    }
+    Ok(state_root_mismatches)
 }
 
 fn decode_header(data: &[u8]) -> Result<Header> {

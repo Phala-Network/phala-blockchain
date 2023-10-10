@@ -402,12 +402,13 @@ pub async fn grab_storage_changes(
 
     for from in (start_at..=to).step_by(batch_size as _) {
         let to = to.min(from.saturating_add(batch_size - 1));
-        let headers = match crate::fetch_storage_changes(api, None, from, to).await {
-            Err(e) if e.to_string().contains("not found") => {
-                break;
-            }
-            other => other?,
-        };
+        let headers =
+            match crate::fetch_storage_changes_with_root_or_not(api, None, from, to, true).await {
+                Err(e) if e.to_string().contains("not found") => {
+                    break;
+                }
+                other => other?,
+            };
         for header in headers {
             f(header)?;
             grabbed += 1;
