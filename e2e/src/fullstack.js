@@ -1193,7 +1193,6 @@ class Cluster {
 
     _createWorkerProcess(i) {
         const AVAILABLE_ACCOUNTS = [
-            '//Alice',
             '//Bob',
             '//Charlie',
             '//Dave',
@@ -1304,7 +1303,7 @@ function newNode(rpcPort, tmpPath, name = 'node') {
     const cli = [
         pathNode, [
             '--dev',
-            '--block-millisecs=100',
+            '--block-millisecs=1000',
             '--base-path=' + path.resolve(tmpPath, 'phala-node'),
             `--rpc-port=${rpcPort}`,
             '--rpc-methods=Unsafe',
@@ -1361,7 +1360,7 @@ function newRelayer(wsPort, teePort, tmpPath, gasAccountKey, key = '', name = 'r
         `--mnemonic=${gasAccountKey}`,
         `--substrate-ws-endpoint=ws://localhost:${wsPort}`,
         `--pruntime-endpoint=http://localhost:${teePort}`,
-        '--dev-wait-block-ms=100',
+        '--dev-wait-block-ms=1000',
         '--attestation-provider', 'none',
     ];
 
