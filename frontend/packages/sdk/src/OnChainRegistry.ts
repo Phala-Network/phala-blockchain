@@ -6,6 +6,7 @@ import { BN } from '@polkadot/util'
 import { waitReady } from '@polkadot/wasm-crypto'
 import systemAbi from './abis/system.json'
 import { PinkContractPromise } from './contracts/PinkContract'
+import { PinkLoggerContractPromise } from './contracts/PinkLoggerContract'
 import { type CertificateData, signCertificate } from './pruntime/certificate'
 import createPruntimeClient from './pruntime/createPruntimeClient'
 import { pruntime_rpc } from './pruntime/proto'
@@ -53,6 +54,7 @@ export class OnChainRegistry {
   #phactory: pruntime_rpc.PhactoryAPI | undefined
   #systemContract: PinkContractPromise | undefined
   #cert: CertificateData | undefined
+  #loggerContract: PinkLoggerContractPromise | undefined
 
   constructor(api: ApiPromise) {
     this.api = api
@@ -229,6 +231,7 @@ export class OnChainRegistry {
       const systemContractKey = await this.getContractKey(systemContractId)
       if (systemContractKey) {
         this.#systemContract = new PinkContractPromise(this.api, this, systemAbi, systemContractId, systemContractKey)
+        this.#loggerContract = await PinkLoggerContractPromise.create(this.api, this, this.#systemContract)
       } else {
         throw new Error(`System contract not found: ${systemContractId}`)
       }
@@ -275,5 +278,12 @@ export class OnChainRegistry {
 
   transferToCluster(address: string | AccountId, amount: number | string | BN) {
     return this.api.tx.phalaPhatContracts.transferToCluster(amount, this.clusterId, address)
+  }
+
+  get loggerContract() {
+    if (this.#loggerContract) {
+      return this.#loggerContract
+    }
+    throw new Error('Logger contract not found, you might not connect to a health cluster.')
   }
 }
