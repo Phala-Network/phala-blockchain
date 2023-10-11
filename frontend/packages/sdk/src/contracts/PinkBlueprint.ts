@@ -119,7 +119,12 @@ export class PinkBlueprintSubmittableResult extends SubmittableResult {
       while (true) {
         if (logger) {
           const { records } = await logger.tail(10, { contract: contractId })
-          if (records.length > 0 && records[0].type === 'Log' && records[0].execMode === 'transaction') {
+          if (
+            records.length > 0 &&
+            records[0].type === 'Log' &&
+            records[0].execMode === 'transaction' &&
+            records[0].message !== 'instantiated'
+          ) {
             throw new Error(records[0].message)
           }
         }
