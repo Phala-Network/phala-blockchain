@@ -333,7 +333,7 @@ pub async fn fetch_storage_changes_with_root_or_not(
     to: BlockNumber,
     with_root: bool,
 ) -> Result<Vec<BlockHeaderWithChanges>> {
-    log::info!("fetch_storage_changes ({from}-{to})");
+    log::info!("fetch_storage_changes with_root={with_root}, ({from}-{to})");
     if to < from {
         return Ok(vec![]);
     }

@@ -212,10 +212,16 @@ async fn api_check_blocks(
     count: Option<BlockNumber>,
 ) -> Result<String, String> {
     if chain == "state" {
-        let mismatches =
-            crate::grab::check_and_fix_storages_changes(&app.db, &app.config, from, to, count)
-                .await
-                .map_err(|e| e.to_string())?;
+        let mismatches = crate::grab::check_and_fix_storages_changes(
+            &app.db,
+            None,
+            &app.config,
+            from,
+            to,
+            count,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
         if mismatches == 0 {
             Ok("No mismatches".into())
         } else {

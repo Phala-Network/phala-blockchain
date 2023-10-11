@@ -160,6 +160,9 @@ struct Serve {
     /// The max batch size to check headers
     #[clap(long, default_value_t = 100000)]
     check_batch: BlockNumber,
+    /// Don't check state root for each storage changes
+    #[clap(long)]
+    no_state_root: bool,
 }
 
 #[derive(Subcommand)]

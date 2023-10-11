@@ -190,6 +190,7 @@ impl<'c> Crawler<'c> {
             *next_delta,
             count,
             self.config.grab_storage_changes_batch,
+            !self.config.no_state_root,
             |info| {
                 self.db
                     .put_storage_changes(info.block_header.number, &info.encode())
@@ -222,7 +223,8 @@ impl<'c> Crawler<'c> {
                 .min(relay_start + config.check_batch);
             if relay_start < relay_end {
                 check_and_fix_headers(db, config, "relay", relay_start, Some(relay_end), None)
-                    .await?;
+                    .await
+                    .context("Failed to check relay headers")?;
                 metadata.checked.header = Some(relay_end);
                 db.put_metadata(metadata)
                     .context("Failed to update metadata")?;
@@ -237,15 +239,17 @@ impl<'c> Crawler<'c> {
                 .unwrap_or(0)
                 .min(para_start + config.check_batch);
             if para_start < para_end {
-                check_and_fix_headers(db, config, "para", para_start, Some(para_end), None).await?;
+                check_and_fix_headers(db, config, "para", para_start, Some(para_end), None)
+                    .await
+                    .context("Failed to check para headers")?;
                 metadata.checked.para_header = Some(para_end);
                 db.put_metadata(metadata)
                     .context("Failed to update metadata")?;
             }
         }
 
-        {
-            let changes_start = metadata.checked.storage_changes.unwrap_or(0);
+        if !config.no_state_root {
+            let changes_start = metadata.checked.storage_changes.unwrap_or(1);
             let max_checked_header = metadata.checked.para_header.unwrap_or_default();
             let changes_end = metadata
                 .recent_imported
@@ -254,8 +258,16 @@ impl<'c> Crawler<'c> {
                 .min(changes_start + config.check_batch)
                 .min(max_checked_header);
             if changes_start < changes_end {
-                check_and_fix_storages_changes(db, config, changes_start, Some(changes_end), None)
-                    .await?;
+                check_and_fix_storages_changes(
+                    db,
+                    Some(self.para_api.clone()),
+                    config,
+                    changes_start,
+                    Some(changes_end),
+                    None,
+                )
+                .await
+                .context("Failed to check storage changes")?;
                 metadata.checked.storage_changes = Some(changes_end);
                 db.put_metadata(metadata)
                     .context("Failed to update metadata")?;
@@ -344,17 +356,24 @@ pub(crate) async fn check_and_fix_headers(
 
 pub(crate) async fn check_and_fix_storages_changes(
     db: &CacheDB,
+    api: Option<ChainApi>,
     config: &Serve,
     from: BlockNumber,
     to: Option<BlockNumber>,
     count: Option<BlockNumber>,
 ) -> Result<u32> {
+    let api = match api {
+        Some(api) => api,
+        None => pherry::subxt_connect(&config.para_node_uri)
+            .await
+            .context(format!("Failed to connect to {}", config.para_node_uri))?,
+    };
     let to = to.unwrap_or(from + count.unwrap_or(1));
     info!("Checking storage changes from {from} to {to}");
     let mut state_root_mismatches = 0_u32;
     for block in from..to {
         let header = db
-            .get_header(block)
+            .get_para_header(block)
             .ok_or(anyhow!("Header {block} not found"))?;
         let header = decode_header(&header)?;
         let changes = db
@@ -363,12 +382,10 @@ pub(crate) async fn check_and_fix_storages_changes(
         let actual_root = decode_header(&changes)
             .map(|h| h.state_root)
             .unwrap_or_default();
-        if header.state_root != actual_root {
-            info!("Storage changes {block} mismatch, trying to regrab");
-            let para_api = pherry::subxt_connect(&config.para_node_uri)
-                .await
-                .context(format!("Failed to connect to {}", config.para_node_uri))?;
-            cache::grab_storage_changes(&para_api, header.number, 1, 1, |info| {
+        let expected_root = header.state_root;
+        if expected_root != actual_root {
+            info!("Storage changes {block} mismatch, expected={expected_root} actual={actual_root}, trying to regrab");
+            cache::grab_storage_changes(&api, header.number, 1, 1, true, |info| {
                 db.put_storage_changes(info.block_header.number, &info.encode())
                     .context("Failed to put record to DB")?;
                 Ok(())
