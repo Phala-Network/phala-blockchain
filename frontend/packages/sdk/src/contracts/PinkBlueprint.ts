@@ -113,9 +113,17 @@ export class PinkBlueprintSubmittableResult extends SubmittableResult {
       if (!contractId) {
         throw new Error('Failed to find contract ID in events, maybe instantiate failed.')
       }
+      const logger = this.registry.loggerContract
 
       const t0 = new Date().getTime()
       while (true) {
+        if (logger) {
+          const { records } = await logger.tail(10, { contract: contractId })
+          if (records.length > 0 && records[0].type === 'Log' && records[0].execMode === 'transaction') {
+            throw new Error(records[0].message)
+          }
+        }
+
         const result1 = (await this.registry.api.query.phalaPhatContracts.clusterContracts(
           this.registry.clusterId
         )) as unknown as Text[]
