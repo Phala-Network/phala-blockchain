@@ -88,10 +88,43 @@ class PinkContractSubmittableResult extends ContractSubmittableResult {
   readonly #registry: OnChainRegistry
 
   #isFinalized: boolean = false
+  #contract: PinkContractPromise
+  #message: AbiMessage
 
-  constructor(registry: OnChainRegistry, result: ISubmittableResult, contractEvents?: DecodedEvent[]) {
+  constructor(
+    registry: OnChainRegistry,
+    contract: PinkContractPromise,
+    message: AbiMessage,
+    result: ISubmittableResult,
+    contractEvents?: DecodedEvent[]
+  ) {
     super(result, contractEvents)
     this.#registry = registry
+    this.#contract = contract
+    this.#message = message
+  }
+
+  protected async throwsOnErrorLog(chainHeight: number): Promise<void> {
+    const logger = this.#registry.loggerContract
+    if (!logger) {
+      return
+    }
+    const { records } = await logger.tail(10, { contract: this.#contract.address.toHex() })
+    const sinceSubmitted = records.filter(
+      (i) => (i.type === 'Log' || i.type === 'MessageOutput') && i.blockNumber >= chainHeight
+    )
+    sinceSubmitted.reverse()
+    sinceSubmitted.forEach((msg) => {
+      if (msg.type === 'MessageOutput' && 'ok' in msg.output.result) {
+        const { ok } = msg.output.result
+        if (ok.flags.length && ok.flags[0] === 'Revert' && this.#message.returnType) {
+          const returns = this.#contract.abi.registry.createType(this.#message.returnType.type, hexToU8a(ok.data))
+          throw new Error(JSON.stringify(returns.toHuman()))
+        }
+      } else if (msg.type === 'Log' && msg.execMode === 'transaction') {
+        throw new Error(msg.message)
+      }
+    })
   }
 
   async waitFinalized(
@@ -112,6 +145,7 @@ class PinkContractSubmittableResult extends ContractSubmittableResult {
     const blocks = options?.blocks ?? 10
     if (!predicate) {
       while (true) {
+        await this.throwsOnErrorLog(chainHeight)
         const { blocknum: currentHeight } = await this.#registry.phactory.getInfo({})
         if (currentHeight > chainHeight) {
           this.#isFinalized = true
@@ -127,6 +161,7 @@ class PinkContractSubmittableResult extends ContractSubmittableResult {
       }
     } else {
       while (true) {
+        await this.throwsOnErrorLog(chainHeight)
         const { blocknum: currentHeight } = await this.#registry.phactory.getInfo({})
         const isOk = await predicate()
         if (isOk) {
@@ -365,9 +400,10 @@ export class PinkContractPromise<
     params: unknown[]
   ): SubmittableExtrinsic<'promise'> => {
     const command = options.plain ? PlainInkCommand : EncryptedInkCommand
+    const message = this.abi.findMessage(messageOrId)
     const payload = command(
       this.contractKey,
-      this.abi.findMessage(messageOrId).toU8a(params),
+      message.toU8a(params),
       options.value,
       convertWeight(options.gasLimit || BN_ZERO).v2Weight,
       options.storageDepositLimit
@@ -377,6 +413,8 @@ export class PinkContractPromise<
       .withResultTransform((result: ISubmittableResult) => {
         return new PinkContractSubmittableResult(
           this.phatRegistry,
+          this,
+          message,
           result,
           applyOnEvent(result, ['ContractEmitted', 'ContractExecution'], (records: EventRecord[]) => {
             return records
