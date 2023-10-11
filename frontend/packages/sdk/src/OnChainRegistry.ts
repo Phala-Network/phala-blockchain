@@ -284,6 +284,6 @@ export class OnChainRegistry {
     if (this.#loggerContract) {
       return this.#loggerContract
     }
-    throw new Error('Logger contract not found, you might not connect to a health cluster.')
+    console.warn('Logger contract not found, you might not connect to a health cluster.')
   }
 }
