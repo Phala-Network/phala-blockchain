@@ -340,7 +340,18 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Transfer `amount` of on-chain token to the `dest_account` in the cluster of id `cluster_id`.
+		/// Transfers some native token to an account in a Phat Contract cluster.
+		///
+		/// The token will be deducted from the sender's account, and transfer to the specified
+		/// account in the cluster, for token usage (gas, storage deposit, etc) inside the cluster.
+		/// Please note that currently it's only supported to transfer token from the blockchain
+		/// into the cluster, not the reverse.
+		///
+		/// # Arguments
+		///
+		/// * `amount` - The amount of the native token to transfer.
+		/// * `cluster_id` - The cluster id to transfer into.
+		/// * `dest_account` - The account in the cluster to receive the token.
 		#[pallet::call_index(2)]
 		#[pallet::weight({0})]
 		pub fn transfer_to_cluster(
