@@ -296,6 +296,7 @@ export class PinkBlueprintPromise {
           'The associated System Contract was not set up for You OnChainRegistry, causing the estimate gas to fail.'
         )
       }
+
       const salt = options.salt || randomHex(4)
       const payload = InkQueryInstantiate(
         this.phatRegistry.systemContract.address,
@@ -315,6 +316,16 @@ export class PinkBlueprintPromise {
         response.result.asOk.asInkMessageReturn.toHex()
       )
       ;(result as PinkContractInstantiateResult).salt = salt
+
+      if (result.result.isErr) {
+        const err = result.result.asErr
+        if (err.isModule && err.asModule.index.toNumber() === 4) {
+          const contractError = phalaTypes.createType('ContractError', result.result.asErr.asModule.error)
+          throw new Error(`Estimation failed: ${contractError.toHuman()}`)
+        }
+        throw new Error('Estimation failed: ' + JSON.stringify(result.result.asErr.toHuman()))
+      }
+
       return result
     }
 
