@@ -44,11 +44,13 @@ mod system {
         /// The drivers
         drivers2: Mapping<String, (BlockNumber, AccountId)>,
         /// The history of drivers
+        #[allow(clippy::type_complexity)]
         drivers_history: Mapping<String, Vec<(BlockNumber, AccountId)>>,
     }
 
     impl System {
         #[ink(constructor, selector = 0xed4b9d1b)]
+        #[allow(clippy::should_implement_trait)]
         pub fn default() -> Self {
             Self {
                 owner: Self::env().caller(),
@@ -77,7 +79,7 @@ mod system {
 
         fn ensure_admin(&self) -> Result<AccountId> {
             let caller = self.env().caller();
-            if self.administrators.contains(&caller) {
+            if self.administrators.contains(caller) {
                 return Ok(caller);
             }
             Err(Error::PermisionDenied)
@@ -118,7 +120,7 @@ mod system {
         #[ink(message)]
         fn grant_admin(&mut self, contract_id: AccountId) -> Result<()> {
             self.ensure_owner()?;
-            self.administrators.insert(&contract_id, &());
+            self.administrators.insert(contract_id, &());
             self.env()
                 .emit_event(AdministratorAdded { user: contract_id });
             Ok(())
@@ -127,6 +129,7 @@ mod system {
         #[ink(message)]
         fn set_driver(&mut self, name: String, contract_id: AccountId) -> Result<()> {
             self.ensure_owner_or_admin()?;
+            #[allow(clippy::single_match)]
             match name.as_str() {
                 "PinkLogger" => {
                     pink::set_log_handler(contract_id);
@@ -211,7 +214,7 @@ mod system {
 
         #[ink(message)]
         fn is_admin(&self, contract_id: AccountId) -> bool {
-            self.administrators.contains(&contract_id)
+            self.administrators.contains(contract_id)
         }
 
         #[ink(message)]
@@ -267,7 +270,7 @@ mod system {
         /// Check if the code is already uploaded to the cluster with given code hash.
         #[ink(message)]
         fn code_exists(&self, code_hash: [u8; 32], code_type: CodeType) -> bool {
-            pink::ext().code_exists(code_hash.into(), code_type.is_sidevm())
+            pink::ext().code_exists(code_hash, code_type.is_sidevm())
         }
 
         #[ink(message)]
@@ -277,7 +280,7 @@ mod system {
 
         #[ink(message)]
         fn driver_history(&self, name: String) -> Option<Vec<(BlockNumber, AccountId)>> {
-            self.drivers_history.get(&name)
+            self.drivers_history.get(name)
         }
 
         #[ink(message)]

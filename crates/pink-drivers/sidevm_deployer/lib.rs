@@ -23,6 +23,7 @@ mod sidevm_deployer {
 
     impl SidevmOp {
         #[ink(constructor)]
+        #[allow(clippy::should_implement_trait)]
         pub fn default() -> Self {
             Self {
                 owner: Self::env().caller(),
@@ -65,7 +66,7 @@ mod sidevm_deployer {
         #[ink(message)]
         fn deploy(&self, code_hash: pink::Hash) -> Result<()> {
             let caller = self.env().caller();
-            if !self.whitelist.contains(&caller) {
+            if !self.whitelist.contains(caller) {
                 return Err(Error::BadOrigin);
             }
             let system = pink::system::SystemRef::instance();
@@ -75,7 +76,7 @@ mod sidevm_deployer {
 
         #[ink(message)]
         fn can_deploy(&self, contract: AccountId) -> bool {
-            self.whitelist.contains(&contract)
+            self.whitelist.contains(contract)
         }
     }
 
