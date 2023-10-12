@@ -1,6 +1,6 @@
 [package]
 name = "pink-extension"
-version = "0.4.5"
+version = "0.4.6"
 edition = "2018"
 description = "Phala's ink! for writing phat contracts"
 license = "Apache-2.0"
