@@ -1,6 +1,6 @@
 {
   "name": "@phala/sdk",
-  "version": "0.5.3-nightly-20231012",
+  "version": "0.5.3-nightly-20231013",
   "description": "Phala Phat Contract JS SDK",
   "license": "Apache-2.0",
   "homepage": "https://github.com/Phala-Network/js-sdk/tree/main/packages/sdk#readme",
