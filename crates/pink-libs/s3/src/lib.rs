@@ -4,7 +4,8 @@
 #[macro_use]
 extern crate alloc;
 
-use pink::chain_extension::HttpResponse;
+pub use pink::chain_extension::HttpResponse;
+
 use pink_extension as pink;
 
 use scale::{Decode, Encode};
