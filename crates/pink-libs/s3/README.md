@@ -25,9 +25,15 @@ let value = b"bar";
 s3.put(bucket, object_key, value).unwrap();
 
 let head = s3.head(bucket, object_key).unwrap();
-assert_eq!(head.content_length, value.len() as u64);
+let mut head_content_length: u64 = 0;
+for (k, v) in head.headers {
+    if k.to_ascii_lowercase() == "content-length" {
+        head_content_length = v.parse().expect("expect length")
+    }
+}
+assert_eq!(head_content_length, value.len() as u64);
 
-let v = s3.get(bucket, object_key).unwrap();
+let v = s3.get(bucket, object_key).unwrap().body;
 assert_eq!(v, value);
 
 s3.delete(bucket, object_key).unwrap();
