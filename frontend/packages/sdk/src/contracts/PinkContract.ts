@@ -459,20 +459,16 @@ export class PinkContractPromise<
       throw new Error(`Message not found: ${messageOrId}`)
     }
 
-    const gasPrice = this.phatRegistry.clusterInfo?.gasPrice
-    const depositPerByte = this.phatRegistry.clusterInfo?.depositPerByte
+    const { gasPrice, depositPerByte } = this.phatRegistry.clusterInfo ?? {}
     if (!gasPrice || !depositPerByte) {
       throw new Error('No Gas Price or deposit Per Byte from cluster info.')
     }
 
-    //
-    // Even the estimate result already large then the real cost, we still need deposit more
-    // for the peak usage.
-    //
-    const mutlipiler = 1.05
-
+    // We assume the address have no tokens in the cluster account, so we will deposit into it
+    // at the same time we submit the transaction. The gas fee is far lower then 1 PHA in general
+    // so we plus 1 PHA here.
     const msg = this.abi.findMessage(messageOrId).toU8a(args)
-    const deposit = depositPerByte.mul(new BN(msg.length * mutlipiler))
+    const deposit = depositPerByte.mul(new BN(msg.length)).add(new BN(1e12))
 
     const [clusterBalance, onchainBalance, { gasRequired, storageDeposit }] = await Promise.all([
       this.phatRegistry.getClusterBalance(address),
@@ -480,8 +476,10 @@ export class PinkContractPromise<
       estimate(cert.address, { cert, deposit }, ...args),
     ])
 
-    let minRequired = gasRequired.refTime.toBn().add(storageDeposit.isCharge ? storageDeposit.asCharge : BN_ZERO)
-    minRequired = new BN(minRequired.toNumber() * mutlipiler)
+    // calculate the total costs
+    const gasLimit = gasRequired.refTime.toBn()
+    const storageDepositFee = storageDeposit.isCharge ? storageDeposit.asCharge.toBn() : BN_ZERO
+    const minRequired = gasLimit.mul(gasPrice).add(storageDepositFee)
 
     // Auto deposit.
     if (clusterBalance.free.lt(minRequired)) {

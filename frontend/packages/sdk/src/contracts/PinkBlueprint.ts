@@ -367,20 +367,16 @@ export class PinkBlueprintPromise {
       throw new Error(`Constructor not found: ${constructorOrId}`)
     }
 
-    const gasPrice = this.phatRegistry.clusterInfo?.gasPrice
-    const depositPerByte = this.phatRegistry.clusterInfo?.depositPerByte
+    const { gasPrice, depositPerByte } = this.phatRegistry.clusterInfo ?? {}
     if (!gasPrice || !depositPerByte) {
       throw new Error('No Gas Price or deposit Per Byte from cluster info.')
     }
 
-    //
-    // Even the estimate result already large then the real cost, we still need deposit more
-    // for the peak usage.
-    //
-    const mutlipiler = 1.05
-
+    // We assume the address have no tokens in the cluster account, so we will deposit into it
+    // at the same time we submit the transaction. The gas fee is far lower then 1 PHA in general
+    // so we plus 1 PHA here.
     const msg = this.abi.findConstructor(constructorOrId).toU8a(args)
-    const deposit = depositPerByte.mul(new BN(msg.length * mutlipiler))
+    const deposit = depositPerByte.mul(new BN(msg.length * 1.05)).add(new BN(1e12))
 
     const [clusterBalance, onchainBalance, { gasRequired, storageDeposit }] = await Promise.all([
       this.phatRegistry.getClusterBalance(address),
@@ -389,11 +385,10 @@ export class PinkBlueprintPromise {
       estimate(cert.address, { cert, deposit }, ...args),
     ])
 
-    // We calculate the minimal cost based on the estimated result. Even the estimated result already higher than
-    // the real-cost, we still need to deposit more for the peak usage.
-    let minRequired = gasRequired.refTime.toBn().add(storageDeposit.isCharge ? storageDeposit.asCharge.toBn() : BN_ZERO)
-    // BN not support floating-point number calculation, so we need to convert it to native number and then convert back.
-    minRequired = new BN(minRequired.toNumber() * mutlipiler)
+    // calculate the total costs
+    const gasLimit = gasRequired.refTime.toBn()
+    const storageDepositFee = storageDeposit.isCharge ? storageDeposit.asCharge.toBn() : BN_ZERO
+    const minRequired = gasLimit.mul(gasPrice).add(storageDepositFee)
 
     // Auto deposit.
     if (clusterBalance.free.lt(minRequired)) {
@@ -406,7 +401,7 @@ export class PinkBlueprintPromise {
 
     // gasLimit is required, so we set it to the estimated value if not provided.
     if (!txOptions.gasLimit) {
-      txOptions.gasLimit = gasRequired.refTime.toBn()
+      txOptions.gasLimit = gasLimit
     }
 
     if ('signer' in rest) {
