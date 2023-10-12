@@ -89,6 +89,7 @@ members = [
 	"crates/reqwest-env-proxy",
 	"crates/phala-scheduler",
 	"crates/this-crate",
+	"crates/sgx-attestation",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
 	"pallets/offchain-rollup",

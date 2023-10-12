@@ -2,8 +2,7 @@ use crate::constants::*;
 
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
-use sp_std::{borrow::ToOwned, convert::TryFrom, vec::Vec};
-use base64::{Engine as _, engine::general_purpose};
+use sp_std::vec::Vec;
 
 use phala_types::{AttestationProvider, AttestationReport};
 
@@ -40,33 +39,17 @@ pub struct IasFields {
 impl IasFields {
 	pub fn from_ias_report(report: &[u8]) -> Result<(IasFields, i64), Error> {
 		// Validate related fields
-		let parsed_report: serde_json::Value =
+		let parsed_report: sgx_attestation::ias::RaReport =
 			serde_json::from_slice(report).or(Err(Error::InvalidReport))?;
 
-		// Extract quote fields
-		let raw_quote_body = parsed_report["isvEnclaveQuoteBody"]
-			.as_str()
-			.ok_or(Error::UnknownQuoteBodyFormat)?;
-		let quote_body = general_purpose::STANDARD.decode(raw_quote_body).or(Err(Error::UnknownQuoteBodyFormat))?;
-		let mr_enclave = &quote_body[112..144];
-		let mr_signer = &quote_body[176..208];
-		let isv_prod_id = &quote_body[304..306];
-		let isv_svn = &quote_body[306..308];
-		let report_data = &quote_body[368..432];
-
 		// Extract report time
-		let raw_report_timestamp = parsed_report["timestamp"]
-			.as_str()
-			.unwrap_or("UNKNOWN")
-			.to_owned() + "Z";
+		let raw_report_timestamp = parsed_report.timestamp.clone() + "Z";
 		let report_timestamp = chrono::DateTime::parse_from_rfc3339(&raw_report_timestamp)
 			.or(Err(Error::BadIASReport))?
 			.timestamp();
 
 		// Filter valid `isvEnclaveQuoteStatus`
-		let quote_status = &parsed_report["isvEnclaveQuoteStatus"]
-			.as_str()
-			.unwrap_or("UNKNOWN");
+		let quote_status = &parsed_report.isv_enclave_quote_status.as_str();
 		let mut confidence_level: u8 = 128;
 		if IAS_QUOTE_STATUS_LEVEL_1.contains(quote_status) {
 			confidence_level = 1;
@@ -87,23 +70,26 @@ impl IasFields {
 		// For CL 3, we don't know which vulnerable (aka SA) the worker not well configured, so we need to check the allow list
 		if confidence_level == 3 {
 			// Filter AdvisoryIDs. `advisoryIDs` is optional
-			if let Some(advisory_ids) = parsed_report["advisoryIDs"].as_array() {
-				for advisory_id in advisory_ids {
-					let advisory_id = advisory_id.as_str().ok_or(Error::BadIASReport)?;
-					if !IAS_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
-						confidence_level = 4;
-					}
+			for advisory_id in parsed_report.advisory_ids.iter() {
+				let advisory_id = advisory_id.as_str();
+				if !IAS_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
+					confidence_level = 4;
 				}
 			}
 		}
 
+		// Extract quote fields
+		let quote = parsed_report
+			.decode_quote()
+			.or(Err(Error::UnknownQuoteBodyFormat))?;
+
 		Ok((
 			IasFields {
-				mr_enclave: mr_enclave.try_into().unwrap(),
-				mr_signer: mr_signer.try_into().unwrap(),
-				isv_prod_id: isv_prod_id.try_into().unwrap(),
-				isv_svn: isv_svn.try_into().unwrap(),
-				report_data: report_data.try_into().unwrap(),
+				mr_enclave: quote.mr_enclave,
+				mr_signer: quote.mr_signer,
+				isv_prod_id: quote.isv_prod_id,
+				isv_svn: quote.isv_svn,
+				report_data: quote.report_data,
 				confidence_level,
 			},
 			report_timestamp,
@@ -166,24 +152,13 @@ pub fn validate_ias_report(
 	pruntime_allowlist: Vec<Vec<u8>>,
 ) -> Result<ConfidentialReport, Error> {
 	// Validate report
-	let sig_cert_der = webpki::types::CertificateDer::from(raw_signing_cert);
-	let sig_cert = webpki::EndEntityCert::try_from(&sig_cert_der);
-	let sig_cert = sig_cert.or(Err(Error::InvalidIASSigningCert))?;
-	let verify_result =
-		sig_cert.verify_signature(webpki::RSA_PKCS1_2048_8192_SHA256, report, signature);
-	verify_result.or(Err(Error::InvalidIASSigningCert))?;
-	// Validate certificate
-	let chain: Vec<webpki::types::CertificateDer> = Vec::new();
-	let time_now = webpki::types::UnixTime::since_unix_epoch(sp_std::time::Duration::from_secs(now));
-	let tls_server_cert_valid = sig_cert.verify_for_usage(
-		SUPPORTED_SIG_ALGS,
-		IAS_SERVER_ROOTS,
-		&chain,
-		time_now,
-		webpki::KeyUsage::server_auth(),
-		None
-	);
-	tls_server_cert_valid.or(Err(Error::InvalidIASSigningCert))?;
+	sgx_attestation::ias::verify_signature(
+		report,
+		signature,
+		raw_signing_cert,
+		core::time::Duration::from_secs(now),
+	)
+	.or(Err(Error::InvalidIASSigningCert))?;
 
 	let (ias_fields, report_timestamp) = IasFields::from_ias_report(report)?;
 
@@ -222,18 +197,16 @@ mod test {
 
 	#[test]
 	fn test_ias_validator() {
-		let sample: serde_json::Value = serde_json::from_slice(ATTESTATION_SAMPLE).unwrap();
+		let sample: sgx_attestation::ias::SignedIasReport =
+			serde_json::from_slice(ATTESTATION_SAMPLE).unwrap();
 
-		let report = sample["raReport"].as_str().unwrap().as_bytes();
-		let signature = hex::decode(sample["signature"].as_str().unwrap().as_bytes()).unwrap();
-		let raw_signing_cert =
-			hex::decode(sample["rawSigningCert"].as_str().unwrap().as_bytes()).unwrap();
+		let report = sample.ra_report.as_bytes();
+		let parsed_report = sample.parse_report().unwrap();
+		let signature = hex::decode(sample.signature.as_str()).unwrap();
+		let raw_signing_cert = hex::decode(sample.raw_signing_cert.as_str()).unwrap();
 
-		let parsed_report: serde_json::Value = serde_json::from_slice(report).unwrap();
-		let raw_quote_body = parsed_report["isvEnclaveQuoteBody"].as_str().unwrap();
-		let quote_body = general_purpose::STANDARD.decode(raw_quote_body).unwrap();
-		let report_data = &quote_body[368..432];
-		let commit = &report_data[..32];
+		let quote = parsed_report.decode_quote().unwrap();
+		let commit = &quote.report_data[..32];
 
 		assert_eq!(
 			validate_ias_report(
