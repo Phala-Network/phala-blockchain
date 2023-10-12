@@ -22,6 +22,7 @@ mod check_system {
 
     impl CheckSystem {
         #[ink(constructor)]
+        #[allow(clippy::should_implement_trait)]
         pub fn default() -> Self {
             Self {
                 on_block_end_called: false,

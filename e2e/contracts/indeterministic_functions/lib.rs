@@ -25,6 +25,7 @@ mod indeterministic_functions {
 
     impl IndeterministicFunctions {
         #[ink(constructor)]
+        #[allow(clippy::should_implement_trait)]
         pub fn default() -> Self {
             IndeterministicFunctions {}
         }

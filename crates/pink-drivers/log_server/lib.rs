@@ -24,6 +24,7 @@ mod contract {
 
     impl Contract {
         #[ink(constructor)]
+        #[allow(clippy::should_implement_trait)]
         pub fn default() -> Self {
             start_sidevm();
             Self {

@@ -22,6 +22,7 @@ mod tokenomic {
 
     impl PhatTokenomic {
         #[ink(constructor)]
+        #[allow(clippy::should_implement_trait)]
         pub fn default() -> Self {
             Self {}
         }
@@ -48,7 +49,7 @@ mod tokenomic {
             let system = SystemRef::instance();
             let weight = deposit / CENTS;
             let weight = weight.try_into().unwrap_or(u32::MAX);
-            system.set_contract_weight(contract_id.clone(), weight)?;
+            system.set_contract_weight(contract_id, weight)?;
             self.env().emit_event(WeightChanged {
                 contract_id,
                 weight
