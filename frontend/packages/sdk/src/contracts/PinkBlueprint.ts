@@ -123,7 +123,7 @@ export class PinkBlueprintSubmittableResult extends SubmittableResult {
             records.length > 0 &&
             records[0].type === 'Log' &&
             records[0].execMode === 'transaction' &&
-            records[0].message !== 'instantiated'
+            records[0].message.indexOf('instantiate failed') !== -1
           ) {
             throw new Error(records[0].message)
           }
