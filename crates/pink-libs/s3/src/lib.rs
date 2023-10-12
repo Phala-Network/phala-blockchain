@@ -4,7 +4,8 @@
 #[macro_use]
 extern crate alloc;
 
-use pink::chain_extension::HttpResponse;
+pub use pink::chain_extension::HttpResponse;
+
 use pink_extension as pink;
 
 use scale::{Decode, Encode};
@@ -25,12 +26,6 @@ use sha2::Sha256;
 pub enum Error {
     RequestFailed(u16),
     InvalidEndpoint,
-}
-
-/// Infomation of a S3 object
-pub struct Head {
-    /// The size of the object
-    pub content_length: u64,
 }
 
 /// The S3 client
@@ -72,37 +67,27 @@ impl<'a> S3<'a> {
     /// Get object metadata from given bucket
     ///
     /// Returns Error::RequestFailed(404) it does not exist.
-    pub fn head(&self, bucket_name: &str, object_key: &str) -> Result<Head, Error> {
-        let response = self.request("HEAD", bucket_name, object_key, None)?;
-        for (k, v) in response.headers {
-            if k.to_ascii_lowercase() == "content-length" {
-                return Ok(Head {
-                    content_length: v.parse().or(Err(Error::RequestFailed(600)))?,
-                });
-            }
-        }
-        Err(Error::RequestFailed(response.status_code))
+    pub fn head(&self, bucket_name: &str, object_key: &str) -> Result<HttpResponse, Error> {
+        self.request("HEAD", bucket_name, object_key, None)
     }
 
     /// Get object value from bucket `bucket_name` with key `object_key`.
     ///
     /// Returns Error::RequestFailed(404) it does not exist.
-    pub fn get(&self, bucket_name: &str, object_key: &str) -> Result<Vec<u8>, Error> {
-        Ok(self.request("GET", bucket_name, object_key, None)?.body)
+    pub fn get(&self, bucket_name: &str, object_key: &str) -> Result<HttpResponse, Error> {
+        self.request("GET", bucket_name, object_key, None)
     }
 
     /// Put an value into bucket `bucket_name` with key `object_key`.
-    pub fn put(&self, bucket_name: &str, object_key: &str, value: &[u8]) -> Result<(), Error> {
+    pub fn put(&self, bucket_name: &str, object_key: &str, value: &[u8]) -> Result<HttpResponse, Error> {
         self.request("PUT", bucket_name, object_key, Some(value))
-            .map(|_| ())
     }
 
     /// Delete given object from bucket `bucket_name` with key `object_key`.
     ///
     /// Returns Error::RequestFailed(404) it does not exist.
-    pub fn delete(&self, bucket_name: &str, object_key: &str) -> Result<(), Error> {
+    pub fn delete(&self, bucket_name: &str, object_key: &str) -> Result<HttpResponse, Error> {
         self.request("DELETE", bucket_name, object_key, None)
-            .map(|_| ())
     }
 
     fn request(
