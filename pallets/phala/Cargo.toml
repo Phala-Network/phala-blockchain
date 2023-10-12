@@ -49,8 +49,7 @@ fixed = { version = "1.16.1", default-features = false }
 fixed-macro = "1.2"
 fixed-sqrt = { version = "0.2", default-features = false }
 
-# Release version no-std has bug
-webpki = { git = "https://github.com/rustls/webpki", version = "0.102.0-alpha.3", package = "rustls-webpki", default-features = false, features = ["alloc", "ring"] }
+sgx-attestation = { path = "../../crates/sgx-attestation", default-features = false }
 
 [dev-dependencies]
 frame-support-test = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
@@ -89,6 +88,7 @@ std = [
 	"pallet-preimage/std",
 	"serde/derive",
 	"serde/alloc",
+	"sgx-attestation/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks"

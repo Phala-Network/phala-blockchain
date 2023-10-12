@@ -5857,10 +5857,10 @@ dependencies = [
  "phala-types",
  "primitive-types",
  "rmrk-traits",
- "rustls-webpki 0.102.0-alpha.3",
  "scale-info",
  "serde",
  "serde_json",
+ "sgx-attestation",
  "sp-application-crypto",
  "sp-core",
  "sp-io",
@@ -6113,6 +6113,16 @@ dependencies = [
  "sp-core",
  "sp-runtime-interface",
  "tokio",
+]
+
+[[package]]
+name = "pink-json"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c146010528d0b4f6a3d3255ef2a179e8ef25a1114dfb75542becf89def7c5232"
+dependencies = [
+ "ryu",
+ "serde",
 ]
 
 [[package]]
@@ -7670,6 +7680,18 @@ version = "0.1.0"
 dependencies = [
  "aes",
  "cmac",
+]
+
+[[package]]
+name = "sgx-attestation"
+version = "0.1.0"
+dependencies = [
+ "base64 0.21.4",
+ "hex",
+ "parity-scale-codec",
+ "pink-json",
+ "rustls-webpki 0.102.0-alpha.3",
+ "serde",
 ]
 
 [[package]]
@@ -9424,7 +9446,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.7",
- "rand 0.4.6",
+ "rand 0.8.5",
  "static_assertions",
 ]
 
