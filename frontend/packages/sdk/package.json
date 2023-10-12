@@ -27,14 +27,11 @@
     "dist/*"
   ],
   "scripts": {
-    "build": "npm run build:node && npm run build:browser",
+    "prebuild": "shx rm -rf dist",
+    "build": "concurrently -m 2 'yarn:build:*'",
     "build:node": "tsup --config tsup.node.ts",
     "build:browser": "tsup --config tsup.browser.ts",
-    "generate:defs": "ts-node --skip-project ./node_modules/.bin/polkadot-types-from-defs --package @phala/sdk --input ./src/interfaces --endpoint ./edgeware.json",
-    "generate:meta": "ts-node --skip-project ./node_modules/.bin/polkadot-types-from-chain --package @phala/sdk --endpoint ./edgeware.json --output ./src/interfaces",
-    "build:proto": "scripts/build_proto.sh",
-    "dev": "tsup --watch",
-    "auto-publish": "npm publish --access public",
+    "generate:proto": "scripts/build_proto.sh",
     "pretest": "tsc --noEmit",
     "prettier": "prettier '*.{js,jsolintn,md}' '{src,tests,docs}/**/*.{ts,tsx,md,mdx}' --write",
     "prettier:ci": "prettier '*.{js,json,md}' '{src,tests,docs}/**/*.{ts,tsx,md,mdx}' --list-different",
