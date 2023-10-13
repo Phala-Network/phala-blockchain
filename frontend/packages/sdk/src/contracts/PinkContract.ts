@@ -21,6 +21,7 @@ import { EncryptedInkCommand, InkQueryMessage, PlainInkCommand } from '../prunti
 import { pinkQuery } from '../pruntime/pinkQuery'
 import type { AbiLike, FrameSystemAccountInfo } from '../types'
 import assert from '../utils/assert'
+import { BN_MAX_SUPPLY } from '../utils/constants'
 import { randomHex } from '../utils/hex'
 import signAndSend from '../utils/signAndSend'
 
@@ -459,21 +460,15 @@ export class PinkContractPromise<
       throw new Error(`Message not found: ${messageOrId}`)
     }
 
-    const { gasPrice, depositPerByte } = this.phatRegistry.clusterInfo ?? {}
-    if (!gasPrice || !depositPerByte) {
+    const { gasPrice } = this.phatRegistry.clusterInfo ?? {}
+    if (!gasPrice) {
       throw new Error('No Gas Price or deposit Per Byte from cluster info.')
     }
-
-    // We assume the address have no tokens in the cluster account, so we will deposit into it
-    // at the same time we submit the transaction. The gas fee is far lower then 1 PHA in general
-    // so we plus 1 PHA here.
-    const msg = this.abi.findMessage(messageOrId).toU8a(args)
-    const deposit = depositPerByte.mul(new BN(msg.length)).add(new BN(1e12))
 
     const [clusterBalance, onchainBalance, { gasRequired, storageDeposit }] = await Promise.all([
       this.phatRegistry.getClusterBalance(address),
       this.api.query.system.account<FrameSystemAccountInfo>(address),
-      estimate(cert.address, { cert, deposit }, ...args),
+      estimate(cert.address, { cert, deposit: BN_MAX_SUPPLY }, ...args),
     ])
 
     // calculate the total costs
