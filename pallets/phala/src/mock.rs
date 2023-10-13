@@ -287,20 +287,12 @@ ord_parameter_types! {
 	pub const Six: u64 = 6;
 }
 
-parameter_types! {
-	pub const PreimageMaxSize: u32 = 4096 * 1024;
-	pub const PreimageBaseDeposit: Balance = DOLLARS;
-	// One cent: $10,000 / MB
-	pub const PreimageByteDeposit: Balance = CENTS;
-}
-
 impl pallet_preimage::Config for Test {
-	type WeightInfo = pallet_preimage::weights::SubstrateWeight<Test>;
 	type RuntimeEvent = RuntimeEvent;
-	type Currency = Balances;
-	type ManagerOrigin = EnsureRoot<Self::AccountId>;
-	type BaseDeposit = PreimageBaseDeposit;
-	type ByteDeposit = PreimageByteDeposit;
+	type WeightInfo = ();
+	type Currency = ();
+	type ManagerOrigin = EnsureRoot<u64>;
+	type Consideration = ();
 }
 
 impl pallet_democracy::Config for Test {

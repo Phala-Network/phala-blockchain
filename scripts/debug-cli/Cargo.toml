@@ -11,10 +11,10 @@ hex = "0.4"
 clap = { version = "4.0.32", features = ["derive"] }
 anyhow = "1.0.69"
 
-sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
-sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
-frame-support = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
-sc-consensus-grandpa = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
+sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
+sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
+frame-support = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
+sc-consensus-grandpa = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 
 phala-types = { path = "../../crates/phala-types" }
 phala-pallets = { path = "../../pallets/phala" }

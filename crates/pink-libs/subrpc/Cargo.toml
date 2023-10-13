@@ -32,7 +32,7 @@ base58 = { version = "0.2.0", default-features = false }
 
 [dev-dependencies]
 pink-extension-runtime = { version = "0.4", path = "../../pink/pink-extension-runtime" }
-xcm = { package = "staging-xcm", git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0", default-features = false, features = ["std"] }
+xcm = { package = "staging-xcm", git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false, features = ["std"] }
 
 [features]
 default = ["std"]

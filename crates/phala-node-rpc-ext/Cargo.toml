@@ -19,14 +19,14 @@ codec = { package = "parity-scale-codec", version = "3.3" }
 scale-info = { version = "2.3", default-features = false }
 
 # primitives
-sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
-sp-blockchain = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
-sp-api = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
+sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
+sp-blockchain = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
+sp-api = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 
 # client dependencies
-sc-client-api = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
-sc-transaction-pool-api = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
-sc-rpc = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
+sc-client-api = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
+sc-transaction-pool-api = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
+sc-rpc = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 
 phala-mq = { path = "../../crates/phala-mq" }
 phala-pallets = { path = "../../pallets/phala" }
