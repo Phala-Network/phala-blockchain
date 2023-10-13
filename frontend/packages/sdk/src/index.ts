@@ -12,7 +12,7 @@ export * from './options'
 export * from './abis/fetchers'
 export * from './pruntime/eip712'
 export { default as createPruntimeClient } from './pruntime/createPruntimeClient'
-export { default as signAndSend } from './utils/signAndSend'
+export { default as signAndSend, SignAndSendError } from './utils/signAndSend'
 
 export const PhactoryAPI = pruntime_rpc.PhactoryAPI
 export const pruntimeRpc = pruntime_rpc

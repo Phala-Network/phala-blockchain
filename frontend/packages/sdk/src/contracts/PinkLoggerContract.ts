@@ -1,18 +1,18 @@
 import type { ApiPromise } from '@polkadot/api'
 import { Keyring } from '@polkadot/api'
 import type { KeyringPair } from '@polkadot/keyring/types'
-import type { Text } from '@polkadot/types'
+import type { Enum, Struct, Text } from '@polkadot/types'
 import type { AccountId } from '@polkadot/types/interfaces'
 import type { Result } from '@polkadot/types-codec'
-import { hexAddPrefix, hexToString, hexToU8a, stringToHex } from '@polkadot/util'
+import { hexAddPrefix, hexToString, hexToU8a } from '@polkadot/util'
 import { sr25519Agree } from '@polkadot/wasm-crypto'
 import type { OnChainRegistry } from '../OnChainRegistry'
 import { phalaTypes } from '../options'
 import { type CertificateData, generatePair, signCertificate } from '../pruntime/certificate'
+import { InkQuerySidevmMessage } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
 import { type pruntime_rpc } from '../pruntime/proto'
 import type { InkResponse } from '../types'
-import { randomHex } from '../utils/hex'
 import { ContractInitialError } from './Errors'
 import { type PinkContractPromise } from './PinkContract'
 
@@ -44,7 +44,24 @@ export interface SerMessageEvent {
   payload: string
 }
 
-export interface SerMessageMessageOutput {
+interface OutputOk {
+  ok: {
+    flags: string[]
+    data: string
+  }
+}
+
+interface OutputErr {
+  err: {
+    module?: {
+      error: string
+      index: number
+    }
+    other?: null
+  }
+}
+
+export interface SerMessageMessageOutputRaw {
   type: 'MessageOutput'
   sequence: number
   blockNumber: number
@@ -52,6 +69,30 @@ export interface SerMessageMessageOutput {
   contract: string
   nonce: string
   output: string
+}
+
+export interface SerMessageMessageOutput {
+  type: 'MessageOutput'
+  sequence: number
+  blockNumber: number
+  origin: string
+  contract: string
+  nonce: string
+  output: {
+    gasConsumed: {
+      refTime: number
+      proofSize: number
+    }
+    gasRequired: {
+      refTime: number
+      proofSize: number
+      storageDeposit: {
+        charge: number
+      }
+    }
+    debugMessage: string
+    result: OutputOk | OutputErr
+  }
 }
 
 export interface SerMessageQueryIn {
@@ -63,6 +104,13 @@ export interface SerMessageQueryIn {
 export interface SerMessageTooLarge {
   type: 'TooLarge'
 }
+
+export type SerInnerMessage =
+  | SerMessageLog
+  | SerMessageEvent
+  | SerMessageMessageOutputRaw
+  | SerMessageQueryIn
+  | SerMessageTooLarge
 
 export type SerMessage =
   | SerMessageLog
@@ -85,20 +133,6 @@ export interface LogServerInfo {
   estimatedCurrentSize: number
 }
 
-function InkQuery(contractId: AccountId, { sidevmMessage }: { sidevmMessage?: Record<string, any> } = {}) {
-  const head = {
-    nonce: hexAddPrefix(randomHex(32)),
-    id: contractId,
-  }
-  const data: Record<string, string> = {}
-  if (sidevmMessage) {
-    data['SidevmMessage'] = stringToHex(JSON.stringify(sidevmMessage))
-  } else {
-    throw new Error('InkQuery construction failed: sidevmMessage is required.')
-  }
-  return phalaTypes.createType('InkQuery', { head, data })
-}
-
 interface SidevmQueryContext {
   phactory: pruntime_rpc.PhactoryAPI
   remotePubkey: string
@@ -106,10 +140,31 @@ interface SidevmQueryContext {
   cert: CertificateData
 }
 
+interface ContractExecResultOk extends Struct {
+  flags: Text[]
+  data: Text
+}
+
+interface ModuleError extends Struct {
+  index: number
+  error: Text
+}
+
+interface ContractExecResultErr extends Enum {
+  asModule: ModuleError
+  asOther: Text
+  isModule: boolean
+  isOther: boolean
+}
+
+interface ContractExecResult extends Struct {
+  result: Result<ContractExecResultOk, ContractExecResultErr>
+}
+
 function sidevmQueryWithReader({ phactory, remotePubkey, address, cert }: SidevmQueryContext) {
   return async function unsafeRunSidevmQuery<T>(sidevmMessage: Record<string, any>): Promise<T> {
     const [sk, pk] = generatePair()
-    const encodedQuery = InkQuery(address, { sidevmMessage })
+    const encodedQuery = InkQuerySidevmMessage(address, sidevmMessage)
     const queryAgreementKey = sr25519Agree(hexToU8a(hexAddPrefix(remotePubkey)), sk)
     const response = await pinkQuery(phactory, pk, queryAgreementKey, encodedQuery.toHex(), cert)
     const inkResponse = phalaTypes.createType<InkResponse>('InkResponse', response)
@@ -127,6 +182,33 @@ function sidevmQueryWithReader({ phactory, remotePubkey, address, cert }: Sidevm
     }
     return parsed
   }
+}
+
+function postProcessLogRecord(messages: SerInnerMessage[]): SerMessage[] {
+  return messages.map((message) => {
+    if (message.type === 'MessageOutput') {
+      const execResult = phalaTypes.createType<ContractExecResult>('ContractExecResult', hexToU8a(message.output))
+      const output = execResult.toJSON() as unknown as SerMessageMessageOutput['output']
+      if (
+        execResult.result.isErr &&
+        execResult.result.asErr.isModule &&
+        execResult.result.asErr.asModule?.index === 4
+      ) {
+        const err = phalaTypes.createType('ContractError', execResult.result.asErr.asModule.error)
+        output.result = {
+          err: {
+            ...(output.result as OutputErr).err,
+            module: {
+              error: err.toJSON() as string,
+              index: 4,
+            },
+          },
+        } as OutputErr
+      }
+      return { ...message, output }
+    }
+    return message
+  })
 }
 
 export function buildGetLogRequest(
@@ -234,7 +316,13 @@ export class PinkLoggerContractPromise {
   async getLog(contract: AccountId | string, from: number = 0, count: number = 100): Promise<GetLogResponse> {
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
-    return await unsafeRunSidevmQuery({ action: 'GetLog', contract, from, count })
+    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[]; next: number }>({
+      action: 'GetLog',
+      contract,
+      from,
+      count,
+    })
+    return { records: postProcessLogRecord(result.records), next: result.next } as const
   }
 
   async getInfo(): Promise<LogServerInfo> {
@@ -266,7 +354,11 @@ export class PinkLoggerContractPromise {
     )
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
-    return await unsafeRunSidevmQuery({ action: 'GetLog', ...request })
+    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[]; next: number }>({
+      action: 'GetLog',
+      ...request,
+    })
+    return { records: postProcessLogRecord(result.records), next: result.next } as const
   }
 
   async head(): Promise<GetLogResponse>
@@ -287,7 +379,11 @@ export class PinkLoggerContractPromise {
     )
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
-    return await unsafeRunSidevmQuery({ action: 'GetLog', ...request })
+    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[]; next: number }>({
+      action: 'GetLog',
+      ...request,
+    })
+    return { records: postProcessLogRecord(result.records), next: result.next } as const
   }
 
   setSystemContract(contract: PinkContractPromise | string) {

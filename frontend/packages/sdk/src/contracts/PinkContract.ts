@@ -2,7 +2,7 @@ import type { ApiPromise } from '@polkadot/api'
 import { toPromiseMethod } from '@polkadot/api'
 import type { ApiBase } from '@polkadot/api/base'
 import type { SubmittableExtrinsic } from '@polkadot/api/submittable/types'
-import type { DecorateMethod } from '@polkadot/api/types'
+import type { DecorateMethod, Signer as InjectedSigner } from '@polkadot/api/types'
 import { Abi } from '@polkadot/api-contract/Abi'
 import { ContractSubmittableResult } from '@polkadot/api-contract/base/Contract'
 import type { ContractCallResult, ContractCallSend, MessageMeta } from '@polkadot/api-contract/base/types'
@@ -11,17 +11,19 @@ import type { AbiMessage, ContractCallOutcome, ContractOptions, DecodedEvent } f
 import { applyOnEvent } from '@polkadot/api-contract/util'
 import type { Bytes, Null, Result, Struct, Text, Vec, u8 } from '@polkadot/types'
 import type { AccountId, ContractExecResult, EventRecord } from '@polkadot/types/interfaces'
-import type { Codec, IEnum, ISubmittableResult, Registry } from '@polkadot/types/types'
-import { BN, BN_ZERO, hexAddPrefix, hexToU8a, u8aToHex } from '@polkadot/util'
+import type { Codec, IEnum, IKeyringPair, ISubmittableResult, Registry } from '@polkadot/types/types'
+import { BN, BN_ZERO, hexAddPrefix, hexToU8a } from '@polkadot/util'
 import { sr25519Agree, sr25519KeypairFromSeed } from '@polkadot/wasm-crypto'
 import { from } from 'rxjs'
 import type { OnChainRegistry } from '../OnChainRegistry'
 import type { CertificateData } from '../pruntime/certificate'
+import { EncryptedInkCommand, InkQueryMessage, PlainInkCommand } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
-import type { AbiLike } from '../types'
-import { encrypt } from '../utils/aes-256-gcm'
+import type { AbiLike, FrameSystemAccountInfo } from '../types'
 import assert from '../utils/assert'
+import { BN_MAX_SUPPLY } from '../utils/constants'
 import { randomHex } from '../utils/hex'
+import signAndSend from '../utils/signAndSend'
 
 export type PinkContractCallOutcome<ResultType> = {
   output: ResultType
@@ -54,7 +56,18 @@ export interface PinkContractOptions extends ContractOptions {
   // Deposit to caller's cluster account to pay the gas fee. It useful when caller's cluster account
   // won't have enough funds and eliminate one `transferToCluster` transaction.
   deposit?: bigint | BN | string | number
+
+  //
+  plain?: boolean
 }
+
+interface SendOptions {
+  cert?: CertificateData
+}
+
+export type PinkContractSendOptions =
+  | (PinkContractOptions & SendOptions & { address: string | AccountId; signer: InjectedSigner })
+  | (PinkContractOptions & SendOptions & { pair: IKeyringPair })
 
 export interface PinkContractTx<TParams extends Array<any> = any[]> extends MessageMeta {
   (options: PinkContractOptions, ...params: TParams): SubmittableExtrinsic<'promise'>
@@ -76,39 +89,104 @@ class PinkContractSubmittableResult extends ContractSubmittableResult {
   readonly #registry: OnChainRegistry
 
   #isFinalized: boolean = false
+  #contract: PinkContractPromise
+  #message: AbiMessage
 
-  constructor(registry: OnChainRegistry, result: ISubmittableResult, contractEvents?: DecodedEvent[]) {
+  constructor(
+    registry: OnChainRegistry,
+    contract: PinkContractPromise,
+    message: AbiMessage,
+    result: ISubmittableResult,
+    contractEvents?: DecodedEvent[]
+  ) {
     super(result, contractEvents)
     this.#registry = registry
+    this.#contract = contract
+    this.#message = message
   }
 
-  async waitFinalized(timeout: number = 120_000) {
+  protected async throwsOnErrorLog(chainHeight: number): Promise<void> {
+    const logger = this.#registry.loggerContract
+    if (!logger) {
+      return
+    }
+    const { records } = await logger.tail(10, { contract: this.#contract.address.toHex() })
+    const sinceSubmitted = records.filter(
+      (i) => (i.type === 'Log' || i.type === 'MessageOutput') && i.blockNumber >= chainHeight
+    )
+    sinceSubmitted.reverse()
+    sinceSubmitted.forEach((msg) => {
+      if (msg.type === 'MessageOutput' && 'ok' in msg.output.result) {
+        const { ok } = msg.output.result
+        if (ok.flags.length && ok.flags[0] === 'Revert' && this.#message.returnType) {
+          const returns = this.#contract.abi.registry.createType(this.#message.returnType.type, hexToU8a(ok.data))
+          throw new Error(JSON.stringify(returns.toHuman()))
+        }
+      } else if (msg.type === 'Log' && msg.execMode === 'transaction') {
+        throw new Error(msg.message)
+      }
+    })
+  }
+
+  async waitFinalized(
+    predicate?: () => Promise<boolean>,
+    options?: { timeout?: number; blocks?: number }
+  ): Promise<void> {
     if (this.#isFinalized) {
       return
     }
-
-    if (this.isInBlock || this.isFinalized) {
-      const codeHash = this.status.asInBlock.toString()
-      const block = await this.#registry.api.rpc.chain.getBlock(codeHash)
-      const chainHeight = block.block.header.number.toNumber()
-
-      const t0 = new Date().getTime()
+    if (!this.isInBlock && !this.isFinalized) {
+      throw new Error('Contract transaction submit failed.')
+    }
+    const codeHash = this.status.asInBlock.toString()
+    const block = await this.#registry.api.rpc.chain.getBlock(codeHash)
+    const chainHeight = block.block.header.number.toNumber()
+    const t0 = new Date().getTime()
+    const timeout = options?.timeout ?? 120_000
+    const blocks = options?.blocks ?? 10
+    if (!predicate) {
       while (true) {
-        const result = await this.#registry.phactory.getInfo({})
-        if (result.blocknum > chainHeight) {
+        await this.throwsOnErrorLog(chainHeight)
+        const { blocknum: currentHeight } = await this.#registry.phactory.getInfo({})
+        if (currentHeight > chainHeight) {
           this.#isFinalized = true
           return
         }
-
-        const t1 = new Date().getTime()
-        if (t1 - t0 > timeout) {
+        if (currentHeight - blocks > chainHeight) {
           throw new Error('Timeout')
         }
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        if (new Date().getTime() - t0 > timeout) {
+          throw new Error('Timeout')
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1_000))
+      }
+    } else {
+      while (true) {
+        await this.throwsOnErrorLog(chainHeight)
+        const { blocknum: currentHeight } = await this.#registry.phactory.getInfo({})
+        const isOk = await predicate()
+        if (isOk) {
+          this.#isFinalized = true
+          return
+        }
+        if (currentHeight - blocks > chainHeight) {
+          throw new Error('Timeout')
+        }
+        if (new Date().getTime() - t0 > timeout) {
+          throw new Error('Timeout')
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1_000))
       }
     }
-    throw new Error('Contract transaction submit failed.')
   }
+}
+
+export interface PinkContractSend<TParams extends Array<any> = any[]> extends MessageMeta {
+  (options: PinkContractSendOptions, ...params: TParams): Promise<PinkContractSubmittableResult>
+}
+
+export interface MapMessageSend {
+  [message: string]: PinkContractSend
 }
 
 interface InkQueryOk extends IEnum {
@@ -139,43 +217,6 @@ interface InkQueryError extends IEnum {
 interface InkResponse extends Struct {
   nonce: Text
   result: Result<InkQueryOk, InkQueryError>
-}
-
-function createQuery(
-  meta: AbiMessage,
-  fn: (
-    origin: string | AccountId | Uint8Array,
-    options: PinkContractQueryOptions,
-    params: unknown[]
-  ) => ContractCallResult<'promise', ContractCallOutcome>
-): PinkContractQuery {
-  return withMeta(
-    meta,
-    (
-      origin: string | AccountId | Uint8Array,
-      options: PinkContractQueryOptions,
-      ...params: unknown[]
-    ): ContractCallResult<'promise', ContractCallOutcome> => fn(origin, options, params)
-  )
-}
-
-function createTx(
-  meta: AbiMessage,
-  fn: (options: PinkContractOptions, params: unknown[]) => SubmittableExtrinsic<'promise'>
-): PinkContractTx {
-  return withMeta(
-    meta,
-    (options: PinkContractOptions, ...params: unknown[]): SubmittableExtrinsic<'promise'> => fn(options, params)
-  )
-}
-
-function createEncryptedData(pk: Uint8Array, data: string, agreementKey: Uint8Array) {
-  const iv = hexAddPrefix(randomHex(12))
-  return {
-    iv,
-    pubkey: u8aToHex(pk),
-    data: hexAddPrefix(encrypt(data, agreementKey, hexToU8a(iv))),
-  }
 }
 
 export class PinkContractPromise<
@@ -215,14 +256,54 @@ export class PinkContractPromise<
     this.address = this.registry.createType('AccountId', address)
     this.contractKey = contractKey
 
-    this.abi.messages.forEach((m): void => {
-      if (m.isMutating) {
-        this.#tx[m.method] = createTx(m, (o, p) => this.#inkCommand(m, o, p))
-        this.#query[m.method] = createQuery(m, (f, c, p) => this.#inkQuery(true, m, c, p).send(f))
+    this.abi.messages.forEach((meta): void => {
+      if (meta.isMutating) {
+        this.#tx[meta.method] = withMeta(
+          meta,
+          (options: PinkContractOptions, ...params: unknown[]): SubmittableExtrinsic<'promise'> => {
+            return this.#inkCommand(meta, options, params)
+          }
+        )
+        this.#query[meta.method] = withMeta(
+          meta,
+          (
+            origin: string | AccountId | Uint8Array,
+            options: PinkContractQueryOptions,
+            ...params: unknown[]
+          ): ContractCallResult<'promise', ContractCallOutcome> => {
+            return this.#inkQuery(true, meta, options, params).send(origin)
+          }
+        )
       } else {
-        this.#query[m.method] = createQuery(m, (f, c, p) => this.#inkQuery(false, m, c, p).send(f))
+        this.#query[meta.method] = withMeta(
+          meta,
+          (
+            origin: string | AccountId | Uint8Array,
+            options: PinkContractQueryOptions,
+            ...params: unknown[]
+          ): ContractCallResult<'promise', ContractCallOutcome> => {
+            return this.#inkQuery(false, meta, options, params).send(origin)
+          }
+        )
       }
     })
+  }
+
+  public get send() {
+    return new Proxy(
+      {},
+      {
+        get: (_target, prop, _receiver) => {
+          const meta = this.abi.messages.filter((i) => i.method === prop)
+          if (!meta || !meta.length) {
+            throw new Error('Method not found')
+          }
+          return withMeta(meta[0], (options: PinkContractSendOptions, ...arags: unknown[]) => {
+            return this.#send(prop as string, options, ...arags)
+          })
+        },
+      }
+    ) as MapMessageSend
   }
 
   public get registry(): Registry {
@@ -271,20 +352,13 @@ export class PinkContractPromise<
         assert(origin.toString() === cert.address, 'origin must be the same as the certificate address')
       }
 
-      const payload = api.createType('InkQuery', {
-        head: {
-          nonce: hexAddPrefix(randomHex(32)),
-          id: this.address,
-        },
-        data: {
-          InkMessage: {
-            payload: message.toU8a(params),
-            deposit: options.deposit || 0,
-            transfer: options.transfer || 0,
-            estimating: options.estimating !== undefined ? !!options.estimating : isEstimating,
-          },
-        },
-      })
+      const payload = InkQueryMessage(
+        this.address,
+        message.toU8a(params),
+        options.deposit,
+        options.transfer,
+        options.estimating !== undefined ? !!options.estimating : isEstimating
+      )
       const data = await pinkQuery(this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert)
       const inkResponse = api.createType<InkResponse>('InkResponse', data)
       if (inkResponse.result.isErr) {
@@ -326,75 +400,100 @@ export class PinkContractPromise<
     options: PinkContractOptions,
     params: unknown[]
   ): SubmittableExtrinsic<'promise'> => {
-    const api = this.api as ApiPromise
-
-    // Generate a keypair for encryption
-    // NOTE: each instance only has a pre-generated pair now, it maybe better to generate a new keypair every time encrypting
-    const seed = hexToU8a(hexAddPrefix(randomHex(32)))
-    const pair = sr25519KeypairFromSeed(seed)
-    const [sk, pk] = [pair.slice(0, 64), pair.slice(64)]
-
-    const commandAgreementKey = sr25519Agree(hexToU8a(this.contractKey), sk)
-
-    const inkCommandInternal = (
-      dest: AccountId,
-      value: BN,
-      deposit: BN,
-      gas: { refTime: BN },
-      storageDepositLimit: BN | undefined,
-      encParams: Uint8Array
-    ) => {
-      // @ts-ignore
-      const payload = api.createType('InkCommand', {
-        InkMessage: {
-          nonce: hexAddPrefix(randomHex(32)),
-          // FIXME: unexpected u8a prefix
-          message: api.createType('Vec<u8>', encParams).toHex(),
-          transfer: value,
-          gasLimit: gas.refTime,
-          storageDepositLimit,
-        },
+    const command = options.plain ? PlainInkCommand : EncryptedInkCommand
+    const message = this.abi.findMessage(messageOrId)
+    const payload = command(
+      this.contractKey,
+      message.toU8a(params),
+      options.value,
+      convertWeight(options.gasLimit || BN_ZERO).v2Weight,
+      options.storageDepositLimit
+    )
+    return this.api.tx.phalaPhatContracts
+      .pushContractMessage(this.address, payload.toHex(), options.deposit || BN_ZERO)
+      .withResultTransform((result: ISubmittableResult) => {
+        return new PinkContractSubmittableResult(
+          this.phatRegistry,
+          this,
+          message,
+          result,
+          applyOnEvent(result, ['ContractEmitted', 'ContractExecution'], (records: EventRecord[]) => {
+            return records
+              .map(
+                ({
+                  event: {
+                    data: [, data],
+                  },
+                }): DecodedEvent | null => {
+                  try {
+                    return this.abi.decodeEvent(data as Bytes)
+                  } catch (error) {
+                    console.error(`Unable to decode contract event: ${(error as Error).message}`)
+                    return null
+                  }
+                }
+              )
+              .filter((decoded): decoded is DecodedEvent => !!decoded)
+          })
+        )
       })
-      const encodedPayload = api
-        .createType('CommandPayload', {
-          encrypted: createEncryptedData(pk, payload.toHex(), commandAgreementKey),
-        })
-        .toHex()
+  }
 
-      return api.tx.phalaPhatContracts.pushContractMessage(dest, encodedPayload, deposit)
+  async #send(messageOrId: string, options: PinkContractSendOptions, ...args: unknown[]) {
+    const { cert: userCert, ...rest } = options
+    const txOptions: PinkContractOptions = {
+      gasLimit: options.gasLimit,
+      value: options.value,
+      storageDepositLimit: options.storageDepositLimit,
+      plain: options.plain,
     }
 
-    return inkCommandInternal(
-      this.address,
-      // @ts-ignore
-      options.value || BN_ZERO,
-      options.deposit || BN_ZERO,
-      convertWeight(options.gasLimit || BN_ZERO).v2Weight,
-      options.storageDepositLimit,
-      this.abi.findMessage(messageOrId).toU8a(params)
-    ).withResultTransform((result: ISubmittableResult) => {
-      return new PinkContractSubmittableResult(
-        this.phatRegistry,
-        result,
-        applyOnEvent(result, ['ContractEmitted', 'ContractExecution'], (records: EventRecord[]) => {
-          return records
-            .map(
-              ({
-                event: {
-                  data: [, data],
-                },
-              }): DecodedEvent | null => {
-                try {
-                  return this.abi.decodeEvent(data as Bytes)
-                } catch (error) {
-                  console.error(`Unable to decode contract event: ${(error as Error).message}`)
-                  return null
-                }
-              }
-            )
-            .filter((decoded): decoded is DecodedEvent => !!decoded)
-        })
-      )
-    })
+    const tx = this.#tx[messageOrId]
+    if (!tx) {
+      throw new Error(`Message not found: ${messageOrId}`)
+    }
+
+    const address = 'signer' in rest ? rest.address : rest.pair.address
+    const cert = userCert || (await this.phatRegistry.getAnonymousCert())
+    const estimate = this.#query[messageOrId]
+    if (!estimate) {
+      throw new Error(`Message not found: ${messageOrId}`)
+    }
+
+    const { gasPrice } = this.phatRegistry.clusterInfo ?? {}
+    if (!gasPrice) {
+      throw new Error('No Gas Price or deposit Per Byte from cluster info.')
+    }
+
+    const [clusterBalance, onchainBalance, { gasRequired, storageDeposit }] = await Promise.all([
+      this.phatRegistry.getClusterBalance(address),
+      this.api.query.system.account<FrameSystemAccountInfo>(address),
+      estimate(cert.address, { cert, deposit: BN_MAX_SUPPLY }, ...args),
+    ])
+
+    // calculate the total costs
+    const gasLimit = gasRequired.refTime.toBn()
+    const storageDepositFee = storageDeposit.isCharge ? storageDeposit.asCharge.toBn() : BN_ZERO
+    const minRequired = gasLimit.mul(gasPrice).add(storageDepositFee)
+
+    // Auto deposit.
+    if (clusterBalance.free.lt(minRequired)) {
+      const deposit = minRequired.sub(clusterBalance.free)
+      if (onchainBalance.data.free.lt(deposit)) {
+        throw new Error(`Not enough balance to pay for gas and storage deposit: ${minRequired.toNumber()}`)
+      }
+      txOptions.deposit = deposit
+    }
+
+    // gasLimit is required, so we set it to the estimated value if not provided.
+    if (!txOptions.gasLimit) {
+      txOptions.gasLimit = gasRequired.refTime.toBn()
+    }
+
+    if ('signer' in rest) {
+      return await signAndSend(tx(txOptions, ...args), rest.address, rest.signer)
+    } else {
+      return await signAndSend(tx(txOptions, ...args), rest.pair)
+    }
   }
 }

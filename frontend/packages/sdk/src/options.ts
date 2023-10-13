@@ -3,7 +3,7 @@ import { TypeRegistry, typeDefinitions } from '@polkadot/types'
 import { RegistryTypes } from '@polkadot/types/types'
 import SubstrateLookupTypes from '@polkadot/types-augment/lookup/substrate'
 
-export const types: RegistryTypes = {
+export const types = {
   ContractId: 'H256',
   EcdhPublicKey: 'SpCoreSr25519Public',
   ContractQueryHead: {
@@ -22,25 +22,19 @@ export const types: RegistryTypes = {
   },
   CommandPayload: {
     _enum: {
-      Plain: null, // disable plain
+      Plain: 'InkCommand',
       Encrypted: 'EncryptedData',
     },
   },
   InkQueryData: {
     _enum: {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
       InkMessage: {
         payload: 'Vec<u8>',
         deposit: 'u128',
         transfer: 'u128',
         estimating: 'bool',
       },
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
       SidevmMessage: 'Vec<u8>',
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
       InkInstantiate: {
         codeHash: 'H256',
         salt: 'Vec<u8>',
@@ -81,6 +75,37 @@ export const types: RegistryTypes = {
     storageDepositLimit: 'Option<u128>',
   },
   InkCommand: { _enum: { InkMessage: 'InkMessage' } },
+  ContractError: {
+    _enum: {
+      InvalidScheduleVersion: null,
+      InvalidCallFlags: null,
+      OutOfGas: null,
+      OutputBufferTooSmall: null,
+      TransferFailed: null,
+      MaxCallDepthReached: null,
+      ContractNotFound: null,
+      CodeTooLarge: null,
+      CodeNotFound: null,
+      OutOfBounds: null,
+      DecodingFailed: null,
+      ContractTrapped: null,
+      ValueTooLarge: null,
+      TerminatedWhileReentrant: null,
+      InputForwarded: null,
+      RandomSubjectTooLong: null,
+      TooManyTopics: null,
+      NoChainExtension: null,
+      DuplicateContract: null,
+      TerminatedInConstructor: null,
+      ReentranceDenied: null,
+      StorageDepositNotEnoughFunds: null,
+      StorageDepositLimitExhausted: null,
+      CodeInUse: null,
+      ContractReverted: null,
+      CodeRejected: null,
+      Indeterministic: null,
+    },
+  },
 }
 
 export const phalaRegistryTypes = { ...types, ...typeDefinitions, ...SubstrateLookupTypes } as unknown as RegistryTypes
