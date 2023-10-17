@@ -19,7 +19,7 @@ import { ApiPromise, WsProvider, Keyring } from '@polkadot/api'
 import { options, OnChainRegistry, signCertificate, PinkContractPromise } from '@phala/sdk'
 
 const RPC_MAINNET_URL = 'wss://api.phala.network/ws'
-const RPC_TESTNET_URL = 'wss://poc5.phala.network/ws'
+const RPC_TESTNET_URL = 'wss://poc6.phala.network/ws'
 
 async function main() {
   const api = await ApiPromise.create(
