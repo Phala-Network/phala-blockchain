@@ -24,7 +24,10 @@
     }
   },
   "files": [
-    "dist/*"
+    "dist/*/*.js",
+    "dist/*/*.ts",
+    "dist/*/*.mjs",
+    "dist/*/*.mts"
   ],
   "scripts": {
     "prebuild": "shx rm -rf dist",
