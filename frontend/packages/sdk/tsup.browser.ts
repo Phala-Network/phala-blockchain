@@ -52,5 +52,5 @@ export default defineConfig({
   clean: true,
   platform: 'browser',
   noExternal: ['crypto-browserify', 'protobufjs', 'randomBytes'],
-  metafile: true
+  metafile: true,
 })

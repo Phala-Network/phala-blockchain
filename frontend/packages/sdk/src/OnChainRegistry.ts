@@ -213,6 +213,7 @@ export class OnChainRegistry {
     try {
       await this.#phactory.getInfo({})
     } catch (err) {
+      console.error(err)
       throw new Error(
         'Phactory API not compatible, you might need downgrade your @phala/sdk or connect to an up-to-date endpoint.'
       )
