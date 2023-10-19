@@ -52,11 +52,12 @@
     "@polkadot/types-augment": "^10.9.1",
     "@polkadot/util": "^12.3.2",
     "@polkadot/util-crypto": "^12.3.2",
+    "browserify-cipher": "^1.0.1",
     "cross-fetch": "^4.0.0",
-    "crypto-browserify": "^3.12.0",
     "protobufjs": "^7.2.4",
-    "viem": "^1.5.0",
-    "rxjs": "^7.8.1"
+    "randombytes": "^2.1.0",
+    "rxjs": "^7.8.1",
+    "viem": "^1.5.0"
   },
   "devDependencies": {
     "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
