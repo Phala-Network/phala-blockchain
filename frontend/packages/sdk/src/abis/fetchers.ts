@@ -1,5 +1,5 @@
 import { type Bool } from '@polkadot/types'
-import { fetch } from 'undici'
+import fetch from 'cross-fetch'
 import { type PinkContractPromise } from '../contracts/PinkContract'
 import { type OnChainRegistry } from '../OnChainRegistry'
 import { type CertificateData } from '../pruntime/certificate'

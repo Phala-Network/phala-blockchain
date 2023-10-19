@@ -42,12 +42,12 @@ export default defineConfig({
     NodeGlobalsPolyfillPlugin({
       buffer: true,
     }),
-    ReplaceModulesPlugin([
-      {
-        name: 'undici',
-        contents: 'export const fetch = global.fetch || window.fetch;',
-      },
-    ]),
+    // ReplaceModulesPlugin([
+    //   {
+    //     name: 'undici',
+    //     contents: 'export const fetch = global.fetch || window.fetch;',
+    //   },
+    // ]),
   ],
   entry: ['src/index.ts'],
   outDir: './dist/browser',
