@@ -42,12 +42,6 @@ export default defineConfig({
     NodeGlobalsPolyfillPlugin({
       buffer: true,
     }),
-    // ReplaceModulesPlugin([
-    //   {
-    //     name: 'undici',
-    //     contents: 'export const fetch = global.fetch || window.fetch;',
-    //   },
-    // ]),
   ],
   entry: ['src/index.ts'],
   outDir: './dist/browser',
@@ -57,5 +51,6 @@ export default defineConfig({
   target: 'node16',
   clean: true,
   platform: 'browser',
-  noExternal: ['crypto-browserify', 'protobufjs', 'randomBytes', 'undici'],
+  noExternal: ['crypto-browserify', 'protobufjs', 'randomBytes'],
+  metafile: true
 })
