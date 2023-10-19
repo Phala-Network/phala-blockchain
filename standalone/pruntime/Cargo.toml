@@ -48,5 +48,5 @@ hex_fmt = "0.3.0"
 derive_more = { version = "0.99.17", git = "https://github.com/JelteF/derive_more" }
 
 # For pink-extension-runtime, it will introduce Substrate from crates-io which usually different with polkadot-branch
-sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
-sp-runtime-interface = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
+sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
+sp-runtime-interface = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }

@@ -9,7 +9,7 @@ use frame_support::{
 };
 use log::info;
 use pallet_contracts::{
-    migration::{v11, v12},
+    migration::{v11, v12, v13, v14, v15},
     weights::SubstrateWeight,
     Config, Frame, Migration, Schedule,
 };
@@ -154,7 +154,13 @@ impl Config for PinkRuntime {
     type MaxStorageKeyLen = MaxStorageKeyLen;
     type UnsafeUnstableInterface = ConstBool<false>;
     type MaxDebugBufferLen = MaxDebugBufferLen;
-    type Migrations = (v11::Migration<Self>, v12::Migration<Self, Balances>);
+    type Migrations = (
+        v11::Migration<Self>,
+        v12::Migration<Self, Balances>,
+        v13::Migration<Self>,
+        v14::Migration<Self, Balances>,
+        v15::Migration<Self>,
+    );
     type CodeHashLockupDepositPercent = CodeHashLockupDepositPercent;
     type MaxDelegateDependencies = ConstU32<32>;
     type RuntimeHoldReason = RuntimeHoldReason;

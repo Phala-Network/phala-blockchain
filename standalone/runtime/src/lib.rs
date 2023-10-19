@@ -36,9 +36,10 @@ use frame_support::{
     pallet_prelude::Get,
     parameter_types,
     traits::{
+        fungible::HoldConsideration,
         AsEnsureOriginWithArg, ConstU128, ConstU32, Currency, EitherOfDiverse, EqualPrivilegeOnly,
         Everything, Imbalance, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, OnUnbalanced,
-        SortedMembers, WithdrawReasons,
+        SortedMembers, WithdrawReasons, LinearStoragePrice,
     },
     weights::{
         constants::{
@@ -55,7 +56,7 @@ use frame_system::{
 pub use node_primitives::{
     AccountId, AccountIndex, Balance, BlockNumber, Hash, Moment, Nonce, Signature,
 };
-use pallet_election_provider_multi_phase::SolutionAccuracyOf;
+use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical as pallet_session_historical;
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier, TargetedFeeAdjustment};
@@ -409,10 +410,10 @@ impl pallet_scheduler::Config for Runtime {
 }
 
 parameter_types! {
-    pub const PreimageMaxSize: u32 = 4096 * 1024;
     pub const PreimageBaseDeposit: Balance = 1 * DOLLARS;
     // One cent: $10,000 / MB
     pub const PreimageByteDeposit: Balance = 1 * CENTS;
+    pub const PreimageHoldReason: RuntimeHoldReason = RuntimeHoldReason::Preimage(pallet_preimage::HoldReason::Preimage);
 }
 
 impl pallet_preimage::Config for Runtime {
@@ -420,8 +421,12 @@ impl pallet_preimage::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type ManagerOrigin = EnsureRoot<AccountId>;
-    type BaseDeposit = PreimageBaseDeposit;
-    type ByteDeposit = PreimageByteDeposit;
+    type Consideration = HoldConsideration<
+        AccountId,
+        Balances,
+        PreimageHoldReason,
+        LinearStoragePrice<PreimageBaseDeposit, PreimageByteDeposit, Balance>,
+    >;
 }
 
 parameter_types! {
@@ -479,8 +484,8 @@ impl pallet_balances::Config for Runtime {
     type WeightInfo = pallet_balances::weights::SubstrateWeight<Runtime>;
     type FreezeIdentifier = ();
     type MaxFreezes = ();
-    type MaxHolds = ();
-    type RuntimeHoldReason = ();
+    type MaxHolds = ConstU32<2>;
+    type RuntimeHoldReason = RuntimeHoldReason;
 }
 
 parameter_types! {
@@ -634,7 +639,8 @@ parameter_types! {
 
     // signed config
     pub const SignedRewardBase: Balance = 1 * DOLLARS;
-    pub const SignedDepositBase: Balance = 1 * DOLLARS;
+    pub const SignedFixedDeposit: Balance = 1 * DOLLARS;
+    pub const SignedDepositIncreaseFactor: Percent = Percent::from_percent(10);
     pub const SignedDepositByte: Balance = 1 * CENTS;
 
     pub BetterUnsignedThreshold: Perbill = Perbill::from_rational(1u32, 10_000);
@@ -761,7 +767,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
     type MinerConfig = Self;
     type SignedMaxSubmissions = ConstU32<10>;
     type SignedRewardBase = SignedRewardBase;
-    type SignedDepositBase = SignedDepositBase;
+    type SignedDepositBase =
+        GeometricDepositBase<Balance, SignedFixedDeposit, SignedDepositIncreaseFactor>;
     type SignedDepositByte = SignedDepositByte;
     type SignedMaxRefunds = ConstU32<3>;
     type SignedDepositWeight = ();
@@ -1585,7 +1592,7 @@ construct_runtime!(
         ImOnline: pallet_im_online,
         AuthorityDiscovery: pallet_authority_discovery,
         Offences: pallet_offences,
-        Historical: pallet_session_historical::{Pallet},
+        Historical: pallet_session_historical,
         RandomnessCollectiveFlip: pallet_insecure_randomness_collective_flip,
         Identity: pallet_identity,
         Society: pallet_society,
