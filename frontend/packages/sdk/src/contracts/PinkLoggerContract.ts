@@ -5,7 +5,7 @@ import type { Enum, Struct, Text } from '@polkadot/types'
 import type { AccountId } from '@polkadot/types/interfaces'
 import type { Result } from '@polkadot/types-codec'
 import { hexAddPrefix, hexToString, hexToU8a } from '@polkadot/util'
-import { sr25519Agree } from '@polkadot/wasm-crypto'
+import { sr25519Agreement } from '@polkadot/util-crypto'
 import type { OnChainRegistry } from '../OnChainRegistry'
 import { phalaTypes } from '../options'
 import { type CertificateData, generatePair, signCertificate } from '../pruntime/certificate'
@@ -165,7 +165,7 @@ function sidevmQueryWithReader({ phactory, remotePubkey, address, cert }: Sidevm
   return async function unsafeRunSidevmQuery<T>(sidevmMessage: Record<string, any>): Promise<T> {
     const [sk, pk] = generatePair()
     const encodedQuery = InkQuerySidevmMessage(address, sidevmMessage)
-    const queryAgreementKey = sr25519Agree(hexToU8a(hexAddPrefix(remotePubkey)), sk)
+    const queryAgreementKey = sr25519Agreement(sk, hexToU8a(hexAddPrefix(remotePubkey)))
     const response = await pinkQuery(phactory, pk, queryAgreementKey, encodedQuery.toHex(), cert)
     const inkResponse = phalaTypes.createType<InkResponse>('InkResponse', response)
     if (inkResponse.result.isErr) {

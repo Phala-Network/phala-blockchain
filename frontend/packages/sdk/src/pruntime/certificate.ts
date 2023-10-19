@@ -3,9 +3,8 @@ import type { Signer as InjectedSigner } from '@polkadot/api/types'
 import type { KeyringPair } from '@polkadot/keyring/types'
 import type { Signer } from '@polkadot/types/types'
 import { hexAddPrefix, hexToU8a, u8aToHex } from '@polkadot/util'
-import { decodeAddress } from '@polkadot/util-crypto'
+import { cryptoWaitReady, decodeAddress, sr25519PairFromSeed } from '@polkadot/util-crypto'
 import { KeypairType } from '@polkadot/util-crypto/types'
-import { sr25519KeypairFromSeed, waitReady } from '@polkadot/wasm-crypto'
 import { type Account, type Client } from 'viem'
 import { signTypedData } from 'viem/wallet'
 import { phalaTypes } from '../options'
@@ -49,8 +48,9 @@ const isUsingSigner = (params: CertificateParams): params is CertificateParamsWi
 
 export function generatePair(): [Uint8Array, Uint8Array] {
   const generatedSeed = hexToU8a(hexAddPrefix(randomHex(32)))
-  const generatedPair = sr25519KeypairFromSeed(generatedSeed)
-  return [generatedPair.slice(0, 64), generatedPair.slice(64)]
+  const generatedPair = sr25519PairFromSeed(generatedSeed)
+  return [generatedPair.secretKey, generatedPair.publicKey]
+  // return [generatedPair.slice(0, 64), generatedPair.slice(64)]
 }
 
 function getSignatureTypeFromAccount(account: KeyringPair | InjectedAccount) {
@@ -84,7 +84,7 @@ function CertificateBody(pubkey: string, ttl: number, config_bits: number = 0) {
 }
 
 export async function signCertificate(params: CertificateParams): Promise<CertificateData> {
-  await waitReady()
+  await cryptoWaitReady()
   if (params.api) {
     console.warn(
       'signCertificate not longer need pass the ApiPromise as parameter, it will remove from type hint in the next.'
@@ -162,7 +162,7 @@ export async function unstable_signEip712Certificate({
   compactPubkey: string
   ttl?: number
 }): Promise<CertificateData> {
-  await waitReady()
+  await cryptoWaitReady()
   const [secret, pubkey] = generatePair()
   const address = account.address || account
   const eip712Cert = CertificateBody(u8aToHex(pubkey), ttl)
