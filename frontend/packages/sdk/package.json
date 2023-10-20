@@ -3,14 +3,25 @@
   "version": "0.5.3-nightly-20231013",
   "description": "Phala Phat Contract JS SDK",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/Phala-Network/js-sdk/tree/main/packages/sdk#readme",
+  "author": [
+    "Leechael Yim <yanleech@gmail.com>"
+  ],
+  "homepage": "https://github.com/Phala-Network/phala-blockchain/tree/master/frontend/packages/sdk#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Phala-Network/js-sdk.git",
-    "directory": "packages/sdk"
+    "url": "https://github.com/Phala-Network/phala-blockchain.git",
+    "directory": "frontend/packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/Phala-Network/phala-blockchain/issues"
   },
   "main": "dist/node/index",
   "browser": "dist/browser/index",
+  "keywords": [
+    "phala",
+    "phala-network",
+    "phat-contract"
+  ],
   "exports": {
     ".": {
       "import": {
