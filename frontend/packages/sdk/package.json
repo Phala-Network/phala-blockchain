@@ -52,10 +52,9 @@
     "eslint": "eslint --fix --no-eslintrc --c .eslintrc '*.{js,json,ts}' '{src,tests,benchmarks}/**/*.{ts,tsx}'",
     "eslint:ci": "eslint --no-eslintrc --c .eslintrc '*.{js,json,ts}' '{src,tests}/**/*.{ts,tsx}'",
     "test": "vitest --ui --coverage",
-    "test:ci": "vitest"
+    "test:ci": "vitest --run"
   },
   "dependencies": {
-    "@phala/typedefs": "^0.2.33",
     "@polkadot/api": "^10.9.1",
     "@polkadot/api-contract": "^10.9.1",
     "@polkadot/keyring": "^12.3.2",
@@ -94,7 +93,7 @@
     "ts-node": "^10.9.1",
     "tsup": "^7.1.0",
     "typescript": "^5.1.6",
-    "vitest": "^0.33.0"
+    "vitest": "^0.34.6"
   },
   "engines": {
     "node": ">=16"
