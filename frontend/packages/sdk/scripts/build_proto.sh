@@ -11,7 +11,7 @@ downloadProto "pruntime_rpc"
 
 echo "Generating static code from proto files"
 rm -rf src/pruntime/proto/*
-node_modules/.bin/pbjs -w commonjs -t static-module -o src/pruntime/proto/index.js proto/*.proto
+node_modules/.bin/pbjs -w commonjs -t static-module --filter pbconfig.json -o src/pruntime/proto/index.js proto/*.proto
 node_modules/.bin/pbts -o src/pruntime/proto/index.d.ts src/pruntime/proto/index.js
 
 echo "Done"

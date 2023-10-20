@@ -1,4 +1,4 @@
-import { fetch } from 'undici'
+import fetch from 'cross-fetch'
 import { prpc, pruntime_rpc as pruntimeRpc } from './proto'
 
 /**

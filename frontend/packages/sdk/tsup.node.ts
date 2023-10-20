@@ -9,4 +9,5 @@ export default defineConfig({
   target: 'node16',
   clean: true,
   noExternal: ['protobufjs'],
+  metafile: true,
 })

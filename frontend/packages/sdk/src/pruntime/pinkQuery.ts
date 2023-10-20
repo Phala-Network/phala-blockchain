@@ -1,6 +1,6 @@
 import { type CodecMap } from '@polkadot/types'
 import { hexAddPrefix, hexToU8a, u8aToHex } from '@polkadot/util'
-import { sr25519Sign } from '@polkadot/wasm-crypto'
+import { sr25519Sign } from '@polkadot/util-crypto'
 import { phalaTypes } from '../options'
 import { decrypt, encrypt } from '../utils/aes-256-gcm'
 import { randomHex } from '../utils/hex'
@@ -36,7 +36,8 @@ export async function pinkQuery(
   const signature: pruntimeRpc.ISignature = {
     signedBy: certificate,
     signatureType: pruntimeRpc.SignatureType.Sr25519,
-    signature: sr25519Sign(pubkey, secret, encodedEncryptedData),
+    // signature: sr25519Sign(pubkey, secret, encodedEncryptedData),
+    signature: sr25519Sign(encodedEncryptedData, { publicKey: pubkey, secretKey: secret }),
   }
 
   // Send request.

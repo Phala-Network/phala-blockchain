@@ -3,7 +3,7 @@ import type { Result, U64 } from '@polkadot/types'
 import { Enum, Map, Option, Text, U8aFixed, Vec } from '@polkadot/types'
 import { AccountId } from '@polkadot/types/interfaces'
 import { BN } from '@polkadot/util'
-import { waitReady } from '@polkadot/wasm-crypto'
+import { cryptoWaitReady } from '@polkadot/util-crypto'
 import systemAbi from './abis/system.json'
 import { PinkContractPromise } from './contracts/PinkContract'
 import { PinkLoggerContractPromise } from './contracts/PinkLoggerContract'
@@ -101,7 +101,7 @@ export class OnChainRegistry {
     options = { autoConnect: true, ...(options || {}) }
     const instance = new OnChainRegistry(api)
     // We should ensure the wasm & api has been initialized here.
-    await Promise.all([waitReady(), api.isReady])
+    await Promise.all([cryptoWaitReady(), api.isReady])
     if (options.autoConnect) {
       await instance.connect(
         options.clusterId,
@@ -213,6 +213,7 @@ export class OnChainRegistry {
     try {
       await this.#phactory.getInfo({})
     } catch (err) {
+      console.error(err)
       throw new Error(
         'Phactory API not compatible, you might need downgrade your @phala/sdk or connect to an up-to-date endpoint.'
       )

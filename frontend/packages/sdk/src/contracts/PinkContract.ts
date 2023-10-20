@@ -13,7 +13,7 @@ import type { Bytes, Null, Result, Struct, Text, Vec, u8 } from '@polkadot/types
 import type { AccountId, ContractExecResult, EventRecord } from '@polkadot/types/interfaces'
 import type { Codec, IEnum, IKeyringPair, ISubmittableResult, Registry } from '@polkadot/types/types'
 import { BN, BN_ZERO, hexAddPrefix, hexToU8a } from '@polkadot/util'
-import { sr25519Agree, sr25519KeypairFromSeed } from '@polkadot/wasm-crypto'
+import { sr25519Agreement, sr25519PairFromSeed } from '@polkadot/util-crypto'
 import { from } from 'rxjs'
 import type { OnChainRegistry } from '../OnChainRegistry'
 import type { CertificateData } from '../pruntime/certificate'
@@ -338,10 +338,10 @@ export class PinkContractPromise<
     // Generate a keypair for encryption
     // NOTE: each instance only has a pre-generated pair now, it maybe better to generate a new keypair every time encrypting
     const seed = hexToU8a(hexAddPrefix(randomHex(32)))
-    const pair = sr25519KeypairFromSeed(seed)
-    const [sk, pk] = [pair.slice(0, 64), pair.slice(64)]
+    const pair = sr25519PairFromSeed(seed)
+    const [sk, pk] = [pair.secretKey, pair.publicKey]
 
-    const queryAgreementKey = sr25519Agree(hexToU8a(hexAddPrefix(this.phatRegistry.remotePubkey)), sk)
+    const queryAgreementKey = sr25519Agreement(sk, hexToU8a(hexAddPrefix(this.phatRegistry.remotePubkey)))
 
     const inkQueryInternal = async (origin: string | AccountId | Uint8Array): Promise<ContractCallOutcome> => {
       if (typeof origin === 'string') {

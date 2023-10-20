@@ -1,0 +1,27 @@
+{
+  "messageNames": [
+    "google.protobuf.Empty",
+    "prpc.PrpcError",
+    "pruntime_rpc.PhactoryAPI.GetInfo",
+    "pruntime_rpc.PhactoryInfo",
+    "pruntime_rpc.PhactoryAPI.ContractQuery",
+    "pruntime_rpc.ContractQueryRequest",
+    "pruntime_rpc.ContractQueryResponse",
+    "pruntime_rpc.PhactoryAPI.GetContractInfo",
+    "pruntime_rpc.GetContractInfoRequest",
+    "pruntime_rpc.GetContractInfoResponse",
+    "pruntime_rpc.PhactoryAPI.GetRuntimeInfo",
+    "pruntime_rpc.GetRuntimeInfoRequest",
+    "pruntime_rpc.InitRuntimeResponse",
+    "pruntime_rpc.PhactoryAPI.UploadSidevmCode",
+    "pruntime_rpc.SidevmCode",
+    "pruntime_rpc.PhactoryAPI.CalculateContractId",
+    "pruntime_rpc.ContractParameters",
+    "pruntime_rpc.ContractId",
+    "pruntime_rpc.PhactoryAPI.AddEndpoint",
+    "pruntime_rpc.AddEndpointRequest",
+    "pruntime_rpc.GetEndpointResponse",
+    "pruntime_rpc.Certificate",
+    "pruntime_rpc.SignatureType"
+  ]
+}
