@@ -148,8 +148,11 @@ pub mod pallet {
 			pid: u64,
 			user: T::AccountId,
 			shares: BalanceOf<T>,
+			/// Target NFT to withdraw
 			nft_id: NftId,
 			as_vault: Option<u64>,
+			/// Splitted NFT for withdrawing
+			withdrawing_nft_id: NftId,
 		},
 		/// Some stake was withdrawn from a pool
 		///
@@ -653,13 +656,14 @@ pub mod pallet {
 			nft: &mut NftAttr<BalanceOf<T>>,
 			account_id: T::AccountId,
 			shares: BalanceOf<T>,
-		) -> DispatchResult {
+		) -> Result<Option<NftId>, DispatchError> {
 			if pool.share_price().is_none() {
+				// Pool bankrupt. Reduce the NFT share without doing real task.
 				nft.shares = nft
 					.shares
 					.checked_sub(&shares)
 					.ok_or(Error::<T>::InvalidShareToWithdraw)?;
-				return Ok(());
+				return Ok(None);
 			}
 
 			// Remove the existing withdraw request in the queue if there is any.
@@ -679,7 +683,7 @@ pub mod pallet {
 				Self::burn_nft(&pallet_id(), pool.cid, withdrawinfo.nft_id)
 					.expect("burn nft attr should always success; qed.");
 			}
-
+			// Move the shares in the NFT to the withdrawing NFT.
 			let split_nft_id = Self::mint_nft(pool.cid, pallet_id(), shares, pool.pid)
 				.expect("mint nft should always success");
 			nft.shares = nft
@@ -696,7 +700,7 @@ pub mod pallet {
 				nft_id: split_nft_id,
 			});
 
-			Ok(())
+			Ok(Some(split_nft_id))
 		}
 
 		/// Returns the new pid that will assigned to the creating pool
@@ -1006,16 +1010,20 @@ pub mod pallet {
 			nft_id: NftId,
 			as_vault: Option<u64>,
 		) -> DispatchResult {
-			Self::push_withdraw_in_queue(pool_info, nft, userid.clone(), shares)?;
-			Self::deposit_event(Event::<T>::WithdrawalQueued {
-				pid: pool_info.pid,
-				user: userid,
-				shares,
-				nft_id,
-				as_vault,
-			});
-			Self::try_process_withdraw_queue(pool_info);
-
+			let maybe_split_nft_id =
+				Self::push_withdraw_in_queue(pool_info, nft, userid.clone(), shares)?;
+			if let Some(split_nft_id) = maybe_split_nft_id {
+				// The pool is operating normally. Emit event and try to process withdraw queue.
+				Self::deposit_event(Event::<T>::WithdrawalQueued {
+					pid: pool_info.pid,
+					user: userid,
+					shares,
+					nft_id,
+					as_vault,
+					withdrawing_nft_id: split_nft_id,
+				});
+				Self::try_process_withdraw_queue(pool_info);
+			}
 			Ok(())
 		}
 
