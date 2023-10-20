@@ -39,7 +39,7 @@ target/${BUILD}/pruntime:
 	cargo build ${XARGS}
 
 clean:
-	rm -rf bin/*
+	rm -rf bin/* crate-version
 	cargo clean
 
 .PHONY: clippy
