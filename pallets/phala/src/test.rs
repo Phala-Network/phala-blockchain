@@ -1972,20 +1972,7 @@ fn test_check_and_maybe_force_withdraw() {
 					.clone();
 			assert_eq!(nft_attr.shares, 100 * DOLLARS);
 		}
-		let mut nftid_arr: Vec<NftId> =
-			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10000).collect();
-		nftid_arr.retain(|x| {
-			let nft = pallet_rmrk_core::Nfts::<Test>::get(10000, x).unwrap();
-			nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(2)
-		});
-		assert_eq!(nftid_arr.len(), 1);
-		{
-			let user_nft_attr = PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
-				.unwrap()
-				.attr
-				.clone();
-			assert_eq!(user_nft_attr.shares, 0);
-		}
+		assert_user_has_share(10000, 2, 0);
 		assert_eq!(get_balance(2), 400 * DOLLARS);
 		assert_ok!(PhalaStakePoolv2::check_and_maybe_force_withdraw(
 			RuntimeOrigin::signed(3),
@@ -2094,6 +2081,125 @@ fn test_check_and_maybe_force_withdraw() {
 			100 * DOLLARS,
 			Some(pid)
 		),);
+	});
+}
+
+#[test]
+fn vault_partial_force_withdraw() {
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		set_block_1();
+		setup_workers(2);
+		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
+		let vault1 = setup_vault(99);
+		// - Account1 contribute 200 to vault1
+		// - Vault1 contribute 200 to pool0
+		// - Pool0 start worker1 and worker 2 with each 100 PHA
+		assert_ok!(PhalaVault::contribute(
+			RuntimeOrigin::signed(1),
+			1,
+			200 * DOLLARS,
+		));
+		assert_ok!(PhalaStakePoolv2::contribute(
+			RuntimeOrigin::signed(99),
+			0,
+			200 * DOLLARS,
+			Some(vault1)
+		));
+		assert_ok!(PhalaStakePoolv2::start_computing(
+			RuntimeOrigin::signed(1),
+			0,
+			worker_pubkey(1),
+			100 * DOLLARS
+		));
+		assert_ok!(PhalaStakePoolv2::start_computing(
+			RuntimeOrigin::signed(1),
+			0,
+			worker_pubkey(2),
+			100 * DOLLARS
+		));
+		// Trigger force withdraw (7d + 1s) with NoEnoughReleasingStake
+		assert_ok!(PhalaVault::withdraw(
+			RuntimeOrigin::signed(1),
+			1,
+			200 * DOLLARS,
+		));
+		elapse_cool_down();
+		elapse_seconds(1);
+		let _ = take_events();
+		assert_ok!(PhalaVault::check_and_maybe_force_withdraw(RuntimeOrigin::signed(1), 1));
+		insta::assert_debug_snapshot!(take_events());
+		assert!(vault::VaultLocks::<Test>::contains_key(vault1));
+		// Pool0 stop first worker first
+		assert_ok!(PhalaStakePoolv2::stop_computing(
+			RuntimeOrigin::signed(1),
+			0,
+			worker_pubkey(1),
+		));
+		elapse_cool_down();
+		assert_ok!(PhalaStakePoolv2::reclaim_pool_worker(
+			RuntimeOrigin::signed(1),
+			0,
+			worker_pubkey(1),
+		));
+		// Partial fill 100 PHA (out of 200)
+		let _ = take_events();
+		assert_ok!(PhalaVault::check_and_maybe_force_withdraw(RuntimeOrigin::signed(1), 1));
+		insta::assert_debug_snapshot!(take_events());
+		assert!(vault::VaultLocks::<Test>::contains_key(vault1));
+	});
+}
+
+#[test]
+fn vault_force_withdraw_after_3x_grace_period() {
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		set_block_1();
+		setup_workers(1);
+		setup_stake_pool_with_workers(1, &[1]); // pid = 0
+		let vault1 = setup_vault(99);
+		// - Account1 contribute 200 to vault1
+		// - Vault1 contribute 200 to pool0
+		// - Pool0 start worker1 with 200 PHA
+		assert_ok!(PhalaVault::contribute(
+			RuntimeOrigin::signed(1),
+			1,
+			200 * DOLLARS,
+		));
+		assert_ok!(PhalaStakePoolv2::contribute(
+			RuntimeOrigin::signed(99),
+			0,
+			200 * DOLLARS,
+			Some(vault1)
+		));
+		assert_ok!(PhalaStakePoolv2::start_computing(
+			RuntimeOrigin::signed(1),
+			0,
+			worker_pubkey(1),
+			200 * DOLLARS
+		));
+		// Trigger force withdraw (21d + 1s) with Waiting3xGracePeriod
+		assert_ok!(PhalaVault::withdraw(
+			RuntimeOrigin::signed(1),
+			1,
+			200 * DOLLARS,
+		));
+		elapse_cool_down();
+		elapse_cool_down();
+		elapse_cool_down();
+		elapse_seconds(1);
+		let _ = take_events();
+		assert_ok!(PhalaVault::check_and_maybe_force_withdraw(RuntimeOrigin::signed(1), 1));
+		insta::assert_debug_snapshot!(take_events());
+		assert!(vault::VaultLocks::<Test>::contains_key(vault1));
 	});
 }
 

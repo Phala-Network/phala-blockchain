@@ -1,0 +1,72 @@
+---
+source: pallets/phala/src/test.rs
+expression: take_events()
+---
+[
+    RuntimeEvent::System(
+        Event::KilledAccount {
+            account: 13009150994509951074,
+        },
+    ),
+    RuntimeEvent::Assets(
+        Event::Transferred {
+            asset_id: 1,
+            from: 13009150994509951074,
+            to: 1,
+            amount: 100000000000000,
+        },
+    ),
+    RuntimeEvent::RmrkCore(
+        Event::PropertySet {
+            collection_id: 10001,
+            maybe_nft_id: Some(
+                1,
+            ),
+            key: BoundedVec(
+                [
+                    115,
+                    116,
+                    97,
+                    107,
+                    101,
+                    45,
+                    105,
+                    110,
+                    102,
+                    111,
+                ],
+                32000,
+            ),
+            value: BoundedVec(
+                [
+                    0,
+                    64,
+                    122,
+                    16,
+                    243,
+                    90,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                ],
+                512000,
+            ),
+        },
+    ),
+    RuntimeEvent::PhalaBasePool(
+        Event::Withdrawal {
+            pid: 1,
+            user: 1,
+            amount: 100000000000000,
+            shares: 100000000000000,
+            burnt_shares: 0,
+        },
+    ),
+]

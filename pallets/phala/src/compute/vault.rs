@@ -116,6 +116,16 @@ pub mod pallet {
 			amount: BalanceOf<T>,
 			shares: BalanceOf<T>,
 		},
+		ForceShutdown {
+			pid: u64,
+			reason: ForceShutdownReason,
+		}
+	}
+
+	#[derive(PartialEq, Eq, Clone, Debug, Encode, Decode, scale_info::TypeInfo)]
+	pub enum ForceShutdownReason {
+		NoEnoughReleasingStake,
+		Waiting3xGracePeriod,
 	}
 
 	#[pallet::error]
@@ -340,7 +350,6 @@ pub mod pallet {
 		///
 		/// If the shutdown condition is met, all shares owned by the vault will be forced withdraw.
 		/// Note: This function doesn't guarantee no-op when there's error.
-		/// TODO(mingxuan): add more detail comment later.
 		#[pallet::call_index(4)]
 		#[pallet::weight({0})]
 		#[frame_support::transactional]
@@ -349,48 +358,37 @@ pub mod pallet {
 			vault_pid: u64,
 		) -> DispatchResult {
 			ensure_signed(origin.clone())?;
-			let now = <T as registry::Config>::UnixTime::now()
-				.as_secs()
-				.saturated_into::<u64>();
 			let mut vault = ensure_vault::<T>(vault_pid)?;
+			// Try to process withdraw queue with the free token.
+			// Unlock the vault if the withdrawals are clear.
 			base_pool::Pallet::<T>::try_process_withdraw_queue(&mut vault.basepool);
-			let grace_period = T::GracePeriod::get();
-			let mut releasing_stake = Zero::zero();
-			for pid in vault.invest_pools.iter() {
-				let stake_pool = ensure_stake_pool::<T>(*pid)?;
-				let withdraw_vec: VecDeque<_> = stake_pool
-					.basepool
-					.withdraw_queue
-					.iter()
-					.filter(|x| x.user == vault.basepool.pool_account_id)
-					.collect();
-				// the length of vec should be 1
-				for withdraw in withdraw_vec {
-					let nft_guard = base_pool::Pallet::<T>::get_nft_attr_guard(
-						stake_pool.basepool.cid,
-						withdraw.nft_id,
-					)?;
-					let price = stake_pool
-						.basepool
-						.share_price()
-						.ok_or(Error::<T>::VaultBankrupt)?;
-					releasing_stake += bmul(nft_guard.attr.shares, &price);
-				}
-			}
 			if vault.basepool.withdraw_queue.is_empty() {
 				VaultLocks::<T>::remove(vault_pid);
 			}
 			base_pool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(vault.clone()));
-			if base_pool::Pallet::<T>::has_expired_withdrawal(
-				&vault.basepool,
-				now,
-				grace_period,
-				Some(T::VaultQueuePeriod::get()),
-				releasing_stake,
-			) {
+
+			// Trigger force withdrawal and lock if there's any expired withdrawal.
+			// If already locked, we don't need to trigger it again.
+			if VaultLocks::<T>::contains_key(vault_pid) {
+				return Ok(())
+			}
+			// Case 1: There's a request over 3x GracePeriod old, the pool must be shutdown.
+			let mut shutdown_reason: Option<ForceShutdownReason> = None;
+			let now = <T as registry::Config>::UnixTime::now()
+				.as_secs()
+				.saturated_into::<u64>();
+			let grace_period = T::GracePeriod::get();
+			if let Some(withdraw) = vault.basepool.withdraw_queue.front() {
+				if withdraw.start_time + 3 * grace_period < now {
+					shutdown_reason = Some(ForceShutdownReason::Waiting3xGracePeriod);
+				}
+			}
+			// Case 2: There's no enough releasing stake to address the expired withdrawals.
+			// Sum up the releasing stake
+			if shutdown_reason.is_none() {
+				let mut releasing_stake = Zero::zero();
 				for pid in vault.invest_pools.iter() {
 					let stake_pool = ensure_stake_pool::<T>(*pid)?;
-					let mut total_shares = Zero::zero();
 					let withdraw_vec: VecDeque<_> = stake_pool
 						.basepool
 						.withdraw_queue
@@ -403,42 +401,82 @@ pub mod pallet {
 							stake_pool.basepool.cid,
 							withdraw.nft_id,
 						)?;
-						total_shares += nft_guard.attr.shares;
+						let price = stake_pool
+							.basepool
+							.share_price()
+							.ok_or(Error::<T>::VaultBankrupt)?;
+						releasing_stake += bmul(nft_guard.attr.shares, &price);
 					}
-					pallet_uniques::Pallet::<T>::owned_in_collection(
-						&stake_pool.basepool.cid,
-						&vault.basepool.pool_account_id,
+				}
+				// Check if the releasing stake can cover the expired withdrawals
+				if base_pool::Pallet::<T>::has_expired_withdrawal(
+					&vault.basepool,
+					now,
+					grace_period,
+					Some(T::VaultQueuePeriod::get()),
+					releasing_stake,
+				) {
+					shutdown_reason = Some(ForceShutdownReason::NoEnoughReleasingStake);
+				}
+			}
+			let Some(shutdown_reason) = shutdown_reason else {
+				// No need to shutdown.
+				return Ok(())
+			};
+			// Try to withdraw from the upstream stake pools
+			for pid in vault.invest_pools.iter() {
+				let stake_pool = ensure_stake_pool::<T>(*pid)?;
+				let mut total_shares = Zero::zero();
+				let withdraw_vec: VecDeque<_> = stake_pool
+					.basepool
+					.withdraw_queue
+					.iter()
+					.filter(|x| x.user == vault.basepool.pool_account_id)
+					.collect();
+				// the length of vec should be 1
+				for withdraw in withdraw_vec {
+					let nft_guard = base_pool::Pallet::<T>::get_nft_attr_guard(
+						stake_pool.basepool.cid,
+						withdraw.nft_id,
+					)?;
+					total_shares += nft_guard.attr.shares;
+				}
+				pallet_uniques::Pallet::<T>::owned_in_collection(
+					&stake_pool.basepool.cid,
+					&vault.basepool.pool_account_id,
+				)
+				.for_each(|nftid| {
+					let property_guard = base_pool::Pallet::<T>::get_nft_attr_guard(
+						stake_pool.basepool.cid,
+						nftid,
 					)
-					.for_each(|nftid| {
-						let property_guard = base_pool::Pallet::<T>::get_nft_attr_guard(
+					.expect("get nft should not fail: qed.");
+					let property = &property_guard.attr;
+					if !base_pool::is_nondust_balance(property.shares) {
+						let _ = base_pool::Pallet::<T>::burn_nft(
+							&base_pool::pallet_id::<T::AccountId>(),
 							stake_pool.basepool.cid,
 							nftid,
-						)
-						.expect("get nft should not fail: qed.");
-						let property = &property_guard.attr;
-						if !base_pool::is_nondust_balance(property.shares) {
-							let _ = base_pool::Pallet::<T>::burn_nft(
-								&base_pool::pallet_id::<T::AccountId>(),
-								stake_pool.basepool.cid,
-								nftid,
-							);
-							return;
-						}
-						total_shares += property.shares;
-					});
-					if !base_pool::is_nondust_balance(total_shares) {
-						continue;
+						);
+						return;
 					}
-					stake_pool_v2::Pallet::<T>::withdraw(
-						Origin::<T>::Signed(vault.basepool.owner.clone()).into(),
-						stake_pool.basepool.pid,
-						total_shares,
-						Some(vault_pid),
-					)?;
+					total_shares += property.shares;
+				});
+				if !base_pool::is_nondust_balance(total_shares) {
+					continue;
 				}
-				VaultLocks::<T>::insert(vault_pid, ());
+				stake_pool_v2::Pallet::<T>::withdraw(
+					Origin::<T>::Signed(vault.basepool.owner.clone()).into(),
+					stake_pool.basepool.pid,
+					total_shares,
+					Some(vault_pid),
+				)?;
 			}
-
+			VaultLocks::<T>::insert(vault_pid, ());
+			Self::deposit_event(Event::<T>::ForceShutdown {
+				pid: vault_pid,
+				reason: shutdown_reason,
+			});
 			Ok(())
 		}
 
