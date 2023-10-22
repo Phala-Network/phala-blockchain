@@ -1680,6 +1680,7 @@ fn test_withdraw() {
 		set_block_1();
 		setup_workers(2);
 		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
+		// Contribute 300 x3 and use 700 to compute
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(2),
 			0,
@@ -1710,12 +1711,15 @@ fn test_withdraw() {
 			worker_pubkey(2),
 			300 * DOLLARS
 		));
+		// Partial withdraw 300 PHA. 200 withdrawn and 100 left in the queue.
+		let _ = take_events();
 		assert_ok!(PhalaStakePoolv2::withdraw(
 			RuntimeOrigin::signed(2),
 			0,
 			300 * DOLLARS,
 			None
 		));
+		insta::assert_debug_snapshot!("withdraw1", take_events());
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		let item = pool
 			.basepool
@@ -1731,76 +1735,50 @@ fn test_withdraw() {
 					.clone();
 			assert_eq!(nft_attr.shares, 100 * DOLLARS);
 		}
-		let mut nftid_arr: Vec<NftId> =
-			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10000).collect();
-		nftid_arr.retain(|x| {
-			let nft = pallet_rmrk_core::Nfts::<Test>::get(10000, x).unwrap();
-			nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(2)
-		});
-		assert_eq!(nftid_arr.len(), 1);
-		{
-			let user_nft_attr = PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
-				.unwrap()
-				.attr
-				.clone();
-			assert_eq!(user_nft_attr.shares, 0);
-		}
+		// Check account2 has no share in its NFT
+		assert_user_has_share(10000, 2, 0);
 		assert_eq!(get_balance(2), 400 * DOLLARS);
+		// Add another 300 PHA, expect 100 PHA queued withdrawal being fulfilled.
+		let _ = take_events();
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(99),
 			0,
 			300 * DOLLARS,
 			None
 		));
+		insta::assert_debug_snapshot!("withdraw2", take_events());
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(pool.basepool.withdraw_queue.len(), 0);
 		assert_eq!(get_balance(2), 500 * DOLLARS);
-		let mut nftid_arr: Vec<NftId> =
-			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10000).collect();
-		nftid_arr.retain(|x| {
-			let nft = pallet_rmrk_core::Nfts::<Test>::get(10000, x).unwrap();
-			nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(2)
-		});
-		assert_eq!(nftid_arr.len(), 1);
-		{
-			let user_nft_attr = PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
-				.unwrap()
-				.attr
-				.clone();
-			assert_eq!(user_nft_attr.shares, 0);
-		}
+		// Account 2 has no share in the NFT
+		assert_user_has_share(10000, 2, 0);
+		// Account 1 can withdraw 200 PHA with free stake
+		let _ = take_events();
 		assert_ok!(PhalaStakePoolv2::withdraw(
 			RuntimeOrigin::signed(1),
 			0,
 			200 * DOLLARS,
 			None
 		));
+		insta::assert_debug_snapshot!("withdraw3", take_events());
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(pool.basepool.withdraw_queue.len(), 0);
 		assert_eq!(get_balance(1), 400 * DOLLARS);
-		let mut nftid_arr: Vec<NftId> =
-			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10000).collect();
-		nftid_arr.retain(|x| {
-			let nft = pallet_rmrk_core::Nfts::<Test>::get(10000, x).unwrap();
-			nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(1)
-		});
-		assert_eq!(nftid_arr.len(), 1);
-		{
-			let user_nft_attr = PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
-				.unwrap()
-				.attr
-				.clone();
-			assert_eq!(user_nft_attr.shares, 100 * DOLLARS);
-		}
-		let _pid = setup_vault(99);
+		// Account 1 has 100 shares left
+		assert_user_has_share(10000, 1, 100 * DOLLARS);
+		// Vault 1 tests case:
+		// - 300 x2 PHA contribution to vault1
+		// - 500 from vault1 to sp0
+		let vault1 = setup_vault(99);
+		assert_eq!(vault1, 1);
 		assert_ok!(PhalaVault::contribute(
 			RuntimeOrigin::signed(1),
-			1,
+			vault1,
 			300 * DOLLARS,
 		));
 		assert_ok!(PhalaVault::contribute(
 			RuntimeOrigin::signed(99),
-			1,
+			vault1,
 			300 * DOLLARS,
 		));
 		assert_ok!(PhalaStakePoolv2::contribute(
@@ -1809,12 +1787,15 @@ fn test_withdraw() {
 			500 * DOLLARS,
 			Some(1)
 		));
+		// Account1 can withdraw 100 now and left 100 in the queue from vault1
+		let _ = take_events();
 		assert_ok!(PhalaVault::withdraw(
 			RuntimeOrigin::signed(1),
-			1,
+			vault1,
 			200 * DOLLARS,
 		));
-		let pool = ensure_vault::<Test>(1).unwrap();
+		insta::assert_debug_snapshot!("withdraw4", take_events());
+		let pool = ensure_vault::<Test>(vault1).unwrap();
 		let item = pool
 			.basepool
 			.withdraw_queue
@@ -1829,37 +1810,30 @@ fn test_withdraw() {
 					.clone();
 			assert_eq!(nft_attr.shares, 100 * DOLLARS);
 		}
-		let mut nftid_arr: Vec<NftId> =
-			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10001).collect();
-		nftid_arr.retain(|x| {
-			let nft = pallet_rmrk_core::Nfts::<Test>::get(10001, x).unwrap();
-			nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(1)
-		});
-		assert_eq!(nftid_arr.len(), 1);
-		{
-			let user_nft_attr = PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
-				.unwrap()
-				.attr
-				.clone();
-			assert_eq!(user_nft_attr.shares, 100 * DOLLARS);
-		}
+		assert_user_has_share(10001, 1, 100 * DOLLARS);
 		assert_eq!(get_balance(1), 200 * DOLLARS);
+		// Account3 withdraw 200 with 500 contribution from vault1
+		let _ = take_events();
 		assert_ok!(PhalaStakePoolv2::withdraw(
 			RuntimeOrigin::signed(3),
 			0,
 			200 * DOLLARS,
 			None
 		));
+		insta::assert_debug_snapshot!("withdraw5", take_events());
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(get_balance(pool.basepool.pool_account_id), 300 * DOLLARS);
+		// Vault1 withdraw 400, only get 300, left 100 in the queue and 100 in share
+		let _ = take_events();
 		assert_ok!(PhalaStakePoolv2::withdraw(
 			RuntimeOrigin::signed(99),
 			0,
 			400 * DOLLARS,
 			Some(1)
 		));
+		insta::assert_debug_snapshot!("withdraw6", take_events());
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
-		let vault = ensure_vault::<Test>(1).unwrap();
+		let vault = ensure_vault::<Test>(vault1).unwrap();
 		let item = pool
 			.basepool
 			.withdraw_queue
@@ -1874,61 +1848,44 @@ fn test_withdraw() {
 					.clone();
 			assert_eq!(nft_attr.shares, 100 * DOLLARS);
 		}
-		let mut nftid_arr: Vec<NftId> =
-			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10000).collect();
-		nftid_arr.retain(|x| {
-			let nft = pallet_rmrk_core::Nfts::<Test>::get(10000, x).unwrap();
-			nft.owner
-				== rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(
-					vault.basepool.pool_account_id,
-				)
-		});
-		assert_eq!(nftid_arr.len(), 1);
-		{
-			let user_nft_attr = PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
-				.unwrap()
-				.attr
-				.clone();
-			assert_eq!(user_nft_attr.shares, 100 * DOLLARS);
-		}
+		assert_user_has_share(10000, vault.basepool.pool_account_id, 100 * DOLLARS);
 		assert_eq!(get_balance(vault.basepool.pool_account_id), 300 * DOLLARS);
-		let mut nftid_arr: Vec<NftId> =
-			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10001).collect();
-		nftid_arr.retain(|x| {
-			let nft = pallet_rmrk_core::Nfts::<Test>::get(10001, x).unwrap();
-			nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(1)
-		});
-		assert_eq!(nftid_arr.len(), 1);
-		{
-			let user_nft_attr = PhalaBasePool::get_nft_attr_guard(vault.basepool.cid, nftid_arr[0])
-				.unwrap()
-				.attr
-				.clone();
-			assert_eq!(user_nft_attr.shares, 100 * DOLLARS);
-		}
-		let _pid = setup_vault(99);
+		// Vault 2 test case:
+		// - Account99 contribute (300 + eps), eps = 1e5 pico PHA
+		let vault2 = setup_vault(99);
 		assert_ok!(PhalaVault::contribute(
 			RuntimeOrigin::signed(99),
-			2,
+			vault2,
 			300000000100000,
 		));
-		assert_ok!(PhalaVault::withdraw(RuntimeOrigin::signed(99), 2, 100000,));
+		// Account99 withdraw eps from vault2
+		// Note: 100000 shares were burnt because the amount to withdraw is smaller than WPHA min.
+		let _ = take_events();
+		assert_ok!(PhalaVault::withdraw(RuntimeOrigin::signed(99), vault2, 100000));
+		insta::assert_debug_snapshot!("withdraw7", take_events());
+		// Vault2 can contribute 299.99 to pool0
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(99),
 			0,
 			299990000000000,
 			Some(2)
 		));
+		// Account 99 withdraw 300 PHA from vault2
+		// ~(0.01 + eps) PHA can be withdrawn, leaving the rest in the queue
+		let _ = take_events();
 		assert_ok!(PhalaVault::withdraw(
 			RuntimeOrigin::signed(99),
-			2,
+			vault2,
 			300 * DOLLARS,
 		));
-		let pool = ensure_vault::<Test>(1).unwrap();
+		insta::assert_debug_snapshot!("withdraw8", take_events());
+		// With 299.99 contribution from vault2, vault1 can clear its queue
+		let _ = take_events();
 		assert_ok!(PhalaVault::check_and_maybe_force_withdraw(
 			RuntimeOrigin::signed(4),
-			pool.basepool.pid
+			vault1,
 		));
+		insta::assert_debug_snapshot!("withdraw9", take_events());
 	});
 }
 
@@ -2178,4 +2135,20 @@ fn set_balance_proposal(value: u128) -> BoundedCallOf<Test> {
 	};
 	let outer = RuntimeCall::Balances(inner);
 	Preimage::bound(outer).unwrap()
+}
+
+fn assert_user_has_share(cid: u32, owner: u64, shares: u128) {
+	let mut nftid_arr: Vec<NftId> = pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(cid).collect();
+	nftid_arr.retain(|x| {
+		let nft = pallet_rmrk_core::Nfts::<Test>::get(cid, x).unwrap();
+		nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(owner)
+	});
+	assert_eq!(nftid_arr.len(), 1, "owner not found");
+	assert_eq!(
+		PhalaBasePool::get_nft_attr_guard(cid, nftid_arr[0])
+			.unwrap()
+			.attr
+			.shares,
+		shares
+	);
 }
