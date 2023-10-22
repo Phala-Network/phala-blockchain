@@ -1680,6 +1680,7 @@ fn test_withdraw() {
 		set_block_1();
 		setup_workers(2);
 		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
+
 		// Contribute 300 x3 and use 700 to compute
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(2),
@@ -1861,7 +1862,11 @@ fn test_withdraw() {
 		// Account99 withdraw eps from vault2
 		// Note: 100000 shares were burnt because the amount to withdraw is smaller than WPHA min.
 		let _ = take_events();
-		assert_ok!(PhalaVault::withdraw(RuntimeOrigin::signed(99), vault2, 100000));
+		assert_ok!(PhalaVault::withdraw(
+			RuntimeOrigin::signed(99),
+			vault2,
+			100000
+		));
 		insta::assert_debug_snapshot!("withdraw7", take_events());
 		// Vault2 can contribute 299.99 to pool0
 		assert_ok!(PhalaStakePoolv2::contribute(
