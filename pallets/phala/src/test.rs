@@ -2131,7 +2131,10 @@ fn vault_partial_force_withdraw() {
 		elapse_cool_down();
 		elapse_seconds(1);
 		let _ = take_events();
-		assert_ok!(PhalaVault::check_and_maybe_force_withdraw(RuntimeOrigin::signed(1), 1));
+		assert_ok!(PhalaVault::check_and_maybe_force_withdraw(
+			RuntimeOrigin::signed(1),
+			1
+		));
 		insta::assert_debug_snapshot!(take_events());
 		assert!(vault::VaultLocks::<Test>::contains_key(vault1));
 		// Pool0 stop first worker first
@@ -2148,7 +2151,10 @@ fn vault_partial_force_withdraw() {
 		));
 		// Partial fill 100 PHA (out of 200)
 		let _ = take_events();
-		assert_ok!(PhalaVault::check_and_maybe_force_withdraw(RuntimeOrigin::signed(1), 1));
+		assert_ok!(PhalaVault::check_and_maybe_force_withdraw(
+			RuntimeOrigin::signed(1),
+			1
+		));
 		insta::assert_debug_snapshot!(take_events());
 		assert!(vault::VaultLocks::<Test>::contains_key(vault1));
 	});
@@ -2197,7 +2203,10 @@ fn vault_force_withdraw_after_3x_grace_period() {
 		elapse_cool_down();
 		elapse_seconds(1);
 		let _ = take_events();
-		assert_ok!(PhalaVault::check_and_maybe_force_withdraw(RuntimeOrigin::signed(1), 1));
+		assert_ok!(PhalaVault::check_and_maybe_force_withdraw(
+			RuntimeOrigin::signed(1),
+			1
+		));
 		insta::assert_debug_snapshot!(take_events());
 		assert!(vault::VaultLocks::<Test>::contains_key(vault1));
 	});

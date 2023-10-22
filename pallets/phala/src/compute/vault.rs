@@ -119,7 +119,7 @@ pub mod pallet {
 		ForceShutdown {
 			pid: u64,
 			reason: ForceShutdownReason,
-		}
+		},
 	}
 
 	#[derive(PartialEq, Eq, Clone, Debug, Encode, Decode, scale_info::TypeInfo)]
@@ -370,7 +370,7 @@ pub mod pallet {
 			// Trigger force withdrawal and lock if there's any expired withdrawal.
 			// If already locked, we don't need to trigger it again.
 			if VaultLocks::<T>::contains_key(vault_pid) {
-				return Ok(())
+				return Ok(());
 			}
 			// Case 1: There's a request over 3x GracePeriod old, the pool must be shutdown.
 			let mut shutdown_reason: Option<ForceShutdownReason> = None;
@@ -421,7 +421,7 @@ pub mod pallet {
 			}
 			let Some(shutdown_reason) = shutdown_reason else {
 				// No need to shutdown.
-				return Ok(())
+				return Ok(());
 			};
 			// Try to withdraw from the upstream stake pools
 			for pid in vault.invest_pools.iter() {
@@ -446,11 +446,9 @@ pub mod pallet {
 					&vault.basepool.pool_account_id,
 				)
 				.for_each(|nftid| {
-					let property_guard = base_pool::Pallet::<T>::get_nft_attr_guard(
-						stake_pool.basepool.cid,
-						nftid,
-					)
-					.expect("get nft should not fail: qed.");
+					let property_guard =
+						base_pool::Pallet::<T>::get_nft_attr_guard(stake_pool.basepool.cid, nftid)
+							.expect("get nft should not fail: qed.");
 					let property = &property_guard.attr;
 					if !base_pool::is_nondust_balance(property.shares) {
 						let _ = base_pool::Pallet::<T>::burn_nft(
