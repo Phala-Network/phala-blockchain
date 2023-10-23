@@ -1467,7 +1467,7 @@ class Cluster {
         const alice = keyring.addFromUri('//Alice');
         await assert.txAccepted(
             api.tx.utility.batchAll(
-                new Array(this.numWorkers).fill().map((_, i) => api.tx.balances.transfer(addr(`//Pherry/${i}`), '100000000000000'))
+                new Array(this.numWorkers).fill().map((_, i) => api.tx.balances.transferKeepAlive(addr(`//Pherry/${i}`), '100000000000000'))
             ),
             alice,
         );
