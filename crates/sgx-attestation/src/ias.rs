@@ -2,6 +2,7 @@ use core::time::Duration;
 
 use alloc::string::String;
 use alloc::vec::Vec;
+use base64::{engine::general_purpose, Engine as _};
 use pink_json::de::Error as JsonError;
 use scale::{Decode, Encode};
 use serde::{Deserialize, Serialize};
@@ -50,12 +51,15 @@ pub struct RaReport {
     pub isv_enclave_quote_body: String,
 }
 
+fn b64_decode(s: &str) -> Result<Vec<u8>, Error> {
+    general_purpose::STANDARD
+        .decode(s)
+        .or(Err(Error::CodecError))
+}
+
 impl RaReport {
     pub fn decode_quote(&self) -> Result<EnclaveQuoteBody, Error> {
-        use base64::{engine::general_purpose, Engine as _};
-        let quote_body = general_purpose::STANDARD
-            .decode(&self.isv_enclave_quote_body)
-            .or(Err(Error::CodecError))?;
+        let quote_body = b64_decode(&self.isv_enclave_quote_body)?;
         EnclaveQuoteBody::decode(&mut &quote_body[..]).or(Err(Error::CodecError))
     }
 }
@@ -73,10 +77,10 @@ impl SignedIasReport {
         pink_json::from_str(&self.ra_report)
     }
 
-    pub fn verify(&self, now_since_unix_epoch: Duration) -> Result<(), crate::Error> {
+    pub fn verify(&self, now_since_unix_epoch: Duration) -> Result<(), Error> {
         let report = self.ra_report.as_str().as_bytes();
-        let signature = hex::decode(&self.signature).unwrap();
-        let raw_signing_cert = hex::decode(&self.raw_signing_cert).unwrap();
+        let signature = b64_decode(&self.signature)?;
+        let raw_signing_cert = b64_decode(&self.raw_signing_cert)?;
         verify_signature(report, &signature, &raw_signing_cert, now_since_unix_epoch)
     }
 }

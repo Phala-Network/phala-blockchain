@@ -11,7 +11,7 @@ base64 = { version = "0.21", default-features = false, features = ["alloc"] }
 scale = { package = "parity-scale-codec", version = "3.6.5", default-features = false, features = ["derive"] }
 
 # Release version no-std has bug
-webpki = { git = "https://github.com/rustls/webpki", version = "0.102.0-alpha.3", package = "rustls-webpki", default-features = false, features = ["alloc", "ring"] }
+webpki = { git = "https://github.com/rustls/webpki", version = "=0.102.0-alpha.3", rev = "2ed9a4324f48c2c46ffdd7dc9d3eb315af25fce2", package = "rustls-webpki", default-features = false, features = ["alloc", "ring"] }
 
 [dev-dependencies]
 insta = "1"

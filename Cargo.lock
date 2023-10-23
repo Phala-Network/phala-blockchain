@@ -11940,7 +11940,7 @@ dependencies = [
 [[package]]
 name = "rustls-webpki"
 version = "0.102.0-alpha.3"
-source = "git+https://github.com/rustls/webpki#2ed9a4324f48c2c46ffdd7dc9d3eb315af25fce2"
+source = "git+https://github.com/rustls/webpki?rev=2ed9a4324f48c2c46ffdd7dc9d3eb315af25fce2#2ed9a4324f48c2c46ffdd7dc9d3eb315af25fce2"
 dependencies = [
  "ring 0.16.20",
  "rustls-pki-types",
