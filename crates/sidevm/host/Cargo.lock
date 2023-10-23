@@ -2920,7 +2920,7 @@ dependencies = [
 
 [[package]]
 name = "sidevm-env"
-version = "0.2.0-alpha.2"
+version = "0.2.0-alpha.3"
 dependencies = [
  "cfg-if",
  "derive_more",
@@ -2990,7 +2990,7 @@ dependencies = [
 
 [[package]]
 name = "sidevm-macro"
-version = "0.2.0-alpha.2"
+version = "0.2.0-alpha.3"
 dependencies = [
  "heck 0.4.1",
  "proc-macro-crate",
