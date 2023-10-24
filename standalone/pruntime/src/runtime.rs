@@ -90,7 +90,7 @@ pub(crate) async fn ecall_connect_sidevm(
     path: PathBuf,
     body: Option<rocket::Data<'_>>,
 ) -> Result<StreamResponse, (Status, String)> {
-    let contract_id = hex::decode(&id.trim_start_matches("0x"))
+    let contract_id = hex::decode(id.trim_start_matches("0x"))
         .map_err(|err| (Status::BadRequest, err.to_string()))?;
     let Some(command_tx) = APPLICATION
         .lock_phactory(false, false)
