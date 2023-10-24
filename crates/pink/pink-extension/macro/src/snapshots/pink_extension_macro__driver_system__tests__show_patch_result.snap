@@ -1,6 +1,6 @@
 ---
 source: crates/pink/pink-extension/macro/src/driver_system.rs
-assertion_line: 286
+assertion_line: 337
 expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
 ---
 #[doc = "**The doc is messed up by the ink macro. See [`SystemForDoc`] for a clean version**\n\n"]
@@ -27,18 +27,44 @@ mod _pink_system_impl {
     use ink::env::CallFlags;
     use ink::{codegen::TraitCallForwarder, reflect::TraitDefinitionRegistry};
     use pink_extension::PinkEnvironment;
+    type Balance = <PinkEnvironment as ink::env::Environment>::Balance;
     type TraitInfo = <TraitDefinitionRegistry<PinkEnvironment> as System>::__ink_TraitInfo;
     type Forwarder = <TraitInfo as TraitCallForwarder>::Forwarder;
+    #[derive(Clone)]
     pub enum SystemRef {
         Instance {
             address: AccountId,
             call_flags: CallFlags,
+            value: Balance,
         },
         #[cfg(feature = "std")]
-        Mock,
+        Mock { value: Balance },
     }
     #[cfg(feature = "std")]
-    thread_local! { static MOCK : core :: cell :: RefCell < Option < (AccountId , Box < dyn System < Env = PinkEnvironment , __ink_TraitInfo = TraitInfo , getDriverOutput = Option < AccountId > , setDriverOutput = () , deploySidevmToOutput = Result < () > , > , >) > , > = Default :: default () ; }
+    enum MockObj {
+        Boxed(
+            Box<
+                dyn System<
+                    Env = PinkEnvironment,
+                    __ink_TraitInfo = TraitInfo,
+                    getDriverOutput = Option<AccountId>,
+                    setDriverOutput = (),
+                    deploySidevmToOutput = Result<()>,
+                >,
+            >,
+        ),
+        Ref(
+            &'static mut dyn System<
+                Env = PinkEnvironment,
+                __ink_TraitInfo = TraitInfo,
+                getDriverOutput = Option<AccountId>,
+                setDriverOutput = (),
+                deploySidevmToOutput = Result<()>,
+            >,
+        ),
+    }
+    #[cfg(feature = "std")]
+    thread_local! { static MOCK : core :: cell :: RefCell < Option < (AccountId , MockObj) > , > = Default :: default () ; }
     impl SystemRef {
         #[cfg(feature = "std")]
         pub fn mock_with(
@@ -52,7 +78,22 @@ mod _pink_system_impl {
         ) {
             MOCK.with(|x| {
                 let callee = ink::env::test::callee::<PinkEnvironment>();
-                *x.borrow_mut() = Some((callee, Box::new(contract)));
+                *x.borrow_mut() = Some((callee, MockObj::Boxed(Box::new(contract))));
+            });
+        }
+        #[cfg(feature = "std")]
+        pub unsafe fn unsafe_mock_with(
+            contract: &mut dyn System<
+                Env = PinkEnvironment,
+                __ink_TraitInfo = TraitInfo,
+                getDriverOutput = Option<AccountId>,
+                setDriverOutput = (),
+                deploySidevmToOutput = Result<()>,
+            >,
+        ) {
+            MOCK.with(|x| {
+                let callee = ink::env::test::callee::<PinkEnvironment>();
+                *x.borrow_mut() = Some((callee, MockObj::Ref(core::mem::transmute(contract))));
             });
         }
         pub fn set_call_flags(&mut self, flags: CallFlags) {
@@ -60,17 +101,31 @@ mod _pink_system_impl {
                 *call_flags = flags;
             }
         }
+        pub fn set_value_transferred(&self, transferred_value: Balance) -> Self {
+            let mut me = self.clone();
+            match &mut me {
+                Self::Instance { value, .. } => {
+                    *value = transferred_value;
+                }
+                #[cfg(feature = "std")]
+                Self::Mock { value } => {
+                    *value = transferred_value;
+                }
+            }
+            me
+        }
         pub fn instance() -> Self {
             Self::instance_with_call_flags(CallFlags::default())
         }
         pub fn instance_with_call_flags(call_flags: CallFlags) -> Self {
             #[cfg(feature = "std")]
             if MOCK.with(|x| x.borrow_mut().is_some()) {
-                return Self::Mock;
+                return Self::Mock { value: 0 };
             }
             Self::Instance {
                 address: pink_extension::ext().system_contract_id(),
                 call_flags,
+                value: 0,
             }
         }
     }
@@ -80,26 +135,33 @@ mod _pink_system_impl {
                 SystemRef::Instance {
                     address,
                     call_flags,
+                    value,
                 } => {
                     use ink::codegen::TraitCallBuilder;
                     let mut forwarder = Forwarder::from_account_id(*address);
                     forwarder
                         .call()
                         .get_driver(name)
+                        .transferred_value(*value)
                         .call_flags(call_flags.clone())
                         .invoke()
                 }
                 #[cfg(feature = "std")]
-                SystemRef::Mock => MOCK.with(move |x| {
+                SystemRef::Mock { value } => MOCK.with(move |x| {
                     let mut borrow = x.borrow_mut();
                     let (callee, forwarder) = borrow.as_mut().unwrap();
                     let prev_callee = ink::env::test::callee::<PinkEnvironment>();
                     let prev_caller = ink::env::caller::<PinkEnvironment>();
                     ink::env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
                     ink::env::test::set_callee::<PinkEnvironment>(callee.clone());
-                    let ret = forwarder.get_driver(name);
+                    ink::env::test::set_value_transferred::<PinkEnvironment>(*value);
+                    let ret = match forwarder {
+                        MockObj::Boxed(contract) => contract.get_driver(name),
+                        MockObj::Ref(contract) => contract.get_driver(name),
+                    };
                     ink::env::test::set_callee::<PinkEnvironment>(prev_callee);
                     ink::env::test::set_caller::<PinkEnvironment>(prev_caller);
+                    ink::env::test::set_value_transferred::<PinkEnvironment>(0);
                     ret
                 }),
             }
@@ -109,26 +171,33 @@ mod _pink_system_impl {
                 SystemRef::Instance {
                     address,
                     call_flags,
+                    value,
                 } => {
                     use ink::codegen::TraitCallBuilder;
                     let mut forwarder = Forwarder::from_account_id(*address);
                     forwarder
                         .call()
                         .set_driver(name, driver)
+                        .transferred_value(*value)
                         .call_flags(call_flags.clone())
                         .invoke()
                 }
                 #[cfg(feature = "std")]
-                SystemRef::Mock => MOCK.with(move |x| {
+                SystemRef::Mock { value } => MOCK.with(move |x| {
                     let mut borrow = x.borrow_mut();
                     let (callee, forwarder) = borrow.as_mut().unwrap();
                     let prev_callee = ink::env::test::callee::<PinkEnvironment>();
                     let prev_caller = ink::env::caller::<PinkEnvironment>();
                     ink::env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
                     ink::env::test::set_callee::<PinkEnvironment>(callee.clone());
-                    let ret = forwarder.set_driver(name, driver);
+                    ink::env::test::set_value_transferred::<PinkEnvironment>(*value);
+                    let ret = match forwarder {
+                        MockObj::Boxed(contract) => contract.set_driver(name, driver),
+                        MockObj::Ref(contract) => contract.set_driver(name, driver),
+                    };
                     ink::env::test::set_callee::<PinkEnvironment>(prev_callee);
                     ink::env::test::set_caller::<PinkEnvironment>(prev_caller);
+                    ink::env::test::set_value_transferred::<PinkEnvironment>(0);
                     ret
                 }),
             }
@@ -138,26 +207,35 @@ mod _pink_system_impl {
                 SystemRef::Instance {
                     address,
                     call_flags,
+                    value,
                 } => {
                     use ink::codegen::TraitCallBuilder;
                     let mut forwarder = Forwarder::from_account_id(*address);
                     forwarder
                         .call()
                         .deploy_sidevm_to(code_hash, contract_id)
+                        .transferred_value(*value)
                         .call_flags(call_flags.clone())
                         .invoke()
                 }
                 #[cfg(feature = "std")]
-                SystemRef::Mock => MOCK.with(move |x| {
+                SystemRef::Mock { value } => MOCK.with(move |x| {
                     let mut borrow = x.borrow_mut();
                     let (callee, forwarder) = borrow.as_mut().unwrap();
                     let prev_callee = ink::env::test::callee::<PinkEnvironment>();
                     let prev_caller = ink::env::caller::<PinkEnvironment>();
                     ink::env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
                     ink::env::test::set_callee::<PinkEnvironment>(callee.clone());
-                    let ret = forwarder.deploy_sidevm_to(code_hash, contract_id);
+                    ink::env::test::set_value_transferred::<PinkEnvironment>(*value);
+                    let ret = match forwarder {
+                        MockObj::Boxed(contract) => {
+                            contract.deploy_sidevm_to(code_hash, contract_id)
+                        }
+                        MockObj::Ref(contract) => contract.deploy_sidevm_to(code_hash, contract_id),
+                    };
                     ink::env::test::set_callee::<PinkEnvironment>(prev_callee);
                     ink::env::test::set_caller::<PinkEnvironment>(prev_caller);
+                    ink::env::test::set_value_transferred::<PinkEnvironment>(0);
                     ret
                 }),
             }

@@ -1,6 +1,6 @@
 ---
 source: crates/phactory/src/lib.rs
-assertion_line: 301
+assertion_line: 302
 expression: "travel_types::<Phactory<()>>()"
 ---
 [
@@ -1203,7 +1203,7 @@ expression: "travel_types::<Phactory<()>>()"
             },
             {
               "name": "contract_cluster",
-              "type": 128,
+              "type": 129,
               "typeName": "Option<Cluster>"
             },
             {
@@ -3587,7 +3587,7 @@ expression: "travel_types::<Phactory<()>>()"
         "composite": {
           "fields": [
             {
-              "type": 126
+              "type": 127
             }
           ]
         }
@@ -3638,7 +3638,7 @@ expression: "travel_types::<Phactory<()>>()"
             },
             {
               "name": "on_block_end",
-              "type": 124,
+              "type": 125,
               "typeName": "Option<OnBlockEnd>"
             }
           ]
@@ -3710,6 +3710,11 @@ expression: "travel_types::<Phactory<()>>()"
               "name": "auto_restart",
               "type": 1,
               "typeName": "bool"
+            },
+            {
+              "name": "config",
+              "type": 124,
+              "typeName": "SidevmConfig"
             }
           ]
         }
@@ -3720,12 +3725,47 @@ expression: "travel_types::<Phactory<()>>()"
     "id": 124,
     "type": {
       "path": [
+        "pink_extension",
+        "SidevmConfig"
+      ],
+      "def": {
+        "composite": {
+          "fields": [
+            {
+              "name": "max_code_size",
+              "type": 23,
+              "typeName": "u32"
+            },
+            {
+              "name": "max_memory_pages",
+              "type": 23,
+              "typeName": "u32"
+            },
+            {
+              "name": "vital_capacity",
+              "type": 14,
+              "typeName": "u64"
+            },
+            {
+              "name": "deadline",
+              "type": 23,
+              "typeName": "u32"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 125,
+    "type": {
+      "path": [
         "Option"
       ],
       "params": [
         {
           "name": "T",
-          "type": 125
+          "type": 126
         }
       ],
       "def": {
@@ -3739,7 +3779,7 @@ expression: "travel_types::<Phactory<()>>()"
               "name": "Some",
               "fields": [
                 {
-                  "type": 125
+                  "type": 126
                 }
               ],
               "index": 1
@@ -3750,7 +3790,7 @@ expression: "travel_types::<Phactory<()>>()"
     }
   },
   {
-    "id": 125,
+    "id": 126,
     "type": {
       "path": [
         "phactory",
@@ -3777,17 +3817,17 @@ expression: "travel_types::<Phactory<()>>()"
     }
   },
   {
-    "id": 126,
+    "id": 127,
     "type": {
       "def": {
         "sequence": {
-          "type": 127
+          "type": 128
         }
       }
     }
   },
   {
-    "id": 127,
+    "id": 128,
     "type": {
       "def": {
         "tuple": [
@@ -3798,7 +3838,7 @@ expression: "travel_types::<Phactory<()>>()"
     }
   },
   {
-    "id": 128,
+    "id": 129,
     "type": {
       "path": [
         "Option"
@@ -3806,7 +3846,7 @@ expression: "travel_types::<Phactory<()>>()"
       "params": [
         {
           "name": "T",
-          "type": 129
+          "type": 130
         }
       ],
       "def": {
@@ -3820,7 +3860,7 @@ expression: "travel_types::<Phactory<()>>()"
               "name": "Some",
               "fields": [
                 {
-                  "type": 129
+                  "type": 130
                 }
               ],
               "index": 1
@@ -3831,7 +3871,7 @@ expression: "travel_types::<Phactory<()>>()"
     }
   },
   {
-    "id": 129,
+    "id": 130,
     "type": {
       "path": [
         "phactory",
@@ -3849,12 +3889,12 @@ expression: "travel_types::<Phactory<()>>()"
             },
             {
               "name": "config",
-              "type": 130,
+              "type": 131,
               "typeName": "ClusterConfig"
             },
             {
               "name": "storage",
-              "type": 133,
+              "type": 134,
               "typeName": "pink::storage::ClusterStorage"
             }
           ]
@@ -3863,7 +3903,7 @@ expression: "travel_types::<Phactory<()>>()"
     }
   },
   {
-    "id": 130,
+    "id": 131,
     "type": {
       "path": [
         "phactory",
@@ -3876,12 +3916,12 @@ expression: "travel_types::<Phactory<()>>()"
           "fields": [
             {
               "name": "log_handler",
-              "type": 131,
+              "type": 132,
               "typeName": "Option<AccountId>"
             },
             {
               "name": "runtime_version",
-              "type": 132,
+              "type": 133,
               "typeName": "(u32, u32)"
             },
             {
@@ -3895,7 +3935,7 @@ expression: "travel_types::<Phactory<()>>()"
     }
   },
   {
-    "id": 131,
+    "id": 132,
     "type": {
       "path": [
         "Option"
@@ -3928,7 +3968,7 @@ expression: "travel_types::<Phactory<()>>()"
     }
   },
   {
-    "id": 132,
+    "id": 133,
     "type": {
       "def": {
         "tuple": [
@@ -3939,7 +3979,7 @@ expression: "travel_types::<Phactory<()>>()"
     }
   },
   {
-    "id": 133,
+    "id": 134,
     "type": {
       "path": [
         "pink_runner",
@@ -3960,7 +4000,7 @@ expression: "travel_types::<Phactory<()>>()"
     }
   },
   {
-    "id": 134,
+    "id": 135,
     "type": {
       "path": [
         "Option"
@@ -3968,7 +4008,7 @@ expression: "travel_types::<Phactory<()>>()"
       "params": [
         {
           "name": "T",
-          "type": 135
+          "type": 136
         }
       ],
       "def": {
@@ -3982,7 +4022,7 @@ expression: "travel_types::<Phactory<()>>()"
               "name": "Some",
               "fields": [
                 {
-                  "type": 135
+                  "type": 136
                 }
               ],
               "index": 1
@@ -3993,7 +4033,7 @@ expression: "travel_types::<Phactory<()>>()"
     }
   },
   {
-    "id": 135,
+    "id": 136,
     "type": {
       "path": [
         "phactory_api",
