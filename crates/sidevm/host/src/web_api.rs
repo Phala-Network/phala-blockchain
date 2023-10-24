@@ -306,7 +306,8 @@ pub async fn serve(args: Args) -> anyhow::Result<()> {
                 reply_tx,
             } = message;
             let vmid = ShortId(id);
-            info!(%vmid, "Outgoing message from {contract_id:?} payload: {payload:?}");
+            let dest = ShortId(contract_id);
+            info!(%vmid, "Outgoing message to {dest} payload: {payload:?}");
             _ = reply_tx.send(Vec::new());
         }
     });
