@@ -18,6 +18,7 @@ use serde::{
     ser::SerializeSeq,
     Deserialize, Deserializer, Serialize, Serializer,
 };
+use sidevm::service::CommandSender;
 
 use crate::light_validation::LightValidation;
 use std::{borrow::Cow, collections::BTreeMap, str::FromStr, sync::Arc};
@@ -828,6 +829,15 @@ impl<Platform: Serialize + DeserializeOwned> Phactory<Platform> {
             safe_mode_level,
             _marker: PhantomData,
         })
+    }
+
+    pub fn sidevm_command_sender(&self, contract_id: &[u8]) -> Option<CommandSender> {
+        let contract_id = AccountId::new(contract_id.try_into().ok()?);
+        self.system
+            .as_ref()?
+            .contracts
+            .get(&contract_id)?
+            .get_system_message_handler()
     }
 }
 

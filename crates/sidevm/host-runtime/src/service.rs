@@ -198,7 +198,7 @@ impl Spawner {
                                 push_msg!(@async: env.push_query(origin, payload, reply_tx), debug, "query");
                             }
                             Some(Command::HttpRequest(request)) => {
-                                push_msg!(@async: env.push_http_request(request), debug, "query");
+                                push_msg!(@async: env.push_http_request(request), debug, "http request");
                             }
                             Some(Command::UpdateWeight(weight)) => {
                                 env.set_weight(weight);

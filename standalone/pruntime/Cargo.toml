@@ -40,8 +40,10 @@ phala-types = { path = "../../crates/phala-types", features = ["enable_serde", "
 phala-git-revision = { path = "../../crates/phala-git-revision" }
 phala-clap-parsers = { path = "../../crates/phala-clap-parsers" }
 sgx-api-lite = { path = "../../crates/sgx-api-lite" }
+sidevm-host-runtime = { path = "../../crates/sidevm/host-runtime" }
 tracing = "0.1"
 hex_fmt = "0.3.0"
+hex = "0.4.3"
 
 [patch.crates-io]
 # TODO.kevin: Move back to crates.io once it released 1.0
