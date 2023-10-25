@@ -163,6 +163,9 @@ struct Serve {
     /// Don't check state root for each storage changes
     #[clap(long)]
     no_state_root: bool,
+    /// Skip blocks with empty state root while checking storage changes
+    #[clap(long)]
+    allow_empty_state_root: bool,
 }
 
 #[derive(Subcommand)]

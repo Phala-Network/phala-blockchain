@@ -219,6 +219,7 @@ async fn api_check_blocks(
             from,
             to,
             count,
+            false,
         )
         .await
         .map_err(|e| e.to_string())?;

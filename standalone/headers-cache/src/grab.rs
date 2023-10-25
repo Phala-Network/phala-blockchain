@@ -265,6 +265,7 @@ impl<'c> Crawler<'c> {
                     changes_start,
                     Some(changes_end),
                     None,
+                    config.allow_empty_state_root,
                 )
                 .await
                 .context("Failed to check storage changes")?;
@@ -361,6 +362,7 @@ pub(crate) async fn check_and_fix_storages_changes(
     from: BlockNumber,
     to: Option<BlockNumber>,
     count: Option<BlockNumber>,
+    allow_empty_root: bool,
 ) -> Result<u32> {
     let api = match api {
         Some(api) => api,
@@ -382,6 +384,9 @@ pub(crate) async fn check_and_fix_storages_changes(
         let actual_root = decode_header(&changes)
             .map(|h| h.state_root)
             .unwrap_or_default();
+        if allow_empty_root && actual_root == Default::default() {
+            continue;
+        }
         let expected_root = header.state_root;
         if expected_root != actual_root {
             info!("Storage changes {block} mismatch, expected={expected_root} actual={actual_root}, trying to regrab");
