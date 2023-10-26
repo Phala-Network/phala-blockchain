@@ -75,7 +75,7 @@ jobs:
         with:
           node-version: 16
       - name: Install yarn 2
-        run: sudo npm install -g yarn && yarn set version berry
+        run: sudo npm install -g yarn && yarn set version 3.6.4
       - name: Download core-blockchain binaries
         uses: actions/download-artifact@v3
         with:
@@ -96,7 +96,7 @@ jobs:
       - name: Change permission
         run: chmod +x ./target/release/phala-node ./target/release/pherry ./standalone/pruntime/bin/pruntime
       - name: Run E2E tests
-        run: yarn set version berry && cd ./e2e/ && yarn && yarn build:proto && yarn test
+        run: yarn set version 3.6.4 && cd ./e2e/ && yarn && yarn build:proto && yarn test
       - name: Pack logs if failed
         if: failure()
         run: tar czvf e2e-logs.tar.gz e2e
