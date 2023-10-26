@@ -2,27 +2,30 @@ use std::pin::pin;
 
 use anyhow::{bail, Context, Result};
 use log::{debug, error, info};
-use pherry::headers_cache::{read_items_stream, BlockInfo};
+use pherry::{
+    headers_cache::{read_items_stream, BlockInfo},
+    types::Header,
+};
 use rand::Rng;
 use rocket::{
     data::ToByteUnit,
     futures::StreamExt,
-    get,
+    get, put,
     response::status::{BadRequest, NotFound},
-    routes, State,
+    routes, Data, State,
 };
-use rocket::{put, Data};
 
 use scale::{Decode, Encode};
 
-use crate::db::CacheDB;
-use crate::BlockNumber;
+use super::Serve as ServeConfig;
+use crate::{db::CacheDB, BlockNumber};
 use auth::Authorized;
 
 mod auth;
 
 struct App {
     db: CacheDB,
+    config: ServeConfig,
 }
 
 #[get("/state")]
@@ -94,7 +97,6 @@ fn get_parachain_headers(
     for block in start..start + count {
         match app.db.get_para_header(block) {
             Some(data) => {
-                use pherry::types::Header;
                 let header =
                     Header::decode(&mut &data[..]).map_err(|_| NotFound("Codec error".into()))?;
                 headers.push(header);
@@ -200,15 +202,51 @@ async fn put_storage_changes(
     .await
 }
 
-pub(crate) async fn serve(db: CacheDB, token: Option<String>) -> Result<()> {
+#[get("/check?<chain>&<from>&<to>&<count>")]
+async fn api_check_blocks(
+    _auth: Authorized,
+    app: &State<App>,
+    chain: &str,
+    from: BlockNumber,
+    to: Option<BlockNumber>,
+    count: Option<BlockNumber>,
+) -> Result<String, String> {
+    if chain == "state" {
+        let mismatches = crate::grab::check_and_fix_storages_changes(
+            &app.db,
+            None,
+            &app.config,
+            from,
+            to,
+            count,
+            false,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+        if mismatches == 0 {
+            Ok("No mismatches".into())
+        } else {
+            Ok(format!("Mismatches: {:?}", mismatches))
+        }
+    } else {
+        crate::grab::check_and_fix_headers(&app.db, &app.config, chain, from, to, count)
+            .await
+            .map_err(|e| e.to_string())
+    }
+}
+
+pub(crate) async fn serve(db: CacheDB, config: ServeConfig, token: Option<String>) -> Result<()> {
     let token = token.unwrap_or_else(|| {
         let token: [u8; 16] = rand::thread_rng().gen();
         let token = hex::encode(token);
         log::warn!("No token provided, generated a random one: {}", token);
         token
     });
-    let _rocket = rocket::build()
-        .manage(App { db })
+    let _ = rocket::build()
+        .manage(App {
+            db: db.clone(),
+            config: config.clone(),
+        })
         .manage(auth::Token { value: token })
         .mount(
             "/",
@@ -222,6 +260,7 @@ pub(crate) async fn serve(db: CacheDB, token: Option<String>) -> Result<()> {
                 put_headers,
                 put_parachain_headers,
                 put_storage_changes,
+                api_check_blocks,
             ],
         )
         .attach(phala_rocket_middleware::TimeMeter)

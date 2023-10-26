@@ -1,10 +1,13 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use anyhow::{Context as _, Result};
-use log::{error, info};
-use scale::Encode;
+use anyhow::{anyhow, bail, Context as _, Result};
+use log::{error, info, warn};
+use scale::{Decode, Encode};
 
-use pherry::{headers_cache as cache, types::phaxt::ChainApi};
+use pherry::{
+    headers_cache as cache,
+    types::{phaxt::ChainApi, Header},
+};
 
 use crate::{
     db::{CacheDB, Metadata},
@@ -187,6 +190,7 @@ impl<'c> Crawler<'c> {
             *next_delta,
             count,
             self.config.grab_storage_changes_batch,
+            !self.config.no_state_root,
             |info| {
                 self.db
                     .put_storage_changes(info.block_header.number, &info.encode())
@@ -205,11 +209,82 @@ impl<'c> Crawler<'c> {
         Ok(())
     }
 
+    async fn continue_check_headers(&mut self) -> Result<()> {
+        let db = self.db;
+        let config = self.config;
+        let metadata = &mut *self.metadata;
+
+        {
+            let relay_start = metadata.checked.header.unwrap_or(config.genesis_block);
+            let relay_end = metadata
+                .recent_imported
+                .header
+                .unwrap_or(0)
+                .min(relay_start + config.check_batch);
+            if relay_start < relay_end {
+                check_and_fix_headers(db, config, "relay", relay_start, Some(relay_end), None)
+                    .await
+                    .context("Failed to check relay headers")?;
+                metadata.checked.header = Some(relay_end);
+                db.put_metadata(metadata)
+                    .context("Failed to update metadata")?;
+            }
+        }
+
+        {
+            let para_start = metadata.checked.para_header.unwrap_or(0);
+            let para_end = metadata
+                .recent_imported
+                .para_header
+                .unwrap_or(0)
+                .min(para_start + config.check_batch);
+            if para_start < para_end {
+                check_and_fix_headers(db, config, "para", para_start, Some(para_end), None)
+                    .await
+                    .context("Failed to check para headers")?;
+                metadata.checked.para_header = Some(para_end);
+                db.put_metadata(metadata)
+                    .context("Failed to update metadata")?;
+            }
+        }
+
+        if !config.no_state_root {
+            let changes_start = metadata.checked.storage_changes.unwrap_or(1);
+            let max_checked_header = metadata.checked.para_header.unwrap_or_default();
+            let changes_end = metadata
+                .recent_imported
+                .storage_changes
+                .unwrap_or(0)
+                .min(changes_start + config.check_batch)
+                .min(max_checked_header);
+            if changes_start < changes_end {
+                check_and_fix_storages_changes(
+                    db,
+                    Some(self.para_api.clone()),
+                    config,
+                    changes_start,
+                    Some(changes_end),
+                    None,
+                    config.allow_empty_state_root,
+                )
+                .await
+                .context("Failed to check storage changes")?;
+                metadata.checked.storage_changes = Some(changes_end);
+                db.put_metadata(metadata)
+                    .context("Failed to update metadata")?;
+            }
+        }
+        Ok(())
+    }
+
     async fn run(&mut self) -> Result<()> {
         loop {
             self.grab_headers().await?;
             self.grab_para_headers().await?;
             self.grab_storage_changes().await?;
+            if let Err(err) = self.continue_check_headers().await {
+                error!("Error fixing headers: {err:?}");
+            }
             sleep(self.config.interval).await;
         }
     }
@@ -233,4 +308,169 @@ pub(crate) fn update_404_block(block: BlockNumber) {
 async fn sleep(secs: u64) {
     info!("Sleeping for {secs} seconds...");
     tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
+}
+
+pub(crate) async fn check_and_fix_headers(
+    db: &CacheDB,
+    config: &Serve,
+    chain: &str,
+    from: BlockNumber,
+    to: Option<BlockNumber>,
+    count: Option<BlockNumber>,
+) -> Result<String> {
+    let parachain = match chain {
+        "relay" => false,
+        "para" => true,
+        _ => bail!("Unknown check type {chain}"),
+    };
+    let to = to.unwrap_or(from + count.unwrap_or(1));
+    info!("Checking {chain} headers from {from} to {to}");
+    if to < from {
+        bail!("Invalid range");
+    }
+    let from = from.saturating_sub(1);
+    let mut prev = load_header_or_regrab(db, config, parachain, from).await?;
+    let mut mismatches = 0;
+    for block in (from + 1)..=to {
+        let cur_header = load_header_or_regrab(db, config, parachain, block).await?;
+        if prev.hash() != cur_header.parent_hash {
+            mismatches += 1;
+            let prev = regrab_header(db, config, prev.number, parachain)
+                .await
+                .context("Failed to regrab header")?;
+            let cur_header = regrab_header(db, config, cur_header.number, parachain).await?;
+            if prev.hash() != cur_header.parent_hash {
+                bail!("Cannot fix mismatch at {block}");
+            }
+        }
+        prev = cur_header;
+    }
+    let from = from + 1;
+    let response = if mismatches > 0 {
+        format!("Checked blocks from {from} to {to}, {mismatches} mismatches")
+    } else {
+        format!("Checked blocks from {from} to {to}, All OK")
+    };
+    info!("{}", response);
+    Ok(response)
+}
+
+pub(crate) async fn check_and_fix_storages_changes(
+    db: &CacheDB,
+    api: Option<ChainApi>,
+    config: &Serve,
+    from: BlockNumber,
+    to: Option<BlockNumber>,
+    count: Option<BlockNumber>,
+    allow_empty_root: bool,
+) -> Result<u32> {
+    let api = match api {
+        Some(api) => api,
+        None => pherry::subxt_connect(&config.para_node_uri)
+            .await
+            .context(format!("Failed to connect to {}", config.para_node_uri))?,
+    };
+    let to = to.unwrap_or(from + count.unwrap_or(1));
+    info!("Checking storage changes from {from} to {to}");
+    let mut state_root_mismatches = 0_u32;
+    for block in from..to {
+        let header = db
+            .get_para_header(block)
+            .ok_or(anyhow!("Header {block} not found"))?;
+        let header = decode_header(&header)?;
+        let changes = db
+            .get_storage_changes(block)
+            .ok_or(anyhow!("Storage changes {block} not found"))?;
+        let actual_root = decode_header(&changes)
+            .map(|h| h.state_root)
+            .unwrap_or_default();
+        if allow_empty_root && actual_root == Default::default() {
+            continue;
+        }
+        let expected_root = header.state_root;
+        if expected_root != actual_root {
+            info!("Storage changes {block} mismatch, expected={expected_root} actual={actual_root}, trying to regrab");
+            cache::grab_storage_changes(&api, header.number, 1, 1, true, |info| {
+                db.put_storage_changes(info.block_header.number, &info.encode())
+                    .context("Failed to put record to DB")?;
+                Ok(())
+            })
+            .await
+            .context("Failed to grab storage changes from node")?;
+            state_root_mismatches += 1;
+        }
+    }
+    Ok(state_root_mismatches)
+}
+
+fn decode_header(data: &[u8]) -> Result<Header> {
+    let header = Header::decode(&mut &data[..]).context("Failed to decode header")?;
+    Ok(header)
+}
+
+async fn load_header_or_regrab(
+    db: &CacheDB,
+    config: &Serve,
+    parachain: bool,
+    block: BlockNumber,
+) -> Result<Header> {
+    let header = if parachain {
+        db.get_para_header(block)
+    } else {
+        db.get_header(block)
+    }
+    .and_then(|header| decode_header(&header).ok());
+
+    let header = match header {
+        Some(header) => header,
+        None => {
+            warn!("Header {block} not found, trying to regrab");
+            regrab_header(db, config, block, parachain).await?
+        }
+    };
+    Ok(header)
+}
+
+async fn regrab_header(
+    db: &CacheDB,
+    config: &Serve,
+    number: BlockNumber,
+    parachain: bool,
+) -> Result<Header> {
+    let chain = if parachain { "para" } else { "relay" };
+    let enabled = if parachain {
+        config.grab_para_headers
+    } else {
+        config.grab_headers
+    };
+    if !enabled {
+        warn!("Trying to regrab {chain} header {number} while grab headers disabled");
+        bail!("Grab {chain} headers disabled");
+    }
+    info!("Regrabbing {chain}chain header {}", number);
+    let para_api = pherry::subxt_connect(&config.para_node_uri)
+        .await
+        .context(format!("Failed to connect to {}", config.para_node_uri))?;
+    let mut grabed = None;
+    if parachain {
+        cache::grab_para_headers(&para_api, number, 1, |header| {
+            db.put_para_header(header.number, &header.encode())
+                .context("Failed to put record to DB")?;
+            grabed = Some(header);
+            Ok(())
+        })
+        .await?;
+    } else {
+        let api = pherry::subxt_connect(&config.node_uri)
+            .await
+            .context(format!("Failed to connect to {}", config.node_uri))?;
+        cache::grab_headers(&api, &para_api, number, 1, 1, |info| {
+            db.put_header(info.header.number, &info.encode())
+                .context("Failed to put record to DB")?;
+            grabed = Some(info.header);
+            Ok(())
+        })
+        .await?;
+    };
+    grabed.ok_or(anyhow!("Failed to grab {chain}chain header {number}"))
 }

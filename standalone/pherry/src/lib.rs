@@ -1,7 +1,10 @@
 use anyhow::{anyhow, Context, Result};
 use log::{debug, error, info, warn};
-use sp_core::crypto::AccountId32;
+use phala_node_rpc_ext::MakeInto;
+use phala_trie_storage::ser::StorageChanges;
+use sp_core::{crypto::AccountId32, H256};
 use std::cmp;
+use std::convert::TryFrom;
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -320,7 +323,17 @@ pub async fn fetch_storage_changes(
     from: BlockNumber,
     to: BlockNumber,
 ) -> Result<Vec<BlockHeaderWithChanges>> {
-    log::info!("fetch_storage_changes ({from}-{to})");
+    fetch_storage_changes_with_root_or_not(client, cache, from, to, false).await
+}
+
+pub async fn fetch_storage_changes_with_root_or_not(
+    client: &RpcClient,
+    cache: Option<&CacheClient>,
+    from: BlockNumber,
+    to: BlockNumber,
+    with_root: bool,
+) -> Result<Vec<BlockHeaderWithChanges>> {
+    log::info!("fetch_storage_changes with_root={with_root}, ({from}-{to})");
     if to < from {
         return Ok(vec![]);
     }
@@ -336,21 +349,47 @@ pub async fn fetch_storage_changes(
     }
     let from_hash = get_header_hash(client, Some(from)).await?;
     let to_hash = get_header_hash(client, Some(to)).await?;
-    let storage_changes = chain_client::fetch_storage_changes(client, &from_hash, &to_hash)
-        .await?
+
+    let changes = if with_root {
+        client
+            .extra_rpc()
+            .get_storage_changes_with_root(&from_hash, &to_hash)
+            .await?
+            .into_iter()
+            .map(|changes| {
+                Ok((changes.changes, {
+                    let raw: [u8; 32] = TryFrom::try_from(&changes.state_root[..])
+                        .or(Err(anyhow!("Invalid state root")))?;
+                    H256::from(raw)
+                }))
+            })
+            .collect::<Result<Vec<_>>>()?
+    } else {
+        client
+            .extra_rpc()
+            .get_storage_changes(&from_hash, &to_hash)
+            .await?
+            .into_iter()
+            .map(|changes| (changes, Default::default()))
+            .collect::<Vec<_>>()
+    };
+    let storage_changes = changes
         .into_iter()
         .enumerate()
-        .map(|(offset, storage_changes)| {
+        .map(|(offset, (storage_changes, state_root))| {
             BlockHeaderWithChanges {
                 // Headers are synced separately. Only the `number` is used in pRuntime while syncing blocks.
                 block_header: BlockHeader {
                     number: from + offset as BlockNumber,
                     parent_hash: Default::default(),
-                    state_root: Default::default(),
+                    state_root,
                     extrinsics_root: Default::default(),
                     digest: Default::default(),
                 },
-                storage_changes,
+                storage_changes: StorageChanges {
+                    main_storage_changes: storage_changes.main_storage_changes.into_(),
+                    child_storage_changes: storage_changes.child_storage_changes.into_(),
+                },
             }
         })
         .collect();
