@@ -3,6 +3,13 @@ source: pallets/phala/src/test.rs
 expression: take_events()
 ---
 [
+    RuntimeEvent::PhalaVault(
+        Event::OwnerSharesGained {
+            pid: 2,
+            shares: 100,
+            checkout_price: 1000000000333,
+        },
+    ),
     RuntimeEvent::Uniques(
         Event::Issued {
             collection: 10002,
