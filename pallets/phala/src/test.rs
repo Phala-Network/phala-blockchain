@@ -2212,6 +2212,85 @@ fn vault_force_withdraw_after_3x_grace_period() {
 	});
 }
 
+#[test]
+fn vault_owner_reward_settle_when_contribute_withdraw() {
+	use crate::compute::computation::pallet::OnReward;
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		set_block_1();
+		setup_workers(1);
+		setup_stake_pool_with_workers(1, &[1]); // pid = 0
+		let vault1 = setup_vault(99);
+		assert_ok!(PhalaVault::set_payout_pref(
+			RuntimeOrigin::signed(99),
+			vault1,
+			Some(Permill::from_percent(100)),
+		));
+		assert_ok!(PhalaVault::contribute(
+			RuntimeOrigin::signed(1),
+			1,
+			100 * DOLLARS,
+		));
+		assert_ok!(PhalaStakePoolv2::contribute(
+			RuntimeOrigin::signed(99),
+			0,
+			100 * DOLLARS,
+			Some(vault1),
+		));
+		// Checkpoint price = 1
+		assert_ok!(PhalaVault::maybe_gain_owner_shares(
+			RuntimeOrigin::signed(99),
+			vault1,
+		));
+		let pool0 = ensure_stake_pool::<Test>(0).unwrap();
+		assert_eq!(pool0.basepool.share_price(), Some(fp!(1)));
+		let pool1 = ensure_vault::<Test>(1).unwrap();
+		assert_eq!(pool1.basepool.share_price(), Some(fp!(1)));
+		assert_eq!(pool1.last_share_price_checkpoint, 1 * DOLLARS);
+
+		// Current price = 2
+		PhalaStakePoolv2::on_reward(&[SettleInfo {
+			pubkey: worker_pubkey(1),
+			v: FixedPoint::from_num(1u32).to_bits(),
+			payout: FixedPoint::from_num(100u32).to_bits(),
+			treasury: 0,
+		}]);
+		let pool1 = ensure_vault::<Test>(1).unwrap();
+		assert_eq!(pool1.basepool.share_price(), Some(fp!(2)));
+		// Contribution should bring price back to 1
+		assert_ok!(PhalaVault::contribute(
+			RuntimeOrigin::signed(1),
+			1,
+			100 * DOLLARS,
+		));
+		let pool1 = ensure_vault::<Test>(1).unwrap();
+		assert_eq!(pool1.basepool.share_price(), Some(fp!(1)));
+
+		// Double the stake pool asset by adding 300 reward
+		// Current price = 2 again
+		PhalaStakePoolv2::on_reward(&[SettleInfo {
+			pubkey: worker_pubkey(1),
+			v: FixedPoint::from_num(1u32).to_bits(),
+			payout: FixedPoint::from_num(300u32).to_bits(),
+			treasury: 0,
+		}]);
+		let pool1 = ensure_vault::<Test>(1).unwrap();
+		assert_eq!(pool1.basepool.share_price(), Some(fp!(2)));
+		// Withdrawal should bring the price back to 1
+		assert_ok!(PhalaVault::withdraw(
+			RuntimeOrigin::signed(1),
+			1,
+			100 * DOLLARS,
+		));
+		let pool1 = ensure_vault::<Test>(1).unwrap();
+		assert_eq!(pool1.basepool.share_price(), Some(fp!(1)));
+	});
+}
+
 fn mock_asset_id() {
 	<pallet_assets::pallet::Pallet<Test> as Create<u64>>::create(
 		<Test as wrapped_balances::Config>::WPhaAssetId::get(),

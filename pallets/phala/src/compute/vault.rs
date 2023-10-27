@@ -309,41 +309,12 @@ pub mod pallet {
 		#[pallet::weight({0})]
 		pub fn maybe_gain_owner_shares(origin: OriginFor<T>, vault_pid: u64) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let mut pool_info = ensure_vault::<T>(vault_pid)?;
-			// Add pool owner's reward if applicable
+			let pool_info = ensure_vault::<T>(vault_pid)?;
 			ensure!(
 				who == pool_info.basepool.owner,
 				Error::<T>::UnauthorizedPoolOwner
 			);
-			let current_price = match pool_info.basepool.share_price() {
-				Some(price) => BalanceOf::<T>::from_fixed(&price),
-				None => return Ok(()),
-			};
-			if pool_info.last_share_price_checkpoint == Zero::zero() {
-				pool_info.last_share_price_checkpoint = current_price;
-				base_pool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(pool_info));
-				return Ok(());
-			}
-			if current_price <= pool_info.last_share_price_checkpoint {
-				return Ok(());
-			}
-			let delta_price = pool_info.commission.unwrap_or_default()
-				* (current_price - pool_info.last_share_price_checkpoint);
-			let new_price = current_price - delta_price;
-			let adjust_shares = bdiv(pool_info.basepool.total_value, &new_price.to_fixed())
-				- pool_info.basepool.total_shares;
-			pool_info.basepool.total_shares += adjust_shares;
-			pool_info.owner_shares += adjust_shares;
-			pool_info.last_share_price_checkpoint = new_price;
-
-			base_pool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(pool_info));
-			Self::deposit_event(Event::<T>::OwnerSharesGained {
-				pid: vault_pid,
-				shares: adjust_shares,
-				checkout_price: new_price,
-			});
-
-			Ok(())
+			Self::do_gain_owner_share(vault_pid)
 		}
 
 		/// Let any user to launch a vault withdraw. Then check if the vault need to be forced withdraw all its contributions.
@@ -488,9 +459,7 @@ pub mod pallet {
 		#[frame_support::transactional]
 		pub fn contribute(origin: OriginFor<T>, pid: u64, amount: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let mut pool_info = ensure_vault::<T>(pid)?;
 			let a = amount; // Alias to reduce confusion in the code below
-
 			ensure!(
 				a >= T::MinContribution::get(),
 				Error::<T>::InsufficientContribution
@@ -502,11 +471,15 @@ pub mod pallet {
 			.ok_or(Error::<T>::AssetAccountNotExist)?;
 			ensure!(free >= a, Error::<T>::InsufficientBalance);
 
+			// Trigger owner reward share distribution before contribution to ensure no harm to the
+			// contributor.
+			Self::do_gain_owner_share(pid)?;
+			let mut pool_info = ensure_vault::<T>(pid)?;
+
 			let shares =
 				base_pool::Pallet::<T>::contribute(&mut pool_info.basepool, who.clone(), amount)?;
 
 			// We have new free stake now, try to handle the waiting withdraw queue
-
 			base_pool::Pallet::<T>::try_process_withdraw_queue(&mut pool_info.basepool);
 
 			// Persist
@@ -542,7 +515,12 @@ pub mod pallet {
 		#[frame_support::transactional]
 		pub fn withdraw(origin: OriginFor<T>, pid: u64, shares: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
+
+			// Trigger owner reward share distribution before withdrawal to ensure no harm to the
+			// pool owner.
+			Self::do_gain_owner_share(pid)?;
 			let mut pool_info = ensure_vault::<T>(pid)?;
+
 			let maybe_nft_id = base_pool::Pallet::<T>::merge_nft_for_staker(
 				pool_info.basepool.cid,
 				who.clone(),
@@ -603,6 +581,52 @@ pub mod pallet {
 			base_pool::Pallet::<T>::ensure_migration_root(who)?;
 			VaultLocks::<T>::remove(pid);
 			Self::check_and_maybe_force_withdraw(origin, pid)
+		}
+	}
+
+	impl<T: Config> Pallet<T>
+	where
+		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
+		T: pallet_rmrk_core::Config<CollectionId = CollectionId, ItemId = NftId>,
+		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
+	{
+		/// Triggers owner reward share distribution
+		///
+		/// Note 1: This function does mutate the pool info. After calling this function, the caller
+		/// must read the pool info again if it's accessed.
+		///
+		/// Note 2: This function guarantees no-op when it returns error.
+		fn do_gain_owner_share(vault_pid: u64) -> DispatchResult {
+			let mut pool_info = ensure_vault::<T>(vault_pid)?;
+			let current_price = match pool_info.basepool.share_price() {
+				Some(price) => BalanceOf::<T>::from_fixed(&price),
+				None => return Ok(()),
+			};
+			if pool_info.last_share_price_checkpoint == Zero::zero() {
+				pool_info.last_share_price_checkpoint = current_price;
+				base_pool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(pool_info));
+				return Ok(());
+			}
+			if current_price <= pool_info.last_share_price_checkpoint {
+				return Ok(());
+			}
+			let delta_price = pool_info.commission.unwrap_or_default()
+				* (current_price - pool_info.last_share_price_checkpoint);
+			let new_price = current_price - delta_price;
+			let adjust_shares = bdiv(pool_info.basepool.total_value, &new_price.to_fixed())
+				- pool_info.basepool.total_shares;
+			pool_info.basepool.total_shares += adjust_shares;
+			pool_info.owner_shares += adjust_shares;
+			pool_info.last_share_price_checkpoint = new_price;
+
+			base_pool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(pool_info));
+			Self::deposit_event(Event::<T>::OwnerSharesGained {
+				pid: vault_pid,
+				shares: adjust_shares,
+				checkout_price: new_price,
+			});
+
+			Ok(())
 		}
 	}
 }
