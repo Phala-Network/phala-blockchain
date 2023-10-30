@@ -10,8 +10,8 @@ log = "0.4.14"
 tracing = { version = "0.1", default-features = false }
 hex = { version =  "0.4.3", default-features = false, features = ['alloc'] }
 derive_more = { version = "0.99", default-features = false, features = ["display"] }
-parity-scale-codec = { version = "3.3", default-features = false, features = ["derive"] }
-scale-info = { version = "2.3", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.6.5", default-features = false, features = ["derive"] }
+scale-info = { version = "2.10.0", default-features = false, features = ["derive"] }
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 

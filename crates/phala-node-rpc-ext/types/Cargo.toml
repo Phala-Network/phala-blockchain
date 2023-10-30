@@ -6,5 +6,5 @@ edition = "2021"
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 impl-serde = "0.4.0"
-scale-info = { version = "2.3", default-features = false }
-scale = { package = "parity-scale-codec", version = "3.3" }
+scale-info = { version = "2.10.0", default-features = false }
+scale = { package = "parity-scale-codec", version = "3.6.5" }

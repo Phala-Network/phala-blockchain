@@ -27,7 +27,7 @@ base64 = "0.13.0"
 
 phala-sanitized-logger = { path = "../../crates/phala-sanitized-logger" }
 lazy_static = { version = "1.4.0", default-features = false }
-parity-scale-codec = { version = "3.3", default-features = false }
+parity-scale-codec = { version = "3.6.5", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 urlencoding = "2.1.0"
 
