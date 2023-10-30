@@ -201,8 +201,10 @@ pub fn on_idle(n: BlockNumber) {
 #[test]
 pub fn check_metadata() {
     let storage = crate::storage::in_memory_backend::InMemoryStorage::default();
-    let mut context = pink_capi::v1::ocall::ExecContext::default();
-    context.block_number = 1;
+    let context = pink_capi::v1::ocall::ExecContext {
+        block_number: 1,
+        ..Default::default()
+    };
     let metadata: Vec<u8> = storage
         .execute_with(&context, || PinkRuntime::metadata().into())
         .0;
