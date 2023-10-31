@@ -15,8 +15,8 @@ jsonrpsee = { version = "0.16.2", features = ["server"] }
 impl-serde = "0.4.0"
 log = { version = "0.4.14", default-features = false }
 hex = { version = "0.4.3", default-features = false }
-codec = { package = "parity-scale-codec", version = "3.3" }
-scale-info = { version = "2.3", default-features = false }
+codec = { package = "parity-scale-codec", version = "3.6.5" }
+scale-info = { version = "2.10.0", default-features = false }
 
 # primitives
 sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }

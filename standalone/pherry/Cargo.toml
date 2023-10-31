@@ -25,8 +25,8 @@ system = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "rel
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", package = "sp-runtime" }
 sp-consensus-grandpa = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
-codec = { package = 'parity-scale-codec', version = "3.3" }
-scale-info = { version = '2.3' }
+codec = { package = 'parity-scale-codec', version = "3.6.5" }
+scale-info = { version = '2.10.0' }
 
 pallet-grandpa = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 pallet-indices = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }

@@ -2250,7 +2250,7 @@ fn vault_owner_reward_settle_when_contribute_withdraw() {
 		assert_eq!(pool0.basepool.share_price(), Some(fp!(1)));
 		let pool1 = ensure_vault::<Test>(1).unwrap();
 		assert_eq!(pool1.basepool.share_price(), Some(fp!(1)));
-		assert_eq!(pool1.last_share_price_checkpoint, 1 * DOLLARS);
+		assert_eq!(pool1.last_share_price_checkpoint, DOLLARS);
 
 		// Current price = 2
 		PhalaStakePoolv2::on_reward(&[SettleInfo {
