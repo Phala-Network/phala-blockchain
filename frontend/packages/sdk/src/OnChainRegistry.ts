@@ -177,7 +177,7 @@ export class OnChainRegistry {
       }
       _clusterId = clusters[0][0] as string
     }
-    const result = await this.api.query.phalaPhatContracts.clusterWorkers(clusterId)
+    const result = await this.api.query.phalaPhatContracts.clusterWorkers(_clusterId)
     const workerIds = result.toJSON() as string[]
     const infos = await this.api.query.phalaRegistry.endpoints.multi(workerIds)
     return infos.map((info, idx) => {
