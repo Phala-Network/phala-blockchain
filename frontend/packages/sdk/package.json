@@ -105,5 +105,6 @@
     "bracketSameLine": true,
     "tabWidth": 2,
     "printWidth": 120
-  }
+  },
+  "packageManager": "yarn@1.22.19"
 }
