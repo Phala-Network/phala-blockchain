@@ -14,7 +14,8 @@ import { pruntime_rpc } from './pruntime/proto'
 export class UnexpectedEndpointError extends Error {}
 
 // @FIXME: We not yet cover `as` and the `OnlyOwner` scenario.
-interface ClusterPermission extends Enum { readonly isPublic: boolean
+interface ClusterPermission extends Enum {
+  readonly isPublic: boolean
 }
 
 interface ClusterInfo extends Map {
@@ -188,7 +189,7 @@ export class OnChainRegistry {
         endpoints: {
           default: endpoints.v1[0],
           v1: endpoints.v1,
-        }
+        },
       }
     })
   }
@@ -229,14 +230,14 @@ export class OnChainRegistry {
    * skipCheck: boolean | undefined - Skip the check of cluster and worker has been registry on chain or not, it's for cluster
    *                      deployment scenario, where the cluster and worker has not been registry on chain yet.
    */
-  public async connect(worker?: WorkerInfo): Promise<void>;
+  public async connect(worker?: WorkerInfo): Promise<void>
   public async connect(
     clusterId?: string | null,
     workerId?: string | null,
     pruntimeURL?: string | null,
     systemContractId?: string | AccountId,
     skipCheck?: boolean
-  ): Promise<void>;
+  ): Promise<void>
   public async connect(...args: any[]): Promise<void> {
     this.#ready = false
 
@@ -345,7 +346,7 @@ export class OnChainRegistry {
       endpoints: {
         default: pruntimeURL!,
         v1: [pruntimeURL!],
-      }
+      },
     }
     this.clusterInfo = clusterInfo as ClusterInfo
 
