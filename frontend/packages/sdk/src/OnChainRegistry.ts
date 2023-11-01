@@ -170,7 +170,11 @@ export class OnChainRegistry {
   public async getClusterWorkers(clusterId?: string): Promise<WorkerInfo[]> {
     let _clusterId = clusterId || this.clusterId
     if (!_clusterId) {
-      throw new Error('You need specified clusterId to list workers inside it.')
+      const clusters = await this.getAllClusters()
+      if (!clusters || clusters.length === 0) {
+        throw new Error('You need specified clusterId to list workers inside it.')
+      }
+      _clusterId = clusters[0][0] as string
     }
     const result = await this.api.query.phalaPhatContracts.clusterWorkers(clusterId)
     const workerIds = result.toJSON() as string[]
