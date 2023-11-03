@@ -51,6 +51,11 @@ export interface WorkerInfo {
   }
 }
 
+export interface PartialWorkerInfo {
+  clusterId?: string
+  pruntimeURL: string
+}
+
 export class OnChainRegistry {
   public api: ApiPromise
 
@@ -230,7 +235,7 @@ export class OnChainRegistry {
    * skipCheck: boolean | undefined - Skip the check of cluster and worker has been registry on chain or not, it's for cluster
    *                      deployment scenario, where the cluster and worker has not been registry on chain yet.
    */
-  public async connect(worker?: WorkerInfo): Promise<void>
+  public async connect(worker?: WorkerInfo | PartialWorkerInfo): Promise<void>
   public async connect(
     clusterId?: string | null,
     workerId?: string | null,
@@ -261,17 +266,60 @@ export class OnChainRegistry {
 
       // Scenario 2: connect to specified worker.
       if (args.length === 1 && args[0] instanceof Object) {
-        const worker = args[0] as WorkerInfo
-        const clusterInfo = await this.getClusterInfoById(worker.clusterId)
-        if (!clusterInfo) {
-          throw new Error(`Cluster not found: ${worker.clusterId}`)
+        // Minimal connection settings, only PRuntimeURL has been specified.
+        // clusterId is optional here since we can find it from `getClusterInfo`
+        // API
+        if (args[0].pruntimeURL) {
+          const partialInfo = args[0] as PartialWorkerInfo
+          const pruntimeURL = partialInfo.pruntimeURL
+          let clusterId = partialInfo.clusterId
+          if (!pruntimeURL) {
+            throw new Error('pruntimeURL is required.')
+          }
+          // We don't here preparePruntimeClientOrThrows here because we need
+          // getting related info from PRtunime, we don't need extra check here.
+          const phactory = createPruntimeClient(pruntimeURL)
+          if (!clusterId) {
+            const clusterInfoQuery = await phactory.getClusterInfo({})
+            if (clusterInfoQuery?.info?.id) {
+              clusterId = clusterInfoQuery.info.id as string
+            } else {
+              throw new Error(`getClusterInfo is unavailable, please ensure ${pruntimeURL} is valid PRuntime endpoint.`)
+            }
+          }
+          const clusterInfo = await this.getClusterInfoById(clusterId)
+          if (!clusterInfo) {
+            throw new Error(`Cluster not found: ${partialInfo.clusterId}`)
+          }
+          const nodeInfo = await phactory.getInfo({})
+          if (!nodeInfo || !nodeInfo.publicKey) {
+            throw new Error(`Get PRuntime Pubkey failed.`)
+          }
+          this.#phactory = phactory
+          this.clusterId = clusterId
+          this.clusterInfo = clusterInfo
+          this.workerInfo = {
+            pubkey: nodeInfo.publicKey,
+            clusterId: clusterId,
+            endpoints: {
+              default: pruntimeURL,
+            },
+          }
+          this.#ready = true
+          await this.prepareSystemOrThrows(clusterInfo)
+        } else {
+          const worker = args[0] as WorkerInfo
+          const clusterInfo = await this.getClusterInfoById(worker.clusterId)
+          if (!clusterInfo) {
+            throw new Error(`Cluster not found: ${worker.clusterId}`)
+          }
+          this.#phactory = await this.preparePruntimeClientOrThrows(worker.endpoints.default)
+          this.clusterId = worker.clusterId
+          this.clusterInfo = clusterInfo
+          this.workerInfo = worker
+          this.#ready = true
+          await this.prepareSystemOrThrows(clusterInfo)
         }
-        this.#phactory = await this.preparePruntimeClientOrThrows(worker.endpoints.default)
-        this.clusterId = worker.clusterId
-        this.clusterInfo = clusterInfo
-        this.workerInfo = worker
-        this.#ready = true
-        await this.prepareSystemOrThrows(clusterInfo)
         return
       }
     }
