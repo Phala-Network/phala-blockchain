@@ -22,6 +22,8 @@
     "pruntime_rpc.AddEndpointRequest",
     "pruntime_rpc.GetEndpointResponse",
     "pruntime_rpc.Certificate",
-    "pruntime_rpc.SignatureType"
+    "pruntime_rpc.SignatureType",
+    "pruntime_rpc.PhactoryAPI.GetClusterInfo",
+    "pruntime_rpc.GetClusterInfoResponse"
   ]
 }
