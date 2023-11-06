@@ -6061,7 +6061,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension"
-version = "0.4.7"
+version = "0.5.0"
 dependencies = [
  "ink",
  "log",
@@ -6087,7 +6087,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension-runtime"
-version = "0.4.6"
+version = "0.5.0"
 dependencies = [
  "futures",
  "getrandom 0.2.10",

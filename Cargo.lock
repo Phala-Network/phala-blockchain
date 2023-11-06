@@ -4125,7 +4125,7 @@ dependencies = [
 [[package]]
 name = "fflonk"
 version = "0.1.0"
-source = "git+https://github.com/w3f/fflonk#26a5045b24e169cffc1f9328ca83d71061145c40"
+source = "git+https://github.com/w3f/fflonk#e141d4b6f42fb481aefe1b479788694945b6940d"
 dependencies = [
  "ark-ec",
  "ark-ff",
@@ -10099,7 +10099,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension"
-version = "0.4.7"
+version = "0.5.0"
 dependencies = [
  "dlmalloc",
  "ink",
@@ -10129,7 +10129,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension-runtime"
-version = "0.4.6"
+version = "0.5.0"
 dependencies = [
  "futures",
  "getrandom 0.2.7",
@@ -10202,7 +10202,7 @@ dependencies = [
 
 [[package]]
 name = "pink-s3"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "base16",
  "chrono",
@@ -10216,7 +10216,7 @@ dependencies = [
 
 [[package]]
 name = "pink-subrpc"
-version = "0.4.3"
+version = "0.5.0"
 dependencies = [
  "base58",
  "hex",
@@ -10236,7 +10236,7 @@ dependencies = [
 
 [[package]]
 name = "pink-utils"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "hex",
  "ink",
@@ -16316,7 +16316,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.7",
- "rand 0.8.5",
+ "rand 0.4.6",
  "static_assertions",
 ]
 
