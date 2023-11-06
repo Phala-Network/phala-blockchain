@@ -184,13 +184,16 @@ mod check_system {
         #[drink::test]
         fn deploy_and_call_http_get() -> Result<(), Box<dyn std::error::Error>> {
             use drink_pink_runtime::{ExecMode, PinkRuntime};
-            let checker_bundle = BundleProvider::local()?;
+
             let mut session = Session::<PinkRuntime>::new()?;
             session.execute_with(|| {
                 PinkRuntime::setup_cluster().expect("Failed to setup cluster");
             });
+
+            let checker_bundle = BundleProvider::local()?;
             let checker =
                 session.deploy_bundle(checker_bundle, "default", NO_ARGS, vec![], None)?;
+
             let ver: (u16, u16, u16) = session.call_with_address(
                 checker.clone(),
                 "system_contract_version",
@@ -198,6 +201,7 @@ mod check_system {
                 None,
             )??;
             assert_eq!(ver, (1, 0, 0));
+
             let (status, _body): (u16, String) = session.call_with_address(
                 checker.clone(),
                 "http_get",
@@ -205,6 +209,7 @@ mod check_system {
                 None,
             )??;
             assert_eq!(status, 200);
+
             PinkRuntime::execute_in_mode(ExecMode::Transaction, move || {
                 let (status, _body): (u16, String) = session.call_with_address(
                     checker,
