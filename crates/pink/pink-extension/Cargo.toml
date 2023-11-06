@@ -1,6 +1,6 @@
 [package]
 name = "pink-extension"
-version = "0.4.6"
+version = "0.4.7"
 edition = "2018"
 description = "Phala's ink! for writing phat contracts"
 license = "Apache-2.0"
@@ -20,7 +20,7 @@ num_enum = { version = "0.6", default-features = false }
 insta = "1.7.2"
 
 [features]
-default = ["std", "runtime_utils", "ink-as-dependency"]
+default = ["std", "runtime_utils"]
 std = [
     "ink/std",
     "scale/std",
@@ -29,4 +29,3 @@ std = [
 ]
 runtime_utils = ["std"]
 dlmalloc = ["ink/no-allocator", "dep:dlmalloc"]
-ink-as-dependency = []
