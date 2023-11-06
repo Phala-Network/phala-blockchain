@@ -1,6 +1,6 @@
 {
   "name": "@phala/sdk",
-  "version": "0.5.4-nightly-20231020",
+  "version": "0.5.4-nightly-20231103",
   "description": "Phala Phat Contract JS SDK",
   "license": "Apache-2.0",
   "author": [
@@ -105,5 +105,6 @@
     "bracketSameLine": true,
     "tabWidth": 2,
     "printWidth": 120
-  }
+  },
+  "packageManager": "yarn@1.22.19"
 }

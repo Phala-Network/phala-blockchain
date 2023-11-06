@@ -6998,6 +6998,504 @@ $root.pruntime_rpc = (function() {
         return SidevmInfo;
     })();
 
+    pruntime_rpc.GetClusterInfoResponse = (function() {
+
+        /**
+         * Properties of a GetClusterInfoResponse.
+         * @memberof pruntime_rpc
+         * @interface IGetClusterInfoResponse
+         * @property {pruntime_rpc.IClusterInfo|null} [info] GetClusterInfoResponse info
+         */
+
+        /**
+         * Constructs a new GetClusterInfoResponse.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a GetClusterInfoResponse.
+         * @implements IGetClusterInfoResponse
+         * @constructor
+         * @param {pruntime_rpc.IGetClusterInfoResponse=} [properties] Properties to set
+         */
+        function GetClusterInfoResponse(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * GetClusterInfoResponse info.
+         * @member {pruntime_rpc.IClusterInfo|null|undefined} info
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @instance
+         */
+        GetClusterInfoResponse.prototype.info = null;
+
+        /**
+         * Creates a new GetClusterInfoResponse instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {pruntime_rpc.IGetClusterInfoResponse=} [properties] Properties to set
+         * @returns {pruntime_rpc.GetClusterInfoResponse} GetClusterInfoResponse instance
+         */
+        GetClusterInfoResponse.create = function create(properties) {
+            return new GetClusterInfoResponse(properties);
+        };
+
+        /**
+         * Encodes the specified GetClusterInfoResponse message. Does not implicitly {@link pruntime_rpc.GetClusterInfoResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {pruntime_rpc.IGetClusterInfoResponse} message GetClusterInfoResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetClusterInfoResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.info != null && Object.hasOwnProperty.call(message, "info"))
+                $root.pruntime_rpc.ClusterInfo.encode(message.info, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified GetClusterInfoResponse message, length delimited. Does not implicitly {@link pruntime_rpc.GetClusterInfoResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {pruntime_rpc.IGetClusterInfoResponse} message GetClusterInfoResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetClusterInfoResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a GetClusterInfoResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.GetClusterInfoResponse} GetClusterInfoResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetClusterInfoResponse.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetClusterInfoResponse();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1: {
+                        message.info = $root.pruntime_rpc.ClusterInfo.decode(reader, reader.uint32());
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a GetClusterInfoResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.GetClusterInfoResponse} GetClusterInfoResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetClusterInfoResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a GetClusterInfoResponse message.
+         * @function verify
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        GetClusterInfoResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.info != null && message.hasOwnProperty("info")) {
+                var error = $root.pruntime_rpc.ClusterInfo.verify(message.info);
+                if (error)
+                    return "info." + error;
+            }
+            return null;
+        };
+
+        /**
+         * Creates a GetClusterInfoResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.GetClusterInfoResponse} GetClusterInfoResponse
+         */
+        GetClusterInfoResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.GetClusterInfoResponse)
+                return object;
+            var message = new $root.pruntime_rpc.GetClusterInfoResponse();
+            if (object.info != null) {
+                if (typeof object.info !== "object")
+                    throw TypeError(".pruntime_rpc.GetClusterInfoResponse.info: object expected");
+                message.info = $root.pruntime_rpc.ClusterInfo.fromObject(object.info);
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a GetClusterInfoResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {pruntime_rpc.GetClusterInfoResponse} message GetClusterInfoResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        GetClusterInfoResponse.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults)
+                object.info = null;
+            if (message.info != null && message.hasOwnProperty("info"))
+                object.info = $root.pruntime_rpc.ClusterInfo.toObject(message.info, options);
+            return object;
+        };
+
+        /**
+         * Converts this GetClusterInfoResponse to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        GetClusterInfoResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for GetClusterInfoResponse
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        GetClusterInfoResponse.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.GetClusterInfoResponse";
+        };
+
+        return GetClusterInfoResponse;
+    })();
+
+    pruntime_rpc.ClusterInfo = (function() {
+
+        /**
+         * Properties of a ClusterInfo.
+         * @memberof pruntime_rpc
+         * @interface IClusterInfo
+         * @property {string|null} [id] ClusterInfo id
+         * @property {string|null} [runtimeVersion] ClusterInfo runtimeVersion
+         * @property {string|null} [stateRoot] ClusterInfo stateRoot
+         * @property {Array.<string>|null} [contracts] ClusterInfo contracts
+         */
+
+        /**
+         * Constructs a new ClusterInfo.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a ClusterInfo.
+         * @implements IClusterInfo
+         * @constructor
+         * @param {pruntime_rpc.IClusterInfo=} [properties] Properties to set
+         */
+        function ClusterInfo(properties) {
+            this.contracts = [];
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ClusterInfo id.
+         * @member {string} id
+         * @memberof pruntime_rpc.ClusterInfo
+         * @instance
+         */
+        ClusterInfo.prototype.id = "";
+
+        /**
+         * ClusterInfo runtimeVersion.
+         * @member {string} runtimeVersion
+         * @memberof pruntime_rpc.ClusterInfo
+         * @instance
+         */
+        ClusterInfo.prototype.runtimeVersion = "";
+
+        /**
+         * ClusterInfo stateRoot.
+         * @member {string} stateRoot
+         * @memberof pruntime_rpc.ClusterInfo
+         * @instance
+         */
+        ClusterInfo.prototype.stateRoot = "";
+
+        /**
+         * ClusterInfo contracts.
+         * @member {Array.<string>} contracts
+         * @memberof pruntime_rpc.ClusterInfo
+         * @instance
+         */
+        ClusterInfo.prototype.contracts = $util.emptyArray;
+
+        /**
+         * Creates a new ClusterInfo instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {pruntime_rpc.IClusterInfo=} [properties] Properties to set
+         * @returns {pruntime_rpc.ClusterInfo} ClusterInfo instance
+         */
+        ClusterInfo.create = function create(properties) {
+            return new ClusterInfo(properties);
+        };
+
+        /**
+         * Encodes the specified ClusterInfo message. Does not implicitly {@link pruntime_rpc.ClusterInfo.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {pruntime_rpc.IClusterInfo} message ClusterInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ClusterInfo.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.id != null && Object.hasOwnProperty.call(message, "id"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.id);
+            if (message.runtimeVersion != null && Object.hasOwnProperty.call(message, "runtimeVersion"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.runtimeVersion);
+            if (message.stateRoot != null && Object.hasOwnProperty.call(message, "stateRoot"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.stateRoot);
+            if (message.contracts != null && message.contracts.length)
+                for (var i = 0; i < message.contracts.length; ++i)
+                    writer.uint32(/* id 4, wireType 2 =*/34).string(message.contracts[i]);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ClusterInfo message, length delimited. Does not implicitly {@link pruntime_rpc.ClusterInfo.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {pruntime_rpc.IClusterInfo} message ClusterInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ClusterInfo.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a ClusterInfo message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.ClusterInfo} ClusterInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ClusterInfo.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ClusterInfo();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1: {
+                        message.id = reader.string();
+                        break;
+                    }
+                case 2: {
+                        message.runtimeVersion = reader.string();
+                        break;
+                    }
+                case 3: {
+                        message.stateRoot = reader.string();
+                        break;
+                    }
+                case 4: {
+                        if (!(message.contracts && message.contracts.length))
+                            message.contracts = [];
+                        message.contracts.push(reader.string());
+                        break;
+                    }
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a ClusterInfo message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.ClusterInfo} ClusterInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ClusterInfo.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a ClusterInfo message.
+         * @function verify
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ClusterInfo.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.id != null && message.hasOwnProperty("id"))
+                if (!$util.isString(message.id))
+                    return "id: string expected";
+            if (message.runtimeVersion != null && message.hasOwnProperty("runtimeVersion"))
+                if (!$util.isString(message.runtimeVersion))
+                    return "runtimeVersion: string expected";
+            if (message.stateRoot != null && message.hasOwnProperty("stateRoot"))
+                if (!$util.isString(message.stateRoot))
+                    return "stateRoot: string expected";
+            if (message.contracts != null && message.hasOwnProperty("contracts")) {
+                if (!Array.isArray(message.contracts))
+                    return "contracts: array expected";
+                for (var i = 0; i < message.contracts.length; ++i)
+                    if (!$util.isString(message.contracts[i]))
+                        return "contracts: string[] expected";
+            }
+            return null;
+        };
+
+        /**
+         * Creates a ClusterInfo message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.ClusterInfo} ClusterInfo
+         */
+        ClusterInfo.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.ClusterInfo)
+                return object;
+            var message = new $root.pruntime_rpc.ClusterInfo();
+            if (object.id != null)
+                message.id = String(object.id);
+            if (object.runtimeVersion != null)
+                message.runtimeVersion = String(object.runtimeVersion);
+            if (object.stateRoot != null)
+                message.stateRoot = String(object.stateRoot);
+            if (object.contracts) {
+                if (!Array.isArray(object.contracts))
+                    throw TypeError(".pruntime_rpc.ClusterInfo.contracts: array expected");
+                message.contracts = [];
+                for (var i = 0; i < object.contracts.length; ++i)
+                    message.contracts[i] = String(object.contracts[i]);
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a ClusterInfo message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {pruntime_rpc.ClusterInfo} message ClusterInfo
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ClusterInfo.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.arrays || options.defaults)
+                object.contracts = [];
+            if (options.defaults) {
+                object.id = "";
+                object.runtimeVersion = "";
+                object.stateRoot = "";
+            }
+            if (message.id != null && message.hasOwnProperty("id"))
+                object.id = message.id;
+            if (message.runtimeVersion != null && message.hasOwnProperty("runtimeVersion"))
+                object.runtimeVersion = message.runtimeVersion;
+            if (message.stateRoot != null && message.hasOwnProperty("stateRoot"))
+                object.stateRoot = message.stateRoot;
+            if (message.contracts && message.contracts.length) {
+                object.contracts = [];
+                for (var j = 0; j < message.contracts.length; ++j)
+                    object.contracts[j] = message.contracts[j];
+            }
+            return object;
+        };
+
+        /**
+         * Converts this ClusterInfo to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.ClusterInfo
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ClusterInfo.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        /**
+         * Gets the default type url for ClusterInfo
+         * @function getTypeUrl
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {string} [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns {string} The default type url
+         */
+        ClusterInfo.getTypeUrl = function getTypeUrl(typeUrlPrefix) {
+            if (typeUrlPrefix === undefined) {
+                typeUrlPrefix = "type.googleapis.com";
+            }
+            return typeUrlPrefix + "/pruntime_rpc.ClusterInfo";
+        };
+
+        return ClusterInfo;
+    })();
+
     pruntime_rpc.SidevmCode = (function() {
 
         /**

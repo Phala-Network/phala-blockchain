@@ -3005,6 +3005,218 @@ export namespace pruntime_rpc {
         public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
+    /** Properties of a GetClusterInfoResponse. */
+    interface IGetClusterInfoResponse {
+
+        /** GetClusterInfoResponse info */
+        info?: (pruntime_rpc.IClusterInfo|null);
+    }
+
+    /** Represents a GetClusterInfoResponse. */
+    class GetClusterInfoResponse implements IGetClusterInfoResponse {
+
+        /**
+         * Constructs a new GetClusterInfoResponse.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IGetClusterInfoResponse);
+
+        /** GetClusterInfoResponse info. */
+        public info?: (pruntime_rpc.IClusterInfo|null);
+
+        /**
+         * Creates a new GetClusterInfoResponse instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns GetClusterInfoResponse instance
+         */
+        public static create(properties?: pruntime_rpc.IGetClusterInfoResponse): pruntime_rpc.GetClusterInfoResponse;
+
+        /**
+         * Encodes the specified GetClusterInfoResponse message. Does not implicitly {@link pruntime_rpc.GetClusterInfoResponse.verify|verify} messages.
+         * @param message GetClusterInfoResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IGetClusterInfoResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified GetClusterInfoResponse message, length delimited. Does not implicitly {@link pruntime_rpc.GetClusterInfoResponse.verify|verify} messages.
+         * @param message GetClusterInfoResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IGetClusterInfoResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a GetClusterInfoResponse message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns GetClusterInfoResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.GetClusterInfoResponse;
+
+        /**
+         * Decodes a GetClusterInfoResponse message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns GetClusterInfoResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.GetClusterInfoResponse;
+
+        /**
+         * Verifies a GetClusterInfoResponse message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a GetClusterInfoResponse message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns GetClusterInfoResponse
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.GetClusterInfoResponse;
+
+        /**
+         * Creates a plain object from a GetClusterInfoResponse message. Also converts values to other types if specified.
+         * @param message GetClusterInfoResponse
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.GetClusterInfoResponse, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this GetClusterInfoResponse to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for GetClusterInfoResponse
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a ClusterInfo. */
+    interface IClusterInfo {
+
+        /** ClusterInfo id */
+        id?: (string|null);
+
+        /** ClusterInfo runtimeVersion */
+        runtimeVersion?: (string|null);
+
+        /** ClusterInfo stateRoot */
+        stateRoot?: (string|null);
+
+        /** ClusterInfo contracts */
+        contracts?: (string[]|null);
+    }
+
+    /** Represents a ClusterInfo. */
+    class ClusterInfo implements IClusterInfo {
+
+        /**
+         * Constructs a new ClusterInfo.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IClusterInfo);
+
+        /** ClusterInfo id. */
+        public id: string;
+
+        /** ClusterInfo runtimeVersion. */
+        public runtimeVersion: string;
+
+        /** ClusterInfo stateRoot. */
+        public stateRoot: string;
+
+        /** ClusterInfo contracts. */
+        public contracts: string[];
+
+        /**
+         * Creates a new ClusterInfo instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ClusterInfo instance
+         */
+        public static create(properties?: pruntime_rpc.IClusterInfo): pruntime_rpc.ClusterInfo;
+
+        /**
+         * Encodes the specified ClusterInfo message. Does not implicitly {@link pruntime_rpc.ClusterInfo.verify|verify} messages.
+         * @param message ClusterInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IClusterInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ClusterInfo message, length delimited. Does not implicitly {@link pruntime_rpc.ClusterInfo.verify|verify} messages.
+         * @param message ClusterInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IClusterInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a ClusterInfo message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ClusterInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.ClusterInfo;
+
+        /**
+         * Decodes a ClusterInfo message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ClusterInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.ClusterInfo;
+
+        /**
+         * Verifies a ClusterInfo message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a ClusterInfo message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ClusterInfo
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.ClusterInfo;
+
+        /**
+         * Creates a plain object from a ClusterInfo message. Also converts values to other types if specified.
+         * @param message ClusterInfo
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.ClusterInfo, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ClusterInfo to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for ClusterInfo
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
     /** Properties of a SidevmCode. */
     interface ISidevmCode {
 
