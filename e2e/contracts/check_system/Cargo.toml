@@ -23,8 +23,12 @@ default-features = false
 path = "../indeterministic_functions"
 features = ["ink-as-dependency"]
 
+[dev-dependencies]
+drink = "0.6.0"
+drink-pink-runtime = "1"
+
 [build-dependencies]
-sp-core = "7"
+sp-core = "25"
 
 [lib]
 name = "check_system"
@@ -41,3 +45,6 @@ std = [
     "indeterministic_functions/std",
 ]
 ink-as-dependency = []
+
+[patch.crates-io]
+drink = { git = "https://github.com/kvinwang/drink-for-pink.git" }

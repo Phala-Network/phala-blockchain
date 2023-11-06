@@ -11,9 +11,9 @@ mod check_system {
     use pink::system::{ContractDeposit, DriverError, Result, SystemRef};
     use pink::PinkEnvironment;
 
-    use phat_js as js;
     use alloc::string::String;
     use indeterministic_functions::Usd;
+    use phat_js as js;
 
     #[ink(storage)]
     pub struct CheckSystem {
@@ -153,6 +153,10 @@ mod check_system {
                 String::from_utf8(response.body).unwrap_or_default(),
             )
         }
+        #[ink(message)]
+        pub fn system_contract_version(&self) -> (u16, u16, u16) {
+            pink::system::SystemRef::instance().version()
+        }
     }
 
     impl ContractDeposit for CheckSystem {
@@ -167,6 +171,50 @@ mod check_system {
             let weight = deposit / CENTS;
             system.set_contract_weight(contract_id, weight as u32)?;
             Ok(())
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use drink::session::{Session, NO_ARGS};
+
+        #[drink::contract_bundle_provider]
+        enum BundleProvider {}
+
+        #[drink::test]
+        fn deploy_and_call_http_get() -> Result<(), Box<dyn std::error::Error>> {
+            use drink_pink_runtime::{ExecMode, PinkRuntime};
+            let checker_bundle = BundleProvider::local()?;
+            let mut session = Session::<PinkRuntime>::new()?;
+            session.execute_with(|| {
+                PinkRuntime::setup_cluster().expect("Failed to setup cluster");
+            });
+            let checker =
+                session.deploy_bundle(checker_bundle, "default", NO_ARGS, vec![], None)?;
+            let ver: (u16, u16, u16) = session.call_with_address(
+                checker.clone(),
+                "system_contract_version",
+                NO_ARGS,
+                None,
+            )??;
+            assert_eq!(ver, (1, 0, 0));
+            let (status, _body): (u16, String) = session.call_with_address(
+                checker.clone(),
+                "http_get",
+                &["\"https://httpbin.org/get\""],
+                None,
+            )??;
+            assert_eq!(status, 200);
+            PinkRuntime::execute_in_mode(ExecMode::Transaction, move || {
+                let (status, _body): (u16, String) = session.call_with_address(
+                    checker,
+                    "http_get",
+                    &["\"https://httpbin.org/get\""],
+                    None,
+                )??;
+                assert_eq!(status, 523);
+                Ok(())
+            })
         }
     }
 }

@@ -10,8 +10,8 @@ ink = { version = "4", default-features = false }
 scale = { package = "parity-scale-codec", version = "3.6.5", default-features = false, features = ["derive"] }
 scale-info = { version = "2.10.0", default-features = false, features = ["derive"], optional = true }
 
-pink-extension = { version = "0.4", default-features = false, path = "../../pink/pink-extension", features = ["ink-as-dependency"] }
-system = { version = "1.0", default-features = false, path = "../system", features = ["ink-as-dependency"] }
+pink-extension = { version = "0.4", default-features = false, path = "../../pink/pink-extension" }
+system = { version = "1.0", default-features = false, path = "../system" }
 this-crate = { path = "../../this-crate" }
 
 [lib]

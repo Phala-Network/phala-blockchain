@@ -1,6 +1,6 @@
 [package]
 name = "pink-subrpc"
-version = "0.4.3"
+version = "0.4.4"
 authors = ["Phala Network"]
 edition = "2021"
 license = "Apache-2.0"
@@ -21,7 +21,7 @@ hex-literal = "0.4.1"
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 impl-serde = { version = "0.4.0", optional = true }
 
-pink-extension = { version = "0.4", path = "../../pink/pink-extension", default-features = false, features = ["ink-as-dependency"] }
+pink-extension = { version = "0.4", path = "../../pink/pink-extension", default-features = false }
 sp-core-hashing = { version = "9", default-features = false }
 
 serde = { version = "1.0.140", default-features = false, features = ["derive", "alloc"]}
