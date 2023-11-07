@@ -187,6 +187,7 @@ mod check_system {
     #[cfg(test)]
     mod tests {
         use drink::session::Session;
+        use drink::chain_api::ChainApi;
         use drink_pink_runtime::{ExecMode, PinkRuntime};
         use ink::codegen::TraitCallBuilder;
 
@@ -199,7 +200,7 @@ mod check_system {
         #[drink::test]
         fn it_works() -> Result<(), Box<dyn std::error::Error>> {
             let mut session = Session::<PinkRuntime>::new()?;
-            session.execute_with(|| {
+            session.chain_api().execute_with(|| {
                 PinkRuntime::setup_cluster().expect("Failed to setup cluster");
             });
 
@@ -254,7 +255,10 @@ mod check_system {
             },
             primitives::Hash,
         };
-        use drink::{errors::MessageResult, runtime::Runtime, session::Session, ContractBundle};
+        use drink::{
+            chain_api::ChainApi, errors::MessageResult, runtime::Runtime, session::Session,
+            ContractBundle,
+        };
         use drink_pink_runtime::PinkRuntime;
         use pink_extension::{Balance, ConvertTo};
         use scale::{Decode, Encode};
@@ -281,7 +285,7 @@ mod check_system {
             Args: Encode,
             Env::AccountId: From<[u8; 32]>,
         {
-            session.execute_with(move || {
+            session.chain_api().execute_with(move || {
                 let caller = PinkRuntime::default_actor();
                 let code_hash = PinkRuntime::upload_code(caller.clone(), bundle.wasm, true)?;
                 let constructor = constructor
@@ -318,7 +322,7 @@ mod check_system {
             Args: Encode,
             Ret: Decode,
         {
-            session.execute_with(move || {
+            session.chain_api().execute_with(move || {
                 let origin = PinkRuntime::default_actor();
                 let params = call_builder.params();
                 let data = params.exec_input().encode();
