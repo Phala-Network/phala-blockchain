@@ -25,7 +25,7 @@ features = ["ink-as-dependency"]
 
 [dev-dependencies]
 drink = "0.6.0"
-drink-pink-runtime = "1"
+drink-pink-runtime = "1.2.2"
 
 [build-dependencies]
 sp-core = "25"

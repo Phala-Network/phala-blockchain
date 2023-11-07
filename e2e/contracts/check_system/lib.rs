@@ -176,47 +176,140 @@ mod check_system {
 
     #[cfg(test)]
     mod tests {
-        use drink::session::{Session, NO_ARGS};
+        use ::ink::env::call::{
+            utils::{ReturnType, Set, Unset},
+            Call, ExecutionInput,
+        };
+        use drink::{errors::MessageResult, runtime::Runtime, session::Session, ContractBundle};
+        use drink_pink_runtime::{ExecMode, PinkRuntime};
+        use ink::codegen::TraitCallBuilder;
+        use ink::env::{
+            call::{CallBuilder, CreateBuilder, FromAccountId},
+            Environment,
+        };
+        use ink::primitives::Hash;
+        use pink_extension::ConvertTo;
+        use scale::{Decode, Encode};
+
+        use super::{Balance, CheckSystemRef};
+
+        const DEFAULT_GAS_LIMIT: u64 = 1_000_000_000_000_000;
 
         #[drink::contract_bundle_provider]
         enum BundleProvider {}
 
+        fn deploy_bundle<Env, Contract, Args>(
+            session: &mut Session<PinkRuntime>,
+            bundle: ContractBundle,
+            constructor: CreateBuilder<
+                Env,
+                Contract,
+                Unset<Hash>,
+                Unset<u64>,
+                Unset<Balance>,
+                Set<ExecutionInput<Args>>,
+                Set<Vec<u8>>,
+                Set<ReturnType<Contract>>,
+            >,
+        ) -> Result<Contract, String>
+        where
+            Env: Environment<Hash = Hash, Balance = Balance>,
+            Contract: FromAccountId<Env>,
+            Args: Encode,
+            Env::AccountId: From<[u8; 32]>,
+        {
+            session.execute_with(move || {
+                let caller = PinkRuntime::default_actor();
+                let code_hash = PinkRuntime::upload_code(caller.clone(), bundle.wasm, true)?;
+                let constructor = constructor
+                    .code_hash(code_hash.0.into())
+                    .endowment(0)
+                    .gas_limit(DEFAULT_GAS_LIMIT);
+                let params = constructor.params();
+                let input_data = params.exec_input().encode();
+                let account_id = PinkRuntime::instantiate(
+                    caller,
+                    0,
+                    params.gas_limit(),
+                    None,
+                    code_hash,
+                    input_data,
+                    params.salt_bytes().clone(),
+                )?;
+                Ok(Contract::from_account_id(account_id.convert_to()))
+            })
+        }
+
+        fn call<Env, Args, Ret>(
+            session: &mut Session<PinkRuntime>,
+            call_builder: CallBuilder<
+                Env,
+                Set<Call<Env>>,
+                Set<ExecutionInput<Args>>,
+                Set<ReturnType<Ret>>,
+            >,
+            deterministic: bool,
+        ) -> Result<Ret, String>
+        where
+            Env: Environment<Hash = Hash, Balance = Balance>,
+            Args: Encode,
+            Ret: Decode,
+        {
+            session.execute_with(move || {
+                let origin = PinkRuntime::default_actor();
+                let params = call_builder.params();
+                let data = params.exec_input().encode();
+                let callee = params.callee();
+                let address: [u8; 32] = callee.as_ref().try_into().or(Err("Invalid callee"))?;
+                let result = PinkRuntime::call(
+                    origin,
+                    address.into(),
+                    0,
+                    DEFAULT_GAS_LIMIT,
+                    None,
+                    data,
+                    deterministic,
+                )?;
+                let ret = MessageResult::<Ret>::decode(&mut &result[..])
+                    .map_err(|e| format!("Failed to decode result: {}", e))?
+                    .map_err(|e| format!("Failed to execute call: {}", e))?;
+                Ok(ret)
+            })
+        }
+
         #[drink::test]
         fn deploy_and_call_http_get() -> Result<(), Box<dyn std::error::Error>> {
-            use drink_pink_runtime::{ExecMode, PinkRuntime};
-
             let mut session = Session::<PinkRuntime>::new()?;
             session.execute_with(|| {
                 PinkRuntime::setup_cluster().expect("Failed to setup cluster");
             });
 
             let checker_bundle = BundleProvider::local()?;
-            let checker =
-                session.deploy_bundle(checker_bundle, "default", NO_ARGS, vec![], None)?;
-
-            let ver: (u16, u16, u16) = session.call_with_address(
-                checker.clone(),
-                "system_contract_version",
-                NO_ARGS,
-                None,
-            )??;
+            let checker = deploy_bundle(
+                &mut session,
+                checker_bundle,
+                CheckSystemRef::default().salt_bytes(vec![]),
+            )?;
+            let ver = call(
+                &mut session,
+                checker.call().system_contract_version(),
+                false,
+            )?;
             assert_eq!(ver, (1, 0, 0));
 
-            let (status, _body): (u16, String) = session.call_with_address(
-                checker.clone(),
-                "http_get",
-                &["\"https://httpbin.org/get\""],
-                None,
-            )??;
+            let (status, _body) = call(
+                &mut session,
+                checker.call().http_get("https://httpbin.org/get".into()),
+                false,
+            )?;
             assert_eq!(status, 200);
 
             PinkRuntime::execute_in_mode(ExecMode::Transaction, move || {
-                let (status, _body): (u16, String) = session.call_with_address(
-                    checker,
-                    "http_get",
-                    &["\"https://httpbin.org/get\""],
-                    None,
-                )??;
+                let (status, _body) = call(
+                    &mut session,
+                    checker.call().http_get("https://httpbin.org/get".into()),
+                    false,
+                )?;
                 assert_eq!(status, 523);
                 Ok(())
             })
