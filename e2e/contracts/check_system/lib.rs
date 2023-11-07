@@ -153,9 +153,19 @@ mod check_system {
                 String::from_utf8(response.body).unwrap_or_default(),
             )
         }
+
         #[ink(message)]
         pub fn system_contract_version(&self) -> (u16, u16, u16) {
             pink::system::SystemRef::instance().version()
+        }
+
+        #[ink(message)]
+        pub fn eval_javascript(
+            &self,
+            script: String,
+            args: Vec<String>,
+        ) -> Result<js::Output, String> {
+            js::eval(&script, &args)
         }
     }
 
@@ -278,7 +288,7 @@ mod check_system {
         }
 
         #[drink::test]
-        fn deploy_and_call_http_get() -> Result<(), Box<dyn std::error::Error>> {
+        fn it_works() -> Result<(), Box<dyn std::error::Error>> {
             let mut session = Session::<PinkRuntime>::new()?;
             session.execute_with(|| {
                 PinkRuntime::setup_cluster().expect("Failed to setup cluster");
@@ -296,6 +306,13 @@ mod check_system {
                 false,
             )?;
             assert_eq!(ver, (1, 0, 0));
+
+            let eval_result = call(
+                &mut session,
+                checker.call().eval_javascript("'Hello'".into(), vec![]),
+                false,
+            )?;
+            assert_eq!(eval_result, Ok(phat_js::Output::String("Hello".into())));
 
             let (status, _body) = call(
                 &mut session,
