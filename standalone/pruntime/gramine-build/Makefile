@@ -95,43 +95,9 @@ ${LIBOS}:
 	rsync -r --no-links ${GRAMINE_RUNTIME_DIR}/ ${RUNTIME_DIR}/lib
 ifeq ($(USE_MUSL),0)
 	cp -rfL ${HOST_LIBC_DIR}/libgcc_s.so.1 ${RUNTIME_DIR}/lib/
-	cp -rfL ${HOST_LIBC_DIR}/libstdc++.so.6 ${RUNTIME_DIR}/lib/
 endif
 ifeq ($(SGX),1)
 	cp -rfL ${GRAMINE_DIR}/sgx ${RUNTIME_DIR}/
-	cp -rfL ${ARCH_LIBDIR}/libsgx_dcap_quoteverify.so.1 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libdcap_quoteprov.so.1 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libsgx_urts.so.2 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libsgx_default_qcnl_wrapper.so.1 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libcurl.so.4 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libnghttp2.so.14 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libidn2.so.0 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libunistring.so.2 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libgnutls.so.30 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libhogweed.so.6 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libnettle.so.8 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libgmp.so.10 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libkrb5.so.3 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libk5crypto.so.3 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libkrb5support.so.0 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libbrotlicommon.so.1 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libp11-kit.so.0 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libkeyutils.so.1 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libtasn1.so.6 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libsasl2.so.2 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libcom_err.so.2 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/librtmp.so.1 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libssh.so.4 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libpsl.so.5 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libssl.so.3 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libcrypto.so.3 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libgssapi_krb5.so.2 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libldap-2.5.so.0 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/liblber-2.5.so.0 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libzstd.so.1 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libbrotlidec.so.1 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libz.so.1 ${RUNTIME_DIR}/lib/
-	cp -rfL ${ARCH_LIBDIR}/libffi.so.8 ${RUNTIME_DIR}/lib/
 endif
 	cp -rfL ${GRAMINE_LIBOS} ${RUNTIME_DIR}/
 
