@@ -9,6 +9,7 @@ apt-get install -y \
     libsgx-launch \
     libsgx-quote-ex \
     libsgx-uae-service \
-    libsgx-urts && \
+    libsgx-urts \
+    libsgx-dcap-quote-verify && \
 mkdir /var/run/aesmd && \
 rm -rf /var/lib/apt/lists/*

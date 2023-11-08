@@ -1,5 +1,6 @@
 SGX_SIGNER_KEY ?= ./private.dev.pem
 SGX ?= 1
+RA_TYPE ?= epid
 BUILD ?= release
 
 include ../config.mk
@@ -8,12 +9,11 @@ ARCH_LIBDIR ?= /lib/$(shell $(CC) -dumpmachine)
 
 CFLAGS = -Wall -Wextra
 
-GRAMINE_LOG_LEVEL = error
+GRAMINE_LOG_LEVEL ?= error
 
 USE_MUSL ?= 0
 
 BIN_NAME = pruntime
-RA_METHOD ?= epid
 
 DATA_DIRS = data/protected_files \
             data/storage_files
@@ -72,13 +72,14 @@ ${BIN_NAME}.manifest: ${BIN_NAME}.manifest.template
 	gramine-manifest \
 		-Dinstall_dir=$(INSTALL_DIR) \
 		-Dlog_level=$(GRAMINE_LOG_LEVEL) \
+		-Dra_type=${RA_TYPE} \
 		-Dra_client_spid=${IAS_SPID} \
+		-Dra_client_linkable=${IAS_LINKABLE} \
 		-Dseal_dir=${PRUNTIME_SEAL_DIR} \
 		-Dstorage_dir=${PRUNTIME_STORAGE_DIR} \
 		-Dlibdir=${RUNTIME_DIR}/lib/ \
 		-Dpink_runtime_dir=${PINK_RUNTIME_DIST_DIR}/ \
 		-Dlibos=${LIBOS} \
-		-Dra_method=${RA_METHOD} \
 		$< $@
 
 ${BIN_NAME}.manifest.sgx: ${BIN_NAME}.manifest ${BIN_NAME} ${LIBOS}
@@ -127,7 +128,8 @@ distclean: clean
 
 .PHONY: pre-dist
 pre-dist: all
-	mkdir -p ${PREFIX}/data
+	mkdir -p ${PREFIX}/data/protected_files
+	mkdir -p ${PREFIX}/data/storage_files
 	cp ${BIN_NAME} ${PREFIX}/
 	cp Rocket.toml ${PREFIX}/
 	cp -rfL ${RUNTIME_DIR} ${PREFIX}/
@@ -139,6 +141,7 @@ dist: pre-dist ${BIN_NAME}.manifest signed-sgx-artifacts
 	cp ${BIN_NAME}.manifest.sgx ${PREFIX}/
 	cp ${BIN_NAME}.sig ${PREFIX}/
 	cp gramine-sgx ${PREFIX}/
+	gramine-sgx-sigstruct-view ${BIN_NAME}.sig
 else
 dist: pre-dist ${BIN_NAME}.manifest
 	cp ${BIN_NAME}.manifest ${PREFIX}/
@@ -151,7 +154,7 @@ token-dist: token dist
 run: all token
 	make dirs
 ifeq ($(SGX),1)
-	./gramine-sgx pruntime
+	./gramine-sgx ${BIN_NAME}
 else
-	gramine-direct pruntime
+	gramine-direct ${BIN_NAME}
 endif
