@@ -2,9 +2,9 @@
 
 ## Quickstart
 
-Here is a glance of how to use @phala/sdk with code snippets. We don't cover too much detail here, but it can be a cheatsheet when you working with it.
+Here is a glance of how to use `@phala/sdk` with code snippets. We don't cover too much detail here, but it can be a cheatsheet when you working with it.
 
-We recommend not install @polkadot packages directly, @phala/sdk will handle that with correlative dependencies.
+We recommend not install `@polkadot` packages directly, `@phala/sdk` will handle that with correlative dependencies.
 
 ```shell
 npm install --save @phala/sdk
@@ -89,10 +89,26 @@ const options = {
   gasLimit: gasRequired.refTime,
   storageDepositLimit: storageDeposit.isCharge ? storageDeposit.asCharge : null,
 }
-await contract.tx.inc(options, incValue).signAndSend(pair, { nonce: -1 })
+const result = await contract.tx.inc(options, incValue).signAndSend(pair, { nonce: -1 })
+await result.waitFinalized()
 ```
 
-And that is basic workaround with Phat Contract, it may cover almost all of your use scenarios.
+> [!NOTE]
+> Starting from version 0.5.4, we have introduced a new mode called "send" that handles complex gas fees and cluster balance management.
+> We refer to this mode as "auto-deposit":
+
+```javascript
+const result = await contract.send.inc({ pair, cert, address: pair.address }, incValue)
+await result.waitFinalized()
+```
+
+> [!IMPORTANT]
+> We recommend call `waitFinalized` for the transaction to be finalized after submitting it, both for `tx` and `send`.
+> When you call `waitFinalized`, the SDK will listen for any transaction errors and throw an error if one occurs. This feature provides a clear mindset when building apps with Phat Contract SDK.
+
+This is a basic workaround using Phat Contract that can cover most of your use scenarios. You can read on for more advantage topics or check out the <a href="https://github.com/Leechael/phat-contract-sdk-cookbook">cookbook</a>.
+
+---
 
 ## Adavantage Topics
 
@@ -133,6 +149,47 @@ const account = availableAccounts[0] // assume you choice the first visible acco
 const signer = extension.signer
 
 const cert = await signCertificate({ signer, account })
+```
+
+### Connect to a specified PRuntime Node
+
+Sometimes, we assign one PRuntime Node to handle all requests. This can be easily accomplished with a few lines of:
+
+```javascript
+const apiPromise = await ApiPromise.create(
+  options({
+    provider: new WsProvider('https://poc6.phala.network/ws'),
+    noInitWarn: true,
+  })
+)
+const registry = new OnChainRegistry(apiPromise)
+await registry.connect({ pruntimeURL: '' })
+```
+
+On the other hands, you can design priorized strategy or shuffle simply:
+
+```javascript
+const apiPromise = await ApiPromise.create(
+  options({
+    provider: new WsProvider(ws),
+    noInitWarn: true,
+  })
+)
+const registry = new OnChainRegistry(apiPromise)
+//
+// Get all available workers for cluster 0x01.
+//
+const clusterId = '0x0000000000000000000000000000000000000000000000000000000000000001'
+const workers = await registry.getClusterWorkers(clusterId)
+//
+// shuffle
+//
+const idx = Math.floor(workers.length * Math.random())
+const picked = workers[idx]
+//
+// connect
+//
+await registry.connect(picked)
 ```
 
 ### Fetch Logs
@@ -208,15 +265,7 @@ const hasExists = output && output.isOk && output.asOk.isTrue
 
 ### Upload & Instantiate Contracts
 
-TODO
-
-### Use specified Cluster & Worker
-
-TODO
-
-### Cluster tokenomics & staking for computations
-
-TODO
+You can checkout the code example here: https://github.com/Leechael/phat-contract-sdk-cookbook/blob/main/upload.js
 
 ## Experimental Features
 
