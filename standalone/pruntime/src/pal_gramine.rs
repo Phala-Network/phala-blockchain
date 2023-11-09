@@ -64,9 +64,7 @@ impl RA for GraminePlatform {
 
                 Ok(Encode::encode(&attestation_report))
             }
-            Some(AttestationProvider::Dcap) => {
-                ias::create_quote_vec(data)
-            }
+            Some(AttestationProvider::Dcap) => ias::create_quote_vec(data),  
             None => Ok(Encode::encode(&None::<AttestationProvider>)),
             _ => Err(anyhow!("Unknown attestation provider `{:?}`", provider)),
         }
