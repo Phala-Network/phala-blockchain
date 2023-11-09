@@ -74,8 +74,7 @@ impl RA for GraminePlatform {
 
     fn quote_test(&self, provider: Option<AttestationProvider>) -> Result<(), Self::Error> {
         match provider {
-            Some(AttestationProvider::Ias) => ias::create_quote_vec(&[0u8; 64]).map(|_| ()),
-            Some(AttestationProvider::Dcap) => ias::create_quote_vec(&[0u8; 64]).map(|_| ()),
+            Some(AttestationProvider::Ias | AttestationProvider::Dcap) => ias::create_quote_vec(&[0u8; 64]).map(|_| ()),
             None => Ok(()),
             _ => Err(anyhow!("Unknown attestation provider `{:?}`", provider)),
         }
