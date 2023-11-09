@@ -55,6 +55,7 @@ signed-sgx-artifacts: ${BIN_NAME}.manifest ${BIN_NAME}.manifest.sgx ${BIN_NAME}.
 
 .PHONY: ${BIN_FILE}
 ${BIN_FILE}:
+	mkdir -p ${PREFIX}
 	make BUILD=${BUILD} PREBUILT_PINK_RUNTIMES_PROFILE=${PREBUILT_PINK_RUNTIMES_PROFILE} -C ..
 
 ${BIN_NAME}: ${BIN_FILE}

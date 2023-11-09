@@ -450,6 +450,8 @@ pub enum AttestationProvider {
     Root,
     #[cfg_attr(feature = "enable_serde", serde(rename = "ias"))]
     Ias,
+    #[cfg_attr(feature = "enable_serde", serde(rename = "dcap"))]
+    Dcap,
 }
 
 #[derive(Encode, Decode, PartialEq, Eq, Debug, Default, Clone, TypeInfo)]
