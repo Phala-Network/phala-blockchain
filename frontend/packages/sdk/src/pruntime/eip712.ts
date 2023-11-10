@@ -3,7 +3,7 @@ import { ApiTypes, type SubmittableExtrinsic } from '@polkadot/api/types'
 import { type U256, type U64 } from '@polkadot/types-codec'
 import { hexToString, hexToU8a, u8aToHex } from '@polkadot/util'
 import { blake2AsU8a, encodeAddress, secp256k1Compress } from '@polkadot/util-crypto'
-import { type Account, Address, type Client } from 'viem'
+import type { Account, Address, WalletClient } from 'viem'
 import { hashMessage, recoverPublicKey } from 'viem'
 import { type signTypedData } from 'viem/wallet'
 import { signMessage } from 'viem/wallet'
@@ -17,7 +17,7 @@ type SignTypedDataInput = Parameters<typeof signTypedData>[1]
  * Get compact formatted ether address for a specified account via a Wallet Client.
  */
 export async function etherAddressToCompactPubkey(
-  client: Client,
+  client: WalletClient,
   account: Account,
   msg = 'Allows to access the pubkey address.'
 ) {
@@ -32,7 +32,7 @@ export async function etherAddressToCompactPubkey(
  * Convert an Ethereum address to a Substrate address.
  */
 export async function etherAddressToSubstrateAddress(
-  client: Client,
+  client: WalletClient,
   account: Account,
   { SS58Prefix = 30, msg = undefined } = {}
 ) {
