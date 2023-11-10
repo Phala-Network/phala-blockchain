@@ -70,6 +70,13 @@ export class unstable_WalletClientSigner implements Signer {
     return this.#address
   }
 
+  get proxiedEvmAccount(): Account {
+    if (!this.#account) {
+      throw new Error('WalletClientSigner is not ready.')
+    }
+    return this.#account
+  }
+
   /**
    *
    */
