@@ -25,9 +25,9 @@ export async function etherAddressToCompactPubkey(client: Client, account: Accou
 /**
  * Convert an Ethereum address to a Substrate address.
  */
-export async function etherAddressToSubstrateAddress(client: Client, account: Account) {
+export async function etherAddressToSubstrateAddress(client: Client, account: Account, SS58Prefix = 30) {
   const compactPubkey = await etherAddressToCompactPubkey(client, account)
-  const substratePubkey = encodeAddress(blake2AsU8a(hexToU8a(compactPubkey)), 42)
+  const substratePubkey = encodeAddress(blake2AsU8a(hexToU8a(compactPubkey)), SS58Prefix)
   return substratePubkey
 }
 
