@@ -1,6 +1,9 @@
-import { hexToU8a, u8aToHex } from '@polkadot/util'
+import { type ApiPromise } from '@polkadot/api'
+import { ApiTypes, type SubmittableExtrinsic } from '@polkadot/api/types'
+import { type U256, type U64 } from '@polkadot/types-codec'
+import { hexToString, hexToU8a, u8aToHex } from '@polkadot/util'
 import { blake2AsU8a, encodeAddress, secp256k1Compress } from '@polkadot/util-crypto'
-import { type Account, type Client } from 'viem'
+import { type Account, Address, type Client } from 'viem'
 import { hashMessage, recoverPublicKey } from 'viem'
 import { type signTypedData } from 'viem/wallet'
 import { signMessage } from 'viem/wallet'
@@ -13,7 +16,11 @@ type SignTypedDataInput = Parameters<typeof signTypedData>[1]
 /**
  * Get compact formatted ether address for a specified account via a Wallet Client.
  */
-export async function etherAddressToCompactPubkey(client: Client, account: Account, msg = 'Allows to access the pubkey address.') {
+export async function etherAddressToCompactPubkey(
+  client: Client,
+  account: Account,
+  msg = 'Allows to access the pubkey address.'
+) {
   const sign = await signMessage(client, { account, message: msg })
   const hash = hashMessage(msg)
   const recovered = await recoverPublicKey({ hash, signature: sign })
@@ -25,12 +32,9 @@ export async function etherAddressToCompactPubkey(client: Client, account: Accou
  * Convert an Ethereum address to a Substrate address.
  */
 export async function etherAddressToSubstrateAddress(
-    client: Client,
-    account: Account,
-    {
-        SS58Prefix = 30,
-        msg = undefined,
-    } = {}
+  client: Client,
+  account: Account,
+  { SS58Prefix = 30, msg = undefined } = {}
 ) {
   const compactPubkey = await etherAddressToCompactPubkey(client, account, msg)
   const substratePubkey = encodeAddress(blake2AsU8a(hexToU8a(compactPubkey)), SS58Prefix)
@@ -95,5 +99,94 @@ export function createEip712StructedDataSignQuery(account: Account, encodedQuery
       ],
     },
     account,
+  }
+}
+
+export interface Eip712Domain {
+  name: string
+  version: string
+  chainId: number
+  verifyingContract: Address
+}
+
+export function createEip712Domain(api: ApiPromise): Eip712Domain {
+  try {
+    const name = hexToString(api.consts.evmAccountMapping.eip712Name.toString())
+    const version = hexToString(api.consts.evmAccountMapping.eip712Version.toString())
+    const chainId = (api.consts.evmAccountMapping.eip712ChainID as U256).toNumber()
+    const verifyingContract = api.consts.evmAccountMapping.eip712VerifyingContractAddress.toString() as Address
+    return {
+      name,
+      version,
+      chainId,
+      verifyingContract,
+    }
+  } catch (_err) {
+    throw new Error(
+      'Create Eip712Domain object failed, possibly due to the unavailability of the evmAccountMapping pallet.'
+    )
+  }
+}
+
+export interface SubstrateCall {
+  who: string
+  callData: string
+  nonce: number
+}
+
+export async function createSubstrateCall<T extends ApiTypes>(
+  api: ApiPromise,
+  substrateAddress: string,
+  extrinsic: SubmittableExtrinsic<T>
+) {
+  const nonce = await api.query.evmAccountMapping.accountNonce<U64>(substrateAddress)
+  return {
+    who: substrateAddress,
+    callData: extrinsic.inner.toHex(),
+    nonce: nonce.toNumber(),
+  }
+}
+
+/**
+ * @params account Account  The viem WalletAccount instance for signging.
+ * @params who string       The SS58 formated address of the account.
+ * @params callData string  The encoded call data, usually create with `api.tx.foo.bar.inner.toHex()`
+ * @params nonce number     The nonce of the account.
+ */
+export function createEip712StructedDataSubstrateCall(
+  account: Account,
+  domain: Eip712Domain,
+  message: SubstrateCall
+): SignTypedDataInput {
+  return {
+    account,
+    types: {
+      EIP712Domain: [
+        {
+          name: 'name',
+          type: 'string',
+        },
+        {
+          name: 'version',
+          type: 'string',
+        },
+        {
+          name: 'chainId',
+          type: 'uint256',
+        },
+        {
+          name: 'verifyingContract',
+          type: 'address',
+        },
+      ],
+      SubstrateCall: [
+        { name: 'who', type: 'string' },
+        { name: 'callData', type: 'bytes' },
+        { name: 'nonce', type: 'uint64' },
+      ],
+    },
+    primaryType: 'SubstrateCall',
+    domain: domain,
+    message: { ...message },
   }
 }
