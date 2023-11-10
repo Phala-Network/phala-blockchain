@@ -1,7 +1,7 @@
 import type { SubmittableResult } from '@polkadot/api'
 import type { SubmittableExtrinsic } from '@polkadot/api/types'
-import type { CertificateData } from '../pruntime/certificate'
 import type { Address } from 'viem'
+import type { CertificateData } from '../pruntime/certificate'
 
 export interface Signer {
   address: Readonly<Address>
