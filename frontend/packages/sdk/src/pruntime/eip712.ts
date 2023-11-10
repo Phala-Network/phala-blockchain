@@ -7,8 +7,6 @@ import type { Account, Address, WalletClient } from 'viem'
 import { hashMessage, recoverPublicKey } from 'viem'
 import { type signTypedData } from 'viem/wallet'
 import { signMessage } from 'viem/wallet'
-import { callback } from '../utils/signAndSend'
-import { unstable_signEip712Certificate } from './certificate'
 
 // keccak256(b"phala/phat-contract")
 const SALT = '0x0ea813d1592526d672ea2576d7a07914cef2ca301b35c5eed941f7c897512a00'
@@ -30,7 +28,7 @@ export async function etherAddressToCompactPubkey(
   return compactPubkey
 }
 
-interface EtherAddressToSubstrateAddressOptions {
+export interface EtherAddressToSubstrateAddressOptions {
   SS58Prefix?: number
   msg?: string
 }
@@ -195,98 +193,5 @@ export function createEip712StructedDataSubstrateCall(
     primaryType: 'SubstrateCall',
     domain: domain,
     message: { ...message },
-  }
-}
-
-export class unstable_WalletClientSigner {
-  //
-  // Resources
-  //
-  #apiPromise: ApiPromise
-  #client: WalletClient
-  #account: Account
-
-  //
-  // Options
-  //
-  #SS58Prefix: number
-
-  //
-  // State
-  //
-  #domain: Eip712Domain
-
-  #compactPubkey: Address | undefined
-  #address: Address | undefined
-
-  constructor(api: ApiPromise, client: WalletClient, account: Account, { SS58Prefix = 30 } = {}) {
-    this.#apiPromise = api
-    this.#client = client
-    this.#account = account
-    this.#domain = createEip712Domain(api)
-    this.#SS58Prefix = SS58Prefix
-  }
-
-  async ready(msg?: string): Promise<void> {
-    this.#compactPubkey = await etherAddressToCompactPubkey(this.#client, this.#account, msg)
-    this.#address = encodeAddress(blake2AsU8a(hexToU8a(this.#compactPubkey)), this.#SS58Prefix) as Address
-  }
-
-  static async create(
-    api: ApiPromise,
-    client: WalletClient,
-    account: Account,
-    options?: EtherAddressToSubstrateAddressOptions
-  ) {
-    const signer = new unstable_WalletClientSigner(api, client, account, options)
-    await signer.ready(options?.msg)
-    return signer
-  }
-
-  /**
-   * SS58 format address derived from the Ethereum EOA.
-   */
-  get address(): Address {
-    if (!this.#address) {
-      throw new Error('WalletClientSigner is not ready.')
-    }
-    return this.#address
-  }
-
-  /**
-   *
-   */
-  async send(extrinsic: SubmittableExtrinsic<'promise'>) {
-    const substrateCall = await createSubstrateCall(this.#apiPromise, this.address, extrinsic)
-    const typedData = createEip712StructedDataSubstrateCall(this.#account, this.#domain, substrateCall)
-    const signature = await this.#client.signTypedData(typedData)
-    return await new Promise(async (resolve, reject) => {
-      try {
-        await this.#apiPromise.tx.evmAccountMapping
-          .metaCall(this.address, substrateCall.callData, substrateCall.nonce, signature, null)
-          .send((result) => {
-            callback(resolve, reject, result)
-          })
-      } catch (error) {
-        const isCancelled = (error as Error).message.indexOf('Cancelled') !== -1
-        Object.defineProperty(error, 'isCancelled', {
-          enumerable: false,
-          value: isCancelled,
-        })
-        reject(error)
-      }
-    })
-  }
-
-  async signCertificate(ttl?: number) {
-    if (!this.#compactPubkey) {
-      throw new Error('WalletClientSigner is not ready.')
-    }
-    return await unstable_signEip712Certificate({
-      client: this.#client,
-      account: this.#account,
-      compactPubkey: this.#compactPubkey,
-      ttl,
-    })
   }
 }
