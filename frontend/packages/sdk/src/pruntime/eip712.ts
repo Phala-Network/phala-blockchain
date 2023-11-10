@@ -13,8 +13,7 @@ type SignTypedDataInput = Parameters<typeof signTypedData>[1]
 /**
  * Get compact formatted ether address for a specified account via a Wallet Client.
  */
-export async function etherAddressToCompactPubkey(client: Client, account: Account) {
-  const msg = '0x48656c6c6f'
+export async function etherAddressToCompactPubkey(client: Client, account: Account, msg = 'Allows to access the pubkey address.') {
   const sign = await signMessage(client, { account, message: msg })
   const hash = hashMessage(msg)
   const recovered = await recoverPublicKey({ hash, signature: sign })
@@ -25,8 +24,15 @@ export async function etherAddressToCompactPubkey(client: Client, account: Accou
 /**
  * Convert an Ethereum address to a Substrate address.
  */
-export async function etherAddressToSubstrateAddress(client: Client, account: Account, SS58Prefix = 30) {
-  const compactPubkey = await etherAddressToCompactPubkey(client, account)
+export async function etherAddressToSubstrateAddress(
+    client: Client,
+    account: Account,
+    {
+        SS58Prefix = 30,
+        msg = undefined,
+    } = {}
+) {
+  const compactPubkey = await etherAddressToCompactPubkey(client, account, msg)
   const substratePubkey = encodeAddress(blake2AsU8a(hexToU8a(compactPubkey)), SS58Prefix)
   return substratePubkey
 }
