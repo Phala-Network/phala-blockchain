@@ -8,6 +8,7 @@ import { hashMessage, recoverPublicKey } from 'viem'
 import { type signTypedData } from 'viem/wallet'
 import { signMessage } from 'viem/wallet'
 import { callback } from '../utils/signAndSend'
+import { unstable_signEip712Certificate } from './certificate'
 
 // keccak256(b"phala/phat-contract")
 const SALT = '0x0ea813d1592526d672ea2576d7a07914cef2ca301b35c5eed941f7c897512a00'
@@ -215,6 +216,7 @@ export class unstable_WalletClientSigner {
   //
   #domain: Eip712Domain
 
+  #compactPubkey: Address | undefined
   #address: Address | undefined
 
   constructor(api: ApiPromise, client: WalletClient, account: Account, { SS58Prefix = 30 } = {}) {
@@ -226,10 +228,8 @@ export class unstable_WalletClientSigner {
   }
 
   async ready(msg?: string): Promise<void> {
-    this.#address = await etherAddressToSubstrateAddress(this.#client, this.#account, {
-      SS58Prefix: this.#SS58Prefix,
-      msg,
-    })
+    this.#compactPubkey = await etherAddressToCompactPubkey(this.#client, this.#account, msg)
+    this.#address = encodeAddress(blake2AsU8a(hexToU8a(this.#compactPubkey)), this.#SS58Prefix) as Address
   }
 
   static async create(
@@ -275,6 +275,18 @@ export class unstable_WalletClientSigner {
         })
         reject(error)
       }
+    })
+  }
+
+  async signCertificate(ttl?: number) {
+    if (!this.#compactPubkey) {
+      throw new Error('WalletClientSigner is not ready.')
+    }
+    return await unstable_signEip712Certificate({
+      client: this.#client,
+      account: this.#account,
+      compactPubkey: this.#compactPubkey,
+      ttl,
     })
   }
 }
