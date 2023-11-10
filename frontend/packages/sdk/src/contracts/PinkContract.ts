@@ -19,6 +19,7 @@ import type { OnChainRegistry } from '../OnChainRegistry'
 import type { CertificateData } from '../pruntime/certificate'
 import { EncryptedInkCommand, InkQueryMessage, PlainInkCommand } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
+import { type Signer } from '../signers/types'
 import type { AbiLike, FrameSystemAccountInfo } from '../types'
 import assert from '../utils/assert'
 import { BN_MAX_SUPPLY } from '../utils/constants'
@@ -70,6 +71,7 @@ interface SendOptions {
 export type PinkContractSendOptions =
   | (PinkContractOptions & SendOptions & { address: string | AccountId; signer: InjectedSigner })
   | (PinkContractOptions & SendOptions & { pair: IKeyringPair })
+  | (PinkContractOptions & SendOptions & { unstable_signer: Signer })
 
 export interface PinkContractTx<TParams extends Array<any> = any[]> extends MessageMeta {
   (options: PinkContractOptions, ...params: TParams): SubmittableExtrinsic<'promise'>
@@ -468,8 +470,10 @@ export class PinkContractPromise<
       throw new Error(`Message not found: ${messageOrId}`)
     }
 
-    const address = 'signer' in rest ? rest.address : rest.pair.address
+    const address =
+      'unstable_signer' in rest ? rest.unstable_signer.address : 'signer' in rest ? rest.address : rest.pair.address
     const cert = userCert || (await this.phatRegistry.getAnonymousCert())
+
     const estimate = this.#query[messageOrId]
     if (!estimate) {
       throw new Error(`Message not found: ${messageOrId}`)
@@ -505,7 +509,9 @@ export class PinkContractPromise<
       txOptions.gasLimit = gasRequired.refTime.toBn()
     }
 
-    if ('signer' in rest) {
+    if ('unstable_signer' in rest) {
+      return await rest.unstable_signer.send(tx(txOptions, ...args))
+    } else if ('signer' in rest) {
       return await signAndSend(tx(txOptions, ...args), rest.address, rest.signer)
     } else {
       return await signAndSend(tx(txOptions, ...args), rest.pair)
