@@ -7,7 +7,7 @@ export class SignAndSendError extends Error {
   readonly isCancelled: boolean = false
 }
 
-function callback<TSubmittableResult>(
+export function callback<TSubmittableResult>(
   resolve: (value: TSubmittableResult) => void,
   reject: (reason?: any) => void,
   result: SubmittableResult,
@@ -24,7 +24,9 @@ function callback<TSubmittableResult>(
       }
     }
 
-    ;(unsub as any)()
+    if (unsub) {
+      ;(unsub as any)()
+    }
     if (error) {
       reject(error)
     } else {
