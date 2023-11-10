@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@phala/sdk": "file:../frontend/packages/sdk",
-    "axios": "^0.25.0",
+    "axios": "^1.6.0",
     "bn.js": "^5.2.1",
     "chai": "^4.3.6",
     "dotenv": "^16.3.1",
