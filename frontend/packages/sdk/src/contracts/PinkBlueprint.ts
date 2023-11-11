@@ -14,6 +14,7 @@ import { sr25519Agreement, sr25519PairFromSeed } from '@polkadot/util-crypto'
 import { from } from 'rxjs'
 import type { OnChainRegistry } from '../OnChainRegistry'
 import { phalaTypes } from '../options'
+import { Provider } from '../providers/types'
 import type { CertificateData } from '../pruntime/certificate'
 import { InkQueryInstantiate } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
@@ -71,6 +72,7 @@ interface SendOptions {
 export type PinkBlueprintSendOptions =
   | (PinkBlueprintOptions & SendOptions & { address: string | AccountId; signer: InjectedSigner })
   | (PinkBlueprintOptions & SendOptions & { pair: IKeyringPair })
+  | (PinkBlueprintOptions & SendOptions & { unstable_provider: Provider })
 
 export interface PinkBlueprintSend<TParams extends Array<any> = any[]> extends MessageMeta {
   (options: PinkBlueprintSendOptions, ...params: TParams): Promise<PinkBlueprintSubmittableResult>
@@ -369,7 +371,8 @@ export class PinkBlueprintPromise {
       throw new Error(`Constructor not found: ${constructorOrId}`)
     }
 
-    const address = 'signer' in rest ? rest.address : rest.pair.address
+    const address =
+      'unstable_provider' in rest ? rest.unstable_provider.address : 'signer' in rest ? rest.address : rest.pair.address
     const cert = userCert || (await this.phatRegistry.getAnonymousCert())
     const estimate = this.#query[constructorOrId]
     if (!estimate) {
@@ -407,7 +410,19 @@ export class PinkBlueprintPromise {
       txOptions.gasLimit = gasLimit
     }
 
-    if ('signer' in rest) {
+    if ('unstable_provider' in rest) {
+      return await rest.unstable_provider.send(tx(txOptions, ...args), (result: ISubmittableResult) => {
+        let maybeContactId: string | undefined
+        const instantiateEvent = result.events.filter((i) => i.event.method === 'Instantiating')[0]
+        if (instantiateEvent) {
+          const contractId = (instantiateEvent.event.data as any).contract
+          if (contractId) {
+            maybeContactId = contractId.toString()
+          }
+        }
+        return new PinkBlueprintSubmittableResult(result, this.abi, this.phatRegistry, maybeContactId)
+      })
+    } else if ('signer' in rest) {
       return await signAndSend(tx(txOptions, ...args), rest.address, rest.signer)
     } else {
       return await signAndSend(tx(txOptions, ...args), rest.pair)

@@ -9,9 +9,14 @@ import type { Result, bool } from '@polkadot/types'
 import type { ISubmittableResult } from '@polkadot/types/types'
 import { hexToU8a, isU8a, isWasm, u8aToHex } from '@polkadot/util'
 import type { OnChainRegistry } from '../OnChainRegistry'
+import type { Provider } from '../providers/types'
 import type { CertificateData } from '../pruntime/certificate'
 import type { AbiLike } from '../types'
 import { PinkBlueprintPromise } from './PinkBlueprint'
+
+export interface PinkCodeSendOptions {
+  unstable_provider: Provider
+}
 
 export class InkCodeSubmittableResult extends SubmittableResult {
   readonly registry: OnChainRegistry
@@ -124,6 +129,13 @@ export class PinkCodePromise {
 
   public upload() {
     return this.#instantiate(0, [])
+  }
+
+  public async send({ unstable_provider }: PinkCodeSendOptions) {
+    return await unstable_provider.send(
+      this.api.tx.phalaPhatContracts.clusterUploadResource(this.phatRegistry.clusterId, 'InkCode', u8aToHex(this.code)),
+      (result) => new InkCodeSubmittableResult(result, this.abi, this.phatRegistry)
+    )
   }
 
   #instantiate = (_constructorOrId: AbiConstructor | string | number, _params: unknown[]) => {
