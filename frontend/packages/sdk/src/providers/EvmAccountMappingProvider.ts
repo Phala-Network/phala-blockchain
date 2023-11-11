@@ -124,4 +124,8 @@ export class unstable_EvmAccountMappingProvider implements Provider {
       ttl,
     })
   }
+
+  async adjustStake(contractId: string, amount: number): Promise<void> {
+    await this.send(this.#apiPromise.tx.phalaPhatTokenomic.adjustStake(contractId, amount))
+  }
 }
