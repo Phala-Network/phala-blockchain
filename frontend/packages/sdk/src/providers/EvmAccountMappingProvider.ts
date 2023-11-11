@@ -1,5 +1,6 @@
 import type { ApiPromise, SubmittableResult } from '@polkadot/api'
-import { type SubmittableExtrinsic } from '@polkadot/api/types'
+import type { SubmittableExtrinsic } from '@polkadot/api/types'
+import type { ISubmittableResult } from '@polkadot/types/types'
 import { hexToU8a } from '@polkadot/util'
 import { blake2AsU8a, encodeAddress } from '@polkadot/util-crypto'
 import type { Account, Address, WalletClient } from 'viem'
@@ -81,18 +82,26 @@ export class unstable_EvmAccountMappingProvider implements Provider {
    *
    */
   async send<TSubmittableResult extends SubmittableResult = SubmittableResult>(
-    extrinsic: SubmittableExtrinsic<'promise'>
+    extrinsic: SubmittableExtrinsic<'promise'>,
+    transform?: (input: ISubmittableResult) => ISubmittableResult
   ): Promise<TSubmittableResult> {
     const substrateCall = await createSubstrateCall(this.#apiPromise, this.address, extrinsic)
     const typedData = createEip712StructedDataSubstrateCall(this.#account, this.#domain, substrateCall)
     const signature = await this.#client.signTypedData(typedData)
     return await new Promise(async (resolve, reject) => {
       try {
-        await this.#apiPromise.tx.evmAccountMapping
-          .metaCall(this.address, substrateCall.callData, substrateCall.nonce, signature, null)
-          .send((result) => {
-            callback(resolve, reject, result)
-          })
+        const _extrinsic = this.#apiPromise.tx.evmAccountMapping.metaCall(
+          this.address,
+          substrateCall.callData,
+          substrateCall.nonce,
+          signature,
+          null
+        )
+        if (transform) {
+          return _extrinsic.withResultTransform(transform).send((result) => callback(resolve, reject, result))
+        } else {
+          return _extrinsic.send((result) => callback(resolve, reject, result))
+        }
       } catch (error) {
         const isCancelled = (error as Error).message.indexOf('Cancelled') !== -1
         Object.defineProperty(error, 'isCancelled', {
