@@ -1,5 +1,6 @@
 import type { SubmittableResult } from '@polkadot/api'
 import type { SubmittableExtrinsic } from '@polkadot/api/types'
+import type { ISubmittableResult } from '@polkadot/types/types'
 import type { Address } from 'viem'
 import type { CertificateData } from '../pruntime/certificate'
 
@@ -13,7 +14,8 @@ export interface Provider {
    * Send an extrinsic to the network.
    */
   send<TSubmittableResult extends SubmittableResult = SubmittableResult>(
-    extrinsic: SubmittableExtrinsic<'promise'>
+    extrinsic: SubmittableExtrinsic<'promise'>,
+    transform?: (input: ISubmittableResult) => ISubmittableResult
   ): Promise<TSubmittableResult>
 
   /**
