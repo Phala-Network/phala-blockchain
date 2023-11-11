@@ -16,10 +16,10 @@ import { BN, BN_ZERO, hexAddPrefix, hexToU8a, isHex } from '@polkadot/util'
 import { sr25519Agreement, sr25519PairFromSeed } from '@polkadot/util-crypto'
 import { from } from 'rxjs'
 import type { OnChainRegistry } from '../OnChainRegistry'
+import { type Provider } from '../providers/types'
 import type { CertificateData } from '../pruntime/certificate'
 import { EncryptedInkCommand, InkQueryMessage, PlainInkCommand } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
-import { type Signer } from '../signers/types'
 import type { AbiLike, FrameSystemAccountInfo } from '../types'
 import assert from '../utils/assert'
 import { BN_MAX_SUPPLY } from '../utils/constants'
@@ -71,7 +71,7 @@ interface SendOptions {
 export type PinkContractSendOptions =
   | (PinkContractOptions & SendOptions & { address: string | AccountId; signer: InjectedSigner })
   | (PinkContractOptions & SendOptions & { pair: IKeyringPair })
-  | (PinkContractOptions & SendOptions & { unstable_signer: Signer })
+  | (PinkContractOptions & SendOptions & { unstable_provider: Provider })
 
 export interface PinkContractTx<TParams extends Array<any> = any[]> extends MessageMeta {
   (options: PinkContractOptions, ...params: TParams): SubmittableExtrinsic<'promise'>
@@ -471,7 +471,7 @@ export class PinkContractPromise<
     }
 
     const address =
-      'unstable_signer' in rest ? rest.unstable_signer.address : 'signer' in rest ? rest.address : rest.pair.address
+      'unstable_provider' in rest ? rest.unstable_provider.address : 'signer' in rest ? rest.address : rest.pair.address
     const cert = userCert || (await this.phatRegistry.getAnonymousCert())
 
     const estimate = this.#query[messageOrId]
@@ -509,8 +509,8 @@ export class PinkContractPromise<
       txOptions.gasLimit = gasRequired.refTime.toBn()
     }
 
-    if ('unstable_signer' in rest) {
-      return await rest.unstable_signer.send(tx(txOptions, ...args))
+    if ('unstable_provider' in rest) {
+      return await rest.unstable_provider.send(tx(txOptions, ...args))
     } else if ('signer' in rest) {
       return await signAndSend(tx(txOptions, ...args), rest.address, rest.signer)
     } else {
