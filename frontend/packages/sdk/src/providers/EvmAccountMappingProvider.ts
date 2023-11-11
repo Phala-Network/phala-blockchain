@@ -13,9 +13,9 @@ import {
   etherAddressToCompactPubkey,
 } from '../pruntime/eip712'
 import { callback } from '../utils/signAndSend'
-import { Signer } from './types'
+import { Provider } from './types'
 
-export class unstable_WalletClientSigner implements Signer {
+export class unstable_EvmAccountMappingProvider implements Provider {
   //
   // Resources
   //
@@ -55,7 +55,7 @@ export class unstable_WalletClientSigner implements Signer {
     account: Account,
     options?: EtherAddressToSubstrateAddressOptions
   ) {
-    const signer = new unstable_WalletClientSigner(api, client, account, options)
+    const signer = new unstable_EvmAccountMappingProvider(api, client, account, options)
     await signer.ready(options?.msg)
     return signer
   }
