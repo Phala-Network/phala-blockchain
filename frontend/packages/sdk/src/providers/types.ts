@@ -22,4 +22,6 @@ export interface Provider {
    * Get a signed certificate from the account bind in the provider.
    */
   signCertificate(ttl?: number): Promise<CertificateData>
+
+  adjustStake(contractId: string, amount: number): Promise<void>
 }
