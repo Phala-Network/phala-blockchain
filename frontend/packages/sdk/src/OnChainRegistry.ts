@@ -35,7 +35,7 @@ interface VersionedEndpoints extends Enum {
   readonly asV1: Vec<Text>
 }
 
-interface CreateOptions {
+export interface CreateOptions {
   autoConnect?: boolean
   clusterId?: string
   workerId?: string

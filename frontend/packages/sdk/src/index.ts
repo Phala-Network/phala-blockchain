@@ -16,6 +16,7 @@ export { default as signAndSend, SignAndSendError } from './utils/signAndSend'
 export * from './ha/ack-first'
 export * from './ha/periodicity-checker'
 export * from './ha/fixture'
+export * from './factory_functions'
 
 export const pruntimeRpc = pruntime_rpc
 export type PhactoryAPI = pruntime_rpc.PhactoryAPI
