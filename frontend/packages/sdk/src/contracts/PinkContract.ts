@@ -510,7 +510,32 @@ export class PinkContractPromise<
     }
 
     if ('unstable_provider' in rest) {
-      return await rest.unstable_provider.send(tx(txOptions, ...args))
+      return await rest.unstable_provider.send(tx(txOptions, ...args), (result: ISubmittableResult) => {
+        return new PinkContractSubmittableResult(
+          this.phatRegistry,
+          this,
+          this.abi.findMessage(messageOrId),
+          result,
+          applyOnEvent(result, ['ContractEmitted', 'ContractExecution'], (records: EventRecord[]) => {
+            return records
+              .map(
+                ({
+                  event: {
+                    data: [, data],
+                  },
+                }): DecodedEvent | null => {
+                  try {
+                    return this.abi.decodeEvent(data as Bytes)
+                  } catch (error) {
+                    console.error(`Unable to decode contract event: ${(error as Error).message}`)
+                    return null
+                  }
+                }
+              )
+              .filter((decoded): decoded is DecodedEvent => !!decoded)
+          })
+        )
+      })
     } else if ('signer' in rest) {
       return await signAndSend(tx(txOptions, ...args), rest.address, rest.signer)
     } else {
