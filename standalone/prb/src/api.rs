@@ -248,15 +248,10 @@ async fn handle_force_register_workers(
 ) -> ApiResult<(StatusCode, Json<OkResponse>)> {
     for c in get_workers_by_id_vec(&ctx, &payload.ids).await? {
         let c = c.read().await;
-        match &c.state {
-            WorkerLifecycleState::Working | WorkerLifecycleState::GatekeeperWorking => {
-                let tx = c.tx.clone();
-                drop(c);
-                tx.send(WorkerLifecycleCommand::ShouldForceRegister)
-                    .map_err(|e| anyhow!(e.to_string()))?;
-            }
-            _ => drop(c),
-        }
+        let tx = c.tx.clone();
+        drop(c);
+        tx.send(WorkerLifecycleCommand::ShouldForceRegister)
+            .map_err(|e| anyhow!(e.to_string()))?;
     }
     Ok((StatusCode::OK, Json(OkResponse::default())))
 }

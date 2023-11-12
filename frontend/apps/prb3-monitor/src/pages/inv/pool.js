@@ -120,6 +120,8 @@ export default function PoolInvPage() {
         </div>
         <div className={css({height: '100%', margin: '0 20px 20px'})}>
           <StatefulDataTable
+            initialSortIndex={0}
+            initialSortDirection="ASC"
             rowActions={[
               {
                 renderIcon: () => <FiEdit />,

@@ -106,7 +106,13 @@ export default function PoolOperatorInvPage() {
           <div className={css({width: '12px'})} />
         </div>
         <div className={css({height: '100%', margin: '0 20px 20px'})}>
-          <StatefulDataTable resizableColumnWidths columns={columns} rows={data || []} />
+          <StatefulDataTable
+            initialSortIndex={0}
+            initialSortDirection="ASC"
+            resizableColumnWidths
+            columns={columns}
+            rows={data || []}
+          />
         </div>
       </PageWrapper>
     </>
