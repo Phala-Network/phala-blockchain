@@ -17,6 +17,7 @@ pub enum Error {
 	UnknownQuoteBodyFormat,
 	InvalidUserDataHash,
 	NoneAttestationDisabled,
+	UnsupportedAttestationType,
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
@@ -128,6 +129,8 @@ pub fn validate(
 			verify_pruntime_hash,
 			pruntime_allowlist,
 		),
+		Some(AttestationReport::SgxDcapRawQuote { .. }) => Err(Error::UnsupportedAttestationType),
+		Some(AttestationReport::SgxDcapQuoteWithCollateral { .. }) => todo!(),
 		None => {
 			if opt_out_enabled {
 				Ok(ConfidentialReport {

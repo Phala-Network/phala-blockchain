@@ -1634,6 +1634,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                         .map_err(|_| from_display("Invalid client RA report"))?;
                     ias_fields.extend_mrenclave()
                 }
+                AttestationReport::SgxDcapRawQuote { quote } => todo!(),
+                AttestationReport::SgxDcapQuoteWithCollateral { quote, collateral } => todo!(),
             };
             let req_runtime_timestamp = runtime_state
                 .chain_storage
