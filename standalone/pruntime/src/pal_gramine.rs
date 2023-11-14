@@ -49,6 +49,7 @@ impl RA for GraminePlatform {
         data: &[u8],
         timeout: Duration,
     ) -> Result<Vec<u8>, Self::Error> {
+        ensure_supported(provider)?;
         let report = match provider {
             Some(AttestationProvider::Ias) => {
                 // TODO.kevin: move the key out of the binary?
@@ -74,6 +75,7 @@ impl RA for GraminePlatform {
     }
 
     fn quote_test(&self, provider: Option<AttestationProvider>) -> Result<(), Self::Error> {
+        ensure_supported(provider)?;
         match provider {
             Some(AttestationProvider::Ias | AttestationProvider::Dcap) => {
                 ias::create_quote_vec(&[0u8; 64]).map(|_| ())
@@ -172,6 +174,19 @@ fn mem_free() -> Option<usize> {
         }
     }
     None
+}
+
+fn ensure_supported(provider: Option<AttestationProvider>) -> anyhow::Result<()> {
+    let Some(provider) = provider else {
+        return Ok(());
+    };
+    let attestation_type =
+        std::fs::read_to_string("/dev/attestation/attestation_type").unwrap_or_default();
+    match (provider, attestation_type.as_str()) {
+        (AttestationProvider::Ias, "epid") => Ok(()),
+        (AttestationProvider::Dcap, "dcap") => Ok(()),
+        _ => Err(anyhow!("Unsupported attestation provider: {provider:?}")),
+    }
 }
 
 pub(crate) fn is_gramine() -> bool {
