@@ -24,8 +24,8 @@ path = "../indeterministic_functions"
 features = ["ink-as-dependency"]
 
 [dev-dependencies]
-drink = "0.6.0"
-drink-pink-runtime = "1.2.3"
+drink = "0.8.0"
+drink-pink-runtime = "1.2.5"
 
 [build-dependencies]
 sp-core = "25"
@@ -45,6 +45,3 @@ std = [
     "indeterministic_functions/std",
 ]
 ink-as-dependency = []
-
-[patch.crates-io]
-drink = { git = "https://github.com/kvinwang/drink-for-pink.git" }

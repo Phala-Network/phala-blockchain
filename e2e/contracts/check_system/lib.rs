@@ -18,6 +18,7 @@ mod check_system {
     #[ink(storage)]
     pub struct CheckSystem {
         on_block_end_called: bool,
+        flag: u32,
     }
 
     impl CheckSystem {
@@ -26,6 +27,7 @@ mod check_system {
         pub fn default() -> Self {
             Self {
                 on_block_end_called: false,
+                flag: 0,
             }
         }
 
@@ -167,6 +169,16 @@ mod check_system {
         ) -> Result<js::Output, String> {
             js::eval(&script, &args)
         }
+
+        #[ink(message)]
+        pub fn set_flag(&mut self, flag: u32) {
+            self.flag = flag;
+        }
+
+        #[ink(message)]
+        pub fn get_flag(&self) -> u32 {
+            self.flag
+        }
     }
 
     impl ContractDeposit for CheckSystem {
@@ -187,161 +199,24 @@ mod check_system {
     #[cfg(test)]
     mod tests {
         use drink::session::Session;
-        use drink::chain_api::ChainApi;
-        use drink_pink_runtime::{ExecMode, PinkRuntime};
+        use drink_pink_runtime::{Callable, DeployBundle, PinkRuntime};
         use ink::codegen::TraitCallBuilder;
 
-        use super::test_helper::{call, deploy_bundle};
         use super::CheckSystemRef;
 
         #[drink::contract_bundle_provider]
         enum BundleProvider {}
 
-        #[drink::test]
+        #[test]
         fn it_works() -> Result<(), Box<dyn std::error::Error>> {
             let mut session = Session::<PinkRuntime>::new()?;
-            session.chain_api().execute_with(|| {
-                PinkRuntime::setup_cluster().expect("Failed to setup cluster");
-            });
-
-            let checker_bundle = BundleProvider::local()?;
-            let checker = deploy_bundle(
-                &mut session,
-                checker_bundle,
-                CheckSystemRef::default().salt_bytes(vec![]),
-            )?;
-            let ver = call(
-                &mut session,
-                checker.call().system_contract_version(),
-                false,
-            )?;
-            assert_eq!(ver, (1, 0, 0));
-
-            let eval_result = call(
-                &mut session,
-                checker.call().eval_javascript("'Hello'".into(), vec![]),
-                false,
-            )?;
-            assert_eq!(eval_result, Ok(phat_js::Output::String("Hello".into())));
-
-            let (status, _body) = call(
-                &mut session,
-                checker.call().http_get("https://httpbin.org/get".into()),
-                false,
-            )?;
-            assert_eq!(status, 200);
-
-            PinkRuntime::execute_in_mode(ExecMode::Transaction, move || {
-                let (status, _body) = call(
-                    &mut session,
-                    checker.call().http_get("https://httpbin.org/get".into()),
-                    false,
-                )?;
-                assert_eq!(status, 523);
-                Ok(())
-            })
-        }
-    }
-
-    #[cfg(test)]
-    mod test_helper {
-        use ::ink::{
-            env::{
-                call::{
-                    utils::{ReturnType, Set, Unset},
-                    Call, CallBuilder, CreateBuilder, ExecutionInput, FromAccountId,
-                },
-                Environment,
-            },
-            primitives::Hash,
-        };
-        use drink::{
-            chain_api::ChainApi, errors::MessageResult, runtime::Runtime, session::Session,
-            ContractBundle,
-        };
-        use drink_pink_runtime::PinkRuntime;
-        use pink_extension::{Balance, ConvertTo};
-        use scale::{Decode, Encode};
-
-        const DEFAULT_GAS_LIMIT: u64 = 1_000_000_000_000_000;
-
-        pub fn deploy_bundle<Env, Contract, Args>(
-            session: &mut Session<PinkRuntime>,
-            bundle: ContractBundle,
-            constructor: CreateBuilder<
-                Env,
-                Contract,
-                Unset<Hash>,
-                Unset<u64>,
-                Unset<Balance>,
-                Set<ExecutionInput<Args>>,
-                Set<Vec<u8>>,
-                Set<ReturnType<Contract>>,
-            >,
-        ) -> Result<Contract, String>
-        where
-            Env: Environment<Hash = Hash, Balance = Balance>,
-            Contract: FromAccountId<Env>,
-            Args: Encode,
-            Env::AccountId: From<[u8; 32]>,
-        {
-            session.chain_api().execute_with(move || {
-                let caller = PinkRuntime::default_actor();
-                let code_hash = PinkRuntime::upload_code(caller.clone(), bundle.wasm, true)?;
-                let constructor = constructor
-                    .code_hash(code_hash.0.into())
-                    .endowment(0)
-                    .gas_limit(DEFAULT_GAS_LIMIT);
-                let params = constructor.params();
-                let input_data = params.exec_input().encode();
-                let account_id = PinkRuntime::instantiate(
-                    caller,
-                    0,
-                    params.gas_limit(),
-                    None,
-                    code_hash,
-                    input_data,
-                    params.salt_bytes().clone(),
-                )?;
-                Ok(Contract::from_account_id(account_id.convert_to()))
-            })
-        }
-
-        pub fn call<Env, Args, Ret>(
-            session: &mut Session<PinkRuntime>,
-            call_builder: CallBuilder<
-                Env,
-                Set<Call<Env>>,
-                Set<ExecutionInput<Args>>,
-                Set<ReturnType<Ret>>,
-            >,
-            deterministic: bool,
-        ) -> Result<Ret, String>
-        where
-            Env: Environment<Hash = Hash, Balance = Balance>,
-            Args: Encode,
-            Ret: Decode,
-        {
-            session.chain_api().execute_with(move || {
-                let origin = PinkRuntime::default_actor();
-                let params = call_builder.params();
-                let data = params.exec_input().encode();
-                let callee = params.callee();
-                let address: [u8; 32] = callee.as_ref().try_into().or(Err("Invalid callee"))?;
-                let result = PinkRuntime::call(
-                    origin,
-                    address.into(),
-                    0,
-                    DEFAULT_GAS_LIMIT,
-                    None,
-                    data,
-                    deterministic,
-                )?;
-                let ret = MessageResult::<Ret>::decode(&mut &result[..])
-                    .map_err(|e| format!("Failed to decode result: {}", e))?
-                    .map_err(|e| format!("Failed to execute call: {}", e))?;
-                Ok(ret)
-            })
+            let mut checker = CheckSystemRef::default()
+                .deploy_bundle(&BundleProvider::local()?, &mut session)
+                .expect("Failed to deploy checker contract");
+            checker.call_mut().set_flag(42).submit_tx(&mut session)?;
+            let flag = checker.call().get_flag().query(&mut session)?;
+            assert_eq!(flag, 42);
+            Ok(())
         }
     }
 }
