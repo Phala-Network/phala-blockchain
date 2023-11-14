@@ -289,6 +289,7 @@ pub mod pallet {
 		NotMigrationRoot,
 		ParachainIdMismatch,
 		InvalidConsensusVersion,
+		UnsupportedAttestationType,
 	}
 
 	#[pallet::call]
@@ -1200,6 +1201,7 @@ pub mod pallet {
 				AttestationError::UnknownQuoteBodyFormat => Self::UnknownQuoteBodyFormat,
 				AttestationError::InvalidUserDataHash => Self::InvalidRuntimeInfoHash,
 				AttestationError::NoneAttestationDisabled => Self::NoneAttestationDisabled,
+				AttestationError::UnsupportedAttestationType => Self::UnsupportedAttestationType,
 			}
 		}
 	}

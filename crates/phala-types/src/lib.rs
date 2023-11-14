@@ -441,6 +441,18 @@ pub enum AttestationReport {
         signature: Vec<u8>,
         raw_signing_cert: Vec<u8>,
     },
+    SgxDcapRawQuote {
+        quote: Vec<u8>,
+    },
+    SgxDcapQuoteWithCollateral {
+        quote: Vec<u8>,
+        collateral: Collateral,
+    },
+}
+
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
+pub enum Collateral {
+    V3(sgx_attestation::dcap::QuoteCollateral),
 }
 
 #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
