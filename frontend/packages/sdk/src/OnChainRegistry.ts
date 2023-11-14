@@ -119,13 +119,28 @@ export class OnChainRegistry {
     // We should ensure the wasm & api has been initialized here.
     await Promise.all([cryptoWaitReady(), api.isReady])
     if (options.autoConnect) {
-      await instance.connect(
-        options.clusterId,
-        options.workerId,
-        options.pruntimeURL,
-        options.systemContractId,
-        !!options.skipCheck
-      )
+      if (!options.clusterId && !options.workerId && !options.pruntimeURL) {
+        await instance.connect()
+      }
+      // If user specified the pruntimeURL, it should use it first.
+      else if (options.pruntimeURL) {
+        const workerInfo: PartialWorkerInfo = {
+          clusterId: options.clusterId,
+          pruntimeURL: options.pruntimeURL,
+        }
+        await instance.connect(workerInfo)
+      }
+      // Failed back to backward compatible mode.
+      else {
+        console.warn('Failed back to legacy connection mode, please use pruntimeURL instead.')
+        await instance.connect(
+          options.clusterId,
+          options.workerId,
+          options.pruntimeURL,
+          options.systemContractId,
+          !!options.skipCheck
+        )
+      }
     }
     return instance
   }
