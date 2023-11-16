@@ -38,10 +38,10 @@ export type GetContractOptions = {
   abi: AbiLike
 }
 
-export async function getContract(options: GetContractOptions): Promise<PinkContractPromise> {
+export async function getContract<T extends PinkContractPromise>(options: GetContractOptions): Promise<PinkContractPromise> {
   const { client, contractId, abi } = options
   const contractKey = await client.getContractKeyOrFail(contractId)
-  return new PinkContractPromise(client.api, client, abi, contractId, contractKey)
+  return new PinkContractPromise(client.api, client, abi, contractId, contractKey) as T
 }
 
 export type GetLoggerOptions =
