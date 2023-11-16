@@ -154,12 +154,12 @@ export async function signCertificate(params: CertificateParams): Promise<Certif
 export async function unstable_signEip712Certificate({
   client,
   account,
-  compactPubkey,
+  compressedPubkey,
   ttl = 0x7fffffff,
 }: {
   client: Client
   account: Account
-  compactPubkey: string
+  compressedPubkey: string
   ttl?: number
 }): Promise<CertificateData> {
   await cryptoWaitReady()
@@ -171,7 +171,7 @@ export async function unstable_signEip712Certificate({
     client,
     createEip712StructedDataSignCertificate(account, u8aToHex(eip712Cert), ttl)
   )
-  const rootCert = CertificateBody(compactPubkey, ttl)
+  const rootCert = CertificateBody(compressedPubkey, ttl)
   const certificate: pruntimeRpc.ICertificate = {
     encodedBody: eip712Cert,
     signature: {

@@ -3,7 +3,7 @@ import { ApiTypes, type SubmittableExtrinsic } from '@polkadot/api/types'
 import { type U256, type U64 } from '@polkadot/types-codec'
 import { hexToString, hexToU8a, u8aToHex } from '@polkadot/util'
 import { blake2AsU8a, encodeAddress, secp256k1Compress } from '@polkadot/util-crypto'
-import type { Account, Address, WalletClient } from 'viem'
+import type { Account, Address, TestClient, WalletClient } from 'viem'
 import { hashMessage, recoverPublicKey } from 'viem'
 import { type signTypedData } from 'viem/wallet'
 import { signMessage } from 'viem/wallet'
@@ -14,18 +14,18 @@ const SALT = '0x0ea813d1592526d672ea2576d7a07914cef2ca301b35c5eed941f7c897512a00
 type SignTypedDataInput = Parameters<typeof signTypedData>[1]
 
 /**
- * Get compact formatted ether address for a specified account via a Wallet Client.
+ * Get compressed formatted ether address for a specified account via a Wallet Client.
  */
-export async function etherAddressToCompactPubkey(
-  client: WalletClient,
+export async function etherAddressToCompressedPubkey(
+  client: WalletClient | TestClient,
   account: Account,
   msg = 'Allows to access the pubkey address.'
 ) {
   const sign = await signMessage(client, { account, message: msg })
   const hash = hashMessage(msg)
   const recovered = await recoverPublicKey({ hash, signature: sign })
-  const compactPubkey = u8aToHex(secp256k1Compress(hexToU8a(recovered)))
-  return compactPubkey
+  const compressedPubkey = u8aToHex(secp256k1Compress(hexToU8a(recovered)))
+  return compressedPubkey
 }
 
 export interface EtherAddressToSubstrateAddressOptions {
@@ -41,8 +41,8 @@ export async function etherAddressToSubstrateAddress(
   account: Account,
   { SS58Prefix = 30, msg }: EtherAddressToSubstrateAddressOptions = {}
 ) {
-  const compactPubkey = await etherAddressToCompactPubkey(client, account, msg)
-  const substratePubkey = encodeAddress(blake2AsU8a(hexToU8a(compactPubkey)), SS58Prefix)
+  const compressedPubkey = await etherAddressToCompressedPubkey(client, account, msg)
+  const substratePubkey = encodeAddress(blake2AsU8a(hexToU8a(compressedPubkey)), SS58Prefix)
   return substratePubkey as Address
 }
 
