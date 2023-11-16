@@ -16,13 +16,20 @@ import {
 import { callback } from '../utils/signAndSend'
 import { Provider } from './types'
 
+type AccountLike = Account | { address: Address }
+
+export interface EvmCaller {
+  compressedPubkey: `0x${string}`
+  address: Address
+}
+
 export class unstable_EvmAccountMappingProvider implements Provider {
   //
   // Resources
   //
   #apiPromise: ApiPromise
   #client: WalletClient
-  #account: Account
+  #account: AccountLike
 
   //
   // Options
@@ -37,7 +44,10 @@ export class unstable_EvmAccountMappingProvider implements Provider {
   #compressedPubkey: Address | undefined
   #address: Address | undefined
 
-  constructor(api: ApiPromise, client: WalletClient, account: Account, { SS58Prefix = 30 } = {}) {
+  #cachedCert: CertificateData | undefined
+  #certExpiredAt: number | undefined
+
+  constructor(api: ApiPromise, client: WalletClient, account: AccountLike, { SS58Prefix = 30 } = {}) {
     this.#apiPromise = api
     this.#client = client
     this.#account = account
@@ -46,14 +56,14 @@ export class unstable_EvmAccountMappingProvider implements Provider {
   }
 
   async ready(msg?: string): Promise<void> {
-    this.#compressedPubkey = await etherAddressToCompressedPubkey(this.#client, this.#account, msg)
+    this.#compressedPubkey = await etherAddressToCompressedPubkey(this.#client, this.#account as Account, msg)
     this.#address = encodeAddress(blake2AsU8a(hexToU8a(this.#compressedPubkey)), this.#SS58Prefix) as Address
   }
 
   static async create(
     api: ApiPromise,
     client: WalletClient,
-    account: Account,
+    account: AccountLike,
     options?: EtherAddressToSubstrateAddressOptions
   ) {
     const signer = new unstable_EvmAccountMappingProvider(api, client, account, options)
@@ -71,7 +81,7 @@ export class unstable_EvmAccountMappingProvider implements Provider {
     return this.#address
   }
 
-  get evmAccount(): Account {
+  get evmAccount(): AccountLike {
     if (!this.#account) {
       throw new Error('WalletClientSigner is not ready.')
     }
@@ -85,6 +95,16 @@ export class unstable_EvmAccountMappingProvider implements Provider {
     return this.#compressedPubkey
   }
 
+  get evmCaller(): EvmCaller {
+    if (!this.#compressedPubkey) {
+      throw new Error('WalletClientSigner is not ready.')
+    }
+    return {
+      compressedPubkey: this.#compressedPubkey,
+      address: this.#account.address,
+    }
+  }
+
   /**
    *
    */
@@ -93,7 +113,7 @@ export class unstable_EvmAccountMappingProvider implements Provider {
     transform?: (input: ISubmittableResult) => ISubmittableResult
   ): Promise<TSubmittableResult> {
     const substrateCall = await createSubstrateCall(this.#apiPromise, this.address, extrinsic)
-    const typedData = createEip712StructedDataSubstrateCall(this.#account, this.#domain, substrateCall)
+    const typedData = createEip712StructedDataSubstrateCall(this.#account as Account, this.#domain, substrateCall)
     const signature = await this.#client.signTypedData(typedData)
     return await new Promise(async (resolve, reject) => {
       try {
@@ -124,12 +144,19 @@ export class unstable_EvmAccountMappingProvider implements Provider {
     if (!this.#compressedPubkey) {
       throw new Error('WalletClientSigner is not ready.')
     }
-    return await unstable_signEip712Certificate({
+    const now = Date.now()
+    const isExpired = this.#certExpiredAt && this.#certExpiredAt > now
+    if (this.#cachedCert && !isExpired) {
+      return this.#cachedCert
+    }
+    this.#cachedCert = await unstable_signEip712Certificate({
       client: this.#client,
-      account: this.#account,
+      account: this.#account as Account,
       compressedPubkey: this.#compressedPubkey,
       ttl,
     })
+    this.#certExpiredAt = now + (ttl || 0x7fffffff)
+    return this.#cachedCert
   }
 
   async adjustStake(contractId: string, amount: number): Promise<void> {
