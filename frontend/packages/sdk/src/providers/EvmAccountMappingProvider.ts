@@ -11,7 +11,7 @@ import {
   createEip712Domain,
   createEip712StructedDataSubstrateCall,
   createSubstrateCall,
-  etherAddressToCompactPubkey,
+  etherAddressToCompressedPubkey,
 } from '../pruntime/eip712'
 import { callback } from '../utils/signAndSend'
 import { Provider } from './types'
@@ -34,7 +34,7 @@ export class unstable_EvmAccountMappingProvider implements Provider {
   //
   #domain: Eip712Domain
 
-  #compactPubkey: Address | undefined
+  #compressedPubkey: Address | undefined
   #address: Address | undefined
 
   constructor(api: ApiPromise, client: WalletClient, account: Account, { SS58Prefix = 30 } = {}) {
@@ -46,8 +46,8 @@ export class unstable_EvmAccountMappingProvider implements Provider {
   }
 
   async ready(msg?: string): Promise<void> {
-    this.#compactPubkey = await etherAddressToCompactPubkey(this.#client, this.#account, msg)
-    this.#address = encodeAddress(blake2AsU8a(hexToU8a(this.#compactPubkey)), this.#SS58Prefix) as Address
+    this.#compressedPubkey = await etherAddressToCompressedPubkey(this.#client, this.#account, msg)
+    this.#address = encodeAddress(blake2AsU8a(hexToU8a(this.#compressedPubkey)), this.#SS58Prefix) as Address
   }
 
   static async create(
@@ -71,11 +71,18 @@ export class unstable_EvmAccountMappingProvider implements Provider {
     return this.#address
   }
 
-  get proxiedEvmAccount(): Account {
+  get evmAccount(): Account {
     if (!this.#account) {
       throw new Error('WalletClientSigner is not ready.')
     }
     return this.#account
+  }
+
+  get compressedPubkey(): Address {
+    if (!this.#compressedPubkey) {
+      throw new Error('WalletClientSigner is not ready.')
+    }
+    return this.#compressedPubkey
   }
 
   /**
@@ -114,13 +121,13 @@ export class unstable_EvmAccountMappingProvider implements Provider {
   }
 
   async signCertificate(ttl?: number): Promise<CertificateData> {
-    if (!this.#compactPubkey) {
+    if (!this.#compressedPubkey) {
       throw new Error('WalletClientSigner is not ready.')
     }
     return await unstable_signEip712Certificate({
       client: this.#client,
       account: this.#account,
-      compactPubkey: this.#compactPubkey,
+      compressedPubkey: this.#compressedPubkey,
       ttl,
     })
   }

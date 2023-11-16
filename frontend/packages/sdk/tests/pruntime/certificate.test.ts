@@ -16,7 +16,7 @@ import { mainnet } from 'viem/chains'
 import { describe, it } from 'vitest'
 import { types } from '../../src/options'
 import { signCertificate, unstable_signEip712Certificate } from '../../src/pruntime/certificate'
-import { etherAddressToCompactPubkey } from '../../src/pruntime/eip712'
+import { etherAddressToCompressedPubkey } from '../../src/pruntime/eip712'
 
 let id = 0
 
@@ -83,7 +83,7 @@ describe('sign certificate', async function () {
   it('smoking test for sign certificate with eip712 wallet client', async function () {
     const account = privateKeyToAccount('0x415ac5b1b9c3742f85f2536b1eb60a03bf64a590ea896b087182f9c92f41ea12')
     const client = createTestClient({ account, chain: mainnet, mode: 'anvil', transport: http() })
-    const compactPubkey = await etherAddressToCompactPubkey(client, account)
-    await unstable_signEip712Certificate({ client, account, compactPubkey })
+    const compressedPubkey = await etherAddressToCompressedPubkey(client, account)
+    await unstable_signEip712Certificate({ client, account, compressedPubkey })
   })
 })
