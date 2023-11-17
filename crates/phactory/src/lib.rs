@@ -1,8 +1,8 @@
 #![warn(unused_imports)]
 #![warn(unused_extern_crates)]
-#![feature(bench_black_box)]
-#![feature(panic_unwind)]
-#![feature(c_variadic)]
+// #![feature(bench_black_box)]
+// #![feature(panic_unwind)]
+// #![feature(c_variadic)]
 
 #[macro_use]
 extern crate log;
@@ -10,6 +10,8 @@ extern crate log;
 extern crate lazy_static;
 extern crate phactory_pal as pal;
 extern crate runtime as chain;
+
+pub type PRuntimeLightValidation = LightValidation<chain::Runtime>;
 
 use rand::*;
 use serde::{

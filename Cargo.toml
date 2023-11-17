@@ -25,6 +25,7 @@ exclude = [
 ]
 
 members = [
+	"standalone/justification-validate",
 	"standalone/executor",
 	"standalone/rpc",
 	"standalone/node",
