@@ -23,6 +23,7 @@ pub struct Validator {
     client: BlockSyncState<PRuntimeLightValidation>,
     threads: Vec<JoinHandle<()>>,
     sender: Sender<BatchData>,
+    genesis_block: u32,
 }
 
 impl Validator {
@@ -30,7 +31,7 @@ impl Validator {
         let genesis = std::fs::read(&args.genesis).expect("Failed to read genesis file");
         let genesis_info =
             GenesisBlockInfo::decode(&mut &genesis[..]).expect("Failed to decode the genesis data");
-        let header_number_next = genesis_info.block_header.number + 1;
+        let genesis_block = genesis_info.block_header.number;
         let mut validator = PRuntimeLightValidation::new();
         let main_bridge = validator
             .initialize_bridge(
@@ -40,12 +41,13 @@ impl Validator {
             )
             .expect("Failed to init bridge");
         let (sender, threads) = create_thread_pool(args.threads);
-        let client = BlockSyncState::new(validator, main_bridge, header_number_next, 0);
+        let client = BlockSyncState::new(validator, main_bridge, genesis_block + 1, 0);
         Self {
             args,
             client,
             threads,
             sender,
+            genesis_block,
         }
     }
 
@@ -70,6 +72,9 @@ impl Validator {
             };
 
             let header = record.header().unwrap();
+            if header.number <= self.genesis_block {
+                continue;
+            }
             if header.number > self.args.to {
                 break;
             }
