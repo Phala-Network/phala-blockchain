@@ -1,3 +1,5 @@
+use core::time::Duration;
+
 use alloc::string::String;
 use anyhow::{anyhow, Result};
 use scale::Decode;
@@ -17,11 +19,16 @@ fn get_header(resposne: &reqwest::Response, name: &str) -> Result<String> {
 }
 
 /// Get collateral given DCAP quote and base URL of PCCS server URL.
-pub async fn get_collateral(pccs_url: &str, mut quote: &[u8]) -> Result<QuoteCollateral> {
+pub async fn get_collateral(
+    pccs_url: &str,
+    mut quote: &[u8],
+    timeout: Duration,
+) -> Result<QuoteCollateral> {
     let quote = parse_quote::Quote::decode(&mut quote)?;
     let fmspc = hex::encode_upper(quote.fmspc()?);
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
+        .timeout(timeout)
         .build()?;
     let base_url = pccs_url.trim_end_matches('/');
     let pck_crl_issuer_chain;
