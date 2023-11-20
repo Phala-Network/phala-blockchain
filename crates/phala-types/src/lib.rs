@@ -449,7 +449,7 @@ pub enum AttestationReport {
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub enum Collateral {
-    V3(sgx_attestation::dcap::QuoteCollateral),
+    SgxV30(sgx_attestation::dcap::SgxV30QuoteCollateral),
 }
 
 #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]

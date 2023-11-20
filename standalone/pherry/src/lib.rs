@@ -1030,7 +1030,7 @@ async fn register_worker(
                     }
                     let timeout = Duration::from_secs(args.pccs_timeout);
                     let collateral = get_collateral(&args.pccs_url, &quote, timeout).await?;
-                    let collateral = Some(Collateral::V3(collateral));
+                    let collateral = Some(Collateral::SgxV30(collateral));
                     Some(AttestationReport::SgxDcap { quote, collateral }).encode()
                 } else {
                     attestation.encoded_report
