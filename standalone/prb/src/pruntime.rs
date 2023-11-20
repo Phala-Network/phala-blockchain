@@ -12,7 +12,7 @@ use tokio::sync::Semaphore;
 pub type PRuntimeClient = PhactoryApiClient<RpcRequest>;
 
 pub struct RpcRequest {
-    base_url: String,
+    pub base_url: String,
     client: Client,
     semaphore: Arc<Semaphore>,
 }

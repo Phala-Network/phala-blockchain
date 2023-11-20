@@ -1191,6 +1191,15 @@ impl WorkerContext {
             }
             let mut header_batch = header_batch;
             header_batch.retain(|h| h.header.number >= next_headernum);
+            if !header_batch.is_empty() {
+                log::info!(
+                    "Syncing headers to {} auth_change: {} [{}, {}]",
+                    pr.client.base_url,
+                    authrotiy_change.is_some(),
+                    header_batch.first().unwrap().header.number,
+                    header_batch.last().unwrap().header.number
+                )
+            }
             let r = pr
                 .sync_header(HeadersToSync::new(header_batch, authrotiy_change))
                 .await?;
