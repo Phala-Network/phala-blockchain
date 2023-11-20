@@ -147,11 +147,11 @@ async fn process_items(
             Ok(record) => {
                 let number = record
                     .header()
-                    .map_err(|e| BadRequest(Some(format!("Decode error: {e}"))))?
+                    .map_err(|e| BadRequest(format!("Decode error: {e}")))?
                     .number;
                 handler(app, number, record.payload());
             }
-            Err(e) => return Err(BadRequest(Some(format!("Decode error: {e}")))),
+            Err(e) => return Err(BadRequest(format!("Decode error: {e}"))),
         }
     }
     Ok(())

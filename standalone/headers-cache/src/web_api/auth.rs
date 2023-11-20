@@ -24,7 +24,7 @@ impl<'r> FromRequest<'r> for Authorized {
             Some(header_token) if header_token == token.value => {
                 request::Outcome::Success(Authorized)
             }
-            _ => request::Outcome::Failure((Status::Forbidden, ())),
+            _ => request::Outcome::Error((Status::Forbidden, ())),
         }
     }
 }
