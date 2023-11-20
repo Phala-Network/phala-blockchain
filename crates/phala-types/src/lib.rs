@@ -441,12 +441,9 @@ pub enum AttestationReport {
         signature: Vec<u8>,
         raw_signing_cert: Vec<u8>,
     },
-    SgxDcapRawQuote {
+    SgxDcap {
         quote: Vec<u8>,
-    },
-    SgxDcapQuoteWithCollateral {
-        quote: Vec<u8>,
-        collateral: Collateral,
+        collateral: Option<Collateral>,
     },
 }
 

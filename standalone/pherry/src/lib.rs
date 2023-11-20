@@ -1015,16 +1015,18 @@ async fn register_worker(
         None => {
             if attestation.provider.as_str() == "dcap" {
                 let report =
-                    Option::<AttestationReport>::decode(&mut &attestation.encoded_report[..])
-                        .or(Err(anyhow!("Failed to decode attestation report")))?;
-                if let Some(AttestationReport::SgxDcapRawQuote { quote }) = report {
+                    Option::<AttestationReport>::decode(&mut &attestation.encoded_report[..]);
+                if let Ok(Some(AttestationReport::SgxDcap {
+                    quote,
+                    collateral: None,
+                })) = report
+                {
                     if args.pccs_url.is_empty() {
                         anyhow::bail!("--pccs-url is required when using dcap");
                     }
                     let collateral = get_collateral(&args.pccs_url, &quote).await?;
-                    let collateral = Collateral::V3(collateral);
-                    Some(AttestationReport::SgxDcapQuoteWithCollateral { quote, collateral })
-                        .encode()
+                    let collateral = Some(Collateral::V3(collateral));
+                    Some(AttestationReport::SgxDcap { quote, collateral }).encode()
                 } else {
                     attestation.encoded_report
                 }

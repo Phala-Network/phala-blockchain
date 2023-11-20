@@ -129,8 +129,12 @@ pub fn validate(
 			verify_pruntime_hash,
 			pruntime_allowlist,
 		),
-		Some(AttestationReport::SgxDcapRawQuote { .. }) => Err(Error::UnsupportedAttestationType),
-		Some(AttestationReport::SgxDcapQuoteWithCollateral { .. }) => todo!(),
+		Some(AttestationReport::SgxDcap { quote, collateral }) => {
+			let Some(collateral) = collateral else {
+				return Err(Error::UnsupportedAttestationType);
+			};
+			todo!("")
+		}
 		None => {
 			if opt_out_enabled {
 				Ok(ConfidentialReport {
