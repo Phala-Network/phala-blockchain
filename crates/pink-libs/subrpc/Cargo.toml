@@ -1,6 +1,6 @@
 [package]
 name = "pink-subrpc"
-version = "0.4.3"
+version = "0.5.0"
 authors = ["Phala Network"]
 edition = "2021"
 license = "Apache-2.0"
@@ -21,7 +21,7 @@ hex-literal = "0.4.1"
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 impl-serde = { version = "0.4.0", optional = true }
 
-pink-extension = { version = "0.4", path = "../../pink/pink-extension", default-features = false, features = ["ink-as-dependency"] }
+pink-extension = { version = "0.5", path = "../../pink/pink-extension", default-features = false }
 sp-core-hashing = { version = "9", default-features = false }
 
 serde = { version = "1.0.140", default-features = false, features = ["derive", "alloc"]}
@@ -31,7 +31,7 @@ ss58-registry = { version = "1.33.0", default-features = false }
 base58 = { version = "0.2.0", default-features = false }
 
 [dev-dependencies]
-pink-extension-runtime = { version = "0.4", path = "../../pink/pink-extension-runtime" }
+pink-extension-runtime = { path = "../../pink/pink-extension-runtime" }
 xcm = { package = "staging-xcm", git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false, features = ["std"] }
 
 [features]
