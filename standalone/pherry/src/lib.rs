@@ -249,6 +249,10 @@ pub struct Args {
     /// The URL of the PCCS server.
     #[arg(long, default_value = "")]
     pccs_url: String,
+
+    /// Timeout in seconds for connecting to PCCS server.
+    #[arg(long, default_value = "30")]
+    pccs_timeout: u64,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug)]
@@ -1024,7 +1028,8 @@ async fn register_worker(
                     if args.pccs_url.is_empty() {
                         anyhow::bail!("--pccs-url is required when using dcap");
                     }
-                    let collateral = get_collateral(&args.pccs_url, &quote).await?;
+                    let timeout = Duration::from_secs(args.pccs_timeout);
+                    let collateral = get_collateral(&args.pccs_url, &quote, timeout).await?;
                     let collateral = Some(Collateral::V3(collateral));
                     Some(AttestationReport::SgxDcap { quote, collateral }).encode()
                 } else {
