@@ -63,11 +63,10 @@ impl RA for GraminePlatform {
                     raw_signing_cert: cert,
                 })
             }
-            Some(AttestationProvider::Dcap) => {
-                Some(phala_types::AttestationReport::SgxDcapRawQuote {
-                    quote: ias::create_quote_vec(data)?,
-                })
-            }
+            Some(AttestationProvider::Dcap) => Some(phala_types::AttestationReport::SgxDcap {
+                quote: ias::create_quote_vec(data)?,
+                collateral: None,
+            }),
             None => None,
             _ => anyhow::bail!("Unknown attestation provider `{:?}`", provider),
         };
