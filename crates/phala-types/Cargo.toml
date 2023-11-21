@@ -13,6 +13,7 @@ sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "re
 
 phala-mq = { path = "../../crates/phala-mq", default-features = false }
 prpc = { path = "../../crates/prpc", default-features = false }
+schemars = { version = "0.8", optional = true }
 
 [features]
 default = ["std", "enable_serde"]
@@ -22,6 +23,7 @@ std = [
 	"codec/std",
 	"full_crypto",
 	"sp-core/std",
+	"schemars"
 ]
 enable_serde = [
 	"serde/derive",

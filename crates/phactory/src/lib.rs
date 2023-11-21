@@ -18,6 +18,7 @@ use serde::{
     ser::SerializeSeq,
     Deserialize, Deserializer, Serialize, Serializer,
 };
+use schemars::{JsonSchema, schema_for};
 
 use crate::light_validation::LightValidation;
 use std::{borrow::Cow, collections::BTreeMap, str::FromStr, sync::Arc};
@@ -80,13 +81,11 @@ mod types;
 // runtime definition locally.
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
 
-#[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
+#[derive(Serialize, Deserialize, Clone, JsonSchema)]
 struct RuntimeState {
-    #[codec(skip)]
     send_mq: MessageSendQueue,
 
     #[serde(skip)]
-    #[codec(skip)]
     recv_mq: MessageDispatcher,
 
     // chain storage synchonizing
@@ -223,12 +222,11 @@ enum RuntimeDataSeal {
     V1(PersistentRuntimeData),
 }
 
-#[derive(Serialize, Deserialize, Clone, TypeInfo)]
+#[derive(Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(bound(deserialize = "Platform: Deserialize<'de>"))]
 pub struct Phactory<Platform> {
     platform: Platform,
     #[serde(skip)]
-    #[codec(skip)]
     pub args: Arc<InitArgs>,
     dev_mode: bool,
     attestation_provider: Option<AttestationProvider>,
@@ -237,55 +235,44 @@ pub struct Phactory<Platform> {
     runtime_state: Option<RuntimeState>,
     endpoints: BTreeMap<EndpointType, String>,
     #[serde(skip)]
-    #[codec(skip)]
     signed_endpoints: Option<GetEndpointResponse>,
     // The deserialzation of system requires the mq, which inside the runtime_state, to be ready.
     #[serde(skip)]
     system: Option<system::System<Platform>>,
 
     // tmp key for WorkerKey handover encryption
-    #[codec(skip)]
     #[serde(skip)]
     pub(crate) handover_ecdh_key: Option<EcdhKey>,
 
-    #[codec(skip)]
     #[serde(skip)]
     handover_last_challenge: Option<HandoverChallenge<chain::BlockNumber>>,
 
-    #[codec(skip)]
     #[serde(skip)]
     #[serde(default = "Instant::now")]
     last_checkpoint: Instant,
 
-    #[codec(skip)]
     #[serde(skip)]
     query_scheduler: RequestScheduler<AccountId>,
 
     #[serde(default)]
     netconfig: Option<NetworkConfig>,
 
-    #[codec(skip)]
     #[serde(skip)]
     can_load_chain_state: bool,
 
-    #[codec(skip)]
     #[serde(skip)]
     trusted_sk: bool,
 
-    #[codec(skip)]
     #[serde(skip)]
     pub(crate) rcu_dispatching: bool,
 
-    #[codec(skip)]
     #[serde(skip)]
     pub(crate) pending_effects: Vec<::pink::types::ExecSideEffects>,
 
-    #[codec(skip)]
     #[serde(skip)]
     #[serde(default = "Instant::now")]
     started_at: Instant,
 
-    #[codec(skip)]
     #[serde(skip)]
     pub(crate) cluster_state_to_apply: Option<ClusterState<'static>>,
 }

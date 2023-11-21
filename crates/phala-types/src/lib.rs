@@ -11,6 +11,8 @@ use core::fmt::Debug;
 use scale_info::TypeInfo;
 use sp_core::H256;
 
+#[cfg(feature = "std")]
+use schemars::JsonSchema;
 #[cfg(feature = "enable_serde")]
 use serde::{Deserialize, Serialize};
 
@@ -24,6 +26,8 @@ pub mod messaging {
     use scale_info::TypeInfo;
     use sp_core::U256;
 
+    #[cfg(feature = "std")]
+    use schemars::JsonSchema;
     #[cfg(feature = "enable_serde")]
     use serde::{Deserialize, Serialize};
 
@@ -409,6 +413,7 @@ pub mod messaging {
     }
 
     #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "std", derive(JsonSchema))]
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub struct TokenomicParameters {
         // V calculation
@@ -444,6 +449,7 @@ pub enum AttestationReport {
 }
 
 #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "std", derive(JsonSchema))]
 #[derive(Encode, Decode, TypeInfo, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum AttestationProvider {
     #[cfg_attr(feature = "enable_serde", serde(rename = "root"))]

@@ -19,10 +19,15 @@ fn main() {
         .out_dir(out_dir)
         .mod_prefix("crate::prpc::")
         .disable_package_emission();
-    builder = builder.type_attribute(
-        ".pruntime_rpc",
-        "#[derive(::serde::Serialize, ::serde::Deserialize)]",
-    );
+    builder = builder
+        .type_attribute(
+            ".pruntime_rpc",
+            "#[derive(::serde::Serialize, ::serde::Deserialize)]",
+        )
+        .type_attribute(
+            ".pruntime_rpc",
+            "#[cfg_attr(feature = \"std\", derive(schemars::JsonSchema))]",
+        );
     for name in [
         "AttestationReport",
         "InitRuntimeResponse",
