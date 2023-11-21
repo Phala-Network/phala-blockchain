@@ -1004,7 +1004,9 @@ impl DataSourceManager {
         known_blocks: &Vec<Block>,
     ) -> Result<Option<u32>> {
         let (last_block, last_id) = last_set;
-        let key = format!("si:c:{last_block}:{last_id}");
+        let to_block = known_blocks.last().ok_or(SearchSetIdChangeInEmptyRange)?;
+        let range = (last_block, to_block.block.header.number);
+        let key = format!("si:c:{range:?}:{last_id}");
         let cache = self.cache.clone();
         match cache
             .try_get_with(
@@ -1015,13 +1017,7 @@ impl DataSourceManager {
             .await
         {
             Ok(ret) => match *ret {
-                DataSourceCacheItem::U32(ref data) => {
-                    if data.is_none() {
-                        cache.invalidate(&key).await;
-                        return Ok(None);
-                    }
-                    Ok(*data)
-                }
+                DataSourceCacheItem::U32(data) => Ok(data),
                 _ => Err(UnknownErrorFromCache.into()),
             },
             Err(e) => Err(anyhow!(e.to_string())),
