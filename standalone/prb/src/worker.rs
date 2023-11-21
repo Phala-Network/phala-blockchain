@@ -510,6 +510,7 @@ impl WorkerContext {
             txm.clone().add_worker(pid, pubkey).await?;
         }
 
+        let mut first_run = true;
         set_worker_message!(c, "Waiting for session info to update...");
         loop {
             let cc = c.clone();
@@ -530,6 +531,28 @@ impl WorkerContext {
                         set_worker_message!(c, "Worker is cooling down!");
                     }
                     _ => {
+                        if first_run {
+                          // Check on-chain stake vs. configured stake and update if different
+                          let stake_query = storage(
+                              "PhalaComputation",
+                              "Stakes",
+                              vec![Value::from_bytes(worker_binding.as_ref().unwrap())],
+                          );
+                          let stake_onchain: Option<u128> = fetch_storage_bytes(&api, &stake_query).await?;
+                          if stake_onchain.is_some() {
+                            info!("Stake: {:?}, {:?} on-chain", &worker.stake.parse::<u128>().unwrap(), &stake_onchain.unwrap());
+                            if &stake_onchain.unwrap() < &worker.stake.parse::<u128>().unwrap() {
+                              set_worker_message!(c, "Adjusting on-chain stake...");
+                              txm.clone()
+                                .restart_computing(pid, pubkey, worker.stake)
+                                .await?;
+                              Self::set_state(c.clone(), WorkerLifecycleState::Working).await;
+                            } else if &stake_onchain.unwrap() > &worker.stake.parse::<u128>().unwrap() {
+                              set_worker_message!(c, "Error on-chain stake higher, than configured...");
+                            }
+                          }
+                          first_run = false;
+                        }
                         Self::set_state(c.clone(), WorkerLifecycleState::Working).await;
                     }
                 }
