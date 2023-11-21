@@ -4,8 +4,10 @@
 extern crate alloc;
 
 use alloc::string::String;
+use scale::{Decode, Encode};
+use scale_info::TypeInfo;
 
-#[derive(Debug)]
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     InvalidCertificate,
     InvalidSignature,
@@ -16,6 +18,7 @@ pub enum Error {
     MissingField { field: String },
     InvalidFieldValue { field: String },
     UnsupportedFieldValue { field: String },
+    TCBInfoExpired,
     KeyLengthIsInvalid,
     PublicKeyIsInvalid,
     RsaSignatureIsInvalid,
@@ -37,6 +40,10 @@ pub enum Error {
     PceSvnOidIsMissing,
     PceSvnDecodingError,
     PceSvnLengthMismatch,
+    FmspcOidIsMissing,
+    FmspcLengthMismatch,
+    FmspcDecodingError,
+    FmspcMismatch,
     QEReportHashMismatch,
     IsvEnclaveReportSignatureIsInvalid,
 }

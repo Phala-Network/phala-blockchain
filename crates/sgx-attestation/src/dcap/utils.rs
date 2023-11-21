@@ -7,7 +7,7 @@ use webpki::types::CertificateDer;
 use const_oid::ObjectIdentifier;
 use x509_cert::Certificate;
 
-use crate::dcap::quote::{CpuSvn, Svn};
+use crate::dcap::quote::{CpuSvn, Fmspc, Svn};
 use crate::Error;
 
 /// The needed code for a trust anchor can be extracted using `webpki` with something like this:
@@ -38,7 +38,7 @@ pub static DCAP_SERVER_ROOTS: &[webpki::types::TrustAnchor<'static>; 1] = &[
 /// https://download.01.org/intel-sgx/sgx-dcap/1.19/linux/docs/SGX_PCK_Certificate_CRL_Spec-1.4.pdf
 const INTEL_SGX_EXTENSION_OID: ObjectIdentifier =
 	ObjectIdentifier::new_unwrap("1.2.840.113741.1.13.1");
-// const OID_FMSPC: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113741.1.13.1.4");
+const OID_FMSPC: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113741.1.13.1.4");
 const OID_PCESVN: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113741.1.13.1.2.17");
 const OID_CPUSVN: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113741.1.13.1.2.18");
 
@@ -78,18 +78,18 @@ pub fn get_intel_extension(der_encoded: &[u8]) -> Result<Vec<u8>, Error> {
 	Ok(extension.unwrap().into_bytes())
 }
 
-// pub fn get_fmspc(der: &[u8]) -> Result<Fmspc, Error> {
-// 	let bytes_oid = OID_FMSPC.as_bytes();
-// 	let mut offset = der
-// 		.windows(bytes_oid.len())
-// 		.position(|window| window == bytes_oid)
-// 		.ok_or(Error::FmspcOidIsMissing)?;
-// 	offset += 12; // length oid (10) + asn1 tag (1) + asn1 length10 (1)
-//
-// 	let fmspc_size = core::mem::size_of::<Fmspc>() / core::mem::size_of::<u8>();
-// 	let data = der.get(offset..offset + fmspc_size).ok_or(Error::FmspcLengthMismatch)?;
-// 	data.try_into().map_err(|_| Error::FmspcDecodingError)
-// }
+pub fn get_fmspc(der: &[u8]) -> Result<Fmspc, Error> {
+	let bytes_oid = OID_FMSPC.as_bytes();
+	let mut offset = der
+		.windows(bytes_oid.len())
+		.position(|window| window == bytes_oid)
+		.ok_or(Error::FmspcOidIsMissing)?;
+	offset += 12; // length oid (10) + asn1 tag (1) + asn1 length10 (1)
+
+	let fmspc_size = core::mem::size_of::<Fmspc>() / core::mem::size_of::<u8>();
+	let data = der.get(offset..offset + fmspc_size).ok_or(Error::FmspcLengthMismatch)?;
+	data.try_into().map_err(|_| Error::FmspcDecodingError)
+}
 
 pub fn get_cpu_svn(der: &[u8]) -> Result<CpuSvn, Error> {
 	let bytes_oid = OID_CPUSVN.as_bytes();

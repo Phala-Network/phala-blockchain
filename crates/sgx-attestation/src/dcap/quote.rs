@@ -50,7 +50,7 @@ pub(crate) const TEE_TYPE_SGX: u32 = 0u32;
 
 pub(crate) type MrSigner = [u8; 32];
 pub(crate) type MrEnclave = [u8; 32];
-// pub(crate) type Fmspc = [u8; 6];
+pub(crate) type Fmspc = [u8; 6];
 pub(crate) type CpuSvn = [u8; 16];
 pub(crate) type Svn = u16;
 

@@ -257,6 +257,8 @@ pub mod pallet {
 		BadIASReport,
 		OutdatedIASReport,
 		UnknownQuoteBodyFormat,
+		// DCAP related
+		InvalidDCAPQuote,
 		// Report validation
 		InvalidRuntimeInfoHash,
 		InvalidRuntimeInfo,
@@ -1202,6 +1204,7 @@ pub mod pallet {
 				AttestationError::InvalidUserDataHash => Self::InvalidRuntimeInfoHash,
 				AttestationError::NoneAttestationDisabled => Self::NoneAttestationDisabled,
 				AttestationError::UnsupportedAttestationType => Self::UnsupportedAttestationType,
+				AttestationError::InvalidDCAPQuote(_) => Self::InvalidDCAPQuote,
 			}
 		}
 	}

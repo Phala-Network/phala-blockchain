@@ -5,6 +5,7 @@ mod quote;
 mod tcb_info;
 mod utils;
 
+use alloc::borrow::ToOwned;
 use alloc::vec::Vec;
 use alloc::string::{String, ToString};
 use scale::{Decode, Encode};
@@ -13,7 +14,7 @@ use scale_info::TypeInfo;
 use crate::Error;
 use crate::dcap::quote::{AttestationKeyType, EnclaveReport, Quote, QuoteAuthData, QuoteVersion};
 use crate::dcap::utils::*;
-use crate::dcap::tcb_info::{TCBInfo, TCBStatus};
+use crate::dcap::tcb_info::TCBInfo;
 
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, Debug)]
 pub struct SgxV30QuoteCollateral {
@@ -32,7 +33,7 @@ pub fn verify(
     raw_quote: &[u8],
     quote_collateral: &SgxV30QuoteCollateral,
     now: u64,
-) -> Result<(Vec<u8>, String, Vec<String>), Error> {
+) -> Result<([u8; 64], Vec<u8>, String, Vec<String>), Error> {
     // Parse data
 
     let quote = Quote::parse(&raw_quote).map_err(|_| Error::CodecError )?;
@@ -44,7 +45,13 @@ pub fn verify(
     pruntime_hash.extend_from_slice(&[0u8, 0u8, 0u8, 0u8]); // isv_prod_id and isv_svn
     pruntime_hash.extend_from_slice(&quote.enclave_report.mr_signer);
 
-    let tcb_info = TCBInfo::from_json_str(&quote_collateral.tcb_info).unwrap();
+    let tcb_info = pink_json::from_str::<TCBInfo>(&quote_collateral.tcb_info).map_err(|_| Error::CodecError)?;
+
+    let next_update = chrono::DateTime::parse_from_rfc3339(&tcb_info.next_update)
+        .map_err(|_| Error::InvalidFieldValue { field: "nextUpdate".to_owned() })?;
+    if now > next_update.timestamp() as u64 {
+        return Err(Error::TCBInfoExpired)
+    }
 
     // Verify enclave
 
@@ -139,17 +146,23 @@ pub fn verify(
     let extension_section = get_intel_extension(&certification_data.certs[0])?;
     let cpu_svn = get_cpu_svn(&extension_section)?;
     let pce_svn = get_pce_svn(&extension_section)?;
+    let fmspc = get_fmspc(&extension_section)?;
+
+    let tcb_fmspc = hex::decode(fmspc).map_err(|_| Error::InvalidFieldValue { field: "fmspc".to_owned() })?;
+    if fmspc != &tcb_fmspc[..] {
+        return Err(Error::FmspcMismatch)
+    }
 
     // TCB status and advisory ids
-    let mut tcb_status = TCBStatus::Unrecognized { status: None };
+    let mut tcb_status = "Unknown".to_owned();
     let mut advisory_ids = Vec::<String>::new();
     for tcb_level in &tcb_info.tcb_levels {
-        if pce_svn >= tcb_level.pce_svn {
+        if pce_svn >= tcb_level.tcb.pce_svn {
             let mut selected = true;
             for i in 0..15 { // constant?
                 // println!("[{}] QE SVN: {}, TCB LEVEL SVN: {}", i, parsed_qe_report.cpu_svn[i], tcb_level.components[i]);
 
-                if cpu_svn[i] < tcb_level.components[i] {
+                if cpu_svn[i] < tcb_level.tcb.components[i].svn {
                     selected = false;
                     break;
                 }
@@ -165,5 +178,5 @@ pub fn verify(
         }
     }
 
-    Ok((pruntime_hash, tcb_status.to_string(), advisory_ids))
+    Ok((quote.enclave_report.report_data, pruntime_hash, tcb_status.to_string(), advisory_ids))
 }
