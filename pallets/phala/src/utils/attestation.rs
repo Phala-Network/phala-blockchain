@@ -110,19 +110,31 @@ impl IasFields {
 }
 
 pub fn validate(
-	attestation: Option<AttestationReport>,
+	attestation: Option<Box<AttestationReport>>,
 	user_data_hash: &[u8; 32],
 	now: u64,
 	verify_pruntime_hash: bool,
 	pruntime_allowlist: Vec<Vec<u8>>,
 	opt_out_enabled: bool,
 ) -> Result<ConfidentialReport, Error> {
-	match attestation {
-		Some(AttestationReport::SgxIas {
+	let Some(boxed_attestation) = attestation else {
+		return if opt_out_enabled {
+			Ok(ConfidentialReport {
+				provider: None,
+				runtime_hash: Vec::new(),
+				confidence_level: 128u8,
+			})
+		} else {
+			Err(Error::NoneAttestationDisabled)
+		}
+	};
+
+	match *boxed_attestation {
+		AttestationReport::SgxIas {
 			ra_report,
 			signature,
 			raw_signing_cert,
-		}) => validate_ias_report(
+		} => validate_ias_report(
 			user_data_hash,
 			ra_report.as_slice(),
 			signature.as_slice(),
@@ -131,7 +143,7 @@ pub fn validate(
 			verify_pruntime_hash,
 			pruntime_allowlist,
 		),
-		Some(AttestationReport::SgxDcap { quote, collateral }) => {
+		AttestationReport::SgxDcap { quote, collateral } => {
 			let Some(Collateral::SgxV30(collateral)) = collateral else {
 				return Err(Error::UnsupportedAttestationType);
 			};
@@ -143,17 +155,6 @@ pub fn validate(
 				verify_pruntime_hash,
 				pruntime_allowlist,
 			)
-		}
-		None => {
-			if opt_out_enabled {
-				Ok(ConfidentialReport {
-					provider: None,
-					runtime_hash: Vec::new(),
-					confidence_level: 128u8,
-				})
-			} else {
-				Err(Error::NoneAttestationDisabled)
-			}
 		}
 	}
 }
