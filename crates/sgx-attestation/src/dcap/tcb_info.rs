@@ -32,7 +32,7 @@ pub struct TCBLevel {
 pub struct TCB {
     #[serde(rename = "sgxtcbcomponents")]
     pub components: Vec<TCBComponents>,
-    #[serde(rename = "pce_svn")]
+    #[serde(rename = "pcesvn")]
     pub pce_svn: u16,
 }
 
