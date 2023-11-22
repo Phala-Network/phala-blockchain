@@ -554,6 +554,7 @@ pub mod pallet {
 
 		#[pallet::call_index(5)]
 		#[pallet::weight({0})]
+		#[frame_support::transactional]
 		pub fn claim_reimbursement(
 			origin: OriginFor<T>,
 			pid: u64,
