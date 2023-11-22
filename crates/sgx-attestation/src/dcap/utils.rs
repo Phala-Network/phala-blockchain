@@ -1,7 +1,5 @@
-use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
-use base64::{engine::general_purpose, Engine as _};
 use const_oid::ObjectIdentifier;
 use core::time::Duration;
 use webpki::types::CertificateDer;
@@ -112,32 +110,26 @@ pub fn get_pce_svn(der: &[u8]) -> Result<Svn, Error> {
     }
 }
 
-/// Extract a list of certificates from a byte vec. The certificates must be separated by
-/// `-----BEGIN CERTIFICATE-----` and `-----END CERTIFICATE-----` markers
-pub fn extract_raw_certs(cert_chain: &[u8]) -> Vec<Vec<u8>> {
-    // The certificates should be valid UTF-8 but if not we skip the invalid cert. The certificate verification
-    // will fail at a later point.
-    let certs_concat = String::from_utf8_lossy(cert_chain);
-    let certs_concat = certs_concat.replace('\n', "");
-    let certs_concat = certs_concat.replace("-----BEGIN CERTIFICATE-----", "");
-    // Use the end marker to split the string into certificates
-    let parts = certs_concat.split("-----END CERTIFICATE-----");
-    parts
-        .filter(|p| !p.is_empty())
-        .filter_map(|p| general_purpose::STANDARD.decode(p).ok())
-        .collect()
+pub fn extract_raw_certs(cert_chain: &[u8]) -> Result<Vec<Vec<u8>>, Error> {
+    Ok(
+        pem::parse_many(cert_chain)
+            .map_err(|_| Error::CodecError)?
+            .iter()
+            .map(|i| i.contents().to_vec() )
+            .collect()
+    )
 }
 
-pub fn extract_certs<'a>(cert_chain: &'a [u8]) -> Vec<CertificateDer<'a>> {
+pub fn extract_certs<'a>(cert_chain: &'a [u8]) -> Result<Vec<CertificateDer<'a>>, Error> {
     let mut certs = Vec::<CertificateDer<'a>>::new();
 
-    let raw_certs = extract_raw_certs(cert_chain);
+    let raw_certs = extract_raw_certs(cert_chain)?;
     for raw_cert in raw_certs.iter() {
         let cert = webpki::types::CertificateDer::<'a>::from(raw_cert.to_vec());
         certs.push(cert);
     }
 
-    certs
+    Ok(certs)
 }
 
 /// Encode two 32-byte values in DER format

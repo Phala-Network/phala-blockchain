@@ -47,8 +47,8 @@ impl Header {
         let tee_type = LittleEndian::read_u32(&raw_header[4..8]);
         let qe_svn = LittleEndian::read_u16(&raw_header[8..10]);
         let pce_svn = LittleEndian::read_u16(&raw_header[10..12]);
-        let qe_vendor_id: [u8; 16] = raw_header[12..28].try_into().unwrap();
-        let user_data: [u8; 20] = raw_header[28..48].try_into().unwrap();
+        let qe_vendor_id: [u8; 16] = raw_header[12..28].try_into().map_err(|_| Error::CodecError)?;
+        let user_data: [u8; 20] = raw_header[28..48].try_into().map_err(|_| Error::CodecError)?;
 
         // println!("- Quote header -");
         // println!("version: {}", version);
@@ -132,18 +132,18 @@ impl EnclaveReport {
             return Err(Error::RawDataInvalid);
         }
 
-        let cpu_svn: [u8; 16] = raw_report[..16].try_into().unwrap();
+        let cpu_svn: [u8; 16] = raw_report[..16].try_into().map_err(|_| Error::CodecError)?;
         let misc_select = LittleEndian::read_u32(&raw_report[16..20]);
-        // let _reserved: [u8; 28] = raw_report[20..48].try_into().unwrap();
-        let attributes: [u8; 16] = raw_report[48..64].try_into().unwrap();
-        let mr_enclave: [u8; 32] = raw_report[64..96].try_into().unwrap();
-        // let _reserved: [u8; 32] = raw_report[96..128].try_into().unwrap();
-        let mr_signer: [u8; 32] = raw_report[128..160].try_into().unwrap();
-        // let _reserved: [u8; 96] = raw_report[160..256].try_into().unwrap();
+        // let _reserved: [u8; 28] = raw_report[20..48].try_into().map_err(|_| Error::CodecError)?;
+        let attributes: [u8; 16] = raw_report[48..64].try_into().map_err(|_| Error::CodecError)?;
+        let mr_enclave: [u8; 32] = raw_report[64..96].try_into().map_err(|_| Error::CodecError)?;
+        // let _reserved: [u8; 32] = raw_report[96..128].try_into().map_err(|_| Error::CodecError)?;
+        let mr_signer: [u8; 32] = raw_report[128..160].try_into().map_err(|_| Error::CodecError)?;
+        // let _reserved: [u8; 96] = raw_report[160..256].try_into().map_err(|_| Error::CodecError)?;
         let isv_prod_id = LittleEndian::read_u16(&raw_report[256..258]);
         let isv_svn = LittleEndian::read_u16(&raw_report[258..260]);
-        // let _reserved: [u8; 60] = raw_report[260..320].try_into().unwrap();
-        let report_data: [u8; 64] = raw_report[320..384].try_into().unwrap();
+        // let _reserved: [u8; 60] = raw_report[260..320].try_into().map_err(|_| Error::CodecError)?;
+        let report_data: [u8; 64] = raw_report[320..384].try_into().map_err(|_| Error::CodecError)?;
 
         // println!("- Quote enclave report -");
         // println!("cpu svn: 0x{}", hex::encode(cpu_svn));
@@ -214,7 +214,7 @@ impl<'a> CertificationData<'a> {
         // println!("data_size: {}", data_size);
         // println!("----------------------");
 
-        let certs = extract_certs(data);
+        let certs = extract_certs(data)?;
         if certs.len() < 2 {
             return Err(Error::InvalidFieldValue {
                 field: "data_id".to_owned(),

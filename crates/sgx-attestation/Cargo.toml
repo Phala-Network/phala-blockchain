@@ -15,6 +15,7 @@ const-oid = { version = "0.9.5", default-features = false }
 der = { version = "0.7.8", default-features = false, features = ["alloc"] }
 x509-cert = { version = "0.2.4", default-features = false }
 byteorder = { version = "1.5.0", default-features = false }
+pem = { version = "3", default-features = false }
 
 log = { version = "0.4.20", default-features = false }
 
@@ -26,7 +27,7 @@ webpki = { git = "https://github.com/rustls/webpki", rev = "2ed9a4324f48c2c46ffd
 ] }
 
 anyhow = { version = "1", optional = true }
-pem = { version = "3", optional = true }
+
 x509-parser = { version = "0.15", optional = true }
 asn1_der = { version = "0.7", optional = true }
 reqwest = { version = "0.11", optional = true, default-features = false, features = ["rustls-tls"] }
@@ -46,11 +47,11 @@ std = [
     "ring/std",
     "webpki/std",
     "const-oid/std",
+    "pem/std",
     "serde_json",
     "anyhow",
     "reqwest",
     "urlencoding",
     "asn1_der",
-    "pem",
     "x509-parser",
 ]

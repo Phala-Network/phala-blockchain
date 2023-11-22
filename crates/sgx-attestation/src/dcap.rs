@@ -65,7 +65,7 @@ pub fn verify(
     // Verify integrity
 
     // Check TCB info cert chain and signature
-    let leaf_certs = extract_certs(quote_collateral.tcb_info_issuer_chain.as_bytes());
+    let leaf_certs = extract_certs(quote_collateral.tcb_info_issuer_chain.as_bytes())?;
     if leaf_certs.len() < 2 {
         return Err(Error::CertificateChainIsTooShort);
     }
