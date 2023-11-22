@@ -54,13 +54,13 @@ impl IasFields {
 		// Filter valid `isvEnclaveQuoteStatus`
 		let quote_status = &parsed_report.isv_enclave_quote_status.as_str();
 		let mut confidence_level: u8 = 128;
-		if IAS_QUOTE_STATUS_LEVEL_1.contains(quote_status) {
+		if SGX_QUOTE_STATUS_LEVEL_1.contains(quote_status) {
 			confidence_level = 1;
-		} else if IAS_QUOTE_STATUS_LEVEL_2.contains(quote_status) {
+		} else if SGX_QUOTE_STATUS_LEVEL_2.contains(quote_status) {
 			confidence_level = 2;
-		} else if IAS_QUOTE_STATUS_LEVEL_3.contains(quote_status) {
+		} else if SGX_QUOTE_STATUS_LEVEL_3.contains(quote_status) {
 			confidence_level = 3;
-		} else if IAS_QUOTE_STATUS_LEVEL_5.contains(quote_status) {
+		} else if SGX_QUOTE_STATUS_LEVEL_5.contains(quote_status) {
 			confidence_level = 5;
 		}
 		if confidence_level == 128 {
@@ -75,7 +75,7 @@ impl IasFields {
 			// Filter AdvisoryIDs. `advisoryIDs` is optional
 			for advisory_id in parsed_report.advisory_ids.iter() {
 				let advisory_id = advisory_id.as_str();
-				if !IAS_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
+				if !SGX_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
 					confidence_level = 4;
 				}
 			}
@@ -228,13 +228,13 @@ pub fn validate_dcap(
 	}
 
 	let mut confidence_level: u8 = 128;
-	if IAS_QUOTE_STATUS_LEVEL_1.contains(&tcb_status.as_str()) {
+	if SGX_QUOTE_STATUS_LEVEL_1.contains(&tcb_status.as_str()) {
 		confidence_level = 1;
-	} else if IAS_QUOTE_STATUS_LEVEL_2.contains(&tcb_status.as_str()) {
+	} else if SGX_QUOTE_STATUS_LEVEL_2.contains(&tcb_status.as_str()) {
 		confidence_level = 2;
-	} else if IAS_QUOTE_STATUS_LEVEL_3.contains(&tcb_status.as_str()) {
+	} else if SGX_QUOTE_STATUS_LEVEL_3.contains(&tcb_status.as_str()) {
 		confidence_level = 3;
-	} else if IAS_QUOTE_STATUS_LEVEL_5.contains(&tcb_status.as_str()) {
+	} else if SGX_QUOTE_STATUS_LEVEL_5.contains(&tcb_status.as_str()) {
 		confidence_level = 5;
 	}
 	if confidence_level == 128 {
@@ -249,7 +249,7 @@ pub fn validate_dcap(
 		// Filter AdvisoryIDs. `advisoryIDs` is optional
 		for advisory_id in advisory_ids.iter() {
 			let advisory_id = advisory_id.as_str();
-			if !IAS_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
+			if !SGX_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
 				confidence_level = 4;
 			}
 		}
@@ -257,7 +257,7 @@ pub fn validate_dcap(
 
 	// Check the following fields
 	Ok(ConfidentialReport {
-		provider: Some(AttestationProvider::Ias),
+		provider: Some(AttestationProvider::Dcap),
 		runtime_hash: pruntime_hash,
 		confidence_level
 	})

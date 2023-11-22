@@ -51,13 +51,13 @@ impl IasFields {
 		// Filter valid `isvEnclaveQuoteStatus`
 		let quote_status = &parsed_report.isv_enclave_quote_status.as_str();
 		let mut confidence_level: u8 = 128;
-		if IAS_QUOTE_STATUS_LEVEL_1.contains(quote_status) {
+		if SGX_QUOTE_STATUS_LEVEL_1.contains(quote_status) {
 			confidence_level = 1;
-		} else if IAS_QUOTE_STATUS_LEVEL_2.contains(quote_status) {
+		} else if SGX_QUOTE_STATUS_LEVEL_2.contains(quote_status) {
 			confidence_level = 2;
-		} else if IAS_QUOTE_STATUS_LEVEL_3.contains(quote_status) {
+		} else if SGX_QUOTE_STATUS_LEVEL_3.contains(quote_status) {
 			confidence_level = 3;
-		} else if IAS_QUOTE_STATUS_LEVEL_5.contains(quote_status) {
+		} else if SGX_QUOTE_STATUS_LEVEL_5.contains(quote_status) {
 			confidence_level = 5;
 		}
 		if confidence_level == 128 {
@@ -71,7 +71,7 @@ impl IasFields {
 		if confidence_level == 3 {
 			// Filter AdvisoryIDs. `advisoryIDs` is optional
 			for advisory_id in parsed_report.advisory_ids.iter() {
-				if !IAS_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id.as_str()) {
+				if !SGX_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id.as_str()) {
 					confidence_level = 4;
 				}
 			}
