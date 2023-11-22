@@ -4,6 +4,7 @@ pub mod get_collateral;
 mod quote;
 mod tcb_info;
 mod utils;
+mod constants;
 
 use alloc::borrow::ToOwned;
 use alloc::string::{String, ToString};
@@ -14,6 +15,7 @@ use scale_info::TypeInfo;
 use crate::dcap::quote::{AttestationKeyType, EnclaveReport, Quote, QuoteAuthData, QuoteVersion};
 use crate::dcap::tcb_info::TcbInfo;
 use crate::dcap::utils::*;
+use crate::dcap::constants::*;
 use crate::Error;
 
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, Debug)]
@@ -130,9 +132,9 @@ pub fn verify(
         EnclaveReport::from_slice(&qe_report).map_err(|_err| Error::CodecError)?;
 
     // Check QE hash
-    let mut qe_hash_data = [0u8; quote::QE_HASH_DATA_BYTE_LEN];
-    qe_hash_data[0..quote::ATTESTATION_KEY_LEN].copy_from_slice(&attestation_key);
-    qe_hash_data[quote::ATTESTATION_KEY_LEN..].copy_from_slice(&qe_auth_data);
+    let mut qe_hash_data = [0u8; QE_HASH_DATA_BYTE_LEN];
+    qe_hash_data[0..ATTESTATION_KEY_LEN].copy_from_slice(&attestation_key);
+    qe_hash_data[ATTESTATION_KEY_LEN..].copy_from_slice(&qe_auth_data);
     let qe_hash = ring::digest::digest(&ring::digest::SHA256, &qe_hash_data);
     if qe_hash.as_ref() != &parsed_qe_report.report_data[0..32] {
         return Err(Error::QEReportHashMismatch);
@@ -145,7 +147,7 @@ pub fn verify(
         ring::signature::UnparsedPublicKey::new(&ring::signature::ECDSA_P256_SHA256_FIXED, pub_key);
     peer_public_key
         .verify(
-            &raw_quote[..(quote::HEADER_BYTE_LEN + quote::ENCLAVE_REPORT_BYTE_LEN)],
+            &raw_quote[..(HEADER_BYTE_LEN + ENCLAVE_REPORT_BYTE_LEN)],
             &signature,
         )
         .map_err(|_| Error::IsvEnclaveReportSignatureIsInvalid)?;

@@ -7,31 +7,9 @@ use core::time::Duration;
 use webpki::types::CertificateDer;
 use x509_cert::Certificate;
 
-use crate::dcap::quote::{CpuSvn, Fmspc, Svn};
+use crate::dcap::constants::*;
 use crate::Error;
 
-/// The needed code for a trust anchor can be extracted using `webpki` with something like this:
-/// println!("{:?}", webpki::TrustAnchor::try_from_cert_der(&root_cert));
-#[allow(clippy::zero_prefixed_literal)]
-pub static DCAP_SERVER_ROOTS: &[webpki::types::TrustAnchor<'static>; 1] =
-    &[webpki::types::TrustAnchor {
-        subject: webpki::types::Der::from_slice(&[
-            49, 26, 48, 24, 06, 03, 85, 04, 03, 12, 17, 73, 110, 116, 101, 108, 32, 83, 71, 88, 32,
-            82, 111, 111, 116, 32, 67, 65, 49, 26, 48, 24, 06, 03, 85, 04, 10, 12, 17, 73, 110,
-            116, 101, 108, 32, 67, 111, 114, 112, 111, 114, 97, 116, 105, 111, 110, 49, 20, 48, 18,
-            06, 03, 85, 04, 07, 12, 11, 83, 97, 110, 116, 97, 32, 67, 108, 97, 114, 97, 49, 11, 48,
-            09, 06, 03, 85, 04, 08, 12, 02, 67, 65, 49, 11, 48, 09, 06, 03, 85, 04, 06, 19, 02, 85,
-            83,
-        ]),
-        subject_public_key_info: webpki::types::Der::from_slice(&[
-            48, 19, 06, 07, 42, 134, 72, 206, 61, 02, 01, 06, 08, 42, 134, 72, 206, 61, 03, 01, 07,
-            03, 66, 00, 04, 11, 169, 196, 192, 192, 200, 97, 147, 163, 254, 35, 214, 176, 44, 218,
-            16, 168, 187, 212, 232, 142, 72, 180, 69, 133, 97, 163, 110, 112, 85, 37, 245, 103,
-            145, 142, 46, 220, 136, 228, 13, 134, 11, 208, 204, 78, 226, 106, 172, 201, 136, 229,
-            05, 169, 83, 85, 140, 69, 63, 107, 09, 04, 174, 115, 148,
-        ]),
-        name_constraints: None,
-    }];
 
 /// See document "Intel® Software Guard Extensions: PCK Certificate and Certificate Revocation List Profile Specification"
 /// https://download.01.org/intel-sgx/sgx-dcap/1.19/linux/docs/SGX_PCK_Certificate_CRL_Spec-1.4.pdf

@@ -10,9 +10,7 @@ use asn1_der::{
 use scale::{Decode, Input};
 use x509_parser::extensions::X509Extension;
 
-use self::constants::oids;
-
-mod constants;
+use crate::dcap::constants::*;
 
 #[derive(Debug)]
 pub struct Data<T> {
@@ -84,25 +82,25 @@ impl core::fmt::Debug for CertificationData {
 #[derive(Decode, Debug)]
 pub struct QEReportCertificationData {
     pub qe_report: EnclaveReport,
-    pub qe_report_signature: [u8; constants::QE_REPORT_SIG_BYTE_LEN],
+    pub qe_report_signature: [u8; QE_REPORT_SIG_BYTE_LEN],
     pub qe_auth_data: Data<u16>,
     pub certification_data: CertificationData,
 }
 
 #[derive(Decode, Debug)]
 pub struct AuthDataV3 {
-    pub ecdsa_signature: [u8; constants::ECDSA_SIGNATURE_BYTE_LEN],
-    pub ecdsa_attestation_key: [u8; constants::ECDSA_PUBKEY_BYTE_LEN],
+    pub ecdsa_signature: [u8; ECDSA_SIGNATURE_BYTE_LEN],
+    pub ecdsa_attestation_key: [u8; ECDSA_PUBKEY_BYTE_LEN],
     pub qe_report: EnclaveReport,
-    pub qe_report_signature: [u8; constants::QE_REPORT_SIG_BYTE_LEN],
+    pub qe_report_signature: [u8; QE_REPORT_SIG_BYTE_LEN],
     pub qe_auth_data: Data<u16>,
     pub certification_data: CertificationData,
 }
 
 #[derive(Debug)]
 pub struct AuthDataV4 {
-    pub ecdsa_signature: [u8; constants::ECDSA_SIGNATURE_BYTE_LEN],
-    pub ecdsa_attestation_key: [u8; constants::ECDSA_PUBKEY_BYTE_LEN],
+    pub ecdsa_signature: [u8; ECDSA_SIGNATURE_BYTE_LEN],
+    pub ecdsa_attestation_key: [u8; ECDSA_PUBKEY_BYTE_LEN],
     pub certification_data: CertificationData,
     pub qe_report_data: QEReportCertificationData,
 }
@@ -157,7 +155,7 @@ impl Decode for Quote {
         let data;
         if header.version > 4 {
             let body = Body::decode(input)?;
-            if body.body_type != constants::BODY_SGX_ENCLAVE_REPORT_TYPE {
+            if body.body_type != BODY_SGX_ENCLAVE_REPORT_TYPE {
                 return Err(scale::Error::from("unsupported body type"));
             }
             report = EnclaveReport::decode(input)?;

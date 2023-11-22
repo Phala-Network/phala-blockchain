@@ -1,4 +1,11 @@
 #![allow(dead_code)]
+
+pub type MrSigner = [u8; 32];
+pub type MrEnclave = [u8; 32];
+pub type Fmspc = [u8; 6];
+pub type CpuSvn = [u8; 16];
+pub type Svn = u16;
+
 pub const TEE_TYPE_SGX: u32 = 0x00000000;
 pub const TEE_TYPE_TDX: u32 = 0x00000081;
 
@@ -59,6 +66,33 @@ pub const QUOTE_MIN_BYTE_LEN: usize =
         + AUTH_DATA_SIZE_BYTE_LEN
         + AUTH_DATA_MIN_BYTE_LEN;
 
+pub const ATTESTATION_KEY_LEN: usize = 64;
+pub const AUTHENTICATION_DATA_LEN: usize = 32;
+pub const QE_HASH_DATA_BYTE_LEN: usize = ATTESTATION_KEY_LEN + AUTHENTICATION_DATA_LEN;
+
+/// The needed code for a trust anchor can be extracted using `webpki` with something like this:
+/// println!("{:?}", webpki::TrustAnchor::try_from_cert_der(&root_cert));
+#[allow(clippy::zero_prefixed_literal)]
+pub static DCAP_SERVER_ROOTS: &[webpki::types::TrustAnchor<'static>; 1] =
+    &[webpki::types::TrustAnchor {
+        subject: webpki::types::Der::from_slice(&[
+            49, 26, 48, 24, 06, 03, 85, 04, 03, 12, 17, 73, 110, 116, 101, 108, 32, 83, 71, 88, 32,
+            82, 111, 111, 116, 32, 67, 65, 49, 26, 48, 24, 06, 03, 85, 04, 10, 12, 17, 73, 110,
+            116, 101, 108, 32, 67, 111, 114, 112, 111, 114, 97, 116, 105, 111, 110, 49, 20, 48, 18,
+            06, 03, 85, 04, 07, 12, 11, 83, 97, 110, 116, 97, 32, 67, 108, 97, 114, 97, 49, 11, 48,
+            09, 06, 03, 85, 04, 08, 12, 02, 67, 65, 49, 11, 48, 09, 06, 03, 85, 04, 06, 19, 02, 85,
+            83,
+        ]),
+        subject_public_key_info: webpki::types::Der::from_slice(&[
+            48, 19, 06, 07, 42, 134, 72, 206, 61, 02, 01, 06, 08, 42, 134, 72, 206, 61, 03, 01, 07,
+            03, 66, 00, 04, 11, 169, 196, 192, 192, 200, 97, 147, 163, 254, 35, 214, 176, 44, 218,
+            16, 168, 187, 212, 232, 142, 72, 180, 69, 133, 97, 163, 110, 112, 85, 37, 245, 103,
+            145, 142, 46, 220, 136, 228, 13, 134, 11, 208, 204, 78, 226, 106, 172, 201, 136, 229,
+            05, 169, 83, 85, 140, 69, 63, 107, 09, 04, 174, 115, 148,
+        ]),
+        name_constraints: None,
+    }];
+
 pub mod oids {
     use const_oid::ObjectIdentifier as OID;
 
@@ -67,11 +101,13 @@ pub mod oids {
     }
 
     pub const SGX_EXTENSION: OID = oid("1.2.840.113741.1.13.1");
-    pub const TCB: OID = oid("1.2.840.113741.1.13.1.2");
     pub const PPID: OID = oid("1.2.840.113741.1.13.1.1");
+    pub const TCB: OID = oid("1.2.840.113741.1.13.1.2");
     pub const PCEID: OID = oid("1.2.840.113741.1.13.1.3");
     pub const FMSPC: OID = oid("1.2.840.113741.1.13.1.4");
     pub const SGX_TYPE: OID = oid("1.2.840.113741.1.13.1.5"); // ASN1 Enumerated
     pub const PLATFORM_INSTANCE_ID: OID = oid("1.2.840.113741.1.13.1.6");
     pub const CONFIGURATION: OID = oid("1.2.840.113741.1.13.1.7");
+    pub const PCESVN: OID = oid("1.2.840.113741.1.13.1.2.17");
+    pub const CPUSVN: OID = oid("1.2.840.113741.1.13.1.2.18");
 }

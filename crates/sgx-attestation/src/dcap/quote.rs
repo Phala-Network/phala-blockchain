@@ -5,56 +5,9 @@ use core::result::Result;
 
 use byteorder::{ByteOrder, LittleEndian};
 
+use crate::dcap::constants::*;
 use crate::dcap::utils::*;
 use crate::Error;
-
-pub(crate) const ENCLAVE_REPORT_BYTE_LEN: usize = 384;
-
-pub(crate) const HEADER_BYTE_LEN: usize = 48;
-
-pub(crate) const AUTH_DATA_SIZE_BYTE_LEN: usize = 4;
-
-pub(crate) const ECDSA_SIGNATURE_BYTE_LEN: usize = 64;
-pub(crate) const ECDSA_PUBKEY_BYTE_LEN: usize = 64;
-pub(crate) const QE_REPORT_BYTE_LEN: usize = ENCLAVE_REPORT_BYTE_LEN;
-pub(crate) const QE_REPORT_SIG_BYTE_LEN: usize = ECDSA_SIGNATURE_BYTE_LEN;
-pub(crate) const CERTIFICATION_DATA_TYPE_BYTE_LEN: usize = 2;
-pub(crate) const CERTIFICATION_DATA_SIZE_BYTE_LEN: usize = 4;
-pub(crate) const QE_AUTH_DATA_SIZE_BYTE_LEN: usize = 2;
-pub(crate) const QE_CERT_DATA_TYPE_BYTE_LEN: usize = 2;
-pub(crate) const QE_CERT_DATA_SIZE_BYTE_LEN: usize = 4;
-
-pub(crate) const AUTH_DATA_MIN_BYTE_LEN: usize = ECDSA_SIGNATURE_BYTE_LEN
-    + ECDSA_PUBKEY_BYTE_LEN
-    + QE_REPORT_BYTE_LEN
-    + QE_REPORT_SIG_BYTE_LEN
-    + QE_AUTH_DATA_SIZE_BYTE_LEN
-    + QE_CERT_DATA_TYPE_BYTE_LEN
-    + QE_CERT_DATA_SIZE_BYTE_LEN;
-
-pub(crate) const QUOTE_MIN_BYTE_LEN: usize =
-    // Actual minimal size is a Quote V3 with Enclave report
-    HEADER_BYTE_LEN
-        + ENCLAVE_REPORT_BYTE_LEN
-        + AUTH_DATA_SIZE_BYTE_LEN
-        + AUTH_DATA_MIN_BYTE_LEN;
-
-pub(crate) const ATTESTATION_KEY_LEN: usize = 64;
-pub(crate) const AUTHENTICATION_DATA_LEN: usize = 32;
-
-pub(crate) const QE_HASH_DATA_BYTE_LEN: usize = ATTESTATION_KEY_LEN + AUTHENTICATION_DATA_LEN;
-
-pub(crate) const INTEL_QE_VENDOR_ID: [u8; 16] = [
-    0x93, 0x9A, 0x72, 0x33, 0xF7, 0x9C, 0x4C, 0xA9, 0x94, 0x0A, 0x0D, 0xB3, 0x95, 0x7F, 0x06, 0x07,
-];
-
-pub(crate) const TEE_TYPE_SGX: u32 = 0u32;
-
-pub(crate) type MrSigner = [u8; 32];
-pub(crate) type MrEnclave = [u8; 32];
-pub(crate) type Fmspc = [u8; 6];
-pub(crate) type CpuSvn = [u8; 16];
-pub(crate) type Svn = u16;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum QuoteVersion {
