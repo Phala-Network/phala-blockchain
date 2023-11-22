@@ -24,6 +24,8 @@ export interface EvmCaller {
 }
 
 export class unstable_EvmAccountMappingProvider implements Provider {
+  static readonly identity = 'evmAccountMapping'
+
   //
   // Resources
   //
