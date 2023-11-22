@@ -1,14 +1,13 @@
 import type { SubmittableResult } from '@polkadot/api'
 import type { SubmittableExtrinsic } from '@polkadot/api/types'
 import type { ISubmittableResult } from '@polkadot/types/types'
-import type { Address } from 'viem'
 import type { CertificateData } from '../pruntime/certificate'
 
 export interface Provider {
   /**
    * The SS58 format address to use for this provider.
    */
-  address: Readonly<Address>
+  address: Readonly<string>
 
   /**
    * Send an extrinsic to the network.
