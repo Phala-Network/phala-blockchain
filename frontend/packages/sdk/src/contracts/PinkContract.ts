@@ -456,7 +456,7 @@ export class PinkContractPromise<
   }
 
   private async _send(messageOrId: string, options: PinkContractSendOptions, ...args: unknown[]) {
-    const { cert: userCert, ...rest } = options
+    const { cert: userCert, nonce, ...rest } = options
     const txOptions: PinkContractOptions = {
       gasLimit: options.gasLimit,
       value: options.value,
@@ -510,10 +510,13 @@ export class PinkContractPromise<
     }
 
     if ('unstable_provider' in rest) {
+      options.nonce && assert(isHex(options.nonce) && options.nonce.length === 66, 'Invalid nonce provided')
+      const nonce = options.nonce || hexAddPrefix(randomHex(32))
       return await rest.unstable_provider.send(tx(txOptions, ...args), (result: ISubmittableResult) => {
         return new PinkContractSubmittableResult(
           this.phatRegistry,
           this,
+          nonce,
           this.abi.findMessage(messageOrId),
           result,
           applyOnEvent(result, ['ContractEmitted', 'ContractExecution'], (records: EventRecord[]) => {
