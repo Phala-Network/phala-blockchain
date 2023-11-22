@@ -1471,7 +1471,7 @@ pub struct MigrationAccount;
 impl Get<AccountId32> for MigrationAccount {
     fn get() -> AccountId32 {
         let account: [u8; 32] =
-            hex_literal::hex!("9e6399cd577e8ac536bdc017675f747b2d1893ad9cc8c69fd17eef73d4e6e51e");
+            hex_literal::hex!("5492cf1c4c446223e1e26b29c5017a8cd4da21799cd7f497fab075b5567efd6f");
         account.into()
     }
 }
