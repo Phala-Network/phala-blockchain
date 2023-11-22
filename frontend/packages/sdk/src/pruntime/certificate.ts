@@ -12,7 +12,7 @@ import { pruntime_rpc as pruntimeRpc } from '../pruntime/proto'
 import { randomHex } from '../utils/hex'
 import { createEip712StructedDataSignCertificate } from './eip712'
 
-interface InjectedAccount {
+export interface InjectedAccount {
   address: string
   genesisHash?: string | null
   name?: string
