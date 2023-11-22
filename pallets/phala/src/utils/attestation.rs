@@ -215,7 +215,7 @@ pub fn validate_dcap(
 		quote,
 		collateral,
 		now,
-	).map_err(|e| Error::InvalidDCAPQuote(e))?;
+	).map_err(Error::InvalidDCAPQuote)?;
 
 	// Validate PRuntime
 	if verify_pruntime_hash && !pruntime_allowlist.contains(&pruntime_hash) {

@@ -76,14 +76,12 @@ pub fn verify(
     let leaf_cert: webpki::EndEntityCert = webpki::EndEntityCert::try_from(&leaf_certs[0])
         .map_err(|_| Error::LeafCertificateParsingError)?;
     let intermediate_certs = &leaf_certs[1..];
-    if let Err(err) = verify_certificate_chain(&leaf_cert, &intermediate_certs, now_in_milli) {
-        return Err(err);
-    }
+    verify_certificate_chain(&leaf_cert, intermediate_certs, now_in_milli)?;
     let asn1_signature = encode_as_der(&quote_collateral.tcb_info_signature)?;
     if leaf_cert
         .verify_signature(
             webpki::ECDSA_P256_SHA256,
-            &quote_collateral.tcb_info.as_bytes(),
+            quote_collateral.tcb_info.as_bytes(),
             &asn1_signature,
         )
         .is_err()
@@ -122,9 +120,7 @@ pub fn verify(
         webpki::EndEntityCert::try_from(&certification_data.certs[0])
             .map_err(|_| Error::LeafCertificateParsingError)?;
     let intermediate_certs = &certification_data.certs[1..];
-    if let Err(err) = verify_certificate_chain(&leaf_cert, &intermediate_certs, now_in_milli) {
-        return Err(err);
-    }
+    verify_certificate_chain(&leaf_cert, intermediate_certs, now_in_milli)?;
 
     // Check QE signature
     let asn1_signature = encode_as_der(&qe_report_signature)?;
