@@ -1,7 +1,7 @@
 import system from './abis/system.json'
-import { pruntime_rpc } from './pruntime/proto'
-import { type unstable_EvmAccountMappingProvider} from './providers/EvmAccountMappingProvider'
+import { type unstable_EvmAccountMappingProvider } from './providers/EvmAccountMappingProvider'
 import { type unstable_UIKeyringProvider } from './providers/UIKeyringProvider'
+import { pruntime_rpc } from './pruntime/proto'
 
 export * from './utils/hex'
 export * from './pruntime/certificate'
