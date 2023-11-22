@@ -175,16 +175,7 @@ pub fn verify(
     let mut advisory_ids = Vec::<String>::new();
     for tcb_level in &tcb_info.tcb_levels {
         if pce_svn >= tcb_level.tcb.pce_svn {
-            let mut selected = true;
-            for i in 0..15 {
-                // constant?
-                // println!("[{}] QE SVN: {}, TCB LEVEL SVN: {}", i, parsed_qe_report.cpu_svn[i], tcb_level.components[i]);
-
-                if cpu_svn[i] < tcb_level.tcb.components[i].svn {
-                    selected = false;
-                    break;
-                }
-            }
+            let selected = !cpu_svn.iter().zip(tcb_level.tcb.components).any(|(a, b)| a < b.svn);
             if !selected {
                 continue;
             }
