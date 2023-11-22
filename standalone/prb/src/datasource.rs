@@ -17,7 +17,7 @@ use phaxt::sp_core::{Decode, Encode, H256};
 use phaxt::subxt::rpc::types as subxt_types;
 use phaxt::{ChainApi, RpcClient};
 
-use moka::future::Cache;
+use moka::{future::Cache, Expiry};
 use pherry::types::{Block, ConvertTo, Hash, Header};
 use pherry::{
     chain_client, get_authority_with_proof_at, get_block_at, get_finalized_header, get_header_hash,
@@ -30,7 +30,7 @@ use sp_consensus_grandpa::{VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 use std::collections::HashMap;
 use std::mem::size_of_val;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
@@ -189,6 +189,23 @@ pub enum DataSourceError {
     NoAuthorityKeyFound,
     #[error("Returned value is None")]
     ReturnedNone,
+}
+
+pub struct DataSourceCacheItemExpiry;
+
+impl Expiry<String, Arc<DataSourceCacheItem>> for DataSourceCacheItemExpiry {
+    fn expire_after_create(
+        &self,
+        _key: &String,
+        value: &Arc<DataSourceCacheItem>,
+        _created_at: Instant
+    ) -> Option<Duration> {
+        match **value {
+            DataSourceCacheItem::ParaHeaderByRelayHeight(None) => Some(Duration::from_secs(3)),
+            DataSourceCacheItem::CachedHeadersToSync(None) => Some(Duration::from_secs(15)),
+            _ => None,
+        }
+    }
 }
 
 pub struct DataSourceManager {
@@ -405,6 +422,7 @@ impl DataSourceManager {
         let cache = Cache::builder()
             .weigher(|_key, value: &Arc<DataSourceCacheItem>| -> u32 { value.resident_size() as _ })
             .max_capacity(cache_size as _)
+            .expire_after(DataSourceCacheItemExpiry)
             .time_to_idle(Duration::from_secs(2 * 60));
 
         let cache = cache.build();
@@ -784,14 +802,7 @@ impl DataSourceManager {
             .await
         {
             Ok(ret) => match *ret {
-                DataSourceCacheItem::ParaHeaderByRelayHeight(ref data) => {
-                    if data.is_none() {
-                        cache.invalidate(&key).await;
-                        Ok(None)
-                    } else {
-                        Ok(data.clone())
-                    }
-                }
+                DataSourceCacheItem::ParaHeaderByRelayHeight(ref data) => Ok(data.clone()),
                 _ => Err(UnknownErrorFromCache.into()),
             },
             Err(e) => Err(anyhow!(e.to_string())),
@@ -901,13 +912,7 @@ impl DataSourceManager {
             .await
         {
             Ok(ret) => match *ret {
-                DataSourceCacheItem::CachedHeadersToSync(ref data) => {
-                    if data.is_none() {
-                        cache.invalidate(&key).await;
-                        return Ok(None);
-                    }
-                    Ok(data.clone())
-                }
+                DataSourceCacheItem::CachedHeadersToSync(ref data) => Ok(data.clone()),
                 _ => Err(UnknownErrorFromCache.into()),
             },
             Err(e) => Err(anyhow!(e.to_string())),
