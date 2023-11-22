@@ -104,6 +104,10 @@ export class unstable_UIKeyringProvider implements Provider {
     return this.#account.address
   }
 
+  get name(): 'uiKeyring' {
+    return unstable_UIKeyringProvider.identity
+  }
+
   /**
    * Send an extrinsic to the network.
    */
