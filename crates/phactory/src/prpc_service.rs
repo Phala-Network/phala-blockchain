@@ -172,6 +172,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 headers.first().map(|h| h.header.number),
                 headers.last().map(|h| h.header.number)
             ),
+            auth_chg=authority_set_change.is_some(),
             "sync_header",
         );
         self.can_load_chain_state = false;
