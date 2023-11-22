@@ -30,14 +30,20 @@ pub struct InstantiateReturnValue {
     pub account_id: [u8; 32],
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Clone, Debug)]
+#[derive(Eq, PartialEq, Encode, Decode, Clone, Debug)]
 pub struct ContractResult<R> {
     pub gas_consumed: Weight,
     pub gas_required: Weight,
     pub storage_deposit: StorageDeposit,
     pub debug_message: Vec<u8>,
-    pub result: R,
+    pub result: Result<R, DispatchError>,
 }
 
-pub type ContractExecResult = ContractResult<Result<ExecReturnValue, DispatchError>>;
-pub type ContractInstantiateResult = ContractResult<Result<InstantiateReturnValue, DispatchError>>;
+impl From<InstantiateReturnValue> for ExecReturnValue {
+    fn from(v: InstantiateReturnValue) -> Self {
+        Self {
+            flags: v.flags,
+            data: v.data,
+        }
+    }
+}

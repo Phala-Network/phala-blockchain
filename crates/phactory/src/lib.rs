@@ -23,7 +23,13 @@ use serde::{
 };
 use sidevm::service::CommandSender;
 
-use crate::light_validation::LightValidation;
+use crate::{
+    contract_result::{ContractResult, ExecReturnValue, InstantiateReturnValue, StorageDeposit},
+    light_validation::LightValidation,
+};
+use phactory_api::contracts::QueryError;
+use phala_types::contract::ContractQueryError;
+use sidevm_env::messages::{QueryError as SidevmQueryError, QueryResponse};
 use std::{
     borrow::Cow,
     collections::BTreeMap,
@@ -644,28 +650,6 @@ impl<P: pal::Platform> Phactory<P> {
             .cluster_runtime_version()
             .expect("BUG: no runtime version");
         async move {
-            use phactory_api::contracts::QueryError;
-            use phala_types::contract::ContractQueryError;
-            use sidevm_env::messages::{QueryError as SidevmQueryError, QueryResponse};
-
-            fn opaque_to_sidevm_err(err: ContractQueryError) -> SidevmQueryError {
-                match err {
-                    ContractQueryError::InvalidSignature => SidevmQueryError::InvalidSignature,
-                    ContractQueryError::ContractNotFound => SidevmQueryError::ContractNotFound,
-                    ContractQueryError::DecodeError => SidevmQueryError::DecodeError,
-                    ContractQueryError::OtherError(err) => SidevmQueryError::OtherError(err),
-                }
-            }
-            fn to_sidevm_err(err: QueryError) -> SidevmQueryError {
-                match err {
-                    QueryError::BadOrigin => SidevmQueryError::BadOrigin,
-                    QueryError::RuntimeError(err) => SidevmQueryError::RuntimeError(err),
-                    QueryError::SidevmNotFound => SidevmQueryError::SidevmNotFound,
-                    QueryError::NoResponse => SidevmQueryError::NoResponse,
-                    QueryError::ServiceUnavailable => SidevmQueryError::ServiceUnavailable,
-                    QueryError::Timeout => SidevmQueryError::Timeout,
-                }
-            }
             let result: Result<QueryResponse, SidevmQueryError> = async move {
                 let (query_type, output, effects) = query_future
                     .map_err(opaque_to_sidevm_err)?
@@ -683,48 +667,12 @@ impl<P: pal::Platform> Phactory<P> {
                         }
                     }
                 }
-                macro_rules! convert_result {
-                    ($typ: ident) => {{
-                        use PinkRuntimeVersion::*;
-                        let result = match pink_runtime_version {
-                            V1_0 | V1_1 | V1_2 => $typ::decode(&mut &output[..])
-                                .map_err(|_| SidevmQueryError::InvalidContractExecResult)?,
-                        };
-                        match result.result {
-                            Ok(value) => {
-                                use contract_result::StorageDeposit::*;
-
-                                let storage_deposit_value;
-                                let storage_deposit_is_charge;
-                                match result.storage_deposit {
-                                    Charge(value) => {
-                                        storage_deposit_value = value;
-                                        storage_deposit_is_charge = true;
-                                    }
-                                    Refund(value) => {
-                                        storage_deposit_value = value;
-                                        storage_deposit_is_charge = false;
-                                    }
-                                }
-                                Ok(QueryResponse::OutputWithGasEstimation {
-                                    output: value.data,
-                                    gas_consumed: result.gas_consumed.ref_time,
-                                    gas_required: result.gas_required.ref_time,
-                                    storage_deposit_value,
-                                    storage_deposit_is_charge,
-                                })
-                            }
-                            Err(err) => Err(SidevmQueryError::DispatchError(format!("{err:?}"))),
-                        }
-                    }};
-                }
-                use contract_result::{ContractExecResult, ContractInstantiateResult};
                 match query_type {
                     QueryType::InkMessage => {
-                        convert_result!(ContractExecResult)
+                        convert_result::<ExecReturnValue>(pink_runtime_version, &output)
                     }
                     QueryType::InkInstantiate => {
-                        convert_result!(ContractInstantiateResult)
+                        convert_result::<InstantiateReturnValue>(pink_runtime_version, &output)
                     }
                     QueryType::SidevmQuery => Ok(QueryResponse::SimpleOutput(output)),
                 }
@@ -735,7 +683,66 @@ impl<P: pal::Platform> Phactory<P> {
             }
         }
     }
+}
 
+fn opaque_to_sidevm_err(err: ContractQueryError) -> SidevmQueryError {
+    match err {
+        ContractQueryError::InvalidSignature => SidevmQueryError::InvalidSignature,
+        ContractQueryError::ContractNotFound => SidevmQueryError::ContractNotFound,
+        ContractQueryError::DecodeError => SidevmQueryError::DecodeError,
+        ContractQueryError::OtherError(err) => SidevmQueryError::OtherError(err),
+    }
+}
+
+fn to_sidevm_err(err: QueryError) -> SidevmQueryError {
+    match err {
+        QueryError::BadOrigin => SidevmQueryError::BadOrigin,
+        QueryError::RuntimeError(err) => SidevmQueryError::RuntimeError(err),
+        QueryError::SidevmNotFound => SidevmQueryError::SidevmNotFound,
+        QueryError::NoResponse => SidevmQueryError::NoResponse,
+        QueryError::ServiceUnavailable => SidevmQueryError::ServiceUnavailable,
+        QueryError::Timeout => SidevmQueryError::Timeout,
+    }
+}
+
+fn convert_result<R: Decode + Into<ExecReturnValue>>(
+    pink_ver: PinkRuntimeVersion,
+    mut exec_output: &[u8],
+) -> Result<QueryResponse, SidevmQueryError> {
+    use PinkRuntimeVersion::*;
+    let result = match pink_ver {
+        V1_0 | V1_1 | V1_2 => ContractResult::<R>::decode(&mut exec_output)
+            .map_err(|_| SidevmQueryError::InvalidContractExecResult)?,
+    };
+    match result.result {
+        Ok(value) => {
+            let value = value.into();
+
+            let storage_deposit_value;
+            let storage_deposit_is_charge;
+            match result.storage_deposit {
+                StorageDeposit::Charge(value) => {
+                    storage_deposit_value = value;
+                    storage_deposit_is_charge = true;
+                }
+                StorageDeposit::Refund(value) => {
+                    storage_deposit_value = value;
+                    storage_deposit_is_charge = false;
+                }
+            }
+            Ok(QueryResponse::OutputWithGasEstimation {
+                output: value.data,
+                gas_consumed: result.gas_consumed.ref_time,
+                gas_required: result.gas_required.ref_time,
+                storage_deposit_value,
+                storage_deposit_is_charge,
+            })
+        }
+        Err(err) => Err(SidevmQueryError::DispatchError(format!("{err:?}"))),
+    }
+}
+
+impl<P: pal::Platform> Phactory<P> {
     pub fn apply_side_effects(&mut self, effects: ExecSideEffects) {
         if self.rcu_dispatching {
             const MAX_PENDING: usize = 64;
