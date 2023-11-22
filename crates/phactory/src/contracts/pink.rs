@@ -779,7 +779,8 @@ impl Cluster {
                 };
 
                 let mut runtime = self.runtime_mut(context.log_handler.clone());
-                let output = context::using_call_nonce(nonce.clone().into(), || {
+                let selector = message[..4.min(message.len())].to_vec();
+                let mut output = context::using_call_nonce(nonce.clone().into(), || {
                     runtime.call(
                         contract_id.clone(),
                         message,
@@ -787,6 +788,8 @@ impl Cluster {
                         args,
                     )
                 });
+                // To be backward compatible with old sidevm, we prepend the selector to the end of output.
+                output.extend_from_slice(&selector.encode());
 
                 if let Some(log_handler) = &context.log_handler {
                     let msg = SidevmCommand::PushSystemMessage(SystemMessage::PinkMessageOutput {
