@@ -1,5 +1,7 @@
 import system from './abis/system.json'
 import { pruntime_rpc } from './pruntime/proto'
+import { type unstable_EvmAccountMappingProvider} from './providers/EvmAccountMappingProvider'
+import { type unstable_UIKeyringProvider } from './providers/UIKeyringProvider'
 
 export * from './utils/hex'
 export * from './pruntime/certificate'
@@ -26,3 +28,4 @@ export const pruntimeRpc = pruntime_rpc
 export type PhactoryAPI = pruntime_rpc.PhactoryAPI
 export const PhactoryAPI = pruntime_rpc.PhactoryAPI
 export const abis = { system }
+export type AnyProvider = unstable_EvmAccountMappingProvider | unstable_UIKeyringProvider
