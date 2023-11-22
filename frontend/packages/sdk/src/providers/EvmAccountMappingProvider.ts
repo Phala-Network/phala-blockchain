@@ -140,12 +140,18 @@ export class unstable_EvmAccountMappingProvider implements Provider {
     })
   }
 
-  async signCertificate(ttl?: number): Promise<CertificateData> {
+  /**
+   * Sign a certificate off-chain query. Optional ttl in seconds. ttl is
+   * 0x7fffffff by default.
+   *
+   * @param ttl? number
+   */
+  async signCertificate(ttl: number = 0x7f_fff_fff): Promise<CertificateData> {
     if (!this.#compressedPubkey) {
       throw new Error('WalletClientSigner is not ready.')
     }
     const now = Date.now()
-    const isExpired = this.#certExpiredAt && this.#certExpiredAt > now
+    const isExpired = this.#certExpiredAt && this.#certExpiredAt < now
     if (this.#cachedCert && !isExpired) {
       return this.#cachedCert
     }
@@ -155,7 +161,7 @@ export class unstable_EvmAccountMappingProvider implements Provider {
       compressedPubkey: this.#compressedPubkey,
       ttl,
     })
-    this.#certExpiredAt = now + (ttl || 0x7fffffff)
+    this.#certExpiredAt = now + ttl * 1_000
     return this.#cachedCert
   }
 
