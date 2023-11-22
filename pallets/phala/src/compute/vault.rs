@@ -573,15 +573,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(7)]
-		#[pallet::weight({0})]
-		#[frame_support::transactional]
-		pub fn refresh_vault_lock_and_check(origin: OriginFor<T>, pid: u64) -> DispatchResult {
-			let who = ensure_signed(origin.clone())?;
-			base_pool::Pallet::<T>::ensure_migration_root(who)?;
-			VaultLocks::<T>::remove(pid);
-			Self::check_and_maybe_force_withdraw(origin, pid)
-		}
+		// Reserved: #[pallet::call_index(7)]
 	}
 
 	impl<T: Config> Pallet<T>

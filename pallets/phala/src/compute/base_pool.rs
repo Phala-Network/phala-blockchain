@@ -136,6 +136,11 @@ pub mod pallet {
 	#[pallet::getter(fn pool_descriptions)]
 	pub type PoolDescriptions<T: Config> = StorageMap<_, Twox64Concat, u64, DescStr>;
 
+	/// Claimable reimbursement due to previous on-chain issues.
+	#[pallet::storage]
+	pub type Reimbursements<T: Config> =
+		StorageMap<_, Twox64Concat, (T::AccountId, u64), BalanceOf<T>>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -237,8 +242,10 @@ pub mod pallet {
 		NotMigrationRoot,
 		/// Burn nft failed
 		BurnNftFailed,
-
-		TransferSharesAmountInvalid,
+		DeprecatedTransferSharesAmountInvalid,
+		/// No reimbursement to claim
+		NoReimbursementToClaim,
+		InternalSubsidyPoolCannotWithdraw,
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -498,54 +505,8 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(2)]
-		#[pallet::weight({0})]
-		#[frame_support::transactional]
-		pub fn reset_lock_iter_pos(origin: OriginFor<T>) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			Self::ensure_migration_root(who)?;
-			LockIterateStartPos::<T>::put(None::<LockKey>);
-			Ok(())
-		}
-
-		#[pallet::call_index(3)]
-		#[pallet::weight({0})]
-		pub fn remove_unused_lock(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			Self::ensure_migration_root(who)?;
-			let last_pos = LockIterateStartPos::<T>::get();
-			let mut iter = match last_pos {
-				Some(pos) => {
-					let key: Vec<u8> = pallet_rmrk_core::pallet::Lock::<T>::hashed_key_for(pos);
-					pallet_rmrk_core::pallet::Lock::<T>::iter_from(key)
-				}
-				None => pallet_rmrk_core::pallet::Lock::<T>::iter(),
-			};
-			let mut record_vec = vec![];
-			let mut i = 0;
-			for ((cid, nft_id), _) in iter.by_ref() {
-				if cid >= RESERVE_CID_START
-					&& !pallet_rmrk_core::pallet::Nfts::<T>::contains_key(cid, nft_id)
-				{
-					record_vec.push((cid, nft_id));
-				}
-				i += 1;
-				if i > max_iterations {
-					break;
-				}
-			}
-			if let Some(((cid, nft_id), _)) = iter.next() {
-				LockIterateStartPos::<T>::put(Some((cid, nft_id)));
-			} else {
-				LockIterateStartPos::<T>::put(None::<LockKey>);
-			}
-
-			for (cid, nft_id) in record_vec.iter() {
-				pallet_rmrk_core::pallet::Lock::<T>::remove((cid, nft_id));
-			}
-
-			Ok(())
-		}
+		// Reserved: #[pallet::call_index(2)]
+		// Reserved: #[pallet::call_index(3)]
 
 		/// Removes a staker accountid to contribution whitelist.
 		///
@@ -588,6 +549,36 @@ pub mod pallet {
 				});
 			}
 
+			Ok(())
+		}
+
+		#[pallet::call_index(5)]
+		#[pallet::weight({0})]
+		#[frame_support::transactional]
+		pub fn claim_reimbursement(
+			origin: OriginFor<T>,
+			pid: u64,
+			target: T::AccountId,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let rewards =
+				Reimbursements::<T>::take((who, pid)).ok_or(Error::<T>::NoReimbursementToClaim)?;
+			computation::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
+				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
+			Ok(())
+		}
+
+		#[pallet::call_index(6)]
+		#[pallet::weight({0})]
+		pub fn set_reimbursements(
+			origin: OriginFor<T>,
+			input: Vec<(T::AccountId, u64, BalanceOf<T>)>,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			Self::ensure_migration_root(who)?;
+			for (account_id, pid, balance) in input.iter() {
+				Reimbursements::<T>::insert((account_id.clone(), *pid), *balance);
+			}
 			Ok(())
 		}
 	}
