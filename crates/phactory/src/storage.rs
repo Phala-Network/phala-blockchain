@@ -42,12 +42,23 @@ mod storage_ext {
     use phala_mq::{ContractClusterId, Message, MessageOrigin};
     use phala_trie_storage::TrieStorage;
     use phala_types::messaging::TokenomicParameters;
+    use schemars::{gen::SchemaGenerator, schema::Schema, JsonSchema};
     use serde::{Deserialize, Serialize};
     use sp_state_machine::{Ext, OverlayedChanges};
 
     #[derive(Serialize, Deserialize, Default)]
     pub struct ChainStorage {
         trie_storage: TrieStorage<crate::RuntimeHasher>,
+    }
+
+    impl JsonSchema for ChainStorage {
+        fn schema_name() -> String {
+            "ChainStorage".to_string()
+        }
+
+        fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+            Schema::Bool(true)
+        }
     }
 
     impl Clone for ChainStorage {

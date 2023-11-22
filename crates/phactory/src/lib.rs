@@ -89,11 +89,9 @@ struct RuntimeState {
     recv_mq: MessageDispatcher,
 
     // chain storage synchonizing
-    #[cfg_attr(not(test), codec(skip))]
     storage_synchronizer: Synchronizer<LightValidation<chain::Runtime>>,
 
     // TODO.kevin: use a better serialization approach
-    #[codec(skip)]
     chain_storage: ChainStorage,
 
     #[serde(with = "more::scale_bytes")]
