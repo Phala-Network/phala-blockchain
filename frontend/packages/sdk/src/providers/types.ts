@@ -9,6 +9,8 @@ export interface Provider {
    */
   address: Readonly<string>
 
+  name: Readonly<string>
+
   /**
    * Send an extrinsic to the network.
    */

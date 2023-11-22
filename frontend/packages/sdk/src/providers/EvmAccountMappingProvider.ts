@@ -57,6 +57,10 @@ export class unstable_EvmAccountMappingProvider implements Provider {
     this.#SS58Prefix = SS58Prefix
   }
 
+  get name(): 'evmAccountMapping' {
+    return unstable_EvmAccountMappingProvider.identity
+  }
+
   async ready(msg?: string): Promise<void> {
     this.#compressedPubkey = await etherAddressToCompressedPubkey(this.#client, this.#account as Account, msg)
     this.#address = encodeAddress(blake2AsU8a(hexToU8a(this.#compressedPubkey)), this.#SS58Prefix) as Address
