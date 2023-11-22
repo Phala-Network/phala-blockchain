@@ -58,6 +58,8 @@ pub fn verify(
         return Err(Error::TCBInfoExpired);
     }
 
+    let now_in_milli = now * 1000;
+
     // Verify enclave
 
     // Seems we verify MR_ENCLAVE and MR_SIGNER is enough
@@ -74,7 +76,7 @@ pub fn verify(
     let leaf_cert: webpki::EndEntityCert = webpki::EndEntityCert::try_from(&leaf_certs[0])
         .map_err(|_| Error::LeafCertificateParsingError)?;
     let intermediate_certs = &leaf_certs[1..];
-    if let Err(err) = verify_certificate_chain(&leaf_cert, &intermediate_certs, now) {
+    if let Err(err) = verify_certificate_chain(&leaf_cert, &intermediate_certs, now_in_milli) {
         return Err(err);
     }
     let asn1_signature = encode_as_der(&quote_collateral.tcb_info_signature)?;
@@ -120,7 +122,7 @@ pub fn verify(
         webpki::EndEntityCert::try_from(&certification_data.certs[0])
             .map_err(|_| Error::LeafCertificateParsingError)?;
     let intermediate_certs = &certification_data.certs[1..];
-    if let Err(err) = verify_certificate_chain(&leaf_cert, &intermediate_certs, now) {
+    if let Err(err) = verify_certificate_chain(&leaf_cert, &intermediate_certs, now_in_milli) {
         return Err(err);
     }
 
@@ -165,7 +167,7 @@ pub fn verify(
     let pce_svn = get_pce_svn(&extension_section)?;
     let fmspc = get_fmspc(&extension_section)?;
 
-    let tcb_fmspc = hex::decode(fmspc).map_err(|_| Error::InvalidFieldValue {
+    let tcb_fmspc = hex::decode(&tcb_info.fmspc).map_err(|_| Error::InvalidFieldValue {
         field: "fmspc".to_owned(),
     })?;
     if fmspc != &tcb_fmspc[..] {
@@ -217,7 +219,7 @@ mod test {
     fn could_parse() {
         let raw_quote = include_bytes!("../sample/dcap_quote").to_vec();
         let raw_quote_collateral = include_bytes!("../sample/dcap_quote_collateral").to_vec();
-        let now = 1699301000000u64;
+        let now = 1699301000u64;
 
         let quote_collateral =
             SgxV30QuoteCollateral::decode(&mut raw_quote_collateral.as_slice()).expect("decodable");

@@ -1,0 +1,9 @@
+---
+source: crates/sgx-attestation/src/dcap.rs
+assertion_line: 232
+expression: advisory_ids
+---
+[
+    "INTEL-SA-00289",
+    "INTEL-SA-00615",
+]
