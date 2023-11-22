@@ -12,7 +12,7 @@ use scale::{Decode, Encode};
 use scale_info::TypeInfo;
 
 use crate::dcap::quote::{AttestationKeyType, EnclaveReport, Quote, QuoteAuthData, QuoteVersion};
-use crate::dcap::tcb_info::TCBInfo;
+use crate::dcap::tcb_info::TcbInfo;
 use crate::dcap::utils::*;
 use crate::Error;
 
@@ -29,6 +29,7 @@ pub struct SgxV30QuoteCollateral {
     pub qe_identity_signature: Vec<u8>,
 }
 
+#[allow(clippy::type_complexity)]
 pub fn verify(
     raw_quote: &[u8],
     quote_collateral: &SgxV30QuoteCollateral,
@@ -37,15 +38,8 @@ pub fn verify(
     // Parse data
 
     let quote = Quote::parse(raw_quote).map_err(|_| Error::CodecError)?;
-    // For quick deny invalid quote
-    // Check PRuntime hash
 
-    let mut pruntime_hash = Vec::new();
-    pruntime_hash.extend_from_slice(&quote.enclave_report.mr_enclave);
-    pruntime_hash.extend_from_slice(&[0u8, 0u8, 0u8, 0u8]); // isv_prod_id and isv_svn
-    pruntime_hash.extend_from_slice(&quote.enclave_report.mr_signer);
-
-    let tcb_info = pink_json::from_str::<TCBInfo>(&quote_collateral.tcb_info)
+    let tcb_info = pink_json::from_str::<TcbInfo>(&quote_collateral.tcb_info)
         .map_err(|_| Error::CodecError)?;
 
     let next_update =
@@ -166,7 +160,7 @@ pub fn verify(
     let tcb_fmspc = hex::decode(&tcb_info.fmspc).map_err(|_| Error::InvalidFieldValue {
         field: "fmspc".to_owned(),
     })?;
-    if fmspc != &tcb_fmspc[..] {
+    if fmspc != tcb_fmspc[..] {
         return Err(Error::FmspcMismatch);
     }
 
@@ -189,6 +183,12 @@ pub fn verify(
             break;
         }
     }
+
+    let mut pruntime_hash = Vec::new();
+    pruntime_hash.extend_from_slice(&quote.enclave_report.mr_enclave);
+    pruntime_hash.extend_from_slice(&quote.enclave_report.isv_prod_id.to_be_bytes());
+    pruntime_hash.extend_from_slice(&quote.enclave_report.isv_svn.to_be_bytes());
+    pruntime_hash.extend_from_slice(&quote.enclave_report.mr_signer);
 
     Ok((
         quote.enclave_report.report_data,

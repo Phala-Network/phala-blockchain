@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TCBInfo {
+pub struct TcbInfo {
     pub id: String,
     pub version: u8,
     pub issue_date: String,
@@ -13,13 +13,13 @@ pub struct TCBInfo {
     pub pce_id: String,
     pub tcb_type: u32,
     pub tcb_evaluation_data_number: u32,
-    pub tcb_levels: Vec<TCBLevel>,
+    pub tcb_levels: Vec<TcbLevel>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TCBLevel {
-    pub tcb: TCB,
+pub struct TcbLevel {
+    pub tcb: Tcb,
     pub tcb_date: String,
     pub tcb_status: String,
     #[serde(rename = "advisoryIDs")]
@@ -28,15 +28,15 @@ pub struct TCBLevel {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TCB {
+pub struct Tcb {
     #[serde(rename = "sgxtcbcomponents")]
-    pub components: Vec<TCBComponents>,
+    pub components: Vec<TcbComponents>,
     #[serde(rename = "pcesvn")]
     pub pce_svn: u16,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TCBComponents {
+pub struct TcbComponents {
     pub svn: u8,
 }
