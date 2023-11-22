@@ -19,6 +19,8 @@ impl Display for TraceId {
 
 impl TraceId {
     fn next() -> Self {
+        // The IDs would be odd numbers to distinguish from the IDs of internal calls
+        // from sidevm to pink, which are even numbers.
         static NEXT_TRACE_ID: AtomicU64 = AtomicU64::new(1);
         TraceId(NEXT_TRACE_ID.fetch_add(2, Ordering::SeqCst))
     }

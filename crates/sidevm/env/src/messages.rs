@@ -117,7 +117,7 @@ impl From<OcallError> for QueryError {
 
 #[derive(Encode, Decode)]
 pub enum QueryResponse {
-    EstimatedOutput {
+    OutputWithGasEstimation {
         output: Vec<u8>,
         gas_consumed: u64,
         gas_required: u64,

@@ -111,7 +111,7 @@ pub trait OcallFuncs {
     #[ocall(id = 240, encode_output)]
     fn create_input_channel(ch: InputChannel) -> Result<i32>;
 
-    /// Query a contract
+    /// Query a local contract within the same worker
     ///
     /// Returns a channel id for the query result.
     ///

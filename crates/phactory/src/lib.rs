@@ -618,6 +618,8 @@ impl<P: pal::Platform> Phactory<P> {
         let origin = AccountId::new(blake2_256(&derived_from));
         let req_id = {
             use std::sync::atomic::{AtomicU64, Ordering};
+            // The REQ_IDs would be even numbers to distinguish from the REQ_IDs of queries
+            // from RPC, which are odd numbers.
             static REQ_ID: AtomicU64 = AtomicU64::new(0);
             REQ_ID.fetch_add(2, Ordering::Relaxed)
         };
@@ -646,7 +648,7 @@ impl<P: pal::Platform> Phactory<P> {
             use phala_types::contract::ContractQueryError;
             use sidevm_env::messages::{QueryError as SidevmQueryError, QueryResponse};
 
-            fn opaqure_to_sidevm_err(err: ContractQueryError) -> SidevmQueryError {
+            fn opaque_to_sidevm_err(err: ContractQueryError) -> SidevmQueryError {
                 match err {
                     ContractQueryError::InvalidSignature => SidevmQueryError::InvalidSignature,
                     ContractQueryError::ContractNotFound => SidevmQueryError::ContractNotFound,
@@ -666,9 +668,9 @@ impl<P: pal::Platform> Phactory<P> {
             }
             let result: Result<QueryResponse, SidevmQueryError> = async move {
                 let (query_type, output, effects) = query_future
-                    .map_err(opaqure_to_sidevm_err)?
+                    .map_err(opaque_to_sidevm_err)?
                     .await
-                    .map_err(opaqure_to_sidevm_err)?;
+                    .map_err(opaque_to_sidevm_err)?;
                 let phactory_api::contracts::Response::Payload(output) =
                     output.map_err(to_sidevm_err)?;
                 if let Some(effects) = effects {
@@ -704,7 +706,7 @@ impl<P: pal::Platform> Phactory<P> {
                                         storage_deposit_is_charge = false;
                                     }
                                 }
-                                Ok(QueryResponse::EstimatedOutput {
+                                Ok(QueryResponse::OutputWithGasEstimation {
                                     output: value.data,
                                     gas_consumed: result.gas_consumed.ref_time,
                                     gas_required: result.gas_required.ref_time,

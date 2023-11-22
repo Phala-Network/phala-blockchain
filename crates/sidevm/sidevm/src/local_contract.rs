@@ -5,10 +5,16 @@ use sidevm_env::messages::{QueryError, QueryResponse};
 
 use crate::{channel, ocall};
 
-/// Query a local contract.
+/// Query a local contract within the same worker.
+///
+/// The call's origin would be `blake2_256(vmid ++ '/sidevm')`, where vmid always equals
+/// its contract id.
 ///
 /// # Limitation
-/// Only one query can be processed at a time.
+///
+/// Only one query can be handled simultaneously. A second simultaneous query will be rejected
+/// with error `OcallError::ResourceLimited``. If you need to perform parallel queries in
+/// coroutines, create a single coroutine to proxy and sequence the queries.
 pub async fn query_pink(contract_id: [u8; 32], payload: Vec<u8>) -> Result<Vec<u8>, QueryError> {
     #[derive(Debug, Encode)]
     pub enum Query {
@@ -37,7 +43,7 @@ pub async fn query_pink(contract_id: [u8; 32], payload: Vec<u8>) -> Result<Vec<u
     let result = Result::<QueryResponse, QueryError>::decode(&mut &reply[..])
         .map_err(|_| QueryError::DecodeError)??;
     match result {
-        QueryResponse::EstimatedOutput { output, .. } | QueryResponse::SimpleOutput(output) => {
+        QueryResponse::OutputWithGasEstimation { output, .. } | QueryResponse::SimpleOutput(output) => {
             Ok(output)
         }
     }

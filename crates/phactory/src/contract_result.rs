@@ -1,3 +1,5 @@
+//! Types compatible with pallet-contracts.
+
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::DispatchError;
 
