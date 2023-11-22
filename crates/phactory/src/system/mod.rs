@@ -403,7 +403,7 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
     Serialize, Deserialize, Clone, derive_more::Deref, derive_more::DerefMut, derive_more::From,
 )]
 #[serde(transparent)]
-pub(crate) struct WorkerIdentityKey(#[serde(with = "more::key_bytes")] sr25519::Pair);
+pub struct WorkerIdentityKey(#[serde(with = "more::key_bytes")] sr25519::Pair);
 
 // By mocking the public key of the identity key pair, we can pretend to be the first Gatekeeper on Khala
 // for "shadow-gk" simulation.
@@ -590,7 +590,7 @@ impl<Platform: pal::Platform> System<Platform> {
             log_handler: self.get_system_message_handler(),
             query_scheduler,
             weight,
-            worker_pubkey: self.identity_key.public().0,
+            worker_identity_key: self.identity_key.clone(),
             chain_storage: chain_storage.snapshot(),
             req_id,
         };
@@ -1133,11 +1133,9 @@ impl<Platform: pal::Platform> System<Platform> {
                 if !sender.is_pallet() {
                     anyhow::bail!("Invalid origin");
                 }
-                let Some(cluster) = self
-                    .contract_cluster
-                    .get_cluster_mut(&cluster_id) else {
-                        return Ok(());
-                    };
+                let Some(cluster) = self.contract_cluster.get_cluster_mut(&cluster_id) else {
+                    return Ok(());
+                };
                 let system_contract = cluster.system_contract().ok_or_else(|| {
                     anyhow!(
                         "Failed to upload resource to cluster {cluster_id:?}: No system contract"
@@ -1191,11 +1189,9 @@ impl<Platform: pal::Platform> System<Platform> {
                 if !sender.is_pallet() {
                     anyhow::bail!("Invalid origin");
                 }
-                let Some(cluster) = self
-                    .contract_cluster
-                    .get_cluster_mut(&cluster_id) else {
-                        return Ok(());
-                    };
+                let Some(cluster) = self.contract_cluster.get_cluster_mut(&cluster_id) else {
+                    return Ok(());
+                };
                 cluster.deposit(&account, amount);
             }
             ClusterOperation::RemoveWorker { cluster_id, worker } => {
@@ -1206,7 +1202,10 @@ impl<Platform: pal::Platform> System<Platform> {
                     return Ok(());
                 }
                 let Some(_cluster) = self.contract_cluster.remove_cluster(&cluster_id) else {
-                    warn!("Cluster {} is not deployed on this worker", hex_fmt::HexFmt(&cluster_id));
+                    warn!(
+                        "Cluster {} is not deployed on this worker",
+                        hex_fmt::HexFmt(&cluster_id)
+                    );
                     return Ok(());
                 };
                 for contract in self.contracts.drain() {
@@ -1243,11 +1242,9 @@ impl<Platform: pal::Platform> System<Platform> {
             } => {
                 let log_handler = self.get_system_message_handler();
                 let cluster_id = contract_info.cluster_id;
-                let Some(cluster) = self
-                    .contract_cluster
-                    .get_cluster_mut(&cluster_id) else {
-                        return Ok(());
-                    };
+                let Some(cluster) = self.contract_cluster.get_cluster_mut(&cluster_id) else {
+                    return Ok(());
+                };
                 if cluster.system_contract().is_none() {
                     anyhow::bail!("The system contract is missing, Cannot deploy contract");
                 }

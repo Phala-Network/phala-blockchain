@@ -621,6 +621,7 @@ pub enum SignedContentType {
     MasterKeyRotation = 3,
     MasterKeyStore = 4,
     ClusterStateRequest = 5,
+    EventChainBlock = 6,
 }
 
 pub fn wrap_content_to_sign(data: &[u8], sigtype: SignedContentType) -> Cow<[u8]> {
