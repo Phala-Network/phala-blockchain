@@ -48,5 +48,5 @@ pub enum Error {
     IsvEnclaveReportSignatureIsInvalid,
 }
 
-pub mod ias;
 pub mod dcap;
+pub mod ias;

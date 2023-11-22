@@ -22,7 +22,7 @@ fn get_header(resposne: &reqwest::Response, name: &str) -> Result<String> {
 pub async fn get_collateral(
     pccs_url: &str,
     mut quote: &[u8],
-    timeout: Duration
+    timeout: Duration,
 ) -> Result<SgxV30QuoteCollateral> {
     let quote = parse_quote::Quote::decode(&mut quote)?;
     let fmspc = hex::encode_upper(quote.fmspc()?);
@@ -67,8 +67,8 @@ pub async fn get_collateral(
         raw_qe_identity = response.text().await?;
     };
 
-    let tcb_info_json: serde_json::Value = serde_json::from_str(&raw_tcb_info)
-        .map_err(|_| anyhow!("TCB Info should a JSON"))?;
+    let tcb_info_json: serde_json::Value =
+        serde_json::from_str(&raw_tcb_info).map_err(|_| anyhow!("TCB Info should a JSON"))?;
     let tcb_info = tcb_info_json["tcbInfo"].to_string();
     let tcb_info_signature = tcb_info_json
         .get("signature")
@@ -84,7 +84,8 @@ pub async fn get_collateral(
         .get("enclaveIdentity")
         .ok_or(anyhow!("QE Identity should has `enclaveIdentity` field"))?
         .to_string();
-    let qe_identity_signature = qe_identity_json.get("signature")
+    let qe_identity_signature = qe_identity_json
+        .get("signature")
         .ok_or(anyhow!("QE Identity should has `signature` field"))?
         .as_str()
         .ok_or(anyhow!("QE Identity signature should a hex string"))?;

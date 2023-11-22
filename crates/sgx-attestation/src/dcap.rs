@@ -6,15 +6,15 @@ mod tcb_info;
 mod utils;
 
 use alloc::borrow::ToOwned;
-use alloc::vec::Vec;
 use alloc::string::{String, ToString};
+use alloc::vec::Vec;
 use scale::{Decode, Encode};
 use scale_info::TypeInfo;
 
-use crate::Error;
 use crate::dcap::quote::{AttestationKeyType, EnclaveReport, Quote, QuoteAuthData, QuoteVersion};
-use crate::dcap::utils::*;
 use crate::dcap::tcb_info::TCBInfo;
+use crate::dcap::utils::*;
+use crate::Error;
 
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, Debug)]
 pub struct SgxV30QuoteCollateral {
@@ -36,7 +36,7 @@ pub fn verify(
 ) -> Result<([u8; 64], Vec<u8>, String, Vec<String>), Error> {
     // Parse data
 
-    let quote = Quote::parse(raw_quote).map_err(|_| Error::CodecError )?;
+    let quote = Quote::parse(raw_quote).map_err(|_| Error::CodecError)?;
     // For quick deny invalid quote
     // Check PRuntime hash
 
@@ -45,12 +45,17 @@ pub fn verify(
     pruntime_hash.extend_from_slice(&[0u8, 0u8, 0u8, 0u8]); // isv_prod_id and isv_svn
     pruntime_hash.extend_from_slice(&quote.enclave_report.mr_signer);
 
-    let tcb_info = pink_json::from_str::<TCBInfo>(&quote_collateral.tcb_info).map_err(|_| Error::CodecError)?;
+    let tcb_info = pink_json::from_str::<TCBInfo>(&quote_collateral.tcb_info)
+        .map_err(|_| Error::CodecError)?;
 
-    let next_update = chrono::DateTime::parse_from_rfc3339(&tcb_info.next_update)
-        .map_err(|_| Error::InvalidFieldValue { field: "nextUpdate".to_owned() })?;
+    let next_update =
+        chrono::DateTime::parse_from_rfc3339(&tcb_info.next_update).map_err(|_| {
+            Error::InvalidFieldValue {
+                field: "nextUpdate".to_owned(),
+            }
+        })?;
     if now > next_update.timestamp() as u64 {
-        return Err(Error::TCBInfoExpired)
+        return Err(Error::TCBInfoExpired);
     }
 
     // Verify enclave
@@ -66,15 +71,22 @@ pub fn verify(
     if leaf_certs.len() < 2 {
         return Err(Error::CertificateChainIsTooShort);
     }
-    let leaf_cert: webpki::EndEntityCert =
-        webpki::EndEntityCert::try_from(&leaf_certs[0]).map_err(|_| Error::LeafCertificateParsingError)?;
+    let leaf_cert: webpki::EndEntityCert = webpki::EndEntityCert::try_from(&leaf_certs[0])
+        .map_err(|_| Error::LeafCertificateParsingError)?;
     let intermediate_certs = &leaf_certs[1..];
     if let Err(err) = verify_certificate_chain(&leaf_cert, &intermediate_certs, now) {
         return Err(err);
     }
     let asn1_signature = encode_as_der(&quote_collateral.tcb_info_signature)?;
-    if leaf_cert.verify_signature(webpki::ECDSA_P256_SHA256, &quote_collateral.tcb_info.as_bytes(), &asn1_signature).is_err() {
-        return Err(Error::RsaSignatureIsInvalid)
+    if leaf_cert
+        .verify_signature(
+            webpki::ECDSA_P256_SHA256,
+            &quote_collateral.tcb_info.as_bytes(),
+            &asn1_signature,
+        )
+        .is_err()
+    {
+        return Err(Error::RsaSignatureIsInvalid);
     }
 
     // Check quote fields
@@ -94,7 +106,8 @@ pub fn verify(
         qe_report_signature,
         qe_auth_data,
         certification_data,
-    } = quote.signed_data else {
+    } = quote.signed_data
+    else {
         return Err(Error::UnsupportedQuoteAuthData);
     };
 
@@ -104,7 +117,8 @@ pub fn verify(
     }
     // Check certification_data
     let leaf_cert: webpki::EndEntityCert =
-        webpki::EndEntityCert::try_from(&certification_data.certs[0]).map_err(|_| Error::LeafCertificateParsingError)?;
+        webpki::EndEntityCert::try_from(&certification_data.certs[0])
+            .map_err(|_| Error::LeafCertificateParsingError)?;
     let intermediate_certs = &certification_data.certs[1..];
     if let Err(err) = verify_certificate_chain(&leaf_cert, &intermediate_certs, now) {
         return Err(err);
@@ -112,24 +126,24 @@ pub fn verify(
 
     // Check QE signature
     let asn1_signature = encode_as_der(&qe_report_signature)?;
-    if leaf_cert.verify_signature(webpki::ECDSA_P256_SHA256, &qe_report, &asn1_signature).is_err() {
-        return Err(Error::RsaSignatureIsInvalid)
+    if leaf_cert
+        .verify_signature(webpki::ECDSA_P256_SHA256, &qe_report, &asn1_signature)
+        .is_err()
+    {
+        return Err(Error::RsaSignatureIsInvalid);
     }
 
     // Extract QE report from quote
-    let parsed_qe_report = EnclaveReport::from_slice(&qe_report).map_err(|_err| Error::CodecError)?;
+    let parsed_qe_report =
+        EnclaveReport::from_slice(&qe_report).map_err(|_err| Error::CodecError)?;
 
     // Check QE hash
     let mut qe_hash_data = [0u8; quote::QE_HASH_DATA_BYTE_LEN];
-    qe_hash_data[0..quote::ATTESTATION_KEY_LEN].copy_from_slice(
-        &attestation_key
-    );
-    qe_hash_data[quote::ATTESTATION_KEY_LEN..].copy_from_slice(
-        &qe_auth_data
-    );
+    qe_hash_data[0..quote::ATTESTATION_KEY_LEN].copy_from_slice(&attestation_key);
+    qe_hash_data[quote::ATTESTATION_KEY_LEN..].copy_from_slice(&qe_auth_data);
     let qe_hash = ring::digest::digest(&ring::digest::SHA256, &qe_hash_data);
     if qe_hash.as_ref() != &parsed_qe_report.report_data[0..32] {
-        return Err(Error::QEReportHashMismatch)
+        return Err(Error::QEReportHashMismatch);
     }
 
     // Check signature from auth data
@@ -138,7 +152,10 @@ pub fn verify(
     let peer_public_key =
         ring::signature::UnparsedPublicKey::new(&ring::signature::ECDSA_P256_SHA256_FIXED, pub_key);
     peer_public_key
-        .verify(&raw_quote[..(quote::HEADER_BYTE_LEN + quote::ENCLAVE_REPORT_BYTE_LEN)], &signature)
+        .verify(
+            &raw_quote[..(quote::HEADER_BYTE_LEN + quote::ENCLAVE_REPORT_BYTE_LEN)],
+            &signature,
+        )
         .map_err(|_| Error::IsvEnclaveReportSignatureIsInvalid)?;
 
     // Extract information from the quote
@@ -148,9 +165,11 @@ pub fn verify(
     let pce_svn = get_pce_svn(&extension_section)?;
     let fmspc = get_fmspc(&extension_section)?;
 
-    let tcb_fmspc = hex::decode(fmspc).map_err(|_| Error::InvalidFieldValue { field: "fmspc".to_owned() })?;
+    let tcb_fmspc = hex::decode(fmspc).map_err(|_| Error::InvalidFieldValue {
+        field: "fmspc".to_owned(),
+    })?;
     if fmspc != &tcb_fmspc[..] {
-        return Err(Error::FmspcMismatch)
+        return Err(Error::FmspcMismatch);
     }
 
     // TCB status and advisory ids
@@ -159,7 +178,8 @@ pub fn verify(
     for tcb_level in &tcb_info.tcb_levels {
         if pce_svn >= tcb_level.tcb.pce_svn {
             let mut selected = true;
-            for i in 0..15 { // constant?
+            for i in 0..15 {
+                // constant?
                 // println!("[{}] QE SVN: {}, TCB LEVEL SVN: {}", i, parsed_qe_report.cpu_svn[i], tcb_level.components[i]);
 
                 if cpu_svn[i] < tcb_level.tcb.components[i].svn {
@@ -172,13 +192,21 @@ pub fn verify(
             }
 
             tcb_status = tcb_level.tcb_status.clone();
-            tcb_level.advisory_ids.iter().for_each(|id| advisory_ids.push(id.clone()));
+            tcb_level
+                .advisory_ids
+                .iter()
+                .for_each(|id| advisory_ids.push(id.clone()));
 
             break;
         }
     }
 
-    Ok((quote.enclave_report.report_data, pruntime_hash, tcb_status.to_string(), advisory_ids))
+    Ok((
+        quote.enclave_report.report_data,
+        pruntime_hash,
+        tcb_status.to_string(),
+        advisory_ids,
+    ))
 }
 
 #[cfg(test)]
@@ -191,12 +219,10 @@ mod test {
         let raw_quote_collateral = include_bytes!("../sample/dcap_quote_collateral").to_vec();
         let now = 1699301000000u64;
 
-        let quote_collateral = SgxV30QuoteCollateral::decode(&mut raw_quote_collateral.as_slice()).expect("decodable");
-        let (report_data, pruntime_hash, tcb_status, advisory_ids) = verify(
-            &raw_quote,
-            &quote_collateral,
-            now
-        ).expect("verify");
+        let quote_collateral =
+            SgxV30QuoteCollateral::decode(&mut raw_quote_collateral.as_slice()).expect("decodable");
+        let (report_data, pruntime_hash, tcb_status, advisory_ids) =
+            verify(&raw_quote, &quote_collateral, now).expect("verify");
 
         insta::assert_debug_snapshot!(report_data);
         insta::assert_debug_snapshot!(pruntime_hash);

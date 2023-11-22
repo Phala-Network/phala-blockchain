@@ -13,7 +13,7 @@ pub struct TCBInfo {
     pub pce_id: String,
     pub tcb_type: u32,
     pub tcb_evaluation_data_number: u32,
-    pub tcb_levels: Vec<TCBLevel>
+    pub tcb_levels: Vec<TCBLevel>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,7 +24,6 @@ pub struct TCBLevel {
     pub tcb_status: String,
     #[serde(rename = "advisoryIDs")]
     pub advisory_ids: Vec<String>,
-
 }
 
 #[derive(Debug, Serialize, Deserialize)]
