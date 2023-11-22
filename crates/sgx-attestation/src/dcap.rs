@@ -36,7 +36,7 @@ pub fn verify(
 ) -> Result<([u8; 64], Vec<u8>, String, Vec<String>), Error> {
     // Parse data
 
-    let quote = Quote::parse(&raw_quote).map_err(|_| Error::CodecError )?;
+    let quote = Quote::parse(raw_quote).map_err(|_| Error::CodecError )?;
     // For quick deny invalid quote
     // Check PRuntime hash
 
@@ -179,4 +179,28 @@ pub fn verify(
     }
 
     Ok((quote.enclave_report.report_data, pruntime_hash, tcb_status.to_string(), advisory_ids))
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn could_parse() {
+        let raw_quote = include_bytes!("../sample/dcap_quote").to_vec();
+        let raw_quote_collateral = include_bytes!("../sample/dcap_quote_collateral").to_vec();
+        let now = 1699301000000u64;
+
+        let quote_collateral = SgxV30QuoteCollateral::decode(&mut raw_quote_collateral.as_slice()).expect("decodable");
+        let (report_data, pruntime_hash, tcb_status, advisory_ids) = verify(
+            &raw_quote,
+            &quote_collateral,
+            now
+        ).expect("verify");
+
+        insta::assert_debug_snapshot!(report_data);
+        insta::assert_debug_snapshot!(pruntime_hash);
+        insta::assert_debug_snapshot!(tcb_status);
+        insta::assert_debug_snapshot!(advisory_ids);
+    }
 }

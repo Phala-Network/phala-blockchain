@@ -29,7 +29,7 @@ anyhow = { version = "1", optional = true }
 pem = { version = "3", optional = true }
 x509-parser = { version = "0.15", optional = true }
 asn1_der = { version = "0.7", optional = true }
-reqwest = { version = "0.11", optional = true, default-features = false }
+reqwest = { version = "0.11", optional = true, default-features = false, features = ["rustls-tls"] }
 urlencoding = { version = "2", optional = true }
 serde_json = { version = "1.0.108", optional = true, features = ["preserve_order"] }
 
