@@ -34,18 +34,17 @@ pub enum Error {
     CertificateChainIsTooShort,
     IntelExtensionCertificateDecodingError,
     IntelExtensionAmbiguity,
-    CpuSvnOidIsMissing,
     CpuSvnLengthMismatch,
     CpuSvnDecodingError,
-    PceSvnOidIsMissing,
     PceSvnDecodingError,
     PceSvnLengthMismatch,
-    FmspcOidIsMissing,
     FmspcLengthMismatch,
     FmspcDecodingError,
     FmspcMismatch,
     QEReportHashMismatch,
     IsvEnclaveReportSignatureIsInvalid,
+    DerDecodingError,
+    OidIsMissing,
 }
 
 pub mod dcap;

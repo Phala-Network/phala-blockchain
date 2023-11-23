@@ -162,7 +162,7 @@ pub fn verify(
     let tcb_fmspc = hex::decode(&tcb_info.fmspc).map_err(|_| Error::InvalidFieldValue {
         field: "fmspc".to_owned(),
     })?;
-    if fmspc != tcb_fmspc[..] {
+    if fmspc != &tcb_fmspc[..] {
         return Err(Error::FmspcMismatch);
     }
 

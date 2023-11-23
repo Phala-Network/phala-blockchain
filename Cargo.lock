@@ -3472,15 +3472,16 @@ dependencies = [
 
 [[package]]
 name = "ecdsa"
-version = "0.16.6"
+version = "0.16.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a48e5d537b8a30c0b023116d981b16334be1485af7ca68db3a2b7024cbc957fd"
+checksum = "ee27f32b5c5292967d2d4a9d7f1e0b0aed2c15daded5a60300e4abb9d8020bca"
 dependencies = [
  "der 0.7.8",
  "digest 0.10.7",
  "elliptic-curve 0.13.6",
  "rfc6979 0.4.0",
  "signature 2.1.0",
+ "spki 0.7.2",
 ]
 
 [[package]]
@@ -6322,7 +6323,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cadb76004ed8e97623117f3df85b17aaa6626ab0b0831e6573f104df16cd1bcc"
 dependencies = [
  "cfg-if",
- "ecdsa 0.16.6",
+ "ecdsa 0.16.9",
  "elliptic-curve 0.13.6",
  "once_cell",
  "sha2 0.10.7",
