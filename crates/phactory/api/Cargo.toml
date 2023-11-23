@@ -16,13 +16,11 @@ phala-trie-storage = { path = "../../../crates/phala-trie-storage", default-feat
 phala-types = { path = "../../../crates/phala-types", default-features = false, features = ["enable_serde", "sgx"] }
 prpc = { path = "../../../crates/prpc", default-features = false }
 phala-crypto = { path = "../../../crates/phala-crypto" }
-phala-mq = { path = "../../../crates/phala-mq" }
 chain = { path = "../../../standalone/runtime", default-features = false, package = "phala-node-runtime" }
 
 sp-consensus-grandpa = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
 frame-system = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false, features = ["full_crypto"] }
-sp-application-crypto = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false, features = ["full_crypto"] }
 sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
 phala-git-revision = { path = "../../phala-git-revision" }
 
@@ -32,7 +30,6 @@ anyhow = { version = "1.0.69", optional = true }
 log = { version = "0.4.14" }
 reqwest = { version = "0.11", optional = true, default-features = false, features = ["rustls-tls", "socks"] }
 
-primitive-types = { version = "0.12.2", optional = true, default-features = false }
 serde_json = "1.0.79"
 im = "15"
 ethers = "2.0.8"
@@ -53,7 +50,6 @@ std = [
     "derive_serde",
     "sp-core/full_crypto",
     "sp-runtime/std",
-    "sp-application-crypto/std",
     "frame-system/std",
     "chain/std",
     "prpc/std",
@@ -67,5 +63,4 @@ pruntime-client = [
 
 derive_serde = [
     "phala-trie-storage/serde",
-    "primitive-types/serde",
 ]

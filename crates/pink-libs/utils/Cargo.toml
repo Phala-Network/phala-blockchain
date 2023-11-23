@@ -14,7 +14,6 @@ scale = { package = "parity-scale-codec", version = "3.6.5", default-features = 
 scale-info = { version = "2.10.0", default-features = false, features = ["derive"], optional = true }
 
 pink-extension = { version = "0.5.0", default-features = false, path = "../../pink/pink-extension" }
-hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 pink-extension-runtime = { path = "../../pink/pink-extension-runtime" }

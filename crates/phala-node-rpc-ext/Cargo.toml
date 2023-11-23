@@ -9,14 +9,12 @@ repository = "https://github.com/Phala-Network/phala-blockchain"
 
 [dependencies]
 # third-party dependencies
-serde = { version = "1.0.102", features = ["derive"] }
 thiserror = "1.0"
-jsonrpsee = { version = "0.16.2", features = ["server"] }
+jsonrpsee = { version = "0.16.2", features = ["server", "macros"] }
 impl-serde = "0.4.0"
 log = { version = "0.4.14", default-features = false }
 hex = { version = "0.4.3", default-features = false }
 codec = { package = "parity-scale-codec", version = "3.6.5" }
-scale-info = { version = "2.10.0", default-features = false }
 
 # primitives
 sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
@@ -26,7 +24,6 @@ sp-api = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "rel
 # client dependencies
 sc-client-api = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 sc-transaction-pool-api = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
-sc-rpc = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 
 phala-mq = { path = "../../crates/phala-mq" }
 phala-pallets = { path = "../../pallets/phala" }

@@ -13,4 +13,4 @@ serde_json = { version = "1", default-features = false }
 
 [features]
 default = ["std"]
-std = []
+std = ["serde_json/std"]

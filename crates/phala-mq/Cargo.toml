@@ -31,4 +31,7 @@ signers = [
     "phala-serde-more/crypto",
 ]
 checkpoint = ["environmental", "std"]
-std = []
+std = [
+    "environmental/std",
+    "sp-core/std",
+]
