@@ -165,12 +165,8 @@ pub fn verify(
     let mut advisory_ids = Vec::<String>::new();
     for tcb_level in &tcb_info.tcb_levels {
         if pce_svn >= tcb_level.tcb.pce_svn {
-            let selected = cpu_svn
-                .iter()
-                .zip(&tcb_level.tcb.components)
-                .all(|(a, b)| a >= &b.svn);
-            if !selected {
-                continue;
+            if cpu_svn.iter().zip(&tcb_level.tcb.components).any(|(a, b)| a < &b.svn) {
+                continue
             }
 
             tcb_status = tcb_level.tcb_status.clone();
@@ -211,6 +207,25 @@ mod test {
             SgxV30QuoteCollateral::decode(&mut raw_quote_collateral.as_slice()).expect("decodable");
         let (report_data, pruntime_hash, tcb_status, advisory_ids) =
             verify(&raw_quote, &quote_collateral, now).expect("verify");
+
+        assert_eq!(
+            report_data, [
+                72, 101, 108, 108, 111, 44, 32, 119, 111, 114, 108, 100, 33, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ]
+        );
+        assert_eq!(
+            pruntime_hash, [
+                51, 216, 115, 109, 183, 86, 237, 73, 151, 224, 75, 163, 88, 210, 120, 51,
+                24, 143, 25, 50, 255, 123, 29, 21, 105, 4, 211, 245, 96, 69, 47, 187,
+                0, 0, 0, 0,
+                129, 95, 66, 241, 28, 246, 68, 48, 195, 11, 171, 120, 22, 186, 89, 106,
+                29, 160, 19, 12, 59, 2, 139, 103, 49, 51, 166, 108, 249, 163, 224, 230
+            ]);
+        assert_eq!(tcb_status, "ConfigurationAndSWHardeningNeeded");
+        assert_eq!(advisory_ids, ["INTEL-SA-00289", "INTEL-SA-00615"]);
 
         insta::assert_debug_snapshot!(report_data);
         insta::assert_debug_snapshot!(pruntime_hash);
