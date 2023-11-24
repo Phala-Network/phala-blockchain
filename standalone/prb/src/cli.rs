@@ -38,7 +38,7 @@ pub struct WorkerManagerCliArgs {
     #[arg(long, env, default_value = "")]
     pub pccs_url: String,
 
-    /// Timeout of PCCS server to get collateral
+    /// Timeout in seconds of PCCS server to get collateral
     #[arg(long, env, default_value = "10")]
     pub pccs_timeout: u64,
 }
