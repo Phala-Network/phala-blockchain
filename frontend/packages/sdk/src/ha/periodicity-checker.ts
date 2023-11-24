@@ -15,7 +15,7 @@ export function periodicityChecker(url?: string) {
   return async function (
     _apiPromise: ApiPromise,
     clusterId: string
-  ): Promise<Readonly<[string, ReturnType<typeof createPruntimeClient>]>> {
+  ): Promise<Readonly<[string, string, ReturnType<typeof createPruntimeClient>]>> {
     const resp = await fetch(url || PRUNTIME_NODE_LIST)
     const data = await resp.json()
     const endpoints = data?.[clusterId] || []
@@ -25,6 +25,6 @@ export function periodicityChecker(url?: string) {
     const picked = endpoints[Math.floor(Math.random() * endpoints.length)]
     const client = createPruntimeClient(picked)
     const info = await client.getInfo({})
-    return [`0x${info.ecdhPublicKey || ''}`, client] as const
+    return [`0x${info.ecdhPublicKey || ''}`, picked, client] as const
   }
 }

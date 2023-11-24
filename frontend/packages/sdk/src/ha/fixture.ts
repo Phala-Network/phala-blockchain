@@ -5,13 +5,13 @@ export function fixture(endpoints: string[]) {
   return async function (
     _apiPromise: ApiPromise,
     _clusterId: string
-  ): Promise<Readonly<[string, ReturnType<typeof createPruntimeClient>]>> {
+  ): Promise<Readonly<[string, string, ReturnType<typeof createPruntimeClient>]>> {
     if (endpoints.length === 0) {
       throw new Error('No worker available.')
     }
     const picked = endpoints[Math.floor(Math.random() * endpoints.length)]
     const client = createPruntimeClient(picked)
     const info = await client.getInfo({})
-    return [`0x${info.ecdhPublicKey || ''}`, client] as const
+    return [`0x${info.ecdhPublicKey || ''}`, picked, client] as const
   }
 }

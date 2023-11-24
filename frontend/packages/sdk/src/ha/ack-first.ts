@@ -11,12 +11,12 @@ interface PhalaTypesVersionedWorkerEndpoints extends Enum {
 async function ack(
   workerId: string,
   endpoint: string
-): Promise<Readonly<[string, ReturnType<typeof createPruntimeClient>]>> {
+): Promise<Readonly<[string, string, ReturnType<typeof createPruntimeClient>]>> {
   const client = createPruntimeClient(endpoint)
   const info = await client.getInfo({})
   const actually = `0x${info.ecdhPublicKey || ''}`
   if (actually === workerId) {
-    return [workerId, client] as const
+    return [workerId, endpoint, client] as const
   }
   throw new Error('On-chain worker ID not match to the worker ECDH PublicKey.')
 }
@@ -29,7 +29,7 @@ export function ackFirst() {
   return async function ackFirst(
     apiPromise: ApiPromise,
     clusterId: string
-  ): Promise<Readonly<[string, ReturnType<typeof createPruntimeClient>]>> {
+  ): Promise<Readonly<[string, string, ReturnType<typeof createPruntimeClient>]>> {
     const workersQuery = await apiPromise.query.phalaPhatContracts.clusterWorkers<Vec<U8aFixed>>(clusterId)
     const workerIds = workersQuery.map((i) => i.toHex())
     const endpointsQuery =

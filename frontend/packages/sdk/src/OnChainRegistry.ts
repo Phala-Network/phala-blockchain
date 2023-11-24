@@ -8,6 +8,7 @@ import { cryptoWaitReady } from '@polkadot/util-crypto'
 import systemAbi from './abis/system.json'
 import { PinkContractPromise } from './contracts/PinkContract'
 import { PinkLoggerContractPromise } from './contracts/PinkLoggerContract'
+import { ackFirst } from './ha/ack-first'
 import { type CertificateData, signCertificate } from './pruntime/certificate'
 import createPruntimeClient from './pruntime/createPruntimeClient'
 import { pruntime_rpc } from './pruntime/proto'
@@ -41,6 +42,7 @@ interface CreateOptions {
   pruntimeURL?: string
   systemContractId?: string
   skipCheck?: boolean
+  strategy?: 'ack-first' | (() => Promise<Readonly<[string, ReturnType<typeof createPruntimeClient>]>>)
 }
 
 export interface WorkerInfo {
@@ -55,6 +57,11 @@ export interface WorkerInfo {
 export interface PartialWorkerInfo {
   clusterId?: string
   pruntimeURL: string
+}
+
+export interface StrategicWorkerInfo {
+  clusterId?: string
+  strategy: 'ack-first' | (() => Promise<Readonly<[string, ReturnType<typeof createPruntimeClient>]>>)
 }
 
 export class OnChainRegistry {
@@ -130,6 +137,11 @@ export class OnChainRegistry {
           pruntimeURL: options.pruntimeURL,
         }
         await instance.connect(workerInfo)
+      } else if (options.strategy) {
+        await instance.connect({
+          clusterId: options.clusterId,
+          strategy: options.strategy,
+        } as StrategicWorkerInfo)
       }
       // Failed back to backward compatible mode.
       else {
@@ -259,7 +271,7 @@ export class OnChainRegistry {
    * skipCheck: boolean | undefined - Skip the check of cluster and worker has been registry on chain or not, it's for cluster
    *                      deployment scenario, where the cluster and worker has not been registry on chain yet.
    */
-  public async connect(worker?: WorkerInfo | PartialWorkerInfo): Promise<void>
+  public async connect(worker?: WorkerInfo | PartialWorkerInfo | StrategicWorkerInfo): Promise<void>
   public async connect(
     clusterId?: string | null,
     workerId?: string | null,
@@ -278,11 +290,18 @@ export class OnChainRegistry {
           throw new Error('No cluster found.')
         }
         const [clusterId, clusterInfo] = clusters[0]
-        const workers = await this.getClusterWorkers(clusterId)
-        this.#phactory = await this.preparePruntimeClientOrThrows(workers[0].endpoints.default)
+        const [workerId, endpoint, phactory] = await ackFirst()(this.api, clusterId)
+        this.#phactory = phactory
         this.clusterId = clusterId
         this.clusterInfo = clusterInfo
-        this.workerInfo = workers[0]
+        this.workerInfo = {
+          pubkey: workerId,
+          clusterId: clusterId,
+          endpoints: {
+            default: endpoint,
+            v1: [endpoint],
+          },
+        }
         this.#ready = true
         await this.prepareSystemOrThrows(clusterInfo)
         return
@@ -290,10 +309,59 @@ export class OnChainRegistry {
 
       // Scenario 2: connect to specified worker.
       if (args.length === 1 && args[0] instanceof Object) {
+        if (args[0].strategy) {
+          let clusterId = args[0].clusterId
+          let clusterInfo
+          if (!clusterId) {
+            const clusters = await this.getAllClusters()
+            if (!clusters || clusters.length === 0) {
+              throw new Error('No cluster found.')
+            }
+            ;[clusterId, clusterInfo] = clusters[0]
+          } else {
+            clusterInfo = await this.getClusterInfoById(clusterId)
+            if (!clusterInfo) {
+              throw new Error(`Cluster not found: ${clusterId}`)
+            }
+          }
+          if (args[0].strategy === 'ack-first') {
+            const [workerId, endpoint, phactory] = await ackFirst()(this.api, clusterId)
+            this.#phactory = phactory
+            this.clusterId = clusterId
+            this.clusterInfo = clusterInfo
+            this.workerInfo = {
+              pubkey: workerId,
+              clusterId: clusterId,
+              endpoints: {
+                default: endpoint,
+                v1: [endpoint],
+              },
+            }
+            this.#ready = true
+            await this.prepareSystemOrThrows(clusterInfo)
+          } else if (typeof args[0].strategy === 'function') {
+            const [workerId, phactory] = await args[0].strategy(this.api, clusterId)
+            this.#phactory = phactory
+            this.clusterId = clusterId
+            this.clusterInfo = clusterInfo
+            this.workerInfo = {
+              pubkey: workerId,
+              clusterId: clusterId,
+              endpoints: {
+                default: phactory.endpoint,
+                v1: [phactory.endpoint],
+              },
+            }
+            this.#ready = true
+            await this.prepareSystemOrThrows(clusterInfo)
+          } else {
+            throw new Error(`Unknown strategy: ${args[0].strategy}`)
+          }
+        }
         // Minimal connection settings, only PRuntimeURL has been specified.
         // clusterId is optional here since we can find it from `getClusterInfo`
         // API
-        if (args[0].pruntimeURL) {
+        else if (args[0].pruntimeURL) {
           const partialInfo = args[0] as PartialWorkerInfo
           const pruntimeURL = partialInfo.pruntimeURL
           let clusterId = partialInfo.clusterId
@@ -347,6 +415,8 @@ export class OnChainRegistry {
         return
       }
     }
+
+    console.warn('Deprecated: connect to dedicated worker via legacy mode, please migrate to the new API.')
 
     // legacy support.
     let clusterId = args[0] as string | undefined
