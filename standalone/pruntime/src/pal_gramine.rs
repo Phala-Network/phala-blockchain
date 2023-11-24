@@ -49,30 +49,36 @@ impl RA for GraminePlatform {
         data: &[u8],
         timeout: Duration,
     ) -> Result<Vec<u8>, Self::Error> {
-        match provider {
+        ensure_supported(provider)?;
+        let report = match provider {
             Some(AttestationProvider::Ias) => {
                 // TODO.kevin: move the key out of the binary?
                 const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
 
                 let (attn_report, sig, cert) =
                     ias::create_attestation_report(data, IAS_API_KEY_STR, timeout)?;
-                let attestation_report = Some(phala_types::AttestationReport::SgxIas {
+                Some(phala_types::AttestationReport::SgxIas {
                     ra_report: attn_report.as_bytes().to_vec(),
                     signature: sig,
                     raw_signing_cert: cert,
-                });
-
-                Ok(Encode::encode(&attestation_report))
+                })
             }
-            Some(AttestationProvider::Dcap) => ias::create_quote_vec(data),  
-            None => Ok(Encode::encode(&None::<AttestationProvider>)),
-            _ => Err(anyhow!("Unknown attestation provider `{:?}`", provider)),
-        }
+            Some(AttestationProvider::Dcap) => Some(phala_types::AttestationReport::SgxDcap {
+                quote: ias::create_quote_vec(data)?,
+                collateral: None,
+            }),
+            None => None,
+            _ => anyhow::bail!("Unknown attestation provider `{:?}`", provider),
+        };
+        Ok(Encode::encode(&report))
     }
 
     fn quote_test(&self, provider: Option<AttestationProvider>) -> Result<(), Self::Error> {
+        ensure_supported(provider)?;
         match provider {
-            Some(AttestationProvider::Ias | AttestationProvider::Dcap) => ias::create_quote_vec(&[0u8; 64]).map(|_| ()),
+            Some(AttestationProvider::Ias | AttestationProvider::Dcap) => {
+                ias::create_quote_vec(&[0u8; 64]).map(|_| ())
+            }
             None => Ok(()),
             _ => Err(anyhow!("Unknown attestation provider `{:?}`", provider)),
         }
@@ -167,6 +173,19 @@ fn mem_free() -> Option<usize> {
         }
     }
     None
+}
+
+fn ensure_supported(provider: Option<AttestationProvider>) -> anyhow::Result<()> {
+    let Some(provider) = provider else {
+        return Ok(());
+    };
+    let attestation_type =
+        std::fs::read_to_string("/dev/attestation/attestation_type").unwrap_or_default();
+    match (provider, attestation_type.as_str()) {
+        (AttestationProvider::Ias, "epid") => Ok(()),
+        (AttestationProvider::Dcap, "dcap") => Ok(()),
+        _ => Err(anyhow!("Unsupported attestation provider: {provider:?}")),
+    }
 }
 
 pub(crate) fn is_gramine() -> bool {

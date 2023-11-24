@@ -4,18 +4,53 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-serde = { version = "1", features = ["derive"], default-features = false }
+serde = { version = "1", default-features = false, features = ["derive"] }
 pink-json = { version = "0.4", default-features = false }
 hex = { version = "0.4", default-features = false, features = ["alloc"] }
 base64 = { version = "0.21", default-features = false, features = ["alloc"] }
 scale = { package = "parity-scale-codec", version = "3.6.5", default-features = false, features = ["derive"] }
+scale-info = { version = "2", default-features = false, features = ["derive"] }
+chrono = { version = "0.4.31", default-features = false, features = ["alloc", "serde"] }
+const-oid = { version = "0.9.5", default-features = false }
+x509-cert = { version = "0.2.4", default-features = false }
+byteorder = { version = "1.5.0", default-features = false }
+pem = { version = "3", default-features = false }
+asn1_der = { version = "0.7", default-features = false, features = ["native_types"] }
+der = { version = "0.7.8", default-features = false, features = ["alloc"] }
 
+log = { version = "0.4.20", default-features = false }
+
+ring = { version = "0.16.20", default-features = false, features = ["alloc"] }
 # Release version no-std has bug
-webpki = { git = "https://github.com/rustls/webpki", version = "=0.102.0-alpha.3", rev = "2ed9a4324f48c2c46ffdd7dc9d3eb315af25fce2", package = "rustls-webpki", default-features = false, features = ["alloc", "ring"] }
+webpki = { git = "https://github.com/rustls/webpki", rev = "2ed9a4324f48c2c46ffdd7dc9d3eb315af25fce2", version = "=0.102.0-alpha.3", package = "rustls-webpki", default-features = false, features = [
+    "alloc",
+    "ring",
+] }
+
+anyhow = { version = "1", optional = true }
+
+reqwest = { version = "0.11", optional = true, default-features = false, features = ["rustls-tls"] }
+urlencoding = { version = "2", optional = true }
+serde_json = { version = "1.0.108", optional = true, features = ["preserve_order"] }
 
 [dev-dependencies]
 insta = "1"
 
 [features]
 default = ["std"]
-std = ["pink-json/std", "serde/std"]
+std = [
+    "pink-json/std",
+    "serde/std",
+    "scale/std",
+    "scale-info/std",
+    "ring/std",
+    "webpki/std",
+    "const-oid/std",
+    "pem/std",
+    "asn1_der/std",
+    "der/std",
+    "serde_json",
+    "anyhow",
+    "reqwest",
+    "urlencoding",
+]

@@ -40,4 +40,5 @@ phala-mq = { path = "../../crates/phala-mq" }
 phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-client"] }
 
 phaxt = { path = "../../crates/phaxt" }
+sgx-attestation = { path = "../../crates/sgx-attestation" }
 async-stream = "0.3.4"

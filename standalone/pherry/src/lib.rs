@@ -2,6 +2,7 @@ use anyhow::{anyhow, Context, Result};
 use log::{debug, error, info, warn};
 use phala_node_rpc_ext::MakeInto;
 use phala_trie_storage::ser::StorageChanges;
+use sgx_attestation::dcap::get_collateral::get_collateral;
 use sp_core::{crypto::AccountId32, H256};
 use std::cmp;
 use std::convert::TryFrom;
@@ -47,7 +48,7 @@ use clap::Parser;
 use headers_cache::Client as CacheClient;
 use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use notify_client::NotifyClient;
-use phala_types::AttestationProvider;
+use phala_types::{AttestationProvider, AttestationReport, Collateral};
 
 pub use phaxt::connect as subxt_connect;
 
@@ -244,6 +245,14 @@ pub struct Args {
     /// Load handover proof after blocks synced.
     #[arg(long)]
     load_handover_proof: bool,
+
+    /// The URL of the PCCS server.
+    #[arg(long, default_value = "")]
+    pccs_url: String,
+
+    /// Timeout in seconds for connecting to PCCS server.
+    #[arg(long, default_value = "30")]
+    pccs_timeout: u64,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug)]
@@ -1007,7 +1016,29 @@ async fn register_worker(
             raw_signing_cert: payload.signing_cert,
         }
         .encode(),
-        None => attestation.encoded_report,
+        None => {
+            if attestation.provider.as_str() == "dcap" {
+                let report =
+                    Option::<AttestationReport>::decode(&mut &attestation.encoded_report[..]);
+                if let Ok(Some(AttestationReport::SgxDcap {
+                    quote,
+                    collateral: None,
+                })) = report
+                {
+                    if args.pccs_url.is_empty() {
+                        anyhow::bail!("--pccs-url is required when using dcap");
+                    }
+                    let timeout = Duration::from_secs(args.pccs_timeout);
+                    let collateral = get_collateral(&args.pccs_url, &quote, timeout).await?;
+                    let collateral = Some(Collateral::SgxV30(collateral));
+                    Some(AttestationReport::SgxDcap { quote, collateral }).encode()
+                } else {
+                    attestation.encoded_report
+                }
+            } else {
+                attestation.encoded_report
+            }
+        }
     };
     let tx = phaxt::dynamic::tx::register_worker(encoded_runtime_info, attestation, v2);
 

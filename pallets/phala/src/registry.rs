@@ -257,6 +257,8 @@ pub mod pallet {
 		BadIASReport,
 		OutdatedIASReport,
 		UnknownQuoteBodyFormat,
+		// DCAP related
+		InvalidDCAPQuote,
 		// Report validation
 		InvalidRuntimeInfoHash,
 		InvalidRuntimeInfo,
@@ -289,6 +291,7 @@ pub mod pallet {
 		NotMigrationRoot,
 		ParachainIdMismatch,
 		InvalidConsensusVersion,
+		UnsupportedAttestationType,
 	}
 
 	#[pallet::call]
@@ -586,14 +589,14 @@ pub mod pallet {
 		pub fn register_worker_v2(
 			origin: OriginFor<T>,
 			pruntime_info: WorkerRegistrationInfoV2<T::AccountId>,
-			attestation: Option<AttestationReport>,
+			attestation: Box<Option<AttestationReport>>,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
 			// Validate RA report & embedded user data
 			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
 			let runtime_info_hash = crate::hashing::blake2_256(&Encode::encode(&pruntime_info));
 			let attestation_report = crate::attestation::validate(
-				attestation,
+				*attestation,
 				&runtime_info_hash,
 				now,
 				T::VerifyPRuntime::get(),
@@ -1200,6 +1203,8 @@ pub mod pallet {
 				AttestationError::UnknownQuoteBodyFormat => Self::UnknownQuoteBodyFormat,
 				AttestationError::InvalidUserDataHash => Self::InvalidRuntimeInfoHash,
 				AttestationError::NoneAttestationDisabled => Self::NoneAttestationDisabled,
+				AttestationError::UnsupportedAttestationType => Self::UnsupportedAttestationType,
+				AttestationError::InvalidDCAPQuote(_) => Self::InvalidDCAPQuote,
 			}
 		}
 	}
@@ -1310,7 +1315,7 @@ pub mod pallet {
 							operator: Some(1),
 							max_consensus_version: 0,
 						},
-						None
+						Box::new(None)
 					),
 					Error::<Test>::GenesisBlockHashRejected
 				);
@@ -1330,7 +1335,7 @@ pub mod pallet {
 							operator: Some(1),
 							max_consensus_version: 0,
 						},
-						None
+						Box::new(None)
 					),
 					Error::<Test>::ParachainIdMismatch
 				);
@@ -1349,7 +1354,7 @@ pub mod pallet {
 						operator: Some(1),
 						max_consensus_version: 0,
 					},
-					None,
+					Box::new(None),
 				));
 				let worker = Workers::<Test>::get(worker_pubkey(1)).unwrap();
 				assert_eq!(worker.operator, Some(1));
@@ -1368,7 +1373,7 @@ pub mod pallet {
 						operator: Some(2),
 						max_consensus_version: 0,
 					},
-					None,
+					Box::new(None),
 				));
 				let worker = Workers::<Test>::get(worker_pubkey(1)).unwrap();
 				assert_eq!(worker.last_updated, 100);
