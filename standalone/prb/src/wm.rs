@@ -42,6 +42,8 @@ pub struct WorkerManagerContext {
     pub workers: WrappedWorkerContexts,
     pub worker_map: Arc<TokioMutex<WorkerContextMap>>,
     pub txm: Arc<TxManager>,
+    pub pccs_url: String,
+    pub pccs_timeout_secs: u64,
 }
 
 pub type WrappedWorkerManagerContext = Arc<WorkerManagerContext>;
@@ -115,6 +117,8 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         txm: txm.clone(),
         workers: Arc::new(TokioMutex::new(Vec::new())),
         worker_map: Arc::new(TokioMutex::new(HashMap::new())),
+        pccs_url: args.pccs_url.clone(),
+        pccs_timeout_secs: args.pccs_timeout,
     });
 
     let join_handle = try_join3(
@@ -136,8 +140,6 @@ pub async fn wm(args: WorkerManagerCliArgs) {
                         reload_tx.clone(),
                         fast_sync_enabled,
                         args.webhook_url.clone(),
-                        args.pccs_url.clone(),
-                        args.pccs_timeout
                     );
 
                 tokio::select! {
@@ -162,8 +164,6 @@ pub async fn set_lifecycle_manager(
     reload_tx: WrappedReloadTx,
     fast_sync_enabled: bool,
     webhook_url: Option<String>,
-    pccs_url: String,
-    pccs_timeout_secs: u64,
 ) -> Result<()> {
     let (tx, rx) = mpsc::unbounded_channel::<WorkerManagerCommand>();
 
@@ -175,8 +175,6 @@ pub async fn set_lifecycle_manager(
         fast_sync_enabled,
         webhook_url,
         ctx.txm.clone(),
-        pccs_url,
-        pccs_timeout_secs,
     )
     .await;
 

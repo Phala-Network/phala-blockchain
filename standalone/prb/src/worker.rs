@@ -718,8 +718,12 @@ impl WorkerContext {
             .attestation
             .ok_or(anyhow!("Worker has no attestation!"))?;
         let v2 = attestation.payload.is_none();
-        let attestation =
-            attestation_to_report(attestation, &lm.pccs_url, lm.pccs_timeout_secs).await?;
+        let attestation = attestation_to_report(
+            attestation,
+            &lm.main_ctx.pccs_url,
+            lm.main_ctx.pccs_timeout_secs,
+        )
+        .await?;
         txm.clone()
             .register_worker(pid, runtime_info.encoded_runtime_info, attestation, v2)
             .await?;
