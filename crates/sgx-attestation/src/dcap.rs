@@ -156,7 +156,7 @@ pub fn verify(
     let fmspc = get_fmspc(&extension_section)?;
 
     let tcb_fmspc = hex::decode(&tcb_info.fmspc).map_err(|_| Error::CodecError)?;
-    if fmspc != &tcb_fmspc[..] {
+    if fmspc != tcb_fmspc[..] {
         return Err(Error::FmspcMismatch);
     }
 

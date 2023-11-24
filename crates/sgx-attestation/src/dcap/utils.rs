@@ -24,7 +24,7 @@ pub fn get_intel_extension(der_encoded: &[u8]) -> Result<Vec<u8>, Error> {
         .map(|e| e.extn_value.clone());
 
     let extension = extension_iter.next().ok_or(Error::IntelExtensionAmbiguity)?;
-    if !extension_iter.next().is_none() {
+    if extension_iter.next().is_some() {
         //"There should only be one section containing Intel extensions"
         return Err(Error::IntelExtensionAmbiguity);
     }
@@ -32,7 +32,7 @@ pub fn get_intel_extension(der_encoded: &[u8]) -> Result<Vec<u8>, Error> {
 }
 
 pub fn find_extension(path: &[&[u8]], raw: &[u8]) -> Result<Vec<u8>, Error> {
-    let obj = DerObject::decode(&raw).map_err(|_| Error::DerDecodingError)?;
+    let obj = DerObject::decode(raw).map_err(|_| Error::DerDecodingError)?;
     let subobj = get_obj(path, obj)?;
     Ok(subobj.value().to_vec())
 }
@@ -59,7 +59,7 @@ fn sub_obj<'a>(oid: &[u8], seq: Sequence<'a>) -> Result<DerObject<'a>, Error> {
 }
 
 pub fn get_fmspc(extension_section: &[u8]) -> Result<Fmspc, Error> {
-    let data = find_extension(&[oids::FMSPC.as_bytes()], &extension_section)?;
+    let data = find_extension(&[oids::FMSPC.as_bytes()], extension_section)?;
     if data.len() != 6 {
         return Err(Error::FmspcLengthMismatch)
     }
@@ -68,7 +68,7 @@ pub fn get_fmspc(extension_section: &[u8]) -> Result<Fmspc, Error> {
 }
 
 pub fn get_cpu_svn(extension_section: &[u8]) -> Result<CpuSvn, Error> {
-    let data = find_extension(&[oids::TCB.as_bytes(), oids::CPUSVN.as_bytes()], &extension_section)?;
+    let data = find_extension(&[oids::TCB.as_bytes(), oids::CPUSVN.as_bytes()], extension_section)?;
     if data.len() != 16 {
         return Err(Error::CpuSvnLengthMismatch)
     }
@@ -77,7 +77,7 @@ pub fn get_cpu_svn(extension_section: &[u8]) -> Result<CpuSvn, Error> {
 }
 
 pub fn get_pce_svn(extension_section: &[u8]) -> Result<Svn, Error> {
-    let data = find_extension(&[oids::TCB.as_bytes(), oids::PCESVN.as_bytes()], &extension_section)?;
+    let data = find_extension(&[oids::TCB.as_bytes(), oids::PCESVN.as_bytes()], extension_section)?;
 
     match data.len() {
         1 => Ok(u16::from(data[0])),
