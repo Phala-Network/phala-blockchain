@@ -93,6 +93,14 @@ impl RA for GraminePlatform {
             None
         }
     }
+
+    fn supported_attestation_methods(&self) -> Vec<String> {
+        let mut methods = vec!["none".to_string()];
+        if let Some(t) = attestation_type() {
+            methods.push(t);
+        }
+        methods
+    }
 }
 
 impl Machine for GraminePlatform {
@@ -175,12 +183,15 @@ fn mem_free() -> Option<usize> {
     None
 }
 
+fn attestation_type() -> Option<String> {
+    std::fs::read_to_string("/dev/attestation/attestation_type").ok()
+}
+
 fn ensure_supported(provider: Option<AttestationProvider>) -> anyhow::Result<()> {
     let Some(provider) = provider else {
         return Ok(());
     };
-    let attestation_type =
-        std::fs::read_to_string("/dev/attestation/attestation_type").unwrap_or_default();
+    let attestation_type = attestation_type().unwrap_or_default();
     match (provider, attestation_type.as_str()) {
         (AttestationProvider::Ias, "epid") => Ok(()),
         (AttestationProvider::Dcap, "dcap") => Ok(()),

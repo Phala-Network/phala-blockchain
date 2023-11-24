@@ -259,6 +259,7 @@ pub struct Args {
 enum RaOption {
     None,
     Ias,
+    Dcap,
 }
 
 impl From<RaOption> for Option<AttestationProvider> {
@@ -266,6 +267,7 @@ impl From<RaOption> for Option<AttestationProvider> {
         match other {
             RaOption::None => None,
             RaOption::Ias => Some(AttestationProvider::Ias),
+            RaOption::Dcap => Some(AttestationProvider::Dcap),
         }
     }
 }
@@ -999,17 +1001,12 @@ async fn init_runtime(
     Ok(resp)
 }
 
-async fn register_worker(
-    para_api: &ParachainApi,
-    encoded_runtime_info: Vec<u8>,
+pub async fn attestation_to_report(
     attestation: prpc::Attestation,
-    signer: &mut SrSigner,
-    args: &Args,
-) -> Result<()> {
-    chain_client::update_signer_nonce(para_api, signer).await?;
-    let params = mk_params(para_api, args.longevity, args.tip).await?;
-    let v2 = attestation.payload.is_none();
-    let attestation = match attestation.payload {
+    pccs_url: &str,
+    pccs_timeout_secs: u64,
+) -> Result<Vec<u8>> {
+    let report = match attestation.payload {
         Some(payload) => Attestation::SgxIas {
             ra_report: payload.report.as_bytes().to_vec(),
             signature: payload.signature,
@@ -1025,11 +1022,11 @@ async fn register_worker(
                     collateral: None,
                 })) = report
                 {
-                    if args.pccs_url.is_empty() {
-                        anyhow::bail!("--pccs-url is required when using dcap");
+                    if pccs_url.is_empty() {
+                        anyhow::bail!("pccs_url is required when using dcap");
                     }
-                    let timeout = Duration::from_secs(args.pccs_timeout);
-                    let collateral = get_collateral(&args.pccs_url, &quote, timeout).await?;
+                    let timeout = Duration::from_secs(pccs_timeout_secs);
+                    let collateral = get_collateral(pccs_url, &quote, timeout).await?;
                     let collateral = Some(Collateral::SgxV30(collateral));
                     Some(AttestationReport::SgxDcap { quote, collateral }).encode()
                 } else {
@@ -1040,6 +1037,20 @@ async fn register_worker(
             }
         }
     };
+    Ok(report)
+}
+
+async fn register_worker(
+    para_api: &ParachainApi,
+    encoded_runtime_info: Vec<u8>,
+    attestation: prpc::Attestation,
+    signer: &mut SrSigner,
+    args: &Args,
+) -> Result<()> {
+    chain_client::update_signer_nonce(para_api, signer).await?;
+    let params = mk_params(para_api, args.longevity, args.tip).await?;
+    let v2 = attestation.payload.is_none();
+    let attestation = attestation_to_report(attestation, &args.pccs_url, args.pccs_timeout).await?;
     let tx = phaxt::dynamic::tx::register_worker(encoded_runtime_info, attestation, v2);
 
     let encoded_call_data = tx

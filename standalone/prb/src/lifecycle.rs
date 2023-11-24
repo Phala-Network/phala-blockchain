@@ -120,7 +120,7 @@ impl WorkerLifecycleManager {
             state: cc.state.clone(),
             phactory_info: cc.info.clone(),
             last_message: cc.last_message.clone(),
-            session_info: cc.session_info.clone()
+            session_info: cc.session_info.clone(),
         };
         let body = serde_json::to_string(&s)?;
         if let Err(e) = self

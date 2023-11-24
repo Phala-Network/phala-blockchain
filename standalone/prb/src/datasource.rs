@@ -198,7 +198,7 @@ impl Expiry<String, Arc<DataSourceCacheItem>> for DataSourceCacheItemExpiry {
         &self,
         _key: &String,
         value: &Arc<DataSourceCacheItem>,
-        _created_at: Instant
+        _created_at: Instant,
     ) -> Option<Duration> {
         match **value {
             DataSourceCacheItem::ParaHeaderByRelayHeight(None) => Some(Duration::from_secs(3)),
@@ -652,6 +652,7 @@ macro_rules! use_parachain_hc {
 impl DataSourceManager {
     pub async fn do_get_init_runtime_default_request(
         self: Arc<Self>,
+        provider: Option<AttestationProvider>,
     ) -> Result<Arc<DataSourceCacheItem>> {
         let relay_hc = use_relaychain_hc!(self);
 
@@ -699,15 +700,21 @@ impl DataSourceManager {
             genesis_state,
             None,
             true,
-            Some(AttestationProvider::Ias),
+            provider,
         );
         Ok(Arc::new(DataSourceCacheItem::InitRuntimeRequest(ret)))
     }
-    pub async fn get_init_runtime_default_request(self: Arc<Self>) -> Result<InitRuntimeRequest> {
-        let key = "init".to_string();
+    pub async fn get_init_runtime_default_request(
+        self: Arc<Self>,
+        provider: Option<AttestationProvider>,
+    ) -> Result<InitRuntimeRequest> {
+        let key = format!("init-{provider:?}");
         let cache = self.cache.clone();
         match cache
-            .try_get_with(key, self.clone().do_get_init_runtime_default_request())
+            .try_get_with(
+                key,
+                self.clone().do_get_init_runtime_default_request(provider),
+            )
             .await
         {
             Ok(ret) => match *ret {
