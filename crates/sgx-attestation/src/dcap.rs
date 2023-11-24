@@ -46,11 +46,7 @@ pub fn verify(
         .map_err(|_| Error::CodecError)?;
 
     let next_update =
-        chrono::DateTime::parse_from_rfc3339(&tcb_info.next_update).map_err(|_| {
-            Error::InvalidFieldValue {
-                field: "nextUpdate".to_owned(),
-            }
-        })?;
+        chrono::DateTime::parse_from_rfc3339(&tcb_info.next_update).map_err(|_| Error::CodecError)?;
     if now > next_update.timestamp() as u64 {
         return Err(Error::TCBInfoExpired);
     }
@@ -159,9 +155,7 @@ pub fn verify(
     let pce_svn = get_pce_svn(&extension_section)?;
     let fmspc = get_fmspc(&extension_section)?;
 
-    let tcb_fmspc = hex::decode(&tcb_info.fmspc).map_err(|_| Error::InvalidFieldValue {
-        field: "fmspc".to_owned(),
-    })?;
+    let tcb_fmspc = hex::decode(&tcb_info.fmspc).map_err(|_| Error::CodecError)?;
     if fmspc != &tcb_fmspc[..] {
         return Err(Error::FmspcMismatch);
     }

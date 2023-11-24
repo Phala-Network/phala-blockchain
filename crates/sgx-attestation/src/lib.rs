@@ -3,7 +3,6 @@
 #[macro_use]
 extern crate alloc;
 
-use alloc::string::String;
 use scale::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -14,17 +13,11 @@ pub enum Error {
     CodecError,
 
     // DCAP
-    RawDataInvalid,
-    MissingField { field: String },
-    InvalidFieldValue { field: String },
-    UnsupportedFieldValue { field: String },
     TCBInfoExpired,
     KeyLengthIsInvalid,
     PublicKeyIsInvalid,
     RsaSignatureIsInvalid,
     DerEncodingError,
-    UnknownMREnclave,
-    UnknownMRSigner,
     UnsupportedDCAPQuoteVersion,
     UnsupportedDCAPAttestationKeyType,
     UnsupportedQuoteAuthData,
