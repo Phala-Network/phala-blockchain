@@ -1,322 +1,167 @@
-use alloc::borrow::ToOwned;
+use alloc::string::String;
 use alloc::vec::Vec;
-use core::fmt::Debug;
-use core::result::Result;
 
-use byteorder::{ByteOrder, LittleEndian};
+use scale::{Decode, Input};
 
 use crate::dcap::constants::*;
-use crate::dcap::utils::*;
-use crate::Error;
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum QuoteVersion {
-    V3,
-    // Doc said always this
-    Unsupported { raw: u16 },
+#[derive(Debug)]
+pub struct Data<T> {
+    pub data: Vec<u8>,
+    _marker: core::marker::PhantomData<T>,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum AttestationKeyType {
-    ECDSA256WithP256Curve,
-    // Doc said always this
-    ECDSA384WithP384Curve,
-    Unsupported { raw: u16 },
+impl<T: Decode + Into<u64>> Decode for Data<T> {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, scale::Error> {
+        let len = T::decode(input)?;
+        let mut data = vec![0u8; len.into() as usize];
+        input.read(&mut data)?;
+        Ok(Data {
+            data,
+            _marker: core::marker::PhantomData,
+        })
+    }
 }
 
-#[derive(Clone)]
+#[derive(Decode, Debug)]
 pub struct Header {
-    pub version: QuoteVersion,
-    pub attestation_key_type: AttestationKeyType,
+    pub version: u16,
+    pub attestation_key_type: u16,
     pub tee_type: u32,
-    // Doc said this is reserved, but implementation is this, it's 0 as doc said.
-    pub qe_svn: Svn,
-    pub pce_svn: Svn,
+    pub qe_svn: u16,
+    pub pce_svn: u16,
     pub qe_vendor_id: [u8; 16],
     pub user_data: [u8; 20],
 }
 
-impl Header {
-    pub fn from_slice(raw_header: &[u8]) -> Result<Self, Error> {
-        if raw_header.len() != HEADER_BYTE_LEN {
-            return Err(Error::RawDataInvalid);
-        }
-
-        let version = LittleEndian::read_u16(&raw_header[..2]);
-        let attestation_key_type = LittleEndian::read_u16(&raw_header[2..4]);
-        let tee_type = LittleEndian::read_u32(&raw_header[4..8]);
-        let qe_svn = LittleEndian::read_u16(&raw_header[8..10]);
-        let pce_svn = LittleEndian::read_u16(&raw_header[10..12]);
-        let qe_vendor_id: [u8; 16] = raw_header[12..28].try_into().map_err(|_| Error::CodecError)?;
-        let user_data: [u8; 20] = raw_header[28..48].try_into().map_err(|_| Error::CodecError)?;
-
-        // println!("- Quote header -");
-        // println!("version: {}", version);
-        // println!("attestation key type: {}", attestation_key_type);
-        // println!("tee type: {}", tee_type);
-        // println!("qe svn: {}", qe_svn);
-        // println!("pce svn: {}", pce_svn);
-        // println!("qe vendor id: 0x{}", hex::encode(qe_vendor_id));
-        // println!("user data: 0x{}", hex::encode(user_data));
-        // println!("----------------");
-
-        let version = match version {
-            3 => QuoteVersion::V3,
-            _ => QuoteVersion::Unsupported { raw: version },
-        };
-        if version != QuoteVersion::V3 {
-            return Err(Error::UnsupportedFieldValue {
-                field: "version".to_owned(),
-            });
-        }
-
-        let attestation_key_type = match attestation_key_type {
-            2 => AttestationKeyType::ECDSA256WithP256Curve,
-            3 => AttestationKeyType::ECDSA384WithP384Curve,
-            _ => AttestationKeyType::Unsupported {
-                raw: attestation_key_type,
-            },
-        };
-        // The doc says 3 (ECDSA-384-with-P-384 curve) currently not supported
-        if !matches!(
-            attestation_key_type,
-            AttestationKeyType::ECDSA256WithP256Curve
-        ) {
-            return Err(Error::UnsupportedFieldValue {
-                field: "attestation_key_type".to_owned(),
-            });
-        }
-
-        if tee_type != TEE_TYPE_SGX {
-            return Err(Error::UnsupportedFieldValue {
-                field: "tee_type".to_owned(),
-            });
-        }
-        if qe_vendor_id != INTEL_QE_VENDOR_ID {
-            return Err(Error::UnsupportedFieldValue {
-                field: "qe_vendor_id".to_owned(),
-            });
-        }
-
-        Ok(Self {
-            version,
-            attestation_key_type,
-            tee_type,
-            qe_svn,
-            pce_svn,
-            qe_vendor_id,
-            user_data,
-        })
-    }
+#[derive(Decode, Debug)]
+pub struct Body {
+    pub body_type: u16,
+    pub size: u32,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Decode, Debug)]
 pub struct EnclaveReport {
-    pub cpu_svn: CpuSvn,
+    pub cpu_svn: [u8; 16],
     pub misc_select: u32,
-    // pub reserved1: [u8; 28],
+    pub reserved1: [u8; 28],
     pub attributes: [u8; 16],
-    pub mr_enclave: MrEnclave,
-    // pub reserved2: [u8; 32],
-    pub mr_signer: MrSigner,
-    // pub reserved_3: [u8; 96],
+    pub mr_enclave: [u8; 32],
+    pub reserved2: [u8; 32],
+    pub mr_signer: [u8; 32],
+    pub reserved3: [u8; 96],
     pub isv_prod_id: u16,
-    pub isv_svn: Svn,
-    // pub reserved5: [u8; 60],
+    pub isv_svn: u16,
+    pub reserved4: [u8; 60],
     pub report_data: [u8; 64],
 }
 
-impl EnclaveReport {
-    pub fn from_slice(raw_report: &[u8]) -> Result<Self, Error> {
-        if raw_report.len() != ENCLAVE_REPORT_BYTE_LEN {
-            return Err(Error::RawDataInvalid);
-        }
-
-        let cpu_svn: [u8; 16] = raw_report[..16].try_into().map_err(|_| Error::CodecError)?;
-        let misc_select = LittleEndian::read_u32(&raw_report[16..20]);
-        // let _reserved: [u8; 28] = raw_report[20..48].try_into().map_err(|_| Error::CodecError)?;
-        let attributes: [u8; 16] = raw_report[48..64].try_into().map_err(|_| Error::CodecError)?;
-        let mr_enclave: [u8; 32] = raw_report[64..96].try_into().map_err(|_| Error::CodecError)?;
-        // let _reserved: [u8; 32] = raw_report[96..128].try_into().map_err(|_| Error::CodecError)?;
-        let mr_signer: [u8; 32] = raw_report[128..160].try_into().map_err(|_| Error::CodecError)?;
-        // let _reserved: [u8; 96] = raw_report[160..256].try_into().map_err(|_| Error::CodecError)?;
-        let isv_prod_id = LittleEndian::read_u16(&raw_report[256..258]);
-        let isv_svn = LittleEndian::read_u16(&raw_report[258..260]);
-        // let _reserved: [u8; 60] = raw_report[260..320].try_into().map_err(|_| Error::CodecError)?;
-        let report_data: [u8; 64] = raw_report[320..384].try_into().map_err(|_| Error::CodecError)?;
-
-        // println!("- Quote enclave report -");
-        // println!("cpu svn: 0x{}", hex::encode(cpu_svn));
-        // println!("misc select: {}", misc_select);
-        // println!("attributes: 0x{}", hex::encode(attributes));
-        // println!("mr enclave: 0x{}", hex::encode(mr_enclave));
-        // println!("mr signer: 0x{}", hex::encode(mr_signer));
-        // println!("isv prod id: {}", isv_prod_id);
-        // println!("isv svn: {}", isv_svn);
-        // println!("report data: {}", core::str::from_utf8(&report_data).unwrap_or(format!("0x{}", hex::encode(report_data)).as_str()));
-        // println!("------------------------");
-
-        Ok(Self {
-            cpu_svn,
-            misc_select,
-            attributes,
-            mr_enclave,
-            mr_signer,
-            isv_prod_id,
-            isv_svn,
-            report_data,
-        })
-    }
+#[derive(Decode)]
+pub struct CertificationData {
+    pub cert_type: u16,
+    pub body: Data<u32>,
 }
 
-pub struct CertificationData<'a> {
-    pub data_type: u16,
-    pub certs: Vec<webpki::types::CertificateDer<'a>>,
-}
-
-// impl<'a> Debug for CertificationData<'a> {
-//     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-//         f.debug_struct("CertificationData")
-//             .field("data_type", &self.data_type)
-//             .field("leaf_cert", &hex::encode(&self.leaf_cert.der().as_ref()))
-//             .field("intermediate_certs", &self.intermediate_certs.iter().map(|c| c.as_ref()).collect::<Vec<_>>())
-//             .finish()
-//     }
-// }
-
-impl<'a> Debug for CertificationData<'a> {
+impl core::fmt::Debug for CertificationData {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let body_str = String::from_utf8_lossy(&self.body.data);
         f.debug_struct("CertificationData")
-            .field("data_type", &self.data_type)
-            .field(
-                "certs",
-                &self.certs.iter().map(|c| c.as_ref()).collect::<Vec<_>>(),
-            )
+            .field("cert_type", &self.cert_type)
+            .field("body", &body_str)
             .finish()
     }
 }
 
-impl<'a> CertificationData<'a> {
-    pub fn from_slice(raw_data: &'a [u8]) -> Result<CertificationData, Error> {
-        if raw_data.len() <= CERTIFICATION_DATA_SIZE_BYTE_LEN + CERTIFICATION_DATA_TYPE_BYTE_LEN {
-            return Err(Error::RawDataInvalid);
-        }
+#[derive(Decode, Debug)]
+pub struct QEReportCertificationData {
+    pub qe_report: [u8; ENCLAVE_REPORT_BYTE_LEN],
+    pub qe_report_signature: [u8; QE_REPORT_SIG_BYTE_LEN],
+    pub qe_auth_data: Data<u16>,
+    pub certification_data: CertificationData,
+}
 
-        let data_type = LittleEndian::read_u16(&raw_data[..2]);
-        // TODO: guard type
-        let data_size = LittleEndian::read_u32(&raw_data[2..6]) as usize;
-        // TODO: guard size
-
-        let data = &raw_data[6..(6 + data_size)];
-
-        // println!("- Certification data -");
-        // println!("data type: {}", data_type);
-        // println!("data_size: {}", data_size);
-        // println!("----------------------");
-
-        let certs = extract_certs(data)?;
-        if certs.len() < 2 {
-            return Err(Error::InvalidFieldValue {
-                field: "data_id".to_owned(),
-            });
-        }
-
-        Ok(Self { data_type, certs })
-    }
+#[derive(Decode, Debug)]
+pub struct AuthDataV3 {
+    pub ecdsa_signature: [u8; ECDSA_SIGNATURE_BYTE_LEN],
+    pub ecdsa_attestation_key: [u8; ECDSA_PUBKEY_BYTE_LEN],
+    pub qe_report: [u8; ENCLAVE_REPORT_BYTE_LEN],
+    pub qe_report_signature: [u8; QE_REPORT_SIG_BYTE_LEN],
+    pub qe_auth_data: Data<u16>,
+    pub certification_data: CertificationData,
 }
 
 #[derive(Debug)]
-pub enum QuoteAuthData<'a> {
-    Ecdsa256Bit {
-        signature: Vec<u8>,
-        attestation_key: Vec<u8>,
-        qe_report: Vec<u8>,
-        qe_report_signature: Vec<u8>,
-        qe_auth_data: Vec<u8>,
-        certification_data: CertificationData<'a>,
-    },
-    // TODO: V4
-    Unsupported,
+pub struct AuthDataV4 {
+    pub ecdsa_signature: [u8; ECDSA_SIGNATURE_BYTE_LEN],
+    pub ecdsa_attestation_key: [u8; ECDSA_PUBKEY_BYTE_LEN],
+    pub certification_data: CertificationData,
+    pub qe_report_data: QEReportCertificationData,
 }
 
-impl<'a> QuoteAuthData<'a> {
-    pub fn from_slice(
-        attestation_key_type: AttestationKeyType,
-        raw_data: &'a [u8],
-    ) -> Result<Self, Error> {
-        match attestation_key_type {
-            AttestationKeyType::ECDSA256WithP256Curve => {
-                Self::new_ecdsa256_with_p256_curve(raw_data)
-            }
-            _ => Ok(Self::Unsupported),
-        }
-    }
-
-    fn new_ecdsa256_with_p256_curve(raw_data: &'a [u8]) -> Result<Self, Error> {
-        let signature = raw_data[..64].to_vec();
-        let attestation_key = raw_data[64..128].to_vec();
-        let qe_report = raw_data[128..512].to_vec();
-        let qe_report_signature = raw_data[512..576].to_vec();
-        let qe_auth_data_size = LittleEndian::read_u16(&raw_data[576..578]) as usize;
-        let qe_auth_data = raw_data[578..(578 + qe_auth_data_size)].to_vec();
-        let raw_certification_data = &raw_data[(578 + qe_auth_data_size)..];
-        let certification_data = CertificationData::from_slice(raw_certification_data)?;
-
-        // println!("- ECDSA 256-bit Quote Signature -");
-        // println!("signature: {}", hex::encode(signature.clone()));
-        // println!("attestation_key: {}", hex::encode(attestation_key.clone()));
-        // println!("qe report signature: {}", hex::encode(qe_report_signature.clone()));
-        // println!("qe auth data size: {}", qe_auth_data_size);
-        // println!("qe auth data: 0x{}", hex::encode(qe_auth_data.clone()));
-        // println!("---------------------------------");
-
-        Ok(Self::Ecdsa256Bit {
-            signature,
-            attestation_key,
-            qe_report,
-            qe_report_signature,
-            qe_auth_data,
+impl Decode for AuthDataV4 {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, scale::Error> {
+        let ecdsa_signature = Decode::decode(input)?;
+        let ecdsa_attestation_key = Decode::decode(input)?;
+        let certification_data: CertificationData = Decode::decode(input)?;
+        let qe_report_data =
+            QEReportCertificationData::decode(&mut &certification_data.body.data[..])?;
+        Ok(AuthDataV4 {
+            ecdsa_signature,
+            ecdsa_attestation_key,
             certification_data,
+            qe_report_data,
         })
     }
 }
 
-pub struct Quote<'a> {
-    pub header: Header,
-    pub enclave_report: EnclaveReport,
-    // Doc calls it `Quote Signature Data Len`
-    pub signed_data: QuoteAuthData<'a>, // Doc calls it `Quote Signature Data`
+#[derive(Debug)]
+pub enum AuthData {
+    V3(AuthDataV3),
+    V4(AuthDataV4),
 }
 
-impl<'a> Quote<'a> {
-    pub fn parse(raw_quote: &'a [u8]) -> Result<Self, Error> {
-        if raw_quote.len() < QUOTE_MIN_BYTE_LEN {
-            return Err(Error::RawDataInvalid);
+fn decode_auth_data(ver: u16, input: &mut &[u8]) -> Result<AuthData, scale::Error> {
+    match ver {
+        3 => {
+            let auth_data = AuthDataV3::decode(input)?;
+            Ok(AuthData::V3(auth_data))
         }
+        4 => {
+            let auth_data = AuthDataV4::decode(input)?;
+            Ok(AuthData::V4(auth_data))
+        }
+        _ => Err(scale::Error::from("unsupported quote version")),
+    }
+}
 
-        let raw_header = &raw_quote[..HEADER_BYTE_LEN];
-        let header = Header::from_slice(raw_header)?;
+#[derive(Debug)]
+pub struct Quote {
+    pub header: Header,
+    pub report: EnclaveReport,
+    pub auth_data: AuthData,
+}
 
-        let raw_enclave_report =
-            &raw_quote[HEADER_BYTE_LEN..(HEADER_BYTE_LEN + ENCLAVE_REPORT_BYTE_LEN)];
-        let enclave_report = EnclaveReport::from_slice(raw_enclave_report).expect("Parse error");
-
-        let auth_data_size = LittleEndian::read_u32(
-            &raw_quote[(HEADER_BYTE_LEN + ENCLAVE_REPORT_BYTE_LEN)
-                ..(HEADER_BYTE_LEN + ENCLAVE_REPORT_BYTE_LEN + 4)],
-        ) as usize;
-        let raw_signed_data = &raw_quote[(HEADER_BYTE_LEN + ENCLAVE_REPORT_BYTE_LEN + 4)
-            ..(HEADER_BYTE_LEN + ENCLAVE_REPORT_BYTE_LEN + 4 + auth_data_size)];
-        let signed_data =
-            QuoteAuthData::<'a>::from_slice(header.clone().attestation_key_type, raw_signed_data)
-                .expect("Parse error");
-
-        // println!("auth_data_size: {}", auth_data_size);
-
-        Ok(Self {
+impl Decode for Quote {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, scale::Error> {
+        let header = Header::decode(input)?;
+        let report;
+        let data;
+        if header.version > 4 {
+            let body = Body::decode(input)?;
+            if body.body_type != BODY_SGX_ENCLAVE_REPORT_TYPE {
+                return Err(scale::Error::from("unsupported body type"));
+            }
+            report = EnclaveReport::decode(input)?;
+            data = Data::<u32>::decode(input)?;
+        } else {
+            report = EnclaveReport::decode(input)?;
+            data = Data::<u32>::decode(input)?;
+        }
+        let auth_data = decode_auth_data(header.version, &mut &data.data[..])?;
+        Ok(Quote {
             header,
-            enclave_report,
-            signed_data,
+            report,
+            auth_data,
         })
     }
 }

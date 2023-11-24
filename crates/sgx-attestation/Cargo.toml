@@ -29,7 +29,6 @@ webpki = { git = "https://github.com/rustls/webpki", rev = "2ed9a4324f48c2c46ffd
 
 anyhow = { version = "1", optional = true }
 
-x509-parser = { version = "0.15", optional = true }
 reqwest = { version = "0.11", optional = true, default-features = false, features = ["rustls-tls"] }
 urlencoding = { version = "2", optional = true }
 serde_json = { version = "1.0.108", optional = true, features = ["preserve_order"] }
@@ -54,5 +53,4 @@ std = [
     "anyhow",
     "reqwest",
     "urlencoding",
-    "x509-parser",
 ]

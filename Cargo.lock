@@ -13755,7 +13755,6 @@ dependencies = [
  "serde_json",
  "urlencoding",
  "x509-cert",
- "x509-parser 0.15.1",
 ]
 
 [[package]]
@@ -18345,23 +18344,6 @@ checksum = "e0ecbeb7b67ce215e40e3cc7f2ff902f94a223acf44995934763467e7b1febc8"
 dependencies = [
  "asn1-rs 0.5.1",
  "base64 0.13.0",
- "data-encoding",
- "der-parser 8.1.0",
- "lazy_static",
- "nom",
- "oid-registry 0.6.1",
- "rusticata-macros",
- "thiserror",
- "time 0.3.11",
-]
-
-[[package]]
-name = "x509-parser"
-version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7069fba5b66b9193bd2c5d3d4ff12b839118f6bcbef5328efafafb5395cf63da"
-dependencies = [
- "asn1-rs 0.5.1",
  "data-encoding",
  "der-parser 8.1.0",
  "lazy_static",

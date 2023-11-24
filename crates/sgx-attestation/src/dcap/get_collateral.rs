@@ -4,9 +4,11 @@ use alloc::string::{String, ToString};
 use anyhow::{anyhow, Result};
 use scale::Decode;
 
-use super::SgxV30QuoteCollateral;
-
-mod parse_quote;
+use super::{
+    SgxV30QuoteCollateral,
+    quote::{AuthData, Quote},
+    utils::{extract_certs, get_intel_extension, get_fmspc},
+};
 
 fn get_header(resposne: &reqwest::Response, name: &str) -> Result<String> {
     let value = resposne
@@ -24,8 +26,20 @@ pub async fn get_collateral(
     mut quote: &[u8],
     timeout: Duration,
 ) -> Result<SgxV30QuoteCollateral> {
-    let quote = parse_quote::Quote::decode(&mut quote)?;
-    let fmspc = hex::encode_upper(quote.fmspc()?);
+    let quote = Quote::decode(&mut quote)?;
+
+    let raw_cert_chain = match &quote.auth_data {
+        AuthData::V3(data) => &data.certification_data.body.data,
+        AuthData::V4(data) => &data.qe_report_data.certification_data.body.data,
+    };
+    let certification_certs = extract_certs(raw_cert_chain)
+        .map_err(|_| anyhow!("extract certs error"))?;
+    let extension_section = get_intel_extension(&certification_certs[0])
+        .map_err(|_| anyhow!("get extension error"))?;
+    let fmspc = hex::encode_upper(
+        get_fmspc(&extension_section)
+            .map_err(|_| anyhow!("get fmspc error"))?
+    );
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .timeout(timeout)
