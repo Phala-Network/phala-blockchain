@@ -12,18 +12,17 @@ use anyhow::{anyhow, Result};
 use chrono::prelude::*;
 use futures::future::join;
 use log::{debug, error, info, warn};
-use parity_scale_codec::Encode;
 use phactory_api::blocks::{AuthoritySetChange, HeaderToSync};
 use phactory_api::prpc::{
     GetRuntimeInfoRequest, HeadersToSync, PhactoryInfo, SignEndpointsRequest,
 };
 use phala_pallets::pallet_computation::{SessionInfo, WorkerState};
-use phala_pallets::pallet_registry::Attestation as AttestationEnum;
 use phala_pallets::registry::WorkerInfoV2;
+use phala_types::AttestationProvider;
 use phaxt::subxt::ext::sp_runtime;
 use pherry::chain_client::{mq_next_sequence, search_suitable_genesis_for_worker};
 use pherry::types::Block;
-use pherry::{get_block_at, get_finalized_header, BlockSyncState};
+use pherry::{attestation_to_report, get_block_at, get_finalized_header, BlockSyncState};
 use serde::{Deserialize, Serialize};
 use sp_core::sr25519::Public as Sr25519Public;
 use sp_core::{ByteArray, Pair};
@@ -361,9 +360,20 @@ impl WorkerContext {
 
         if !i.initialized {
             set_worker_message!(c, "Initializing pRuntime...");
-            let res = pr
-                .init_runtime(dsm.get_init_runtime_default_request().await?)
+            // pRuntime versions lower than 2.2.0 always returns an empty list.
+            let supported = &i.supported_attestation_methods;
+            let attestation_provider = if supported.is_empty() || supported.contains(&"epid".into())
+            {
+                Some(AttestationProvider::Ias)
+            } else if supported.contains(&"dcap".into()) {
+                Some(AttestationProvider::Dcap)
+            } else {
+                None
+            };
+            let init_req = dsm
+                .get_init_runtime_default_request(attestation_provider)
                 .await?;
+            let res = pr.init_runtime(init_req).await?;
             set_worker_message!(c, "Initialized pRuntime.");
             debug!(
                 "Worker {}({}, {}) init_runtime resp: {:?}",
@@ -708,15 +718,8 @@ impl WorkerContext {
             .attestation
             .ok_or(anyhow!("Worker has no attestation!"))?;
         let v2 = attestation.payload.is_none();
-        let attestation = match attestation.payload {
-            Some(payload) => AttestationEnum::SgxIas {
-                ra_report: payload.report.as_bytes().to_vec(),
-                signature: payload.signature,
-                raw_signing_cert: payload.signing_cert,
-            }
-            .encode(),
-            None => attestation.encoded_report,
-        };
+        let attestation =
+            attestation_to_report(attestation, &lm.pccs_url, lm.pccs_timeout_secs).await?;
         txm.clone()
             .register_worker(pid, runtime_info.encoded_runtime_info, attestation, v2)
             .await?;

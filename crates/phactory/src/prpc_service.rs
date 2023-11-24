@@ -159,6 +159,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 let (major, minor) = ::pink::runtimes::max_supported_version();
                 format!("{major}.{minor}")
             },
+            supported_attestation_methods: self.platform.supported_attestation_methods(),
         }
     }
 

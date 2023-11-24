@@ -29,6 +29,8 @@ pub struct WorkerLifecycleManager {
     pub fast_sync_semaphore: Arc<Semaphore>,
     pub webhook_url: Option<String>,
     pub reqwest: Client,
+    pub pccs_url: String,
+    pub pccs_timeout_secs: u64,
 }
 pub type WrappedWorkerLifecycleManager = Arc<WorkerLifecycleManager>;
 
@@ -43,6 +45,8 @@ impl WorkerLifecycleManager {
         fast_sync_enabled: bool,
         webhook_url: Option<String>,
         txm: Arc<TxManager>,
+        pccs_url: String,
+        pccs_timeout_secs: u64,
     ) -> WrappedWorkerLifecycleManager {
         let workers =
             get_all_workers(inv_db.clone()).expect("Failed to load workers from local database");
@@ -106,6 +110,8 @@ impl WorkerLifecycleManager {
             fast_sync_semaphore,
             webhook_url,
             reqwest: Client::new(),
+            pccs_url,
+            pccs_timeout_secs,
         };
         Arc::new(lm)
     }
@@ -120,7 +126,7 @@ impl WorkerLifecycleManager {
             state: cc.state.clone(),
             phactory_info: cc.info.clone(),
             last_message: cc.last_message.clone(),
-            session_info: cc.session_info.clone()
+            session_info: cc.session_info.clone(),
         };
         let body = serde_json::to_string(&s)?;
         if let Err(e) = self

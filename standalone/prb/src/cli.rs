@@ -33,6 +33,14 @@ pub struct WorkerManagerCliArgs {
     /// URL of webhook endpoint
     #[arg(short = 'w', long, env)]
     pub webhook_url: Option<String>,
+
+    /// URL of PCCS server to get collateral
+    #[arg(long, env, default_value = "")]
+    pub pccs_url: String,
+
+    /// Timeout of PCCS server to get collateral
+    #[arg(long, env, default_value = "10")]
+    pub pccs_timeout: u64,
 }
 
 pub async fn start_wm() {
