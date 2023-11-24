@@ -216,11 +216,11 @@ export class OnChainRegistry {
     let idx = 0
     return infos.reduce((prev, info) => {
       const workerId = workerIds[idx]
+      idx++
       if ((info as Option<Codec>).isNone) {
         return prev
       }
       const endpoints = info.toJSON() as { v1: string[] }
-      idx++
       return [
         ...prev,
         {
