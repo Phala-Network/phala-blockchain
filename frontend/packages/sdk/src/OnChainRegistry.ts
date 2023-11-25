@@ -2,13 +2,12 @@ import { type ApiPromise, Keyring } from '@polkadot/api'
 import type { Result, U64 } from '@polkadot/types'
 import { Enum, Map, Option, Text, U8aFixed, Vec } from '@polkadot/types'
 import { AccountId } from '@polkadot/types/interfaces'
-import type { Codec } from '@polkadot/types/types'
 import { BN } from '@polkadot/util'
 import { cryptoWaitReady } from '@polkadot/util-crypto'
 import systemAbi from './abis/system.json'
 import { PinkContractPromise } from './contracts/PinkContract'
 import { PinkLoggerContractPromise } from './contracts/PinkLoggerContract'
-import { ackFirst } from './ha/ack-first'
+import { type PhalaTypesVersionedWorkerEndpoints, ackFirst } from './ha/ack-first'
 import { type CertificateData, signCertificate } from './pruntime/certificate'
 import createPruntimeClient from './pruntime/createPruntimeClient'
 import { pruntime_rpc } from './pruntime/proto'
@@ -212,27 +211,23 @@ export class OnChainRegistry {
     }
     const result = await this.api.query.phalaPhatContracts.clusterWorkers(_clusterId)
     const workerIds = result.toJSON() as string[]
-    const infos = await this.api.query.phalaRegistry.endpoints.multi(workerIds)
-    let idx = 0
-    return infos.reduce((prev, info) => {
-      const workerId = workerIds[idx]
-      idx++
-      if ((info as Option<Codec>).isNone) {
-        return prev
-      }
-      const endpoints = info.toJSON() as { v1: string[] }
-      return [
-        ...prev,
-        {
-          pubkey: workerId,
-          clusterId: _clusterId!,
-          endpoints: {
-            default: endpoints.v1[0],
-            v1: endpoints.v1,
-          },
-        },
-      ]
-    }, [] as WorkerInfo[])
+    const infos =
+      await this.api.query.phalaRegistry.endpoints.multi<Option<PhalaTypesVersionedWorkerEndpoints>>(workerIds)
+
+    return infos
+      .map((i, idx) => [workerIds[idx], i] as const)
+      .filter(([_, maybeEndpoint]) => maybeEndpoint.isSome)
+      .map(
+        ([workerId, maybeEndpoint]) =>
+          ({
+            pubkey: workerId,
+            clusterId: _clusterId!,
+            endpoints: {
+              default: maybeEndpoint.unwrap().asV1[0].toString(),
+              v1: maybeEndpoint.unwrap().asV1.map((i) => i.toString()),
+            },
+          }) as WorkerInfo
+      )
   }
 
   async preparePruntimeClientOrThrows(endpoint: string) {

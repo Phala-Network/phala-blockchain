@@ -2,7 +2,7 @@ import { type ApiPromise } from '@polkadot/api'
 import type { Enum, Option, Text, U8aFixed, Vec } from '@polkadot/types'
 import createPruntimeClient from '../pruntime/createPruntimeClient'
 
-interface PhalaTypesVersionedWorkerEndpoints extends Enum {
+export interface PhalaTypesVersionedWorkerEndpoints extends Enum {
   readonly isV1: boolean
   readonly asV1: Vec<Text>
   readonly type: 'V1'
