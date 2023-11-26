@@ -57,11 +57,11 @@ function signAndSend<TSubmittableResult extends SubmittableResult = SubmittableR
     try {
       if (signer) {
         const unsub = await target.signAndSend(address, { signer }, (result) => {
-          callback(resolve, reject, result, unsub)
+          callback<TSubmittableResult>(resolve, reject, result, unsub)
         })
       } else {
         const unsub = await target.signAndSend(address, (result) => {
-          callback(resolve, reject, result, unsub)
+          callback<TSubmittableResult>(resolve, reject, result, unsub)
         })
       }
     } catch (error) {
