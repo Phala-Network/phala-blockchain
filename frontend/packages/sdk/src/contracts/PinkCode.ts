@@ -1,6 +1,6 @@
 import { SubmittableResult, toPromiseMethod } from '@polkadot/api'
 import { ApiBase } from '@polkadot/api/base'
-import type { DecorateMethod } from '@polkadot/api/types'
+import type { DecorateMethod, SubmittableExtrinsic } from '@polkadot/api/types'
 import { Abi } from '@polkadot/api-contract/Abi'
 import type { MapConstructorExec } from '@polkadot/api-contract/base/types'
 import { createBluePrintTx } from '@polkadot/api-contract/base/util'
@@ -119,6 +119,6 @@ export class PinkCodePromise {
       .clusterUploadResource(this.phatRegistry.clusterId, 'InkCode', u8aToHex(this.code))
       .withResultTransform((result: ISubmittableResult) => {
         return new InkCodeSubmittableResult(result, this.abi, this.phatRegistry)
-      })
+      }) as SubmittableExtrinsic<'promise', InkCodeSubmittableResult>
   }
 }
