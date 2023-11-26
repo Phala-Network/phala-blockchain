@@ -1,4 +1,5 @@
 import { type ApiPromise, Keyring } from '@polkadot/api'
+import { type KeyringPair } from '@polkadot/keyring/types'
 import type { Result, U64 } from '@polkadot/types'
 import { Enum, Map, Option, Text, U8aFixed, Vec } from '@polkadot/types'
 import { AccountId } from '@polkadot/types/interfaces'
@@ -74,6 +75,7 @@ export class OnChainRegistry {
   #ready: boolean = false
   #phactory: pruntime_rpc.PhactoryAPI | undefined
 
+  #alice: KeyringPair | undefined
   #cert: CertificateData | undefined
 
   #systemContract: PinkContractPromise | undefined
@@ -510,11 +512,17 @@ export class OnChainRegistry {
     console.warn('System contract not found, you might not connect to a health cluster.')
   }
 
+  get alice() {
+    if (!this.#alice) {
+      const keyring = new Keyring({ type: 'sr25519' })
+      this.#alice = keyring.addFromUri('//Alice')
+    }
+    return this.#alice
+  }
+
   async getAnonymousCert(): Promise<CertificateData> {
     if (!this.#cert) {
-      const keyring = new Keyring({ type: 'sr25519' })
-      const pair = keyring.addFromUri('//Alice')
-      this.#cert = await signCertificate({ pair })
+      this.#cert = await signCertificate({ pair: this.alice })
     }
     return this.#cert
   }
