@@ -2,13 +2,12 @@ import { SubmittableResult, toPromiseMethod } from '@polkadot/api'
 import { ApiBase } from '@polkadot/api/base'
 import type { DecorateMethod, SubmittableExtrinsic } from '@polkadot/api/types'
 import { Abi } from '@polkadot/api-contract/Abi'
-import type { MapConstructorExec } from '@polkadot/api-contract/base/types'
-import { createBluePrintTx } from '@polkadot/api-contract/base/util'
+import type { MessageMeta } from '@polkadot/api-contract/base/types'
 import type { AbiConstructor } from '@polkadot/api-contract/types'
 import type { KeyringPair } from '@polkadot/keyring/types'
 import type { Result, bool } from '@polkadot/types'
 import type { ISubmittableResult } from '@polkadot/types/types'
-import { hexToU8a, isU8a, isUndefined, isWasm, u8aToHex } from '@polkadot/util'
+import { hexToU8a, isU8a, isWasm, u8aToHex } from '@polkadot/util'
 import type { OnChainRegistry } from '../OnChainRegistry'
 import type { CertificateData } from '../pruntime/certificate'
 import type { AbiLike } from '../types'
@@ -55,6 +54,12 @@ export class InkCodeSubmittableResult extends SubmittableResult {
   }
 }
 
+interface PinkBlueprintDeploy extends MessageMeta {
+  (): SubmittableExtrinsic<'promise', InkCodeSubmittableResult>
+}
+
+type PinkMapConstructorExec = Record<string, PinkBlueprintDeploy>
+
 export class PinkCodePromise {
   readonly abi: Abi
   readonly api: ApiBase<'promise'>
@@ -64,7 +69,7 @@ export class PinkCodePromise {
 
   readonly code: Uint8Array
 
-  readonly #tx: MapConstructorExec<'promise'> = {}
+  readonly #tx: PinkMapConstructorExec = {}
 
   constructor(
     api: ApiBase<'promise'>,
@@ -99,14 +104,21 @@ export class PinkCodePromise {
       throw new Error('No WASM code provided')
     }
 
-    this.abi.constructors.forEach((c): void => {
-      if (isUndefined(this.#tx[c.method])) {
-        this.#tx[c.method] = createBluePrintTx(c, (_o, p) => this.#instantiate(c, p))
+    this.#tx = new Proxy(
+      {},
+      {
+        get: (_target, prop, _receiver) => {
+          const meta = this.abi.constructors.filter((i) => i.method === prop)
+          if (!meta || !meta.length) {
+            throw new Error('Method not found')
+          }
+          return () => this.#instantiate(meta[0], []) as SubmittableExtrinsic<'promise', InkCodeSubmittableResult>
+        },
       }
-    })
+    ) as PinkMapConstructorExec
   }
 
-  public get tx(): MapConstructorExec<'promise'> {
+  public get tx(): PinkMapConstructorExec {
     return this.#tx
   }
 
