@@ -112,7 +112,7 @@ export class unstable_UIKeyringProvider implements Provider {
    * Send an extrinsic to the network.
    */
   send<TSubmittableResult extends SubmittableResult = SubmittableResult>(
-    extrinsic: SubmittableExtrinsic<'promise'>
+    extrinsic: SubmittableExtrinsic<'promise', TSubmittableResult>
   ): Promise<TSubmittableResult> {
     return signAndSend(extrinsic, this.#account.address, this.#signer)
   }
