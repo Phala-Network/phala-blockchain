@@ -1,4 +1,5 @@
 import { type ApiPromise, Keyring } from '@polkadot/api'
+import { type KeyringPair } from '@polkadot/keyring/types'
 import type { Result, U64 } from '@polkadot/types'
 import { Enum, Map, Option, Text, U8aFixed, Vec } from '@polkadot/types'
 import { AccountId } from '@polkadot/types/interfaces'
@@ -7,6 +8,7 @@ import { cryptoWaitReady } from '@polkadot/util-crypto'
 import systemAbi from './abis/system.json'
 import { PinkContractPromise } from './contracts/PinkContract'
 import { PinkLoggerContractPromise } from './contracts/PinkLoggerContract'
+import { type PhalaTypesVersionedWorkerEndpoints, ackFirst } from './ha/ack-first'
 import { type CertificateData, signCertificate } from './pruntime/certificate'
 import createPruntimeClient from './pruntime/createPruntimeClient'
 import { pruntime_rpc } from './pruntime/proto'
@@ -33,13 +35,14 @@ interface VersionedEndpoints extends Enum {
   readonly asV1: Vec<Text>
 }
 
-interface CreateOptions {
+export interface CreateOptions {
   autoConnect?: boolean
   clusterId?: string
   workerId?: string
   pruntimeURL?: string
   systemContractId?: string
   skipCheck?: boolean
+  strategy?: 'ack-first' | (() => Promise<Readonly<[string, ReturnType<typeof createPruntimeClient>]>>)
 }
 
 export interface WorkerInfo {
@@ -56,6 +59,11 @@ export interface PartialWorkerInfo {
   pruntimeURL: string
 }
 
+export interface StrategicWorkerInfo {
+  clusterId?: string
+  strategy: 'ack-first' | (() => Promise<Readonly<[string, ReturnType<typeof createPruntimeClient>]>>)
+}
+
 export class OnChainRegistry {
   public api: ApiPromise
 
@@ -67,6 +75,7 @@ export class OnChainRegistry {
   #ready: boolean = false
   #phactory: pruntime_rpc.PhactoryAPI | undefined
 
+  #alice: KeyringPair | undefined
   #cert: CertificateData | undefined
 
   #systemContract: PinkContractPromise | undefined
@@ -129,6 +138,11 @@ export class OnChainRegistry {
           pruntimeURL: options.pruntimeURL,
         }
         await instance.connect(workerInfo)
+      } else if (options.strategy) {
+        await instance.connect({
+          clusterId: options.clusterId,
+          strategy: options.strategy,
+        } as StrategicWorkerInfo)
       }
       // Failed back to backward compatible mode.
       else {
@@ -199,19 +213,23 @@ export class OnChainRegistry {
     }
     const result = await this.api.query.phalaPhatContracts.clusterWorkers(_clusterId)
     const workerIds = result.toJSON() as string[]
-    const infos = await this.api.query.phalaRegistry.endpoints.multi(workerIds)
-    return infos.map((info, idx) => {
-      const workerId = workerIds[idx]
-      const endpoints = info.toJSON() as { v1: string[] }
-      return {
-        pubkey: workerId,
-        clusterId: _clusterId!,
-        endpoints: {
-          default: endpoints.v1[0],
-          v1: endpoints.v1,
-        },
-      }
-    })
+    const infos =
+      await this.api.query.phalaRegistry.endpoints.multi<Option<PhalaTypesVersionedWorkerEndpoints>>(workerIds)
+
+    return infos
+      .map((i, idx) => [workerIds[idx], i] as const)
+      .filter(([_, maybeEndpoint]) => maybeEndpoint.isSome)
+      .map(
+        ([workerId, maybeEndpoint]) =>
+          ({
+            pubkey: workerId,
+            clusterId: _clusterId!,
+            endpoints: {
+              default: maybeEndpoint.unwrap().asV1[0].toString(),
+              v1: maybeEndpoint.unwrap().asV1.map((i) => i.toString()),
+            },
+          }) as WorkerInfo
+      )
   }
 
   async preparePruntimeClientOrThrows(endpoint: string) {
@@ -250,7 +268,7 @@ export class OnChainRegistry {
    * skipCheck: boolean | undefined - Skip the check of cluster and worker has been registry on chain or not, it's for cluster
    *                      deployment scenario, where the cluster and worker has not been registry on chain yet.
    */
-  public async connect(worker?: WorkerInfo | PartialWorkerInfo): Promise<void>
+  public async connect(worker?: WorkerInfo | PartialWorkerInfo | StrategicWorkerInfo): Promise<void>
   public async connect(
     clusterId?: string | null,
     workerId?: string | null,
@@ -269,11 +287,18 @@ export class OnChainRegistry {
           throw new Error('No cluster found.')
         }
         const [clusterId, clusterInfo] = clusters[0]
-        const workers = await this.getClusterWorkers(clusterId)
-        this.#phactory = await this.preparePruntimeClientOrThrows(workers[0].endpoints.default)
+        const [workerId, endpoint, phactory] = await ackFirst()(this.api, clusterId)
+        this.#phactory = phactory
         this.clusterId = clusterId
         this.clusterInfo = clusterInfo
-        this.workerInfo = workers[0]
+        this.workerInfo = {
+          pubkey: workerId,
+          clusterId: clusterId,
+          endpoints: {
+            default: endpoint,
+            v1: [endpoint],
+          },
+        }
         this.#ready = true
         await this.prepareSystemOrThrows(clusterInfo)
         return
@@ -281,10 +306,59 @@ export class OnChainRegistry {
 
       // Scenario 2: connect to specified worker.
       if (args.length === 1 && args[0] instanceof Object) {
+        if (args[0].strategy) {
+          let clusterId = args[0].clusterId
+          let clusterInfo
+          if (!clusterId) {
+            const clusters = await this.getAllClusters()
+            if (!clusters || clusters.length === 0) {
+              throw new Error('No cluster found.')
+            }
+            ;[clusterId, clusterInfo] = clusters[0]
+          } else {
+            clusterInfo = await this.getClusterInfoById(clusterId)
+            if (!clusterInfo) {
+              throw new Error(`Cluster not found: ${clusterId}`)
+            }
+          }
+          if (args[0].strategy === 'ack-first') {
+            const [workerId, endpoint, phactory] = await ackFirst()(this.api, clusterId)
+            this.#phactory = phactory
+            this.clusterId = clusterId
+            this.clusterInfo = clusterInfo
+            this.workerInfo = {
+              pubkey: workerId,
+              clusterId: clusterId,
+              endpoints: {
+                default: endpoint,
+                v1: [endpoint],
+              },
+            }
+            this.#ready = true
+            await this.prepareSystemOrThrows(clusterInfo)
+          } else if (typeof args[0].strategy === 'function') {
+            const [workerId, phactory] = await args[0].strategy(this.api, clusterId)
+            this.#phactory = phactory
+            this.clusterId = clusterId
+            this.clusterInfo = clusterInfo
+            this.workerInfo = {
+              pubkey: workerId,
+              clusterId: clusterId,
+              endpoints: {
+                default: phactory.endpoint,
+                v1: [phactory.endpoint],
+              },
+            }
+            this.#ready = true
+            await this.prepareSystemOrThrows(clusterInfo)
+          } else {
+            throw new Error(`Unknown strategy: ${args[0].strategy}`)
+          }
+        }
         // Minimal connection settings, only PRuntimeURL has been specified.
         // clusterId is optional here since we can find it from `getClusterInfo`
         // API
-        if (args[0].pruntimeURL) {
+        else if (args[0].pruntimeURL) {
           const partialInfo = args[0] as PartialWorkerInfo
           const pruntimeURL = partialInfo.pruntimeURL
           let clusterId = partialInfo.clusterId
@@ -338,6 +412,8 @@ export class OnChainRegistry {
         return
       }
     }
+
+    console.warn('Deprecated: connect to dedicated worker via legacy mode, please migrate to the new API.')
 
     // legacy support.
     let clusterId = args[0] as string | undefined
@@ -436,11 +512,17 @@ export class OnChainRegistry {
     console.warn('System contract not found, you might not connect to a health cluster.')
   }
 
+  get alice() {
+    if (!this.#alice) {
+      const keyring = new Keyring({ type: 'sr25519' })
+      this.#alice = keyring.addFromUri('//Alice')
+    }
+    return this.#alice
+  }
+
   async getAnonymousCert(): Promise<CertificateData> {
     if (!this.#cert) {
-      const keyring = new Keyring({ type: 'sr25519' })
-      const pair = keyring.addFromUri('//Alice')
-      this.#cert = await signCertificate({ pair })
+      this.#cert = await signCertificate({ pair: this.alice })
     }
     return this.#cert
   }
