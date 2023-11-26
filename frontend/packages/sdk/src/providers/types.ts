@@ -15,8 +15,8 @@ export interface Provider {
    * Send an extrinsic to the network.
    */
   send<TSubmittableResult extends SubmittableResult = SubmittableResult>(
-    extrinsic: SubmittableExtrinsic<'promise'>,
-    transform?: (input: ISubmittableResult) => ISubmittableResult
+    extrinsic: SubmittableExtrinsic<'promise', TSubmittableResult>,
+    transform?: (input: ISubmittableResult) => TSubmittableResult
   ): Promise<TSubmittableResult>
 
   /**
