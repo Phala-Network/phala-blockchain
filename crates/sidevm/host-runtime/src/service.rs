@@ -1,5 +1,5 @@
-use crate::env::DynCacheOps;
-use crate::{env::OcallAborted, run::WasmRun};
+use crate::env::{DynCacheOps, OcallAborted};
+use crate::run::{WasmEngine, WasmInstanceConfig};
 use crate::{ShortId, VmId};
 use anyhow::Result;
 use phala_scheduler::TaskScheduler;
@@ -217,17 +217,25 @@ impl Spawner {
                 }
             }
             info!(target: "sidevm", "Starting sidevm instance...");
-            let instance = WasmRun::run(
-                &wasm_bytes,
+            let engine = WasmEngine::new();
+            let module = match engine.compile(&wasm_bytes) {
+                Ok(m) => m,
+                Err(err) => {
+                    error!(target: "sidevm", ?err, "Failed to compile wasm module");
+                    return ExitReason::FailedToStart;
+                }
+            };
+            info!(target: "sidevm", "Wasm module compiled");
+            let config = WasmInstanceConfig {
                 max_memory_pages,
                 id,
                 gas_per_breath,
                 cache_ops,
-                scheduler,
+                scheduler: Some(scheduler),
                 weight,
                 out_tx,
-            );
-            let (mut wasm_run, env) = match instance {
+            };
+            let (mut wasm_run, env) = match engine.run(&module, vec![], config) {
                 Ok(i) => i,
                 Err(err) => {
                     error!(target: "sidevm", "Failed to create sidevm instance: {err:?}");

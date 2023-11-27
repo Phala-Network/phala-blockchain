@@ -57,6 +57,13 @@ macro_rules! wasi_try_mem_ok {
     }};
 }
 
+/// Like `wasi_try` but converts a `MemoryAccessError` to a `wasi::Errno`.
+macro_rules! wasi_try_mem {
+    ($expr:expr) => {{
+        wasi_try!($expr.map_err(mem_error_to_wasi))
+    }};
+}
+
 /// Like `wasi_try` but allow the inner block to use `?` syntax on a Result<_, Errno>.
 macro_rules! wasi_try_block_ok {
     ($expr:expr) => {{
@@ -124,19 +131,44 @@ pub(crate) fn wasi_imports(store: &mut impl AsStoreMut, env: &FunctionEnv<WasiEn
 }
 
 pub fn args_get(
-    _env: FunctionEnvMut<WasiEnv>,
-    _argv: WasmPtr<WasmPtr<u8>>,
-    _argv_buf: WasmPtr<u8>,
+    mut env: FunctionEnvMut<WasiEnv>,
+    argv: WasmPtr<WasmPtr<u8>>,
+    argv_buf: WasmPtr<u8>,
 ) -> Errno {
-    Errno::Nosys
+    let (env, store) = env.data_and_store_mut();
+    let memory = env.memory();
+    let memory_view = memory.view(&store);
+    env.with_args(|args| {
+        let args = args
+            .iter()
+            .map(|a| a.as_bytes().to_vec())
+            .collect::<Vec<_>>();
+        write_buffer_array(&memory_view, &args, argv, argv_buf)
+    })
 }
 
 pub fn args_sizes_get(
-    _env: FunctionEnvMut<WasiEnv>,
-    _argc: WasmPtr<u32>,
-    _argv_buf_size: WasmPtr<u32>,
+    mut env: FunctionEnvMut<WasiEnv>,
+    argc: WasmPtr<u32>,
+    argv_buf_size: WasmPtr<u32>,
 ) -> Errno {
-    Errno::Nosys
+    let (env, store) = env.data_and_store_mut();
+    let actual_argc = env.with_args(|args| args.len());
+
+    let memory = env.memory();
+    let memory = memory.view(&store);
+
+    let argc = argc.deref(&memory);
+    let argv_buf_size = argv_buf_size.deref(&memory);
+
+    let argc_val: u32 = wasi_try!(actual_argc.try_into().map_err(|_| Errno::Overflow));
+    let argv_buf_size_val: usize = env.with_args(|args| args.iter().map(|v| v.len() + 1).sum());
+    let argv_buf_size_val: u32 =
+        wasi_try!(argv_buf_size_val.try_into().map_err(|_| Errno::Overflow));
+    wasi_try_mem!(argc.write(argc_val));
+    wasi_try_mem!(argv_buf_size.write(argv_buf_size_val));
+
+    Errno::Success
 }
 
 pub fn clock_res_get(
@@ -623,4 +655,39 @@ pub fn sock_send(
 
 pub fn sock_shutdown(_env: FunctionEnvMut<WasiEnv>, _sock: wasi::Fd, _how: SdFlags) -> Errno {
     Errno::Nosys
+}
+
+pub(crate) fn to_offset<M: wasmer::MemorySize>(offset: usize) -> Result<M::Offset, Errno> {
+    let ret: M::Offset = offset.try_into().map_err(|_| Errno::Inval)?;
+    Ok(ret)
+}
+
+#[must_use]
+pub(crate) fn write_buffer_array<M: wasmer::MemorySize>(
+    memory: &wasmer::MemoryView,
+    from: &[Vec<u8>],
+    ptr_buffer: WasmPtr<WasmPtr<u8, M>, M>,
+    buffer: WasmPtr<u8, M>,
+) -> Errno {
+    let ptrs = wasi_try_mem!(ptr_buffer.slice(memory, wasi_try!(to_offset::<M>(from.len()))));
+
+    let mut current_buffer_offset = 0usize;
+    for ((_, sub_buffer), ptr) in from.iter().enumerate().zip(ptrs.iter()) {
+        let mut buf_offset = buffer.offset();
+        buf_offset += wasi_try!(to_offset::<M>(current_buffer_offset));
+        let new_ptr = WasmPtr::new(buf_offset);
+        wasi_try_mem!(ptr.write(new_ptr));
+
+        let data =
+            wasi_try_mem!(new_ptr.slice(memory, wasi_try!(to_offset::<M>(sub_buffer.len()))));
+        wasi_try_mem!(data.write_slice(sub_buffer));
+        wasi_try_mem!(wasi_try_mem!(
+            new_ptr.add_offset(wasi_try!(to_offset::<M>(sub_buffer.len())))
+        )
+        .write(memory, 0));
+
+        current_buffer_offset += sub_buffer.len() + 1;
+    }
+
+    Errno::Success
 }

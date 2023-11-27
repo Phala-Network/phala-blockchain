@@ -92,8 +92,9 @@ pub fn create_env(
     store: &mut Store,
     cache_ops: DynCacheOps,
     out_tx: OutgoingRequestChannel,
+    args: Vec<String>,
 ) -> (Env, Imports) {
-    let raw_env = Env::new(id, cache_ops, out_tx);
+    let raw_env = Env::new(id, cache_ops, out_tx, args);
     let env = FunctionEnv::new(store, raw_env.clone());
     let wasi_imports = wasi_env::wasi_imports(store, &env);
     (
@@ -192,6 +193,7 @@ pub(crate) struct EnvInner {
     outgoing_query_guard: Arc<Semaphore>,
     outgoing_request_tx: OutgoingRequestChannel,
     _counter: vm_counter::Counter,
+    args: Vec<String>,
 }
 
 impl VmMemory {
@@ -249,7 +251,12 @@ pub struct Env {
 }
 
 impl Env {
-    fn new(id: VmId, cache_ops: DynCacheOps, outgoing_request_tx: OutgoingRequestChannel) -> Self {
+    fn new(
+        id: VmId,
+        cache_ops: DynCacheOps,
+        outgoing_request_tx: OutgoingRequestChannel,
+        args: Vec<String>,
+    ) -> Self {
         Self {
             inner: Arc::new(Mutex::new(EnvInner {
                 memory: VmMemory(None),
@@ -270,6 +277,7 @@ impl Env {
                 outgoing_query_guard: Arc::new(Semaphore::new(1)),
                 outgoing_request_tx,
                 _counter: Default::default(),
+                args,
             })),
         }
     }
@@ -430,6 +438,10 @@ impl Env {
             result?;
             Ok(())
         })
+    }
+
+    pub fn with_args<T>(&self, f: impl FnOnce(&[String]) -> T) -> T {
+        f(&self.inner.lock().unwrap().args)
     }
 }
 
