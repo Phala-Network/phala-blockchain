@@ -7,6 +7,7 @@ pub use ink::primitives::AccountId;
 pub use signing::SigType;
 
 use crate::{Balance, EcdsaPublicKey, EcdsaSignature, Hash};
+pub use pink_types::js::{JsCode, JsValue};
 
 #[cfg(doc)]
 use crate::{debug, error, http_get, http_post, http_put, info, warn};
@@ -641,22 +642,6 @@ pub trait PinkExt {
     /// Returns the result of the execution
     #[ink(extension = 24, handle_status = false)]
     fn js_eval(codes: Vec<JsCode>, args: Vec<String>) -> JsValue;
-}
-
-#[derive(scale::Encode, scale::Decode, Debug)]
-pub enum JsCode {
-    Source(String),
-    Bytecode(Vec<u8>),
-}
-
-#[derive(scale::Encode, scale::Decode, Debug)]
-pub enum JsValue {
-    Undefined,
-    Null,
-    String(String),
-    Bytes(Vec<u8>),
-    Other(String),
-    Exception(String),
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

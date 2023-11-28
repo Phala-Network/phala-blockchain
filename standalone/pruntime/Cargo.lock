@@ -6218,6 +6218,7 @@ dependencies = [
  "num_enum 0.6.1",
  "parity-scale-codec",
  "pink-extension-macro",
+ "pink-types",
  "scale-info",
  "serde",
  "this-crate",
@@ -6292,6 +6293,14 @@ dependencies = [
  "serde",
  "sp-weights",
  "tracing",
+]
+
+[[package]]
+name = "pink-types"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -7919,7 +7928,7 @@ checksum = "43b2853a4d09f215c24cc5489c992ce46052d359b5109343cbafbf26bc62f8a3"
 
 [[package]]
 name = "sidevm-env"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.4"
 dependencies = [
  "cfg-if",
  "derive_more",

@@ -10112,6 +10112,7 @@ dependencies = [
  "num_enum 0.6.1",
  "parity-scale-codec",
  "pink-extension-macro",
+ "pink-types",
  "scale-info",
  "serde",
  "this-crate",
@@ -10237,6 +10238,14 @@ dependencies = [
  "sp-core-hashing",
  "ss58-registry",
  "staging-xcm",
+]
+
+[[package]]
+name = "pink-types"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]

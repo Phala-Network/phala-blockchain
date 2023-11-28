@@ -17,6 +17,7 @@ this-crate = { version = "0.1", path = "../../this-crate" }
 num_enum = { version = "0.6", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 hex = { version = "0.4", default-features = false, features = ["alloc"] }
+pink-types = { version = "0.1", path = "../pink-types", default-features = false }
 
 [dev-dependencies]
 insta = "1.7.2"
@@ -28,6 +29,7 @@ std = [
     "scale/std",
     "scale-info/std",
     "num_enum/std",
+    "pink-types/std",
 ]
 runtime_utils = ["std"]
 dlmalloc = ["ink/no-allocator", "dep:dlmalloc"]
