@@ -1881,6 +1881,11 @@ pub(crate) fn apply_pink_events(
                     }
                 }
             }
+            PinkEvent::SetJsRuntime(code_hash) => {
+                ensure_system!();
+                info!("Set JsRuntime to 0x{}", hex_fmt::HexFmt(&code_hash));
+                cluster.config.js_runtime = Some(code_hash.into());
+            }
         }
     }
 }

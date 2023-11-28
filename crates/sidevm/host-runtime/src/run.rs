@@ -11,12 +11,24 @@ use wasmer_compiler_llvm::LLVM;
 use wasmer_compiler_singlepass::Singlepass;
 use wasmer_tunables::LimitingTunables;
 
-use crate::env::DynCacheOps;
+use crate::env::{DynCacheOps, LogHandler};
 use crate::{async_context, env, metering::metering, VmId};
+
+#[derive(Clone)]
+pub struct WasmModule {
+    engine: WasmEngine,
+    module: Module,
+}
 
 #[derive(Clone)]
 pub struct WasmEngine {
     inner: Engine,
+}
+
+impl Default for WasmEngine {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl WasmEngine {
@@ -37,13 +49,17 @@ impl WasmEngine {
         Self { inner: engine }
     }
 
-    pub fn compile(&self, wasm_code: &[u8]) -> Result<Module> {
-        Ok(Module::new(&self.inner, wasm_code)?)
+    pub fn compile(&self, wasm_code: &[u8]) -> Result<WasmModule> {
+        Ok(WasmModule {
+            engine: self.clone(),
+            module: Module::new(&self.inner, wasm_code)?,
+        })
     }
+}
 
+impl WasmModule {
     pub fn run(
         &self,
-        module: &Module,
         args: Vec<String>,
         config: WasmInstanceConfig,
     ) -> Result<(WasmRun, env::Env)> {
@@ -54,7 +70,8 @@ impl WasmEngine {
             cache_ops,
             scheduler,
             weight,
-            out_tx,
+            event_tx,
+            log_handler,
         } = config;
         let base = BaseTunables {
             // Always use dynamic heap memory to save memory
@@ -63,11 +80,12 @@ impl WasmEngine {
             dynamic_memory_offset_guard_size: page_size::get() as _,
         };
         let tunables = LimitingTunables::new(base, Pages(max_memory_pages));
-        let mut engine = self.inner.clone();
+        let mut engine = self.engine.inner.clone();
         engine.set_tunables(tunables);
         let mut store = Store::new(engine);
-        let (env, import_object) = env::create_env(id, &mut store, cache_ops, out_tx, args);
-        let instance = Instance::new(&mut store, &module, &import_object)?;
+        let (env, import_object) =
+            env::create_env(id, &mut store, cache_ops, event_tx, log_handler, args);
+        let instance = Instance::new(&mut store, &self.module, &import_object)?;
         let memory = instance
             .exports
             .get_memory("memory")
@@ -100,7 +118,8 @@ pub struct WasmInstanceConfig {
     pub cache_ops: DynCacheOps,
     pub scheduler: Option<TaskScheduler<VmId>>,
     pub weight: u32,
-    pub out_tx: crate::OutgoingRequestChannel,
+    pub event_tx: crate::OutgoingRequestChannel,
+    pub log_handler: Option<LogHandler>,
 }
 
 pub struct WasmRun {

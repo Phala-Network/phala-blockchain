@@ -9,7 +9,7 @@ pub use signing::SigType;
 use crate::{Balance, EcdsaPublicKey, EcdsaSignature, Hash};
 
 #[cfg(doc)]
-use crate::{http_get, http_post, http_put, debug, info, warn, error};
+use crate::{debug, error, http_get, http_post, http_put, info, warn};
 
 mod http_request;
 pub mod signing;
@@ -635,6 +635,28 @@ pub trait PinkExt {
     /// Returns (next event block number, last event block hash)
     #[ink(extension = 23, handle_status = false)]
     fn current_event_chain_head() -> (u64, Hash);
+
+    /// Execute given js code using SideVM with the driver JsRuntime
+    ///
+    /// Returns the result of the execution
+    #[ink(extension = 24, handle_status = false)]
+    fn js_eval(codes: Vec<JsCode>, args: Vec<String>) -> JsValue;
+}
+
+#[derive(scale::Encode, scale::Decode, Debug)]
+pub enum JsCode {
+    Source(String),
+    Bytecode(Vec<u8>),
+}
+
+#[derive(scale::Encode, scale::Decode, Debug)]
+pub enum JsValue {
+    Undefined,
+    Null,
+    String(String),
+    Bytes(Vec<u8>),
+    Other(String),
+    Exception(String),
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

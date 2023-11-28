@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
-use log::error;
 use frame_support::traits::Currency;
+use log::error;
 use pallet_contracts::chain_extension::{
     ChainExtension, Environment, Ext, InitState, Result as ExtResult, RetVal,
 };
@@ -9,7 +9,8 @@ use phala_crypto::sr25519::{Persistence, KDF};
 use phala_types::contract::ConvertTo;
 use pink_extension::{
     chain_extension::{
-        self as ext, HttpRequest, HttpResponse, PinkExtBackend, SigType, StorageQuotaExceeded,
+        self as ext, HttpRequest, HttpResponse, JsCode, JsValue, PinkExtBackend, SigType,
+        StorageQuotaExceeded,
     },
     dispatch_ext_call, CacheOp, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
 };
@@ -320,6 +321,10 @@ impl PinkExtBackend for CallInQuery {
             PalletPink::last_event_block_hash().into(),
         ))
     }
+
+    fn js_eval(&self, codes: Vec<JsCode>, args: Vec<String>) -> Result<JsValue, Self::Error> {
+        Ok(OCallImpl.js_eval(self.address.clone(), codes, args))
+    }
 }
 
 struct CallInCommand {
@@ -483,5 +488,11 @@ impl PinkExtBackend for CallInCommand {
 
     fn current_event_chain_head(&self) -> Result<(u64, Hash), Self::Error> {
         self.as_in_query.current_event_chain_head()
+    }
+
+    fn js_eval(&self, _code: Vec<JsCode>, _args: Vec<String>) -> Result<JsValue, Self::Error> {
+        Ok(JsValue::Exception(
+            "Js evaluation is not supported in transaction".into(),
+        ))
     }
 }

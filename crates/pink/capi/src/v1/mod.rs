@@ -34,7 +34,7 @@ pub trait OCall: CrossCall {}
 
 pub mod ecall {
     use super::{CrossCallMut, ECall, Executing};
-    use crate::types::{AccountId, Balance, ExecutionMode, Hash, Weight, BlockNumber};
+    use crate::types::{AccountId, Balance, BlockNumber, ExecutionMode, Hash, Weight};
     use pink_macro::cross_call;
     use scale::{Decode, Encode};
     pub trait EventCallbacks {
@@ -126,6 +126,7 @@ pub mod ecall {
 pub mod ocall {
     use super::{CrossCallMut, Executing, OCall};
     use crate::types::{AccountId, BlockNumber, ExecSideEffects, ExecutionMode, Hash};
+    pub use pink_extension::chain_extension::{JsCode, JsValue};
     use pink_macro::cross_call;
     use scale::{Decode, Encode};
 
@@ -210,5 +211,8 @@ pub mod ocall {
 
         #[xcall(id = 18)]
         fn entry_contract(&self) -> Option<AccountId>;
+
+        #[xcall(id = 19)]
+        fn js_eval(&self, contract: AccountId, codes: Vec<JsCode>, args: Vec<String>) -> JsValue;
     }
 }

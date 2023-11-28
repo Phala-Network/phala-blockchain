@@ -1,10 +1,12 @@
+use once_cell::sync::Lazy;
+use std::sync::Mutex;
 use std::{convert::TryInto, time::Duration};
 
 use crate::{
-    contracts::{self, QueryContext, TransactionContext},
+    contracts::{self, block_on_run_module, QueryContext, TransactionContext},
     system::{TransactionError, TransactionResult},
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use parity_scale_codec::Encode;
 use phala_crypto::sr25519::Persistence;
 use phala_mq::{ContractClusterId, MessageOrigin};
@@ -21,8 +23,12 @@ use pink::{
     runtimes::v1::{get_runtime, using_ocalls},
     types::{BlockNumber, ExecutionMode},
 };
+use pink_extension::chain_extension::{JsCode, JsValue};
 use serde::{Deserialize, Serialize};
-use sidevm::service::{Command as SidevmCommand, CommandSender, Metric, SystemMessage};
+use sidevm::{
+    service::{Command as SidevmCommand, CommandSender, Metric, SystemMessage},
+    WasmEngine, WasmModule,
+};
 use sp_core::{blake2_256, sr25519, twox_64};
 
 use ::pink::{
@@ -44,6 +50,8 @@ pub struct ClusterConfig {
     pub log_handler: Option<AccountId>,
     pub runtime_version: (u32, u32),
     pub secret_salt: [u8; 32],
+    #[serde(default)]
+    pub js_runtime: Option<Hash>,
 }
 
 #[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
@@ -469,6 +477,82 @@ impl OCalls for RuntimeHandle<'_> {
     fn entry_contract(&self) -> Option<AccountId> {
         context::get_entry_contract()
     }
+
+    fn js_eval(&self, caller: AccountId, codes: Vec<JsCode>, js_args: Vec<String>) -> JsValue {
+        let Some(js_runtime) = self.cluster.config.js_runtime else {
+            return JsValue::Exception("No js runtime".into());
+        };
+        let timeout = Duration::from_millis(context::time_remaining());
+        let mut args = vec![];
+        for code in codes {
+            match code {
+                JsCode::Source(src) => {
+                    args.push("-c".into());
+                    args.push(src);
+                }
+                JsCode::Bytecode(code) => {
+                    args.push("-b".into());
+                    args.push(hex::encode(code));
+                }
+            }
+        }
+        args.push("--".into());
+        args.extend(js_args);
+
+        let result = load_module(&js_runtime, || {
+            self.cluster
+                .get_resource(ResourceType::SidevmCode, &js_runtime)
+        });
+        let module = match result {
+            Err(err) => {
+                let err = format!("Failed to load Javascript runtime module: {:?}", err);
+                error!("{}", err);
+                return JsValue::Exception(err);
+            }
+            Ok(module) => module,
+        };
+        let result = block_on_run_module(
+            caller.into(),
+            &module,
+            args,
+            timeout,
+            |vmid, level, message| self.log_to_server(vmid.into(), level, message),
+        );
+        match result {
+            Ok(value) => value,
+            Err(err) => {
+                let err = format!("Failed to run Javascript: {:?}", err);
+                error!("{}", err);
+                JsValue::Exception(err)
+            }
+        }
+    }
+}
+
+pub fn load_module(code_hash: &Hash, init: impl FnOnce() -> Option<Vec<u8>>) -> Result<WasmModule> {
+    struct Cache {
+        engine: WasmEngine,
+        cached_module: Option<(Hash, WasmModule)>,
+    }
+    static WASM_CACHE: Lazy<Mutex<Cache>> = Lazy::new(|| {
+        Mutex::new(Cache {
+            engine: WasmEngine::new(),
+            cached_module: None,
+        })
+    });
+    let mut cache = WASM_CACHE.lock().unwrap();
+    if let Some((hash, module)) = &cache.cached_module {
+        if hash == code_hash {
+            return Ok(module.clone());
+        }
+    }
+    let code = init().ok_or_else(|| anyhow::anyhow!("Js runtime code not found"))?;
+    let module = cache
+        .engine
+        .compile(&code)
+        .context("Failed to compile js runtime")?;
+    cache.cached_module = Some((*code_hash, module.clone()));
+    Ok(module)
 }
 
 impl OCalls for RuntimeHandleMut<'_> {
@@ -554,6 +638,10 @@ impl OCalls for RuntimeHandleMut<'_> {
 
     fn entry_contract(&self) -> Option<AccountId> {
         self.readonly().entry_contract()
+    }
+
+    fn js_eval(&self, caller: AccountId, codes: Vec<JsCode>, args: Vec<String>) -> JsValue {
+        self.readonly().js_eval(caller, codes, args)
     }
 }
 

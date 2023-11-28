@@ -896,6 +896,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                     .as_ref()
                     .map(hex)
                     .unwrap_or_default(),
+                js_runtime: cluster
+                    .config
+                    .js_runtime
+                    .as_ref()
+                    .map(hex)
+                    .unwrap_or_default(),
             }),
         })
     }

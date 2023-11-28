@@ -149,7 +149,7 @@ impl Spawner {
         weight: u32,
         prev_stopped: Option<WatchReceiver<bool>>,
     ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
-        let out_tx = self.out_tx.clone();
+        let event_tx = self.out_tx.clone();
         let (cmd_tx, mut cmd_rx) = channel(128);
         let spawner = self.runtime_handle.clone();
         let scheduler = self.scheduler.clone();
@@ -233,9 +233,10 @@ impl Spawner {
                 cache_ops,
                 scheduler: Some(scheduler),
                 weight,
-                out_tx,
+                event_tx,
+                log_handler: None,
             };
-            let (mut wasm_run, env) = match engine.run(&module, vec![], config) {
+            let (mut wasm_run, env) = match module.run(vec![], config) {
                 Ok(i) => i,
                 Err(err) => {
                     error!(target: "sidevm", "Failed to create sidevm instance: {err:?}");

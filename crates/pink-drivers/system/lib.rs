@@ -134,6 +134,9 @@ mod system {
                 "PinkLogger" => {
                     pink::set_log_handler(contract_id);
                 }
+                "JsRuntime" => {
+                    pink::set_js_runtime(*contract_id.as_ref());
+                }
                 _ => {}
             }
 
@@ -316,10 +319,7 @@ mod system {
         ) -> Result<()> {
             self.ensure_admin()?;
             ink::env::emit_event::<PinkEnvironment, _>(pink::PinkEvent::SidevmOperation(
-                pink::SidevmOperation::SetDeadLine {
-                    contract,
-                    deadline,
-                },
+                pink::SidevmOperation::SetDeadLine { contract, deadline },
             ));
             Ok(())
         }
