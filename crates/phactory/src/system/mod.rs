@@ -1892,7 +1892,7 @@ pub(crate) fn apply_pink_events(
                             error!(target: "sidevm", %vmid, ?err, "Start sidevm failed");
                         }
                     }
-                    SidevmOperation::SetDeadLine {
+                    SidevmOperation::SetDeadline {
                         contract: target_contract,
                         deadline,
                     } => {
