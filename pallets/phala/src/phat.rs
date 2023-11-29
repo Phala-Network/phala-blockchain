@@ -556,6 +556,22 @@ pub mod pallet {
 			});
 			Ok(())
 		}
+
+		/// Cleanup the removed workers in ClusterWorkers which is mis-added back by the migration
+		#[pallet::call_index(10)]
+		#[pallet::weight({0})]
+		pub fn cleanup_removed_workers(
+			origin: OriginFor<T>,
+			cluster_id: ContractClusterId,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			ClusterWorkers::<T>::mutate(cluster_id, |workers| {
+				workers.retain(|key| {
+					ClusterByWorkers::<T>::get(key) != Some(ContractClusterId::from_low_u64_be(0))
+				})
+			});
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T>
@@ -718,7 +734,10 @@ pub mod pallet {
 					nreads += 2;
 					let mut workers = ClusterWorkers::<T>::get(id);
 					for worker in old.workers {
-						if !workers.contains(&worker) {
+						if !workers.contains(&worker)
+							&& ClusterByWorkers::<T>::get(worker)
+								!= Some(ContractClusterId::from_low_u64_be(0))
+						{
 							workers.push(worker);
 						}
 					}

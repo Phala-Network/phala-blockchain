@@ -10,4 +10,4 @@ description = "KV session primitives for phat off-chain rollup"
 [dependencies]
 
 [dev-dependencies]
-scale = { package = "parity-scale-codec", version = "3" }
+scale = { package = "parity-scale-codec", version = "3.6.5" }

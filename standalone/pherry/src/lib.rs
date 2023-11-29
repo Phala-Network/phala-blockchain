@@ -1,7 +1,11 @@
 use anyhow::{anyhow, Context, Result};
 use log::{debug, error, info, warn};
-use sp_core::crypto::AccountId32;
+use phala_node_rpc_ext::MakeInto;
+use phala_trie_storage::ser::StorageChanges;
+use sgx_attestation::dcap::get_collateral::get_collateral;
+use sp_core::{crypto::AccountId32, H256};
 use std::cmp;
+use std::convert::TryFrom;
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -44,7 +48,7 @@ use clap::Parser;
 use headers_cache::Client as CacheClient;
 use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use notify_client::NotifyClient;
-use phala_types::AttestationProvider;
+use phala_types::{AttestationProvider, AttestationReport, Collateral};
 
 pub use phaxt::connect as subxt_connect;
 
@@ -241,12 +245,21 @@ pub struct Args {
     /// Load handover proof after blocks synced.
     #[arg(long)]
     load_handover_proof: bool,
+
+    /// The URL of the PCCS server.
+    #[arg(long, default_value = "")]
+    pccs_url: String,
+
+    /// Timeout in seconds for connecting to PCCS server.
+    #[arg(long, default_value = "30")]
+    pccs_timeout: u64,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug)]
 enum RaOption {
     None,
     Ias,
+    Dcap,
 }
 
 impl From<RaOption> for Option<AttestationProvider> {
@@ -254,6 +267,7 @@ impl From<RaOption> for Option<AttestationProvider> {
         match other {
             RaOption::None => None,
             RaOption::Ias => Some(AttestationProvider::Ias),
+            RaOption::Dcap => Some(AttestationProvider::Dcap),
         }
     }
 }
@@ -320,7 +334,17 @@ pub async fn fetch_storage_changes(
     from: BlockNumber,
     to: BlockNumber,
 ) -> Result<Vec<BlockHeaderWithChanges>> {
-    log::info!("fetch_storage_changes ({from}-{to})");
+    fetch_storage_changes_with_root_or_not(client, cache, from, to, false).await
+}
+
+pub async fn fetch_storage_changes_with_root_or_not(
+    client: &RpcClient,
+    cache: Option<&CacheClient>,
+    from: BlockNumber,
+    to: BlockNumber,
+    with_root: bool,
+) -> Result<Vec<BlockHeaderWithChanges>> {
+    log::info!("fetch_storage_changes with_root={with_root}, ({from}-{to})");
     if to < from {
         return Ok(vec![]);
     }
@@ -336,21 +360,47 @@ pub async fn fetch_storage_changes(
     }
     let from_hash = get_header_hash(client, Some(from)).await?;
     let to_hash = get_header_hash(client, Some(to)).await?;
-    let storage_changes = chain_client::fetch_storage_changes(client, &from_hash, &to_hash)
-        .await?
+
+    let changes = if with_root {
+        client
+            .extra_rpc()
+            .get_storage_changes_with_root(&from_hash, &to_hash)
+            .await?
+            .into_iter()
+            .map(|changes| {
+                Ok((changes.changes, {
+                    let raw: [u8; 32] = TryFrom::try_from(&changes.state_root[..])
+                        .or(Err(anyhow!("Invalid state root")))?;
+                    H256::from(raw)
+                }))
+            })
+            .collect::<Result<Vec<_>>>()?
+    } else {
+        client
+            .extra_rpc()
+            .get_storage_changes(&from_hash, &to_hash)
+            .await?
+            .into_iter()
+            .map(|changes| (changes, Default::default()))
+            .collect::<Vec<_>>()
+    };
+    let storage_changes = changes
         .into_iter()
         .enumerate()
-        .map(|(offset, storage_changes)| {
+        .map(|(offset, (storage_changes, state_root))| {
             BlockHeaderWithChanges {
                 // Headers are synced separately. Only the `number` is used in pRuntime while syncing blocks.
                 block_header: BlockHeader {
                     number: from + offset as BlockNumber,
                     parent_hash: Default::default(),
-                    state_root: Default::default(),
+                    state_root,
                     extrinsics_root: Default::default(),
                     digest: Default::default(),
                 },
-                storage_changes,
+                storage_changes: StorageChanges {
+                    main_storage_changes: storage_changes.main_storage_changes.into_(),
+                    child_storage_changes: storage_changes.child_storage_changes.into_(),
+                },
             }
         })
         .collect();
@@ -951,6 +1001,45 @@ async fn init_runtime(
     Ok(resp)
 }
 
+pub async fn attestation_to_report(
+    attestation: prpc::Attestation,
+    pccs_url: &str,
+    pccs_timeout_secs: u64,
+) -> Result<Vec<u8>> {
+    let report = match attestation.payload {
+        Some(payload) => Attestation::SgxIas {
+            ra_report: payload.report.as_bytes().to_vec(),
+            signature: payload.signature,
+            raw_signing_cert: payload.signing_cert,
+        }
+        .encode(),
+        None => {
+            if attestation.provider.as_str() == "dcap" {
+                let report =
+                    Option::<AttestationReport>::decode(&mut &attestation.encoded_report[..]);
+                if let Ok(Some(AttestationReport::SgxDcap {
+                    quote,
+                    collateral: None,
+                })) = report
+                {
+                    if pccs_url.is_empty() {
+                        anyhow::bail!("pccs_url is required when using dcap");
+                    }
+                    let timeout = Duration::from_secs(pccs_timeout_secs);
+                    let collateral = get_collateral(pccs_url, &quote, timeout).await?;
+                    let collateral = Some(Collateral::SgxV30(collateral));
+                    Some(AttestationReport::SgxDcap { quote, collateral }).encode()
+                } else {
+                    attestation.encoded_report
+                }
+            } else {
+                attestation.encoded_report
+            }
+        }
+    };
+    Ok(report)
+}
+
 async fn register_worker(
     para_api: &ParachainApi,
     encoded_runtime_info: Vec<u8>,
@@ -961,15 +1050,7 @@ async fn register_worker(
     chain_client::update_signer_nonce(para_api, signer).await?;
     let params = mk_params(para_api, args.longevity, args.tip).await?;
     let v2 = attestation.payload.is_none();
-    let attestation = match attestation.payload {
-        Some(payload) => Attestation::SgxIas {
-            ra_report: payload.report.as_bytes().to_vec(),
-            signature: payload.signature,
-            raw_signing_cert: payload.signing_cert,
-        }
-        .encode(),
-        None => attestation.encoded_report,
-    };
+    let attestation = attestation_to_report(attestation, &args.pccs_url, args.pccs_timeout).await?;
     let tx = phaxt::dynamic::tx::register_worker(encoded_runtime_info, attestation, v2);
 
     let encoded_call_data = tx

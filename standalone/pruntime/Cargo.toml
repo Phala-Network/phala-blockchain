@@ -19,15 +19,15 @@ libc = "0.2"
 num_cpus = "1.13"
 version = "3.0.0"
 
-rocket = { git = "https://github.com/SergioBenitez/Rocket.git", features = ["json"] }
-rocket_cors = "0.6.0-alpha2"
+rocket = { version = "0.5.0", features = ["json"] }
+rocket_cors = "0.6.0"
 serde_json = "1.0"
 
 base64 = "0.13.0"
 
 phala-sanitized-logger = { path = "../../crates/phala-sanitized-logger" }
 lazy_static = { version = "1.4.0", default-features = false }
-parity-scale-codec = { version = "3.3", default-features = false }
+parity-scale-codec = { version = "3.6.5", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 urlencoding = "2.1.0"
 
@@ -48,8 +48,6 @@ hex = "0.4.3"
 [patch.crates-io]
 # TODO.kevin: Move back to crates.io once it released 1.0
 derive_more = { version = "0.99.17", git = "https://github.com/JelteF/derive_more" }
-rocket = { git = "https://github.com/SergioBenitez/Rocket.git" }
-rocket_cors = { git = "https://github.com/kvinwang/rocket_cors" }
 
 # For pink-extension-runtime, it will introduce Substrate from crates-io which usually different with polkadot-branch
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }

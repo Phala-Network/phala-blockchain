@@ -18,6 +18,8 @@ pub struct Metadata {
     pub genesis: Vec<BlockNumber>,
     pub recent_imported: Counters,
     pub higest: Counters,
+    #[serde(default)]
+    pub checked: Counters,
 }
 
 macro_rules! update_field {

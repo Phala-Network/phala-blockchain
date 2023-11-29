@@ -12,7 +12,7 @@ sidevm-macro = { version = "0.2.0-alpha.2", path = "../macro" }
 cfg-if = "1.0.0"
 derive_more = "0.99.17"
 num_enum = "0.5.7"
-scale = { package = "parity-scale-codec", version = "3.3", default-features = false, features = [
+scale = { package = "parity-scale-codec", version = "3.6.5", default-features = false, features = [
     "derive",
     "std",
 ] }

@@ -117,7 +117,7 @@ enum Grab {
         output: String,
     },
 }
-#[derive(Args)]
+#[derive(Args, Clone)]
 struct Serve {
     /// The database file to use
     #[arg(long, default_value = "cache.db")]
@@ -157,6 +157,15 @@ struct Serve {
     /// Token for uploading APIs.
     #[arg(long)]
     token: Option<String>,
+    /// The max batch size to check headers
+    #[clap(long, default_value_t = 100000)]
+    check_batch: BlockNumber,
+    /// Don't check state root for each storage changes
+    #[clap(long)]
+    no_state_root: bool,
+    /// Skip blocks with empty state root while checking storage changes
+    #[clap(long)]
+    allow_empty_state_root: bool,
 }
 
 #[derive(Subcommand)]
@@ -219,6 +228,8 @@ enum Action {
         para_header: Option<BlockNumber>,
         #[arg(long)]
         storage_changes: Option<BlockNumber>,
+        #[arg(long)]
+        checked: bool,
     },
 }
 
@@ -244,7 +255,8 @@ async fn main() -> anyhow::Result<()> {
             header,
             para_header,
             storage_changes,
-        } => reset(db, header, para_header, storage_changes)?,
+            checked,
+        } => reset(db, header, para_header, storage_changes, checked)?,
     }
     Ok(())
 }
@@ -268,6 +280,7 @@ async fn serve(config: Serve) -> anyhow::Result<()> {
         });
     } else if config.grab_headers {
         let db = db.clone();
+        let config = config.clone();
         tokio::spawn(async move {
             let result = grab::run(db, config).await;
             if let Err(err) = result {
@@ -276,7 +289,7 @@ async fn serve(config: Serve) -> anyhow::Result<()> {
             std::process::exit(1);
         });
     }
-    web_api::serve(db, token).await?;
+    web_api::serve(db, config, token).await?;
     Ok(())
 }
 
@@ -370,6 +383,7 @@ fn reset(
     header: Option<u32>,
     para_header: Option<u32>,
     storage_changes: Option<u32>,
+    checked: bool,
 ) -> anyhow::Result<()> {
     let cache = db::CacheDB::open(&db)?;
     let mut metadata = cache.get_metadata()?.unwrap_or_default();
@@ -384,6 +398,9 @@ fn reset(
     if let Some(storage_changes) = storage_changes {
         metadata.higest.storage_changes = Some(storage_changes);
         metadata.recent_imported.storage_changes = Some(storage_changes);
+    }
+    if checked {
+        metadata.checked = Default::default();
     }
     cache
         .put_metadata(&metadata)

@@ -26,6 +26,7 @@ pub struct Info<'a> {
     pub whdr: bool,
     pub cluster: u64,
     pub gblk: u32,
+    pub ras: &'a str,
 }
 
 impl PhactoryInfo {
@@ -52,6 +53,11 @@ impl PhactoryInfo {
                 .map(|s| s.number_of_clusters)
                 .unwrap_or_default(),
             gblk: self.system.as_ref().map(|s| s.genesis_block).unwrap_or(0),
+            ras: self
+                .supported_attestation_methods
+                .last()
+                .map(|s| s.as_str())
+                .unwrap_or_default(),
         }
     }
 }

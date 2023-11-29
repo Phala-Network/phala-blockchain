@@ -29,6 +29,7 @@ pub trait RA {
     ) -> Result<Vec<u8>, Self::Error>;
     fn quote_test(&self, provider: Option<AttestationProvider>) -> Result<(), Self::Error>;
     fn measurement(&self) -> Option<Vec<u8>>;
+    fn supported_attestation_methods(&self) -> Vec<String>;
 }
 
 pub trait MemoryStats {

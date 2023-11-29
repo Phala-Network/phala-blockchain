@@ -197,3 +197,28 @@ pub fn on_runtime_upgrade() {
 pub fn on_idle(n: BlockNumber) {
     <AllPalletsWithSystem as frame_support::traits::OnIdle<BlockNumber>>::on_idle(n, Weight::MAX);
 }
+
+#[test]
+pub fn check_metadata() {
+    let storage = crate::storage::in_memory_backend::InMemoryStorage::default();
+    let context = pink_capi::v1::ocall::ExecContext {
+        block_number: 1,
+        ..Default::default()
+    };
+    let metadata: Vec<u8> = storage
+        .execute_with(&context, || PinkRuntime::metadata().into())
+        .0;
+    let (major, minor, _) = this_crate::version_tuple!();
+    let filename = format!("assets/metadata-{major}.{minor}.bin");
+    let old_metadata = std::fs::read(&filename).unwrap_or_default();
+    if metadata != old_metadata {
+        let new_metadata_path = std::env::current_dir()
+            .unwrap()
+            .join(format!("{filename}.new"));
+        std::fs::write(&new_metadata_path, metadata).unwrap();
+        panic!(
+            "Pink runtime metadata changed. The new metadata is stored at \n {:?}",
+            new_metadata_path.display()
+        );
+    }
+}
