@@ -19,7 +19,6 @@ primitive-types = { version = "0.12.2", default-features = false, features = ["c
 
 hex-literal = "0.4.1"
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
-impl-serde = { version = "0.4.0", optional = true }
 
 pink-extension = { version = "0.5", path = "../../pink/pink-extension", default-features = false }
 sp-core-hashing = { version = "9", default-features = false }
@@ -39,7 +38,6 @@ default = ["std"]
 std = [
     "scale/std",
     "scale-info/std",
-    "impl-serde",
     "pink-extension/std",
     "pink-json/std",
     "sp-core-hashing/std",

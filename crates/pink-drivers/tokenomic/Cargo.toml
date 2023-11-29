@@ -6,6 +6,9 @@ version = "0.1.0"
 authors = ["[your_name] <[your_email]>"]
 edition = "2021"
 
+[package.metadata.cargo-machete]
+ignored = ["ink", "scale", "scale-info"]
+
 [profile.release.package.compiler_builtins]
 debug-assertions = false
 overflow-checks = false

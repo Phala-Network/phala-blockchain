@@ -7,7 +7,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bytes = "1"
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.11", features = ["json"] }
 serde = { version = "1.0.144", features = ["derive"] }
@@ -15,10 +14,9 @@ env_logger = "0.10.0"
 log = "0.4.17"
 anyhow = { version = "1.0.65", features = ["backtrace"] }
 lazy_static = "1.4.0"
-rust-fsm = "0.6.1"
 clap = { version = "4.1.6", features = ["unicode", "env", "cargo", "derive", "wrap_help"] }
 futures = "0.3.26"
-indradb-lib = { git = "https://github.com/krhougs/indradb", branch = "v3", features = ["rocksdb-datastore"] }
+indradb = { package = "indradb-lib", git = "https://github.com/krhougs/indradb", branch = "v3", features = ["rocksdb-datastore"] }
 rocksdb = { version = "0.21.0", default-features = false, features = ["snappy", "jemalloc"] }
 serde_json = "1.0.93"
 thiserror = "1.0.38"
@@ -36,16 +34,13 @@ hex = "0.4.3"
 phala-types = { path = "../../crates/phala-types" }
 phala-git-revision = { path = "../../crates/phala-git-revision" }
 rand = "0.8.5"
-memory-lru = "0.1.1"
 sp-consensus-grandpa = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
 tokio-stream = "0.1.12"
 parity-scale-codec = "3.6.5"
 phala-pallets = { path = "../../pallets/phala" }
-scale-value = "0.7.0"
 subxt = { path = "../../subxt/subxt", features = ["jsonrpsee-ws"] }
 moka = { version = "0.12.1", features = ["future"] }
 moka-cht = "0.5.0"
 async-trait = "0.1.68"
-crossbeam = "0.8.2"
 schnorrkel = "0.9"
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false, features = [ "full_crypto" ] }

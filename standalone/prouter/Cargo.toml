@@ -11,27 +11,21 @@ log             = "0.4"
 tokio           = { version = "1.20.4", features = ["full"] }
 tokio-stream    = "0.1.9"
 structopt       = { version = "0.3" }
-rust-ini        = "0.18.0"
+ini             = { version = "0.18.0", package = "rust-ini" }
 chrono          = "0.4.22"
 rand            = "0.8.4"
 
 phala-types     = { path = "../../crates/phala-types" }
 phactory-api    = { path = "../../crates/phactory/api", features = ["pruntime-client"] }
-phactory-pal    = { path = "../../crates/phactory/pal" }
 phaxt           = { path = "../../crates/phaxt" }
 
 codec           = { package = 'parity-scale-codec', version = "3.6.5" }
 zip             = "0.6.3"
 glob            = "0.3.0"
 byteorder       = "1.4.3"
-hex             = { version = "*" }
 
-serde           = "1.0"
-serde_json      = "1.0"
-serde_derive    = "1.0"
 fast-socks5     = { git = "https://github.com/Soptq/fast-socks5" }
 
-reqwest         = { version = "0.11.6", features = ["blocking"]}
 binascii        = { version = "0.1", default-features = false, features = ["decode"] }
 
 [build-dependencies]
