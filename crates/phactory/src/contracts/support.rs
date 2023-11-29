@@ -580,11 +580,12 @@ pub fn block_on_run_module(
         Output(Vec<u8>),
         Terminated,
         Timeout,
+        Error(anyhow::Error),
     }
     // Channel to bridge between the sync and async world
-    let (resposne_tx, response_rx) = mpsc::channel();
+    let (output_tx, output_rx) = mpsc::channel();
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(1);
-    let tx_for_logging = resposne_tx.clone();
+    let tx_for_logging = output_tx.clone();
     let config = WasmInstanceConfig {
         max_memory_pages: 256, // 16MB
         gas_per_breath: SidevmConfig::default().vital_capacity,
@@ -623,14 +624,21 @@ pub fn block_on_run_module(
         }
         tokio::select! {
             _ = tokio::time::sleep(timeout) => {
-                if let Err(err) = resposne_tx.send(OutMsg::Timeout) {
+                if let Err(err) = output_tx.send(OutMsg::Timeout) {
                     error!("Failed to send timeout message to response channel: {}", err);
                 }
             }
-            _ = &mut wasm_run => {}
+            rv = &mut wasm_run => {
+                if let Err(err) = rv {
+                    error!(target: "sidevm", ?err, "Js runtime exited with error.");
+                    if let Err(err) = output_tx.send(OutMsg::Error(err.into())) {
+                        error!("Failed to send error message to response channel: {}", err);
+                    }
+                }
+            }
             _ = async {
                 while let Some((_vmid, event)) = event_rx.recv().await {
-                    if forward_event(event, &resposne_tx).await {
+                    if forward_event(event, &output_tx).await {
                         break;
                     }
                 }
@@ -638,16 +646,16 @@ pub fn block_on_run_module(
         }
         // Continue to process events incase there are some pending events in the channel
         while let Ok((_vmid, event)) = event_rx.try_recv() {
-            if forward_event(event, &resposne_tx).await {
+            if forward_event(event, &output_tx).await {
                 break;
             }
         }
-        if resposne_tx.send(OutMsg::Terminated).is_err() {
+        if output_tx.send(OutMsg::Terminated).is_err() {
             error!("Failed to send termination message to response channel");
         }
     });
     loop {
-        match response_rx.recv() {
+        match output_rx.recv() {
             Ok(OutMsg::Log(level, msg)) => {
                 log_handler(id, level, msg);
             }
@@ -657,10 +665,13 @@ pub fn block_on_run_module(
                 return Ok(value);
             }
             Ok(OutMsg::Terminated) => {
-                return Err(anyhow!("Sidevm terminated unexpectedly"));
+                return Err(anyhow!("Sidevm terminated without output"));
             }
             Ok(OutMsg::Timeout) => {
-                return Err(anyhow!("Sidevm timeout"));
+                return Err(anyhow!("Sidevm execution timeout"));
+            }
+            Ok(OutMsg::Error(err)) => {
+                return Err(err);
             }
             Err(err) => {
                 return Err(anyhow!("Failed to receive response from sidevm: {err}"));
