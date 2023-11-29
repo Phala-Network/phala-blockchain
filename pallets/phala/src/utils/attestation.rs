@@ -4,7 +4,8 @@ use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_std::vec::Vec;
 
-use phala_types::{AttestationProvider, AttestationReport};
+use phala_types::{AttestationProvider, AttestationReport, Collateral};
+use sgx_attestation::dcap::SgxV30QuoteCollateral;
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -17,6 +18,8 @@ pub enum Error {
 	UnknownQuoteBodyFormat,
 	InvalidUserDataHash,
 	NoneAttestationDisabled,
+	UnsupportedAttestationType,
+	InvalidDCAPQuote(sgx_attestation::Error),
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
@@ -51,13 +54,13 @@ impl IasFields {
 		// Filter valid `isvEnclaveQuoteStatus`
 		let quote_status = &parsed_report.isv_enclave_quote_status.as_str();
 		let mut confidence_level: u8 = 128;
-		if IAS_QUOTE_STATUS_LEVEL_1.contains(quote_status) {
+		if SGX_QUOTE_STATUS_LEVEL_1.contains(quote_status) {
 			confidence_level = 1;
-		} else if IAS_QUOTE_STATUS_LEVEL_2.contains(quote_status) {
+		} else if SGX_QUOTE_STATUS_LEVEL_2.contains(quote_status) {
 			confidence_level = 2;
-		} else if IAS_QUOTE_STATUS_LEVEL_3.contains(quote_status) {
+		} else if SGX_QUOTE_STATUS_LEVEL_3.contains(quote_status) {
 			confidence_level = 3;
-		} else if IAS_QUOTE_STATUS_LEVEL_5.contains(quote_status) {
+		} else if SGX_QUOTE_STATUS_LEVEL_5.contains(quote_status) {
 			confidence_level = 5;
 		}
 		if confidence_level == 128 {
@@ -72,7 +75,7 @@ impl IasFields {
 			// Filter AdvisoryIDs. `advisoryIDs` is optional
 			for advisory_id in parsed_report.advisory_ids.iter() {
 				let advisory_id = advisory_id.as_str();
-				if !IAS_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
+				if !SGX_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
 					confidence_level = 4;
 				}
 			}
@@ -128,6 +131,19 @@ pub fn validate(
 			verify_pruntime_hash,
 			pruntime_allowlist,
 		),
+		Some(AttestationReport::SgxDcap { quote, collateral }) => {
+			let Some(Collateral::SgxV30(collateral)) = collateral else {
+				return Err(Error::UnsupportedAttestationType);
+			};
+			validate_dcap(
+				&quote,
+				&collateral,
+				now,
+				user_data_hash,
+				verify_pruntime_hash,
+				pruntime_allowlist,
+			)
+		}
 		None => {
 			if opt_out_enabled {
 				Ok(ConfidentialReport {
@@ -183,6 +199,67 @@ pub fn validate_ias_report(
 		provider: Some(AttestationProvider::Ias),
 		runtime_hash: pruntime_hash,
 		confidence_level: ias_fields.confidence_level,
+	})
+}
+
+pub fn validate_dcap(
+	quote: &[u8],
+	collateral: &SgxV30QuoteCollateral,
+	now: u64,
+	user_data_hash: &[u8],
+	verify_pruntime_hash: bool,
+	pruntime_allowlist: Vec<Vec<u8>>,
+) -> Result<ConfidentialReport, Error> {
+	// Validate report
+	let (report_data, pruntime_hash, tcb_status, advisory_ids) = sgx_attestation::dcap::verify(
+		quote,
+		collateral,
+		now,
+	).map_err(Error::InvalidDCAPQuote)?;
+
+	// Validate PRuntime
+	if verify_pruntime_hash && !pruntime_allowlist.contains(&pruntime_hash) {
+		return Err(Error::PRuntimeRejected);
+	}
+
+	let commit = &report_data[..32];
+	if commit != user_data_hash {
+		return Err(Error::InvalidUserDataHash);
+	}
+
+	let mut confidence_level: u8 = 128;
+	if SGX_QUOTE_STATUS_LEVEL_1.contains(&tcb_status.as_str()) {
+		confidence_level = 1;
+	} else if SGX_QUOTE_STATUS_LEVEL_2.contains(&tcb_status.as_str()) {
+		confidence_level = 2;
+	} else if SGX_QUOTE_STATUS_LEVEL_3.contains(&tcb_status.as_str()) {
+		confidence_level = 3;
+	} else if SGX_QUOTE_STATUS_LEVEL_5.contains(&tcb_status.as_str()) {
+		confidence_level = 5;
+	}
+	if confidence_level == 128 {
+		return Err(Error::InvalidQuoteStatus);
+	}
+	// CL 1 means there is no known issue of the CPU
+	// CL 2 means the worker's firmware up to date, and the worker has well configured to prevent known issues
+	// CL 3 means the worker's firmware up to date, but needs to well configure its BIOS to prevent known issues
+	// CL 5 means the worker's firmware is outdated
+	// For CL 3, we don't know which vulnerable (aka SA) the worker not well configured, so we need to check the allow list
+	if confidence_level == 3 {
+		// Filter AdvisoryIDs. `advisoryIDs` is optional
+		for advisory_id in advisory_ids.iter() {
+			let advisory_id = advisory_id.as_str();
+			if !SGX_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
+				confidence_level = 4;
+			}
+		}
+	}
+
+	// Check the following fields
+	Ok(ConfidentialReport {
+		provider: Some(AttestationProvider::Dcap),
+		runtime_hash: pruntime_hash,
+		confidence_level
 	})
 }
 

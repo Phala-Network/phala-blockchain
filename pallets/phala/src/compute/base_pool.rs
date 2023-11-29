@@ -57,6 +57,14 @@ pub mod pallet {
 		pub nft_id: NftId,
 	}
 
+	/// Current withdrawing stats for a user
+	#[derive(Default)]
+	struct WithdrawEventStats<Balance: Default> {
+		amount: Balance,
+		shares: Balance,
+		burnt_shares: Balance,
+	}
+
 	#[pallet::config]
 	pub trait Config:
 		frame_system::Config
@@ -128,6 +136,11 @@ pub mod pallet {
 	#[pallet::getter(fn pool_descriptions)]
 	pub type PoolDescriptions<T: Config> = StorageMap<_, Twox64Concat, u64, DescStr>;
 
+	/// Claimable reimbursement due to previous on-chain issues.
+	#[pallet::storage]
+	pub type Reimbursements<T: Config> =
+		StorageMap<_, Twox64Concat, (T::AccountId, u64), BalanceOf<T>>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -148,8 +161,11 @@ pub mod pallet {
 			pid: u64,
 			user: T::AccountId,
 			shares: BalanceOf<T>,
+			/// Target NFT to withdraw
 			nft_id: NftId,
 			as_vault: Option<u64>,
+			/// Splitted NFT for withdrawing
+			withdrawing_nft_id: NftId,
 		},
 		/// Some stake was withdrawn from a pool
 		///
@@ -164,6 +180,7 @@ pub mod pallet {
 			user: T::AccountId,
 			amount: BalanceOf<T>,
 			shares: BalanceOf<T>,
+			burnt_shares: BalanceOf<T>,
 		},
 		/// A pool contribution whitelist is added
 		///
@@ -225,8 +242,10 @@ pub mod pallet {
 		NotMigrationRoot,
 		/// Burn nft failed
 		BurnNftFailed,
-
-		TransferSharesAmountInvalid,
+		DeprecatedTransferSharesAmountInvalid,
+		/// No reimbursement to claim
+		NoReimbursementToClaim,
+		InternalSubsidyPoolCannotWithdraw,
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -486,54 +505,8 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(2)]
-		#[pallet::weight({0})]
-		#[frame_support::transactional]
-		pub fn reset_lock_iter_pos(origin: OriginFor<T>) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			Self::ensure_migration_root(who)?;
-			LockIterateStartPos::<T>::put(None::<LockKey>);
-			Ok(())
-		}
-
-		#[pallet::call_index(3)]
-		#[pallet::weight({0})]
-		pub fn remove_unused_lock(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			Self::ensure_migration_root(who)?;
-			let last_pos = LockIterateStartPos::<T>::get();
-			let mut iter = match last_pos {
-				Some(pos) => {
-					let key: Vec<u8> = pallet_rmrk_core::pallet::Lock::<T>::hashed_key_for(pos);
-					pallet_rmrk_core::pallet::Lock::<T>::iter_from(key)
-				}
-				None => pallet_rmrk_core::pallet::Lock::<T>::iter(),
-			};
-			let mut record_vec = vec![];
-			let mut i = 0;
-			for ((cid, nft_id), _) in iter.by_ref() {
-				if cid >= RESERVE_CID_START
-					&& !pallet_rmrk_core::pallet::Nfts::<T>::contains_key(cid, nft_id)
-				{
-					record_vec.push((cid, nft_id));
-				}
-				i += 1;
-				if i > max_iterations {
-					break;
-				}
-			}
-			if let Some(((cid, nft_id), _)) = iter.next() {
-				LockIterateStartPos::<T>::put(Some((cid, nft_id)));
-			} else {
-				LockIterateStartPos::<T>::put(None::<LockKey>);
-			}
-
-			for (cid, nft_id) in record_vec.iter() {
-				pallet_rmrk_core::pallet::Lock::<T>::remove((cid, nft_id));
-			}
-
-			Ok(())
-		}
+		// Reserved: #[pallet::call_index(2)]
+		// Reserved: #[pallet::call_index(3)]
 
 		/// Removes a staker accountid to contribution whitelist.
 		///
@@ -576,6 +549,36 @@ pub mod pallet {
 				});
 			}
 
+			Ok(())
+		}
+
+		#[pallet::call_index(5)]
+		#[pallet::weight({0})]
+		#[frame_support::transactional]
+		pub fn claim_reimbursement(
+			origin: OriginFor<T>,
+			pid: u64,
+			target: T::AccountId,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let rewards =
+				Reimbursements::<T>::take((who, pid)).ok_or(Error::<T>::NoReimbursementToClaim)?;
+			computation::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
+				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
+			Ok(())
+		}
+
+		#[pallet::call_index(6)]
+		#[pallet::weight({0})]
+		pub fn set_reimbursements(
+			origin: OriginFor<T>,
+			input: Vec<(T::AccountId, u64, BalanceOf<T>)>,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			Self::ensure_migration_root(who)?;
+			for (account_id, pid, balance) in input.iter() {
+				Reimbursements::<T>::insert((account_id.clone(), *pid), *balance);
+			}
 			Ok(())
 		}
 	}
@@ -653,13 +656,14 @@ pub mod pallet {
 			nft: &mut NftAttr<BalanceOf<T>>,
 			account_id: T::AccountId,
 			shares: BalanceOf<T>,
-		) -> DispatchResult {
+		) -> Result<Option<NftId>, DispatchError> {
 			if pool.share_price().is_none() {
+				// Pool bankrupt. Reduce the NFT share without doing real task.
 				nft.shares = nft
 					.shares
 					.checked_sub(&shares)
 					.ok_or(Error::<T>::InvalidShareToWithdraw)?;
-				return Ok(());
+				return Ok(None);
 			}
 
 			// Remove the existing withdraw request in the queue if there is any.
@@ -679,7 +683,7 @@ pub mod pallet {
 				Self::burn_nft(&pallet_id(), pool.cid, withdrawinfo.nft_id)
 					.expect("burn nft attr should always success; qed.");
 			}
-
+			// Move the shares in the NFT to the withdrawing NFT.
 			let split_nft_id = Self::mint_nft(pool.cid, pallet_id(), shares, pool.pid)
 				.expect("mint nft should always success");
 			nft.shares = nft
@@ -696,7 +700,7 @@ pub mod pallet {
 				nft_id: split_nft_id,
 			});
 
-			Ok(())
+			Ok(Some(split_nft_id))
 		}
 
 		/// Returns the new pid that will assigned to the creating pool
@@ -1006,19 +1010,26 @@ pub mod pallet {
 			nft_id: NftId,
 			as_vault: Option<u64>,
 		) -> DispatchResult {
-			Self::push_withdraw_in_queue(pool_info, nft, userid.clone(), shares)?;
-			Self::deposit_event(Event::<T>::WithdrawalQueued {
-				pid: pool_info.pid,
-				user: userid,
-				shares,
-				nft_id,
-				as_vault,
-			});
-			Self::try_process_withdraw_queue(pool_info);
-
+			let maybe_split_nft_id =
+				Self::push_withdraw_in_queue(pool_info, nft, userid.clone(), shares)?;
+			if let Some(split_nft_id) = maybe_split_nft_id {
+				// The pool is operating normally. Emit event and try to process withdraw queue.
+				Self::deposit_event(Event::<T>::WithdrawalQueued {
+					pid: pool_info.pid,
+					user: userid,
+					shares,
+					nft_id,
+					as_vault,
+					withdrawing_nft_id: split_nft_id,
+				});
+				Self::try_process_withdraw_queue(pool_info);
+			}
 			Ok(())
 		}
 
+		/// Removes the share from the pool total_shares if it's a dust
+		///
+		/// Return true if the dust is removed
 		pub fn maybe_remove_dust(
 			pool_info: &mut BasePool<T::AccountId, BalanceOf<T>>,
 			nft: &NftAttr<BalanceOf<T>>,
@@ -1036,92 +1047,101 @@ pub mod pallet {
 			true
 		}
 
-		/// Removes withdrawing_shares from the nft
-		pub fn do_withdraw_shares(
-			withdrawing_shares: BalanceOf<T>,
-			pool_info: &mut BasePool<T::AccountId, BalanceOf<T>>,
-			nft: &mut NftAttr<BalanceOf<T>>,
-			userid: T::AccountId,
-		) {
-			// Overflow warning: remove_stake is carefully written to avoid precision error.
-			// (I hope so)
-			let (reduced, withdrawn_shares) =
-				Self::remove_stake_from_nft(pool_info, withdrawing_shares, nft, &userid)
-					.expect("There are enough withdrawing_shares; qed.");
-			Self::deposit_event(Event::<T>::Withdrawal {
-				pid: pool_info.pid,
-				user: userid,
-				amount: reduced,
-				shares: withdrawn_shares,
-			});
-		}
-
 		/// Tries to fulfill the withdraw queue with the newly freed stake
 		pub fn try_process_withdraw_queue(pool_info: &mut BasePool<T::AccountId, BalanceOf<T>>) {
+			use sp_std::collections::btree_map::BTreeMap;
 			// The share price shouldn't change at any point in this function. So we can calculate
 			// only once at the beginning.
 			let price = match pool_info.share_price() {
 				Some(price) => price,
 				None => return,
 			};
-
 			let wpha_min = wrapped_balances::Pallet::<T>::min_balance();
+			// Note: This function aggregates all the withdrawal stats and emit the events at the
+			// end. It's supposed the withdrawal process won't be interrupted by any error.
+			let mut withdrawing = BTreeMap::<T::AccountId, WithdrawEventStats<BalanceOf<T>>>::new();
 			while pool_info.get_free_stakes::<T>() > wpha_min {
-				if let Some(withdraw) = pool_info.withdraw_queue.front().cloned() {
-					// Must clear the pending reward before any stake change
-					let mut withdraw_nft_guard =
-						Self::get_nft_attr_guard(pool_info.cid, withdraw.nft_id)
-							.expect("get nftattr should always success; qed.");
-					let mut withdraw_nft = withdraw_nft_guard.attr.clone();
-					if Self::maybe_remove_dust(pool_info, &withdraw_nft) {
-						pool_info.withdraw_queue.pop_front();
-						Self::burn_nft(&pallet_id(), pool_info.cid, withdraw.nft_id)
-							.expect("burn nft should always success");
-						continue;
-					}
-					// Try to fulfill the withdraw requests as much as possible
-					let free_shares = if price == fp!(0) {
-						withdraw_nft.shares // 100% slashed
-					} else {
-						bdiv(pool_info.get_free_stakes::<T>(), &price)
-					};
-					// This is the shares to withdraw immedately. It should NOT contain any dust
-					// because we ensure (1) `free_shares` is not dust earlier, and (2) the shares
-					// in any withdraw request mustn't be dust when inserting and updating it.
-					let withdrawing_shares = free_shares.min(withdraw_nft.shares);
-					debug_assert!(
-						is_nondust_balance(withdrawing_shares),
-						"withdrawing_shares must be positive"
-					);
-					// Actually remove the fulfilled withdraw request. Dust in the user shares is
-					// considered but it in the request is ignored.
-					Self::do_withdraw_shares(
-						withdrawing_shares,
-						pool_info,
-						&mut withdraw_nft,
-						withdraw.user.clone(),
-					);
-					withdraw_nft_guard.attr = withdraw_nft.clone();
-					withdraw_nft_guard
-						.save()
-						.expect("save nft should always success");
-					// Update if the withdraw is partially fulfilled, otherwise pop it out of the
-					// queue
-					if withdraw_nft.shares == Zero::zero()
-						|| Self::maybe_remove_dust(pool_info, &withdraw_nft)
-					{
-						pool_info.withdraw_queue.pop_front();
-						Self::burn_nft(&pallet_id(), pool_info.cid, withdraw.nft_id)
-							.expect("burn nft should always success");
-					} else {
-						*pool_info
-							.withdraw_queue
-							.front_mut()
-							.expect("front exists as just checked; qed.") = withdraw;
-					}
-				} else {
+				let Some(withdraw) = pool_info.withdraw_queue.front().cloned() else {
+					// Stop if the queue is already empty
 					break;
+				};
+				let mut nft = Self::get_nft_attr_guard(pool_info.cid, withdraw.nft_id)
+					.expect("get nftattr should always success; qed.");
+				// Fast track to remove existing dust in the queue
+				if Self::maybe_remove_dust(pool_info, &nft.attr) {
+					// Account the burning NFT to emit events
+					withdrawing
+						.entry(withdraw.user.clone())
+						.or_default()
+						.burnt_shares += nft.attr.shares;
+					nft.unlock();
+					// Actually burn the NFT
+					pool_info.withdraw_queue.pop_front();
+					Self::burn_nft(&pallet_id(), pool_info.cid, withdraw.nft_id)
+						.expect("burn nft should always success");
+					continue;
 				}
+				// Try to fulfill the withdraw requests as much as possible
+				let free_shares = if price == fp!(0) {
+					nft.attr.shares // 100% slashed
+				} else {
+					bdiv(pool_info.get_free_stakes::<T>(), &price)
+				};
+				// This is the shares to withdraw immedately. It should NOT contain any dust
+				// because we ensure (1) `free_shares` is not dust earlier, and (2) the shares
+				// in any withdraw request mustn't be dust when inserting and updating it.
+				let withdrawing_shares = free_shares.min(nft.attr.shares);
+				debug_assert!(
+					is_nondust_balance(withdrawing_shares),
+					"withdrawing_shares must be positive"
+				);
+				// Actually remove the fulfilled withdraw request. Dust in the user shares is
+				// considered but it in the request is ignored.
+				let (reduced, withdrawn_shares) = Self::remove_stake_from_nft(
+					pool_info,
+					withdrawing_shares,
+					&mut nft.attr,
+					&withdraw.user,
+				)
+				.expect("There are enough withdrawing_shares; qed.");
+				// Account the withdrawn NFT to emit events
+				let event = withdrawing.entry(withdraw.user.clone()).or_default();
+				event.amount += reduced;
+				event.shares += withdrawn_shares;
+				// Update the withdraw NFT shares
+				let processed_nft = nft.attr.clone();
+				nft.save().expect("save nft should always success");
+				// Update if the withdraw is partially fulfilled, otherwise pop it out of the
+				// queue
+				if processed_nft.shares == Zero::zero()
+					|| Self::maybe_remove_dust(pool_info, &processed_nft)
+				{
+					if processed_nft.shares != Zero::zero() {
+						// Account the burning NFT to emit events
+						withdrawing
+							.entry(withdraw.user.clone())
+							.or_default()
+							.burnt_shares += processed_nft.shares;
+					}
+					pool_info.withdraw_queue.pop_front();
+					Self::burn_nft(&pallet_id(), pool_info.cid, withdraw.nft_id)
+						.expect("burn nft should always success");
+				} else {
+					*pool_info
+						.withdraw_queue
+						.front_mut()
+						.expect("front exists as just checked; qed.") = withdraw;
+				}
+			}
+			// Emit the aggregated withdrawal events
+			for (user, stats) in withdrawing.into_iter() {
+				Self::deposit_event(Event::<T>::Withdrawal {
+					pid: pool_info.pid,
+					user,
+					amount: stats.amount,
+					shares: stats.shares,
+					burnt_shares: stats.burnt_shares,
+				})
 			}
 		}
 	}

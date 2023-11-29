@@ -30,7 +30,7 @@ mod sidevm_deployer {
         /// Price of memory per byte per block per worker.
         mem_price: Balance,
         /// Deadlines of paid instances indexed by workers.
-        paid_instances_by_workers: Mapping<WorkerId, Vec<BlockNumber>>,
+        contract_deadline_by_workers: Mapping<WorkerId, Vec<BlockNumber>>,
         /// Paid instances indexed by contracts.
         paid_instances_by_contracts: Mapping<AccountId, ContractInstances>,
         /// Contracts that are currently running sidevm. Adding this field because the Mapping
@@ -94,7 +94,7 @@ mod sidevm_deployer {
                 whitelist: Default::default(),
                 vm_price,
                 mem_price,
-                paid_instances_by_workers: Default::default(),
+                contract_deadline_by_workers: Default::default(),
                 paid_instances_by_contracts: Default::default(),
                 contracts_running_sidevm: Default::default(),
                 max_paid_instances_per_worker,
@@ -130,7 +130,7 @@ mod sidevm_deployer {
                     .expect("Failed to get instances");
                 for worker in info.workers.iter() {
                     let deadlines = self
-                        .paid_instances_by_workers
+                        .contract_deadline_by_workers
                         .get(worker)
                         .expect("Failed to get instances");
                     workers.insert(*worker, deadlines);
@@ -189,16 +189,16 @@ mod sidevm_deployer {
             self.paid_instances_by_contracts.remove(contract);
             for worker in instances.workers.iter() {
                 let mut deadlines = self
-                    .paid_instances_by_workers
+                    .contract_deadline_by_workers
                     .get(worker)
                     .ok_or_else(|| Error::Other("No instances".to_string()))?;
                 if let Some(ind) = deadlines.iter().position(|&x| x == instances.deadline) {
                     deadlines.remove(ind);
                 }
                 if deadlines.is_empty() {
-                    self.paid_instances_by_workers.remove(worker);
+                    self.contract_deadline_by_workers.remove(worker);
                 } else {
-                    self.paid_instances_by_workers.insert(worker, &deadlines);
+                    self.contract_deadline_by_workers.insert(worker, &deadlines);
                 }
             }
             Ok(())
@@ -224,7 +224,7 @@ mod sidevm_deployer {
         fn ensure_available(&self, workers: &[WorkerId]) -> Result<()> {
             for worker in workers.iter() {
                 let deadlines = self
-                    .paid_instances_by_workers
+                    .contract_deadline_by_workers
                     .get(worker)
                     .unwrap_or_default();
                 if deadlines.len() >= self.max_paid_instances_per_worker as usize {
@@ -253,17 +253,17 @@ mod sidevm_deployer {
                 .insert(contract, &instances);
             for worker in workers.iter() {
                 let mut deadlines = self
-                    .paid_instances_by_workers
+                    .contract_deadline_by_workers
                     .get(worker)
                     .unwrap_or_default();
                 deadlines.push(instances.deadline);
-                self.paid_instances_by_workers.insert(worker, &deadlines);
+                self.contract_deadline_by_workers.insert(worker, &deadlines);
             }
             self.contracts_running_sidevm.push(*contract);
             Ok(())
         }
 
-        fn remaining_time_to_value(&mut self, contract: &AccountId) -> Balance {
+        fn remaining_time_to_value(&self, contract: &AccountId) -> Balance {
             let Some(info) = self.paid_instances_by_contracts.get(contract) else {
                 return 0;
             };
@@ -443,7 +443,7 @@ mod sidevm_deployer {
             }
             for worker in current.workers.iter() {
                 let mut deadlines = self
-                    .paid_instances_by_workers
+                    .contract_deadline_by_workers
                     .get(worker)
                     .ok_or_else(|| Error::Other("No instances".to_string()))?;
                 let ind = deadlines
@@ -452,7 +452,7 @@ mod sidevm_deployer {
                     .ok_or_else(|| Error::Other("No deadline for contract".to_string()))?;
                 deadlines.remove(ind);
                 deadlines.push(deadline);
-                self.paid_instances_by_workers.insert(worker, &deadlines);
+                self.contract_deadline_by_workers.insert(worker, &deadlines);
             }
             current.deadline = deadline;
             self.paid_instances_by_contracts.insert(caller, &current);

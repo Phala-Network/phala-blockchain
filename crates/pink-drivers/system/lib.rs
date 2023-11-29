@@ -319,7 +319,7 @@ mod system {
         ) -> Result<()> {
             self.ensure_admin()?;
             ink::env::emit_event::<PinkEnvironment, _>(pink::PinkEvent::SidevmOperation(
-                pink::SidevmOperation::SetDeadLine { contract, deadline },
+                pink::SidevmOperation::SetDeadline { contract, deadline },
             ));
             Ok(())
         }

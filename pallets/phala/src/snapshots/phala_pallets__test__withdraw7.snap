@@ -1,0 +1,212 @@
+---
+source: pallets/phala/src/test.rs
+expression: take_events()
+---
+[
+    RuntimeEvent::Uniques(
+        Event::Issued {
+            collection: 10002,
+            item: 1,
+            owner: 7813586407040180578,
+        },
+    ),
+    RuntimeEvent::RmrkCore(
+        Event::NftMinted {
+            owner: AccountId(
+                7813586407040180578,
+            ),
+            collection_id: 10002,
+            nft_id: 1,
+        },
+    ),
+    RuntimeEvent::RmrkCore(
+        Event::PropertySet {
+            collection_id: 10002,
+            maybe_nft_id: Some(
+                1,
+            ),
+            key: BoundedVec(
+                [
+                    115,
+                    116,
+                    97,
+                    107,
+                    101,
+                    45,
+                    105,
+                    110,
+                    102,
+                    111,
+                ],
+                32000,
+            ),
+            value: BoundedVec(
+                [
+                    160,
+                    134,
+                    1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                ],
+                512000,
+            ),
+        },
+    ),
+    RuntimeEvent::RmrkCore(
+        Event::PropertySet {
+            collection_id: 10002,
+            maybe_nft_id: Some(
+                1,
+            ),
+            key: BoundedVec(
+                [
+                    99,
+                    114,
+                    101,
+                    97,
+                    116,
+                    101,
+                    116,
+                    105,
+                    109,
+                    101,
+                ],
+                32000,
+            ),
+            value: BoundedVec(
+                [
+                    48,
+                ],
+                512000,
+            ),
+        },
+    ),
+    RuntimeEvent::PhalaBasePool(
+        Event::NftCreated {
+            pid: 2,
+            cid: 10002,
+            nft_id: 1,
+            owner: 7813586407040180578,
+            shares: 100000,
+        },
+    ),
+    RuntimeEvent::PhalaBasePool(
+        Event::WithdrawalQueued {
+            pid: 2,
+            user: 99,
+            shares: 100000,
+            nft_id: 0,
+            as_vault: None,
+            withdrawing_nft_id: 1,
+        },
+    ),
+    RuntimeEvent::RmrkCore(
+        Event::PropertiesRemoved {
+            collection_id: 10002,
+            maybe_nft_id: Some(
+                1,
+            ),
+        },
+    ),
+    RuntimeEvent::Uniques(
+        Event::Burned {
+            collection: 10002,
+            item: 1,
+            owner: 7813586407040180578,
+        },
+    ),
+    RuntimeEvent::RmrkCore(
+        Event::NFTBurned {
+            owner: 7813586407040180578,
+            collection_id: 10002,
+            nft_id: 1,
+        },
+    ),
+    RuntimeEvent::RmrkCore(
+        Event::PropertyRemoved {
+            collection_id: 10002,
+            maybe_nft_id: Some(
+                1,
+            ),
+            key: BoundedVec(
+                [
+                    99,
+                    114,
+                    101,
+                    97,
+                    116,
+                    101,
+                    116,
+                    105,
+                    109,
+                    101,
+                ],
+                32000,
+            ),
+        },
+    ),
+    RuntimeEvent::PhalaBasePool(
+        Event::Withdrawal {
+            pid: 2,
+            user: 99,
+            amount: 0,
+            shares: 0,
+            burnt_shares: 100000,
+        },
+    ),
+    RuntimeEvent::RmrkCore(
+        Event::PropertySet {
+            collection_id: 10002,
+            maybe_nft_id: Some(
+                0,
+            ),
+            key: BoundedVec(
+                [
+                    115,
+                    116,
+                    97,
+                    107,
+                    101,
+                    45,
+                    105,
+                    110,
+                    102,
+                    111,
+                ],
+                32000,
+            ),
+            value: BoundedVec(
+                [
+                    0,
+                    192,
+                    110,
+                    49,
+                    217,
+                    16,
+                    1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                ],
+                512000,
+            ),
+        },
+    ),
+]

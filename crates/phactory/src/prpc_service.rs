@@ -161,6 +161,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 let (major, minor) = ::pink::runtimes::max_supported_version();
                 format!("{major}.{minor}")
             },
+            supported_attestation_methods: self.platform.supported_attestation_methods(),
             live_sidevm_instances: sidevm::vm_count() as u32,
         }
     }
@@ -175,6 +176,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 headers.first().map(|h| h.header.number),
                 headers.last().map(|h| h.header.number)
             ),
+            auth_chg=authority_set_change.is_some(),
             "sync_header",
         );
         self.can_load_chain_state = false;
@@ -288,13 +290,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             let now_ms = state.chain_storage.timestamp_now();
             let chain_storage = state.chain_storage.snapshot();
             let block_number = block.block_header.number;
-            let pubkey = self.system()?.identity_key.public().0;
             let contracts = self.system()?.contracts.clone();
             let mut context = contracts::pink::context::ContractExecContext::new(
                 ExecutionMode::Transaction,
                 now_ms,
                 block_number,
-                pubkey,
+                self.system()?.identity_key.clone(),
                 chain_storage,
                 req_id,
                 contracts,
@@ -1634,6 +1635,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                         .map_err(|_| from_display("Invalid client RA report"))?;
                     ias_fields.extend_mrenclave()
                 }
+                AttestationReport::SgxDcap { quote: _, collateral: _ } => todo!(),
             };
             let req_runtime_timestamp = runtime_state
                 .chain_storage

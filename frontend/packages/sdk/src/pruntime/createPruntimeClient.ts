@@ -37,8 +37,7 @@ export default function createPruntimeClient(baseURL: string) {
       }
     } catch (err) {
       // @NOTE How can we improve the error handling here?
-      console.error('PRuntime Transport Error:', err)
-      throw err
+      callback(err as Error)
     }
   })
   return pruntimeApi

@@ -11,22 +11,15 @@ repository = "https://github.com/Phala-Network/phala-blockchain"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.3", default-features = false, features = ["derive", "max-encoded-len"] }
-scale-info = { version = "2.3", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.6.5", default-features = false, features = ["derive", "max-encoded-len"] }
+scale-info = { version = "2.10.0", default-features = false, features = ["derive"] }
 
-primitive-types = { version = "0.12.1", default-features = false, features = ["codec", "byteorder"] }
 frame-support = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
 frame-system = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
 sp-std = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
 sp-io = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
-sp-application-crypto = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false, optional = true }
-log = { version = "0.4.14", default-features = false }
-
-hex = { version = "0.4", default-features = false }
-hex-literal = "0.4.1"
 
 [dev-dependencies]
 pallet-balances = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
@@ -44,14 +37,9 @@ std = [
 	"sp-io/std",
 	"sp-std/std",
 	"sp-core/std",
-	"sp-application-crypto/std",
 	"frame-support/std",
 	"frame-system/std",
-	"frame-benchmarking/std",
-	"log/std",
-    "primitive-types/std",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking/runtime-benchmarks"
 ]
 try-runtime = ["frame-support/try-runtime"]

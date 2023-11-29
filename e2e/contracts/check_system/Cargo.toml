@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["[your_name] <[your_email]>"]
 edition = "2021"
 
+[package.metadata.cargo-machete]
+ignored = ["ink", "scale", "scale-info"]
+
 [profile.release.package.compiler_builtins]
 debug-assertions = false
 overflow-checks = false
@@ -11,15 +14,11 @@ overflow-checks = false
 [dependencies]
 ink = { version = "4", default-features = false }
 
-scale = { package = "parity-scale-codec", version = "3", default-features = false, features = [
-    "derive",
-] }
-scale-info = { version = "2", default-features = false, features = [
-    "derive",
-], optional = true }
+scale = { package = "parity-scale-codec", version = "3.6.5", default-features = false, features = ["derive"] }
+scale-info = { version = "2.10.0", default-features = false, features = ["derive"], optional = true }
 
-pink-extension = { version = "0.4", default-features = false, path = "../../../crates/pink/pink-extension" }
-phat_js = { version = "0.1.5", default-features = false }
+pink-extension = { default-features = false, path = "../../../crates/pink/pink-extension" }
+phat_js = { version = "0.2.0", default-features = false }
 pink-json = { version = "0.4", default-features = false }
 sideabi = { path = "./sideabi" }
 
@@ -29,8 +28,12 @@ default-features = false
 path = "../indeterministic_functions"
 features = ["ink-as-dependency"]
 
+[dev-dependencies]
+drink = "0.8.0"
+drink-pink-runtime = "1.2.5"
+
 [build-dependencies]
-sp-core = "7"
+sp-core = "25"
 
 [lib]
 name = "check_system"

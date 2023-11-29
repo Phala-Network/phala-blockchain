@@ -7,12 +7,11 @@ edition = "2021"
 crate-type = ["lib", "cdylib"]
 
 [dependencies]
-sha2 = "0.10.2"
+hex = "0.4.3"
 log = "0.4.14"
 tracing = "0.1"
 pallet-contracts = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 pallet-contracts-primitives = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
-pallet-contracts-proc-macro = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 pallet-balances = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 pallet-timestamp = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 pallet-insecure-randomness-collective-flip = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
@@ -22,25 +21,13 @@ frame-system = { git = "https://github.com/paritytech/polkadot-sdk.git", branch 
 
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
-sp-io = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 sp-std = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 sp-state-machine = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 sp-externalities = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 sp-trie = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 
-scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
-scale-info = { version = "2", default-features = false, features = ["derive", "serde", "decode"] }
-parity-wasm = { version = "0.45.0", default-features = false }
-wasmi-validation = { version = "0.5.0", default-features = false }
-
-paste = "1.0"
-wat = "1.0"
-call-trace = "*"
-impl-serde = "0.4.0"
-hex = "0.4.3"
-serde = { version = "1.0.101", features = ["derive"] }
-serde_json = "1.0.67"
-phala-serde-more = { path = "../../phala-serde-more" }
+scale = { package = "parity-scale-codec", version = "3.6.5", default-features = false, features = ["derive"] }
+scale-info = { version = "2.10.0", default-features = false, features = ["derive", "serde", "decode"] }
 
 phala-trie-storage = { path = "../../phala-trie-storage" }
 phala-types = { path = "../../phala-types" }
@@ -48,13 +35,6 @@ phala-crypto = { path = "../../phala-crypto" }
 pink-extension = { path = "../pink-extension" }
 pink-extension-runtime = { path = "../pink-extension-runtime" }
 pink-capi = { path = "../capi" }
-reqwest = { version = "0.11", default-features = false, features = [
-    "rustls-tls",
-    "socks",
-    "blocking",
-] }
-reqwest-env-proxy = { path = "../../reqwest-env-proxy" }
-environmental = "1.1.3"
 phala-sanitized-logger = { path = "../../phala-sanitized-logger" }
 hash-db = "0.16.0"
 anyhow = "1"
@@ -64,6 +44,7 @@ phala-wasm-checker = { path = "../../phala-wasm-checker" }
 [dev-dependencies]
 insta = "1.7.2"
 hex-literal = "0.4.1"
+this-crate = { path = "../../this-crate" }
 
 [features]
 default = ["allocator"]

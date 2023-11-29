@@ -13,7 +13,7 @@ use ink::env::{emit_event, topics::state::HasRemainingTopics, Environment, Topic
 use ink::EnvAccess;
 use scale::{Decode, Encode};
 
-pub use pink_extension_macro::contract;
+pub use pink_extension_macro::{contract, driver};
 
 pub mod chain_extension;
 pub use chain_extension::pink_extension_instance as ext;
@@ -194,10 +194,10 @@ pub enum SidevmOperation {
         workers: Workers,
         config: SidevmConfig,
     },
-    SetDeadLine {
+    SetDeadline {
         /// The target contract address
         contract: AccountId,
-        /// Time to live of the sidevm instance.
+        /// The block number that the SideVM instance is allowed to run until.
         deadline: u32,
     },
 }
@@ -205,9 +205,13 @@ pub enum SidevmOperation {
 #[derive(Encode, Decode, Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct SidevmConfig {
+    /// The maximum size of the code that can be uploaded to the SideVM instance.
     pub max_code_size: u32,
+    /// The maximum number of memory pages(64KB per page) that can be allocated by the SideVM instance.
     pub max_memory_pages: u32,
+    /// The max gas between two host function calls for the SideVM instance.
     pub vital_capacity: u64,
+    /// The block number that the SideVM instance is allowed to run until.
     pub deadline: u32,
 }
 
