@@ -541,13 +541,13 @@ impl WorkerContext {
                           let stake_onchain: Option<u128> = fetch_storage_bytes(&api, &stake_query).await?;
                           if stake_onchain.is_some() {
                             info!("Stake: {:?}, {:?} on-chain", &worker.stake.parse::<u128>().unwrap(), &stake_onchain.unwrap());
-                            if &stake_onchain.unwrap() < &worker.stake.parse::<u128>().unwrap() {
+                            if stake_onchain.unwrap() < worker.stake.parse::<u128>().unwrap() {
                               set_worker_message!(c, "Adjusting on-chain stake...");
                               txm.clone()
                                 .restart_computing(pid, pubkey, worker.stake)
                                 .await?;
                               Self::set_state(c.clone(), WorkerLifecycleState::Working).await;
-                            } else if &stake_onchain.unwrap() > &worker.stake.parse::<u128>().unwrap() {
+                            } else if stake_onchain.unwrap() > worker.stake.parse::<u128>().unwrap() {
                               set_worker_message!(c, "Error on-chain stake higher, than configured...");
                             }
                           }
