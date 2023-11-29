@@ -43,8 +43,6 @@ serde = { version = "1.0.136", features = ["derive"] }
 jsonrpsee = { version = "0.16.2", features = ["server"] }
 futures = "0.3.16"
 hex-literal = "0.4.1"
-log = "0.4.8"
-rand = "0.8"
 
 # primitives
 sp-authority-discovery = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
@@ -64,7 +62,6 @@ sp-io = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "rele
 
 # client dependencies
 sc-client-api = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
-sc-network-common = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 sc-chain-spec = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 sc-consensus = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 sc-transaction-pool = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }

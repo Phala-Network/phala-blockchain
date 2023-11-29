@@ -15,7 +15,6 @@ tokio = "1"
 subxt = { path = "../../subxt/subxt", features = ["jsonrpsee-ws"] }
 phala-types = { path = "../phala-types" }
 phala-node-rpc-ext-types = { path = "../phala-node-rpc-ext/types" }
-phala-pallets = { path = "../../pallets/phala" }
 jsonrpsee = "0.16.2"
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
 primitive-types = { version = "0.12.2", default-features = false }

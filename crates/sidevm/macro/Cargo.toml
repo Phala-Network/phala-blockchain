@@ -11,7 +11,6 @@ version = "0.2.0-alpha.2"
 proc-macro = true
 
 [dependencies]
-proc-macro-crate = "1.0.0"
 proc-macro2 = "1.0"
 syn = { version = "1.0", features = ["full", "visit-mut", "extra-traits", "parsing"] }
 heck = "0.4.0"

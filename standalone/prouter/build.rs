@@ -31,8 +31,8 @@ fn main() -> std::io::Result<()> {
     println!("cargo:rustc-link-lib=static=i2pdlang");
 
     println!("cargo:rustc-link-lib=static=atomic");
-    println!("cargo:rustc-link-lib=static=crypto");
     println!("cargo:rustc-link-lib=static=ssl");
+    println!("cargo:rustc-link-lib=static=crypto");
     println!("cargo:rustc-link-lib=static=z");
     println!("cargo:rustc-link-lib=static=boost_system");
     println!("cargo:rustc-link-lib=static=boost_date_time");

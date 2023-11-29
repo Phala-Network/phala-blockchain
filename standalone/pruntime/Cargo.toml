@@ -44,6 +44,8 @@ sidevm-host-runtime = { path = "../../crates/sidevm/host-runtime" }
 tracing = "0.1"
 hex_fmt = "0.3.0"
 hex = "0.4.3"
+this-crate = "0.1"
+konst = "0.3"
 
 [patch.crates-io]
 # TODO.kevin: Move back to crates.io once it released 1.0
