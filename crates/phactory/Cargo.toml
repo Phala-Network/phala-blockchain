@@ -1,6 +1,6 @@
 [package]
 name = "phactory"
-version = "0.0.1"
+version = "2.1.0"
 edition = "2018"
 resolver = "2"
 
@@ -81,6 +81,7 @@ environmental = "1"
 once_cell = "1"
 im = "15"
 scale-info = { version = "2.10.0", default-features = false, features = ["derive"] }
+this-crate = { path = "../this-crate" }
 
 [dev-dependencies]
 insta = "1.7.2"

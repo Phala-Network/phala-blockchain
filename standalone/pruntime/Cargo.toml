@@ -42,6 +42,8 @@ phala-clap-parsers = { path = "../../crates/phala-clap-parsers" }
 sgx-api-lite = { path = "../../crates/sgx-api-lite" }
 tracing = "0.1"
 hex_fmt = "0.3.0"
+this-crate = "0.1"
+konst = "0.3"
 
 [patch.crates-io]
 # TODO.kevin: Move back to crates.io once it released 1.0

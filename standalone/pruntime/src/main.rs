@@ -16,6 +16,11 @@ use phala_clap_parsers::parse_duration;
 mod handover;
 use phala_sanitized_logger as logger;
 
+const _: () = {
+    // Make sure the version is consistent with phatory.
+    konst::assertc_eq!(this_crate::version_str!(), phactory::version_str());
+};
+
 #[derive(Parser, Debug, Clone)]
 #[clap(about = "The Phala TEE worker app.", version, author)]
 struct Args {

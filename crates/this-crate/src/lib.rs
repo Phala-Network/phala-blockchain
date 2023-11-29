@@ -19,6 +19,7 @@
 //! the Rust standard library.
 //!
 #![no_std]
+pub use konst;
 
 /// A tuple representing the version of the crate as (major, minor, patch).
 pub type VersionTuple = (u16, u16, u16);
@@ -52,10 +53,11 @@ macro_rules! version_str {
 #[macro_export]
 macro_rules! version_tuple {
     () => {{
-        let major = env!("CARGO_PKG_VERSION_MAJOR").parse::<u16>().unwrap_or(0);
-        let minor = env!("CARGO_PKG_VERSION_MINOR").parse::<u16>().unwrap_or(0);
-        let patch = env!("CARGO_PKG_VERSION_PATCH").parse::<u16>().unwrap_or(0);
-        (major, minor, patch)
+        use $crate::konst::{primitive::parse_u16, unwrap_ctx};
+        const MAJOR: u16 = unwrap_ctx!(parse_u16(env!("CARGO_PKG_VERSION_MAJOR")));
+        const MINOR: u16 = unwrap_ctx!(parse_u16(env!("CARGO_PKG_VERSION_MINOR")));
+        const PATCH: u16 = unwrap_ctx!(parse_u16(env!("CARGO_PKG_VERSION_PATCH")));
+        (MAJOR, MINOR, PATCH)
     }};
 }
 
