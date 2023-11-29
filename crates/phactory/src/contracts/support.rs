@@ -3,7 +3,7 @@ use core::time::Duration;
 use pink::types::{AccountId, ExecutionMode, TransactionArguments};
 use pink_extension::{chain_extension::JsValue, SidevmConfig};
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 
 use parity_scale_codec::Decode;
 use phala_mq::SignedMessageChannel;
@@ -582,7 +582,7 @@ pub fn block_on_run_module(
         Timeout,
     }
     // Channel to bridge between the sync and async world
-    let (resposne_tx, response_rx) = std::sync::mpsc::channel();
+    let (resposne_tx, response_rx) = mpsc::channel();
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(1);
     let tx_for_logging = resposne_tx.clone();
     let config = WasmInstanceConfig {
@@ -603,36 +603,43 @@ pub fn block_on_run_module(
         .run(args, config)
         .context("Failed to start sidevm instance")?;
     tokio::spawn(async move {
-        loop {
-            tokio::select! {
-                _ = tokio::time::sleep(timeout) => {
-                    if let Err(err) = resposne_tx.send(OutMsg::Timeout) {
-                        error!("Failed to send termination message to response channel: {}", err);
+        /// Returns true if the sidevm should be terminated
+        async fn forward_event(
+            event: sidevm::OutgoingRequest,
+            response_tx: &mpsc::Sender<OutMsg>,
+        ) -> bool {
+            match event {
+                sidevm::OutgoingRequest::Query { .. } => {
+                    // Query is not supported
+                    false
+                }
+                sidevm::OutgoingRequest::Output(output) => {
+                    if let Err(err) = response_tx.send(OutMsg::Output(output)) {
+                        error!("Failed to send output to response channel: {}", err);
                     }
-                    return;
+                    true
                 }
-                _ = &mut wasm_run => {
-                    break;
+            }
+        }
+        tokio::select! {
+            _ = tokio::time::sleep(timeout) => {
+                if let Err(err) = resposne_tx.send(OutMsg::Timeout) {
+                    error!("Failed to send timeout message to response channel: {}", err);
                 }
-                event = event_rx.recv() => {
-                    if let Some((_vmid, event)) = event {
-                        match event {
-                            sidevm::OutgoingRequest::Query { .. } => {
-                                // Query is not supported
-                                continue;
-                            }
-                            sidevm::OutgoingRequest::Output(output) => {
-                                if let Err(err) = resposne_tx.send(OutMsg::Output(output)) {
-                                    error!("Failed to send output to response channel: {}", err);
-                                }
-                                break;
-                            }
-                        }
-                    } else {
-                        error!("Sidevm event channel closed");
+            }
+            _ = &mut wasm_run => {}
+            _ = async {
+                while let Some((_vmid, event)) = event_rx.recv().await {
+                    if forward_event(event, &resposne_tx).await {
                         break;
                     }
                 }
+            } => {}
+        }
+        // Continue to process events incase there are some pending events in the channel
+        while let Ok((_vmid, event)) = event_rx.try_recv() {
+            if forward_event(event, &resposne_tx).await {
+                break;
             }
         }
         if resposne_tx.send(OutMsg::Terminated).is_err() {

@@ -96,11 +96,6 @@ pub mod pallet {
     #[pallet::getter(fn last_event_block_hash)]
     pub(crate) type LastEventBlockHash<T: Config> = StorageValue<_, T::Hash, ValueQuery>;
 
-    /// The code hash of the js runtime used by js_eval
-    #[pallet::storage]
-    #[pallet::getter(fn js_runtime_code_hash)]
-    pub(crate) type JsRuntimeCodeHash<T: Config> = StorageValue<_, T::Hash, OptionQuery>;
-
     #[pallet::pallet]
     #[pallet::without_storage_info]
     pub struct Pallet<T>(_);

@@ -1,5 +1,6 @@
 use alloc::borrow::Cow;
 use alloc::vec::Vec;
+use alloc::string::String;
 use ink::ChainExtensionInstance;
 
 pub use http_request::{HttpRequest, HttpRequestError, HttpResponse};

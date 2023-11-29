@@ -483,7 +483,7 @@ impl OCalls for RuntimeHandle<'_> {
             return JsValue::Exception("No js runtime".into());
         };
         let timeout = Duration::from_millis(context::time_remaining());
-        let mut args = vec![];
+        let mut args = vec!["phatjs".into()];
         for code in codes {
             match code {
                 JsCode::Source(src) => {

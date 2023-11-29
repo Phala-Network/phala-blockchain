@@ -8,6 +8,7 @@ use pink_extension as pink;
 mod check_system {
     use super::pink;
     use alloc::vec::Vec;
+    use pink::chain_extension::{JsCode, JsValue};
     use pink::system::{ContractDeposit, DriverError, Result, SystemRef};
     use pink::{PinkEnvironment, WorkerId};
 
@@ -241,6 +242,11 @@ mod check_system {
         #[ink(message)]
         pub fn sidevm_callbak(&self) -> u8 {
             42
+        }
+
+        #[ink(message)]
+        pub fn pink_eval_js(&self, script: String, args: Vec<String>) -> JsValue {
+            pink::ext().js_eval(alloc::vec![JsCode::Source(script)], args)
         }
     }
 
