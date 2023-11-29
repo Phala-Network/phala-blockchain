@@ -8,3 +8,4 @@ repository = "https://github.com/Phala-Network/phala-blockchain"
 authors = ["Kevin Wang <wy721@qq.com>"]
 
 [dependencies]
+konst = "0.3"

@@ -441,6 +441,15 @@ pub enum AttestationReport {
         signature: Vec<u8>,
         raw_signing_cert: Vec<u8>,
     },
+    SgxDcap {
+        quote: Vec<u8>,
+        collateral: Option<Collateral>,
+    },
+}
+
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
+pub enum Collateral {
+    SgxV30(sgx_attestation::dcap::SgxV30QuoteCollateral),
 }
 
 #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
@@ -450,6 +459,8 @@ pub enum AttestationProvider {
     Root,
     #[cfg_attr(feature = "enable_serde", serde(rename = "ias"))]
     Ias,
+    #[cfg_attr(feature = "enable_serde", serde(rename = "dcap"))]
+    Dcap,
 }
 
 #[derive(Encode, Decode, PartialEq, Eq, Debug, Default, Clone, TypeInfo)]
@@ -619,6 +630,7 @@ pub enum SignedContentType {
     MasterKeyRotation = 3,
     MasterKeyStore = 4,
     ClusterStateRequest = 5,
+    EventChainBlock = 6,
 }
 
 pub fn wrap_content_to_sign(data: &[u8], sigtype: SignedContentType) -> Cow<[u8]> {

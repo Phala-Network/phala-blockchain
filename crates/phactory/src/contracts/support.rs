@@ -17,7 +17,7 @@ use super::pink::Cluster;
 use crate::{
     hex,
     secret_channel::{KeyPair, SecretMessageChannel, SecretReceiver},
-    system::{TransactionError, TransactionResult},
+    system::{TransactionError, TransactionResult, WorkerIdentityKey},
     types::BlockInfo,
     ChainStorage, H256,
 };
@@ -45,7 +45,7 @@ pub struct QueryContext {
     pub log_handler: Option<CommandSender>,
     pub query_scheduler: RequestScheduler<AccountId>,
     pub weight: u32,
-    pub worker_pubkey: [u8; 32],
+    pub worker_identity_key: WorkerIdentityKey,
     pub chain_storage: ChainStorage,
     pub req_id: u64,
 }

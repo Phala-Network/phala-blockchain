@@ -1,4 +1,4 @@
-use phala_node_rpc_ext_types::GetStorageChangesResponse;
+use phala_node_rpc_ext_types::{GetStorageChangesResponse, GetStorageChangesResponseWithRoot};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::to_value as to_json_value;
 use subxt::{
@@ -38,6 +38,19 @@ impl<'a, T: Config> ExtraRpcClient<'a, T> {
         let params = rpc_params![to_json_value(from)?, to_json_value(to)?];
         self.client
             .request("pha_getStorageChanges", params)
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Query storage changes with root
+    pub async fn get_storage_changes_with_root(
+        &self,
+        from: &T::Hash,
+        to: &T::Hash,
+    ) -> Result<GetStorageChangesResponseWithRoot, Error> {
+        let params = rpc_params![to_json_value(from)?, to_json_value(to)?];
+        self.client
+            .request("pha_getStorageChangesWithRoot", params)
             .await
             .map_err(Into::into)
     }

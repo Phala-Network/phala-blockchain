@@ -8,7 +8,7 @@ use anyhow::Result;
 use parity_scale_codec::Encode;
 use phala_crypto::sr25519::Persistence;
 use phala_mq::{ContractClusterId, MessageOrigin};
-use phala_types::contract::messaging::ResourceType;
+use phala_types::{contract::messaging::ResourceType, SignedContentType};
 use pink::{
     capi::v1::{
         ecall::{ECalls, ECallsRo},
@@ -126,12 +126,14 @@ impl RuntimeHandle<'_> {
 pub(crate) mod context {
     use std::time::{Duration, Instant};
 
+    use phala_types::{wrap_content_to_sign, SignedContentType};
     use pink::{
         capi::v1::ocall::ExecContext,
         types::{AccountId, BlockNumber, ExecutionMode},
     };
+    use sp_core::Pair;
 
-    use crate::ChainStorage;
+    use crate::{system::WorkerIdentityKey, ChainStorage};
 
     environmental::environmental!(exec_context: trait GetContext);
 
@@ -139,6 +141,7 @@ pub(crate) mod context {
         fn chain_storage(&self) -> &ChainStorage;
         fn exec_context(&self) -> ExecContext;
         fn worker_pubkey(&self) -> [u8; 32];
+        fn worker_identity_key(&self) -> &WorkerIdentityKey;
         fn call_elapsed(&self) -> Duration;
     }
 
@@ -146,7 +149,7 @@ pub(crate) mod context {
         pub mode: ExecutionMode,
         pub now_ms: u64,
         pub block_number: BlockNumber,
-        pub worker_pubkey: [u8; 32],
+        pub worker_identity_key: WorkerIdentityKey,
         pub chain_storage: ChainStorage,
         pub start_at: Instant,
         pub req_id: u64,
@@ -157,7 +160,7 @@ pub(crate) mod context {
             mode: ExecutionMode,
             now_ms: u64,
             block_number: BlockNumber,
-            worker_pubkey: [u8; 32],
+            worker_identity_key: WorkerIdentityKey,
             chain_storage: ChainStorage,
             req_id: u64,
         ) -> Self {
@@ -165,7 +168,7 @@ pub(crate) mod context {
                 mode,
                 now_ms,
                 block_number,
-                worker_pubkey,
+                worker_identity_key,
                 chain_storage,
                 start_at: Instant::now(),
                 req_id,
@@ -188,7 +191,11 @@ pub(crate) mod context {
         }
 
         fn worker_pubkey(&self) -> [u8; 32] {
-            self.worker_pubkey
+            self.worker_identity_key.public().0
+        }
+
+        fn worker_identity_key(&self) -> &WorkerIdentityKey {
+            &self.worker_identity_key
         }
 
         fn call_elapsed(&self) -> Duration {
@@ -210,6 +217,13 @@ pub(crate) mod context {
 
     pub fn worker_pubkey() -> [u8; 32] {
         exec_context::with(|ctx| ctx.worker_pubkey()).unwrap_or_default()
+    }
+
+    pub fn sign_with_worker_identity_key(message: &[u8], sig_type: SignedContentType) -> [u8; 64] {
+        let wrapped = wrap_content_to_sign(message, sig_type);
+        exec_context::with(|ctx| ctx.worker_identity_key().sign(&wrapped))
+            .map(|sig| sig.0)
+            .unwrap_or([0; 64])
     }
 
     pub fn call_elapsed() -> Duration {
@@ -463,7 +477,19 @@ impl OCalls for RuntimeHandleMut<'_> {
     }
 
     fn emit_system_event_block(&self, number: u64, encoded_block: Vec<u8>) {
-        info!(target: "phactory::event_chain", number, payload=%hex_fmt::HexFmt(encoded_block));
+        if !tracing::enabled!(target: "phactory::event_chain", tracing::Level::INFO) {
+            return;
+        }
+        if !context::get().mode.is_transaction() {
+            return;
+        }
+        let signature = hex_fmt::HexFmt(context::sign_with_worker_identity_key(
+            &encoded_block,
+            SignedContentType::EventChainBlock,
+        ));
+        let pubkey = hex_fmt::HexFmt(context::worker_pubkey());
+        let payload = hex_fmt::HexFmt(encoded_block);
+        info!(target: "phactory::event_chain", number, %payload, %signature, %pubkey);
     }
 
     fn contract_call_nonce(&self) -> Option<Vec<u8>> {
@@ -630,7 +656,7 @@ impl Cluster {
                     mode,
                     context.now_ms,
                     context.block_number,
-                    context.worker_pubkey,
+                    context.worker_identity_key.clone(),
                     context.chain_storage,
                     context.req_id,
                 );
@@ -713,7 +739,7 @@ impl Cluster {
                     ExecutionMode::Estimating,
                     context.now_ms,
                     context.block_number,
-                    context.worker_pubkey,
+                    context.worker_identity_key.clone(),
                     context.chain_storage,
                     context.req_id,
                 );

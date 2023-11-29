@@ -11,7 +11,7 @@ To get started with Pink!, add the following dependency to your `Cargo.toml`:
 ```toml
 [dependencies]
 ink = { version = "4", default-features = false }
-pink = { package = "pink-extension", version = "0.4", default-features = false }
+pink = { package = "pink-extension", version = "0.5", default-features = false }
 
 [features]
 std = [

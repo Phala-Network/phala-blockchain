@@ -46,11 +46,13 @@ impl IoHandler for StreamResponse {
             tokio::io::copy(&mut client_reader, &mut server_writer),
             tokio::io::copy(&mut server_reader, &mut client_writer),
         };
-        if let Err(e) = res_c2s {
-            error!(target: "sidevm", "Failed to copy from client to server: {}", e);
+        if let Err(err) = res_c2s {
+            error!(target: "sidevm", "Failed to copy from client to server: {err}");
+            return Err(err);
         }
-        if let Err(e) = res_s2c {
-            error!(target: "sidevm", "Failed to copy from server to client: {}", e);
+        if let Err(err) = res_s2c {
+            error!(target: "sidevm", "Failed to copy from server to client: {err}");
+            return Err(err);
         }
         Ok(())
     }
@@ -68,10 +70,11 @@ impl<'r> Responder<'r, 'r> for StreamResponse {
             builder.status(Status::ServiceUnavailable);
             let mut protocol = String::new();
             for (name, value) in self.head.headers.drain(..) {
-                if name.to_lowercase() == "upgrade" {
+                let name = name.to_lowercase();
+                if name == "upgrade" {
                     protocol = value.to_string();
                 }
-                if name.to_lowercase() != "connection" && name.to_lowercase() != "upgrade" {
+                if name != "connection" && name != "upgrade" {
                     builder.raw_header_adjoin(name, value);
                 }
             }

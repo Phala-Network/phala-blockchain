@@ -83,8 +83,8 @@ interface MapBlueprintSend {
 export class PinkBlueprintSubmittableResult extends SubmittableResult {
   readonly registry: OnChainRegistry
   readonly abi: Abi
-  readonly contractId?: string
 
+  #contractId?: string
   #isFinalized: boolean = false
   #contract?: PinkContractPromise
 
@@ -93,7 +93,14 @@ export class PinkBlueprintSubmittableResult extends SubmittableResult {
 
     this.registry = registry
     this.abi = abi
-    this.contractId = contractId
+    this.#contractId = contractId
+  }
+
+  get contractId() {
+    if (!this.#contractId) {
+      throw new Error(`Failed to find contract ID in events, maybe instantiate failed: ${this.#contractId}`)
+    }
+    return this.#contractId
   }
 
   async waitFinalized(timeout: number = 120_000) {
@@ -114,6 +121,7 @@ export class PinkBlueprintSubmittableResult extends SubmittableResult {
       if (!contractId) {
         throw new Error('Failed to find contract ID in events, maybe instantiate failed.')
       }
+      this.#contractId = contractId
       const logger = this.registry.loggerContract
 
       const t0 = new Date().getTime()

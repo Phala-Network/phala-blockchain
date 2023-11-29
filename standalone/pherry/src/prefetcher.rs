@@ -59,7 +59,8 @@ impl PrefetchClient {
             to: next_to,
             handle: tokio::spawn(async move {
                 log::info!("prefetching ({next_from}-{next_to})");
-                crate::fetch_storage_changes(&client, cache.as_ref(), next_from, next_to).await
+                crate::fetch_storage_changes(&client, cache.as_ref(), next_from, next_to)
+                    .await
             }),
         });
         Ok(result)

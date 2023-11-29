@@ -6,12 +6,15 @@ authors = ["[your_name] <[your_email]>"]
 edition = "2018"
 resolver = "2"
 
+[package.metadata.cargo-machete]
+ignored = ["ink", "scale", "scale-info"]
+
 [dependencies]
 ink = { version = "4", default-features = false }
-scale = { package = "parity-scale-codec", version = "3.3", default-features = false, features = ["derive"] }
-scale-info = { version = "2.3", default-features = false, features = ["derive"], optional = true }
+scale = { package = "parity-scale-codec", version = "3.6.5", default-features = false, features = ["derive"] }
+scale-info = { version = "2.10.0", default-features = false, features = ["derive"], optional = true }
 
-pink-extension = { version = "0.4", default-features = false, path = "../../pink/pink-extension", features = ["ink-as-dependency"] }
+pink-extension = { default-features = false, path = "../../pink/pink-extension" }
 this-crate = { path = "../../this-crate" }
 
 [build-dependencies]

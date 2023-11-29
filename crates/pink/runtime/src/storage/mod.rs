@@ -95,6 +95,7 @@ where
 }
 
 pub mod external_backend;
+pub mod in_memory_backend;
 
 pub fn maybe_emit_system_event_block(events: SystemEvents) {
     use pink_capi::v1::ocall::OCalls;

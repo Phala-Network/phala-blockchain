@@ -113,7 +113,19 @@ impl RuntimeState {
 
 const RUNTIME_SEALED_DATA_FILE: &str = "runtime-data.seal";
 const CHECKPOINT_FILE: &str = "checkpoint.seal";
-const CHECKPOINT_VERSION: u32 = 2;
+// Bind checkpoint version the the app version, so that we can't load a checkpoint saved from a future version of the app.
+const CHECKPOINT_VERSION: u32 = {
+    let (major, minor, _) = this_crate::version_tuple!();
+    (major as u32) << 16 | (minor as u32)
+};
+
+// The lowest version of checkpoint that can be loaded. Because we previously hardcoded the CHECKPOINT_VERSION,
+// So the previous version is (0, 2).
+const COMPATIBLE_APP_VERSION: (u16, u16) = (0, 2);
+const COMPATIBLE_VERSION: u32 = {
+    let (major, minor) = COMPATIBLE_APP_VERSION;
+    (major as u32) << 16 | (minor as u32)
+};
 
 fn checkpoint_filename_for(block_number: chain::BlockNumber, basedir: &str) -> String {
     format!("{basedir}/{CHECKPOINT_FILE}-{block_number:0>9}")
@@ -787,9 +799,14 @@ impl<Platform: Serialize + DeserializeOwned> Phactory<Platform> {
                     .next_element()?
                     .ok_or_else(|| de::Error::custom("Checkpoint version missing"))?;
                 if version > CHECKPOINT_VERSION {
-                    return Err(de::Error::custom(format!(
-                        "Checkpoint version {version} is not supported"
-                    )));
+                    let msg = format!("Checkpoint version {version} is not supported");
+                    error!("{}", msg);
+                    return Err(de::Error::custom(msg));
+                }
+                if version < COMPATIBLE_VERSION {
+                    let msg = format!("Checkpoint version {version} is too old");
+                    error!("{}", msg);
+                    return Err(de::Error::custom(msg));
                 }
 
                 let state = seq
@@ -914,4 +931,8 @@ fn try_decode_hex(hex_str: &str) -> Result<Vec<u8>, hex::FromHexError> {
 
 pub fn public_data_dir(storage_path: impl AsRef<Path>) -> PathBuf {
     storage_path.as_ref().to_path_buf().join("public")
+}
+
+pub const fn version_str() -> &'static str {
+    this_crate::version_str!()
 }
