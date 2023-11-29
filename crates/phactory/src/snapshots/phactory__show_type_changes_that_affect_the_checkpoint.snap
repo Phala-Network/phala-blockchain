@@ -1,6 +1,6 @@
 ---
 source: crates/phactory/src/lib.rs
-assertion_line: 353
+assertion_line: 360
 expression: "travel_types::<Phactory<()>>()"
 ---
 [
@@ -3928,6 +3928,11 @@ expression: "travel_types::<Phactory<()>>()"
               "name": "secret_salt",
               "type": 25,
               "typeName": "[u8; 32]"
+            },
+            {
+              "name": "js_runtime",
+              "type": 41,
+              "typeName": "Option<Hash>"
             }
           ]
         }
