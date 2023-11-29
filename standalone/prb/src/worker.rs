@@ -539,17 +539,26 @@ impl WorkerContext {
                               vec![Value::from_bytes(worker_binding.as_ref().unwrap())],
                           );
                           let stake_onchain: Option<u128> = fetch_storage_bytes(&api, &stake_query).await?;
-                          if stake_onchain.is_some() {
-                            info!("Stake: {:?}, {:?} on-chain", &worker.stake.parse::<u128>().unwrap(), &stake_onchain.unwrap());
-                            if stake_onchain.unwrap() < worker.stake.parse::<u128>().unwrap() {
-                              set_worker_message!(c, "Adjusting on-chain stake...");
-                              txm.clone()
-                                .restart_computing(pid, pubkey, worker.stake)
-                                .await?;
-                              Self::set_state(c.clone(), WorkerLifecycleState::Working).await;
-                            } else if stake_onchain.unwrap() > worker.stake.parse::<u128>().unwrap() {
-                              set_worker_message!(c, "Error on-chain stake higher, than configured...");
+                          match stake_onchain {
+                            Some(onchain_stake) => {
+                                info!(
+                                    "Stake: {:?}, {:?} on-chain",
+                                    &worker.stake.parse::<u128>().unwrap(),
+                                    &onchain_stake
+                                );
+                                match onchain_stake {
+                                    onchain_stake if onchain_stake < worker.stake.parse::<u128>().unwrap() => {
+                                        set_worker_message!(c, "Adjusting on-chain stake...");
+                                        txm.clone().restart_computing(pid, pubkey, worker.stake).await?;
+                                        Self::set_state(c.clone(), WorkerLifecycleState::Working).await;
+                                    }
+                                    onchain_stake if onchain_stake > worker.stake.parse::<u128>().unwrap() => {
+                                        set_worker_message!(c, "Error on-chain stake higher, than configured...");
+                                    }
+                                    _ => (),
+                                }
                             }
+                            None => (),
                           }
                           first_run = false;
                         }
