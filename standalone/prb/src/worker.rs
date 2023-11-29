@@ -1,4 +1,3 @@
-use crate::datasource::DataSourceError::NoValidDataSource;
 use crate::datasource::WrappedDataSourceManager;
 use crate::db::{get_pool_by_pid, Worker};
 use crate::lifecycle::WrappedWorkerLifecycleManager;
@@ -7,7 +6,7 @@ use crate::tx::PoolOperatorAccess;
 use crate::utils::fetch_storage_bytes;
 use crate::wm::{WorkerManagerMessage, WrappedWorkerManagerContext};
 use crate::worker::WorkerLifecycleCommand::*;
-use crate::{use_parachain_api, use_relaychain_api, use_relaychain_hc, with_retry};
+use crate::{use_parachain_api, use_relaychain_hc, with_retry};
 use anyhow::{anyhow, Result};
 use chrono::prelude::*;
 use futures::future::join;
@@ -22,7 +21,7 @@ use phala_types::AttestationProvider;
 use phaxt::subxt::ext::sp_runtime;
 use pherry::chain_client::{mq_next_sequence, search_suitable_genesis_for_worker};
 use pherry::types::Block;
-use pherry::{attestation_to_report, get_block_at, get_finalized_header, BlockSyncState};
+use pherry::{attestation_to_report, BlockSyncState};
 use serde::{Deserialize, Serialize};
 use sp_core::sr25519::Public as Sr25519Public;
 use sp_core::{ByteArray, Pair};
@@ -882,47 +881,38 @@ impl WorkerContext {
         let i = pr.get_info(()).await?;
         let next_para_headernum = i.para_headernum;
         if i.blocknum < next_para_headernum {
-            tokio::spawn(Self::batch_sync_storage_changes(
+            Self::batch_sync_storage_changes(
                 pr.clone(),
                 dsm.clone(),
                 i.blocknum,
                 next_para_headernum - 1,
                 PARACHAIN_BLOCK_BATCH_SIZE,
-            ))
-            .await??;
+            )
+            .await?;
         }
         if i.waiting_for_paraheaders {
             let pp = pr.clone();
             let dd = dsm.clone();
             let i = i.clone();
-            tokio::spawn(async move {
-                let i = i.clone();
-                Self::maybe_sync_waiting_parablocks(pp, dd, &i, PARACHAIN_BLOCK_BATCH_SIZE).await
-            })
-            .await??;
+            debug!("maybe_sync_waiting_parablocks: {:?}", i.public_key);
+            Self::maybe_sync_waiting_parablocks(pp, dd, &i, PARACHAIN_BLOCK_BATCH_SIZE).await?;
         }
 
         return_if_error_or_restarting!(c, Ok((false, sync_state)));
-
-        let pp = pr.clone();
-        let dd = dsm.clone();
-        let ii = i.clone();
 
         let hc = use_relaychain_hc!(dsm);
         if hc.is_some() {
             sync_state.authory_set_state = None;
             sync_state.blocks.clear();
-            let not_done_with_hc =
-                tokio::spawn(async move { Self::sync_with_cached_headers(pp, dd, &ii).await })
-                    .await??;
+            debug!("ready to use headers-cache: {:?}", i.public_key);
+            let not_done_with_hc = Self::sync_with_cached_headers(pr.clone(), dsm.clone(), &i).await?;
             if not_done_with_hc {
                 return Ok((true, sync_state));
             }
         }
 
-        let (not_done, sync_state) =
-            tokio::spawn(async move { Self::sync(pr.clone(), dsm.clone(), &i, sync_state).await })
-                .await??;
+        debug!("ready to sync: {:?}", i.public_key);
+        let (not_done, sync_state) = Self::sync(pr.clone(), dsm.clone(), &i, sync_state).await?;
 
         if !not_done {
             let cc = c.clone();
@@ -981,7 +971,7 @@ impl WorkerContext {
         i: &PhactoryInfo,
         batch_size: u8,
     ) -> Result<()> {
-        debug!("maybe_sync_waiting_parablocks");
+        //debug!("maybe_sync_waiting_parablocks");
         let fin_header = dsm
             .clone()
             .get_para_header_by_relay_header(i.headernum - 1)
@@ -1056,8 +1046,6 @@ impl WorkerContext {
         i: &PhactoryInfo,
         mut sync_state: BlockSyncState,
     ) -> Result<(bool, BlockSyncState)> {
-        let relay_api = use_relaychain_api!(dsm, false).ok_or(NoValidDataSource)?;
-        let latest_relay_block = get_block_at(&relay_api, None).await?.0.block;
         while let Some(b) = sync_state.blocks.first() {
             if b.block.header.number >= i.headernum {
                 break;
@@ -1069,7 +1057,7 @@ impl WorkerContext {
             None => i.headernum,
         };
         let (batch_end, more_blocks) = {
-            let latest = latest_relay_block.header.number;
+            let latest = dsm.clone().get_latest_relay_block_num().await?;
             let fetch_limit = next_relay_block + RELAYCHAIN_HEADER_BATCH_SIZE - 1;
             if fetch_limit < latest {
                 (fetch_limit, true)
@@ -1119,8 +1107,6 @@ impl WorkerContext {
             next_blocknum = next_para_headernum + 1;
         }
 
-        let relay_api = use_relaychain_api!(dsm, false).ok_or(NoValidDataSource)?;
-        let para_api = use_parachain_api!(dsm, false).ok_or(NoValidDataSource)?;
         while !block_buf.is_empty() {
             let last_set = if let Some(set) = sync_state.authory_set_state {
                 set
@@ -1133,7 +1119,7 @@ impl WorkerContext {
                     .number
                     .saturating_sub(1);
                 let hash = dsm.clone().get_relay_block_hash(number).await?;
-                let set_id = relay_api.current_set_id(hash).await?;
+                let set_id = dsm.clone().get_current_set_id(hash).await?;
                 let set = (number, set_id);
                 sync_state.authory_set_state = Some(set);
                 set
@@ -1203,7 +1189,7 @@ impl WorkerContext {
                 .await?;
             next_headernum = r.synced_to + 1;
             let hdr_synced_to =
-                match get_finalized_header(&relay_api, &para_api, last_header_hash).await? {
+                match dsm.clone().get_finalized_header(last_header_hash).await? {
                     Some((fin_header, proof)) => {
                         Self::sync_parachain_header(
                             pr.clone(),
