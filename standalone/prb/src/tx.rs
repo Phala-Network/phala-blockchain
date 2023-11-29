@@ -7,7 +7,7 @@ use crate::tx::TxManagerError::*;
 use crate::use_parachain_api;
 use anyhow::{anyhow, Error, Result};
 use chrono::{DateTime, Utc};
-use futures::future::{join_all, BoxFuture};
+use futures::future::BoxFuture;
 use hex::ToHex;
 use lazy_static::lazy_static;
 use log::{debug, error};
@@ -311,21 +311,13 @@ impl TxManager {
                     let _ = tx_map.insert(pid, group);
                 };
             }
-            join_all(
-                tx_map
-                    .into_iter()
-                    .map(|(pid, v)| {
-                        let self_move = self.clone();
-                        async move {
-                            if let Err(e) = self_move.clone().wrap_send_tx_group(pid, v).await {
-                                error!("wrap_send_tx_group: {e}");
-                                std::process::exit(255);
-                            }
-                        }
-                    })
-                    .collect::<Vec<_>>(),
-            )
-            .await;
+
+            for (pid, v) in tx_map {
+                if let Err(e) = self.clone().wrap_send_tx_group(pid, v).await {
+                    error!("wrap_send_tx_group: {e}");
+                    std::process::exit(255);
+                }
+            }
 
             let mut running_txs = self.running_txs.lock().await;
             let mut past_txs = self.past_txs.lock().await;
@@ -439,7 +431,7 @@ impl TxManager {
 
         let mut encoded = Vec::new();
         call.encode_call_data_to(&metadata, &mut encoded)?;
-        debug!("sending tx: 0x{}", hex::encode(&encoded));
+        debug!("sending tx: 0x{}, with nonce={}", hex::encode(&encoded), api.tx().account_nonce(signer.account_id()).await?);
 
         // In pRBv3, transactions are queued, there is always only 1 running transaction for each pool,
         // and a dedicate account is always required for each pRB/pherry instance,
@@ -541,10 +533,7 @@ impl TxManager {
 
         let mut pending_txs = self.pending_txs.lock().await;
 
-        let mut gid = self.tx_count.load(Ordering::SeqCst);
-        let id = gid;
-        gid += 1;
-        self.tx_count.store(gid, Ordering::SeqCst);
+        let id = self.tx_count.fetch_add(1, Ordering::SeqCst);
         debug!("send_to_queue: {:?}", &id);
 
         pending_txs.push_back(id);
