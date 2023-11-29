@@ -129,6 +129,9 @@ pub enum DataSourceCacheItem {
     BlockHash(Option<H256>),
     U32(Option<u32>),
     AuthoritySetChange(AuthoritySetChange),
+    LatestRelayBlockNumber(u32),
+    FinalizedHeader(Option<(Header, Vec<Vec<u8>>)>),
+    CurrentSetId(u64),
 }
 
 impl DataSourceCacheItem {
@@ -166,6 +169,15 @@ impl DataSourceCacheItem {
             DataSourceCacheItem::AuthoritySetChange(e) => {
                 (e.encoded_size() as f64 * CACHE_SIZE_EXPANSION) as _
             }
+            DataSourceCacheItem::LatestRelayBlockNumber(_) => 6,
+            DataSourceCacheItem::FinalizedHeader(e) => match e {
+                None => 16,
+                Some((_, e)) => {
+                    let bytes_len = e.iter().flatten().collect::<Vec<_>>().len();
+                    ((e.len() + 1) * size_of_val(e)) + bytes_len
+                }
+            }
+            DataSourceCacheItem::CurrentSetId(_) => 12,
         };
         ret
     }
@@ -203,6 +215,9 @@ impl Expiry<String, Arc<DataSourceCacheItem>> for DataSourceCacheItemExpiry {
         match **value {
             DataSourceCacheItem::ParaHeaderByRelayHeight(None) => Some(Duration::from_secs(3)),
             DataSourceCacheItem::CachedHeadersToSync(None) => Some(Duration::from_secs(15)),
+            DataSourceCacheItem::LatestRelayBlockNumber(_) => Some(Duration::from_secs(1)),
+            DataSourceCacheItem::FinalizedHeader(None) => Some(Duration::from_secs(3)),
+            DataSourceCacheItem::CurrentSetId(_) => Some(Duration::from_secs(3)),
             _ => None,
         }
     }
@@ -1078,6 +1093,83 @@ impl DataSourceManager {
         {
             Ok(ret) => match *ret {
                 DataSourceCacheItem::AuthoritySetChange(ref data) => Ok(data.clone()),
+                _ => Err(UnknownErrorFromCache.into()),
+            },
+            Err(e) => Err(anyhow!(e.to_string())),
+        }
+    }
+
+    pub async fn do_get_latest_relay_block_num(
+        self: Arc<Self>,
+    ) -> Result<Arc<DataSourceCacheItem>> {
+        let relay_api = use_relaychain_api!(self, false).ok_or(NoValidDataSource)?;
+        let block = get_block_at(&relay_api, None).await?.0.block;
+        Ok(Arc::new(DataSourceCacheItem::LatestRelayBlockNumber(block.header.number)))
+    }
+    pub async fn get_latest_relay_block_num(
+        self: Arc<Self>,
+    ) -> Result<u32> {
+        let key = format!("lrbn");
+        let cache = self.cache.clone();
+        match cache
+            .try_get_with(key, self.clone().do_get_latest_relay_block_num())
+            .await
+        {
+            Ok(ret) => match *ret {
+                DataSourceCacheItem::LatestRelayBlockNumber(data) => Ok(data),
+                _ => Err(UnknownErrorFromCache.into()),
+            },
+            Err(e) => Err(anyhow!(e.to_string())),
+        }
+    }
+
+    pub async fn do_get_finalized_header(
+        self: Arc<Self>,
+        last_header_hash: Hash,
+    ) -> Result<Arc<DataSourceCacheItem>> {
+        let relay_api = use_relaychain_api!(self, true).ok_or(NoValidDataSource)?;
+        let para_api = use_parachain_api!(self, true).ok_or(NoValidDataSource)?;
+        let finalized_header = get_finalized_header(&relay_api, &para_api, last_header_hash).await?;
+        Ok(Arc::new(DataSourceCacheItem::FinalizedHeader(finalized_header)))
+    }
+    pub async fn get_finalized_header(
+        self: Arc<Self>,
+        last_header_hash: Hash,
+    ) -> Result<Option<(Header, Vec<Vec<u8>>)>> {
+        let key = format!("rfh:{last_header_hash}");
+        let cache = self.cache.clone();
+        match cache
+            .try_get_with(key, self.clone().do_get_finalized_header(last_header_hash))
+            .await
+        {
+            Ok(ret) => match *ret {
+                DataSourceCacheItem::FinalizedHeader(ref data) => Ok(data.clone()),
+                _ => Err(UnknownErrorFromCache.into()),
+            },
+            Err(e) => Err(anyhow!(e.to_string())),
+        }
+    }
+
+    pub async fn do_get_current_set_id(
+        self: Arc<Self>,
+        hash: Option<Hash>,
+    ) -> Result<Arc<DataSourceCacheItem>> {
+        let relay_api = use_relaychain_api!(self, true).ok_or(NoValidDataSource)?;
+        let current_set_id = relay_api.current_set_id(hash).await?;
+        Ok(Arc::new(DataSourceCacheItem::CurrentSetId(current_set_id)))
+    }
+    pub async fn get_current_set_id(
+        self: Arc<Self>,
+        hash: Option<Hash>,
+    ) -> Result<u64> {
+        let key = format!("rcsi:{hash:?}");
+        let cache = self.cache.clone();
+        match cache
+            .try_get_with(key, self.clone().do_get_current_set_id(hash))
+            .await
+        {
+            Ok(ret) => match *ret {
+                DataSourceCacheItem::CurrentSetId(data) => Ok(data),
                 _ => Err(UnknownErrorFromCache.into()),
             },
             Err(e) => Err(anyhow!(e.to_string())),
