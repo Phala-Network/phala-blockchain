@@ -6,7 +6,6 @@ resolver = "2"
 
 [dependencies]
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
-sp-application-crypto = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
 
 ring = { version = "0.16.20", default-features = false, features = ["alloc"] }
 curve25519-dalek = { version = "2.0", default-features = false }
@@ -26,7 +25,6 @@ std = [ "aead/std" ]
 getrandom = [ "schnorrkel/getrandom" ]
 full_crypto = [
     "sp-core/full_crypto",
-    "sp-application-crypto/full_crypto",
 ]
 
 stream = [

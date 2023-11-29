@@ -234,7 +234,7 @@ pub async fn grap_storage_changes_to_file(
     batch_size: BlockNumber,
     mut output: impl Write,
 ) -> Result<BlockNumber> {
-    grab_storage_changes(api, start_at, count, batch_size, |changes| {
+    grab_storage_changes(api, start_at, count, batch_size, true, |changes| {
         if changes.block_header.number % 1000 == 0 {
             info!("Got storage changes at {}", changes.block_header.number);
         }
@@ -391,6 +391,7 @@ pub async fn grab_storage_changes(
     start_at: BlockNumber,
     count: BlockNumber,
     batch_size: BlockNumber,
+    with_root: bool,
     mut f: impl FnMut(BlockHeaderWithChanges) -> Result<()>,
 ) -> Result<BlockNumber> {
     if count == 0 {
@@ -402,14 +403,10 @@ pub async fn grab_storage_changes(
 
     for from in (start_at..=to).step_by(batch_size as _) {
         let to = to.min(from.saturating_add(batch_size - 1));
-        let headers = match crate::fetch_storage_changes(api, None, from, to).await {
-            Err(e) if e.to_string().contains("not found") => {
-                break;
-            }
-            other => other?,
-        };
-        for header in headers {
-            f(header)?;
+        let changes =
+            crate::fetch_storage_changes_with_root_or_not(api, None, from, to, with_root).await?;
+        for blk in changes {
+            f(blk)?;
             grabbed += 1;
         }
     }

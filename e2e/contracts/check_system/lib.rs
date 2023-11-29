@@ -242,6 +242,20 @@ mod check_system {
         pub fn sidevm_callbak(&self) -> u8 {
             42
         }
+
+        #[ink(message)]
+        pub fn system_contract_version(&self) -> (u16, u16, u16) {
+            pink::system::SystemRef::instance().version()
+        }
+
+        #[ink(message)]
+        pub fn eval_javascript(
+            &self,
+            script: String,
+            args: Vec<String>,
+        ) -> Result<js::Output, String> {
+            js::eval(&script, &args)
+        }
     }
 
     impl ContractDeposit for CheckSystem {
@@ -255,6 +269,30 @@ mod check_system {
             let system = SystemRef::instance();
             let weight = deposit / CENTS;
             system.set_contract_weight(contract_id, weight as u32)?;
+            Ok(())
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use drink::session::Session;
+        use drink_pink_runtime::{Callable, DeployBundle, PinkRuntime};
+        use ink::codegen::TraitCallBuilder;
+
+        use super::CheckSystemRef;
+
+        #[drink::contract_bundle_provider]
+        enum BundleProvider {}
+
+        #[test]
+        fn it_works() -> Result<(), Box<dyn std::error::Error>> {
+            let mut session = Session::<PinkRuntime>::new()?;
+            let mut checker = CheckSystemRef::default()
+                .deploy_bundle(&BundleProvider::local()?, &mut session)
+                .expect("Failed to deploy checker contract");
+            checker.call_mut().set_flag("42".into()).submit_tx(&mut session)?;
+            let flag = checker.call().flag().query(&mut session)?;
+            assert_eq!(flag, "42");
             Ok(())
         }
     }

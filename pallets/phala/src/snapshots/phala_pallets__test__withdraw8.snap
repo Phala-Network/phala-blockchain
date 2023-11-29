@@ -1,0 +1,231 @@
+---
+source: pallets/phala/src/test.rs
+expression: take_events()
+---
+[
+    RuntimeEvent::PhalaVault(
+        Event::OwnerSharesGained {
+            pid: 2,
+            shares: 100,
+            checkout_price: 1000000000333,
+        },
+    ),
+    RuntimeEvent::Uniques(
+        Event::Issued {
+            collection: 10002,
+            item: 2,
+            owner: 7813586407040180578,
+        },
+    ),
+    RuntimeEvent::RmrkCore(
+        Event::NftMinted {
+            owner: AccountId(
+                7813586407040180578,
+            ),
+            collection_id: 10002,
+            nft_id: 2,
+        },
+    ),
+    RuntimeEvent::RmrkCore(
+        Event::PropertySet {
+            collection_id: 10002,
+            maybe_nft_id: Some(
+                2,
+            ),
+            key: BoundedVec(
+                [
+                    115,
+                    116,
+                    97,
+                    107,
+                    101,
+                    45,
+                    105,
+                    110,
+                    102,
+                    111,
+                ],
+                32000,
+            ),
+            value: BoundedVec(
+                [
+                    0,
+                    192,
+                    110,
+                    49,
+                    217,
+                    16,
+                    1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                ],
+                512000,
+            ),
+        },
+    ),
+    RuntimeEvent::RmrkCore(
+        Event::PropertySet {
+            collection_id: 10002,
+            maybe_nft_id: Some(
+                2,
+            ),
+            key: BoundedVec(
+                [
+                    99,
+                    114,
+                    101,
+                    97,
+                    116,
+                    101,
+                    116,
+                    105,
+                    109,
+                    101,
+                ],
+                32000,
+            ),
+            value: BoundedVec(
+                [
+                    48,
+                ],
+                512000,
+            ),
+        },
+    ),
+    RuntimeEvent::PhalaBasePool(
+        Event::NftCreated {
+            pid: 2,
+            cid: 10002,
+            nft_id: 2,
+            owner: 7813586407040180578,
+            shares: 300000000000000,
+        },
+    ),
+    RuntimeEvent::PhalaBasePool(
+        Event::WithdrawalQueued {
+            pid: 2,
+            user: 99,
+            shares: 300000000000000,
+            nft_id: 0,
+            as_vault: None,
+            withdrawing_nft_id: 2,
+        },
+    ),
+    RuntimeEvent::System(
+        Event::KilledAccount {
+            account: 615996557710291042,
+        },
+    ),
+    RuntimeEvent::Assets(
+        Event::Transferred {
+            asset_id: 1,
+            from: 615996557710291042,
+            to: 99,
+            amount: 10000099999,
+        },
+    ),
+    RuntimeEvent::RmrkCore(
+        Event::PropertySet {
+            collection_id: 10002,
+            maybe_nft_id: Some(
+                2,
+            ),
+            key: BoundedVec(
+                [
+                    115,
+                    116,
+                    97,
+                    107,
+                    101,
+                    45,
+                    105,
+                    110,
+                    102,
+                    111,
+                ],
+                32000,
+            ),
+            value: BoundedVec(
+                [
+                    100,
+                    85,
+                    97,
+                    221,
+                    214,
+                    16,
+                    1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                ],
+                512000,
+            ),
+        },
+    ),
+    RuntimeEvent::PhalaBasePool(
+        Event::Withdrawal {
+            pid: 2,
+            user: 99,
+            amount: 10000099999,
+            shares: 10000099996,
+            burnt_shares: 0,
+        },
+    ),
+    RuntimeEvent::RmrkCore(
+        Event::PropertySet {
+            collection_id: 10002,
+            maybe_nft_id: Some(
+                0,
+            ),
+            key: BoundedVec(
+                [
+                    115,
+                    116,
+                    97,
+                    107,
+                    101,
+                    45,
+                    105,
+                    110,
+                    102,
+                    111,
+                ],
+                32000,
+            ),
+            value: BoundedVec(
+                [
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                ],
+                512000,
+            ),
+        },
+    ),
+]

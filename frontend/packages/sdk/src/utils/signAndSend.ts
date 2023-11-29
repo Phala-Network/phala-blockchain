@@ -37,15 +37,19 @@ function callback<TSubmittableResult>(
 }
 
 function signAndSend<TSubmittableResult extends SubmittableResult = SubmittableResult>(
-  target: SubmittableExtrinsic<ApiTypes>,
+  target: SubmittableExtrinsic<ApiTypes, TSubmittableResult>,
   pair: AddressOrPair
 ): Promise<TSubmittableResult>
 function signAndSend<TSubmittableResult extends SubmittableResult = SubmittableResult>(
-  target: SubmittableExtrinsic<ApiTypes>,
+  target: SubmittableExtrinsic<ApiTypes, TSubmittableResult>,
   address: AddressOrPair,
   signer: InjectedSigner
 ): Promise<TSubmittableResult>
-function signAndSend(target: SubmittableExtrinsic<ApiTypes>, address: AddressOrPair, signer?: InjectedSigner) {
+function signAndSend<TSubmittableResult extends SubmittableResult = SubmittableResult>(
+  target: SubmittableExtrinsic<ApiTypes, TSubmittableResult>,
+  address: AddressOrPair,
+  signer?: InjectedSigner
+) {
   // Ready -> Broadcast -> InBlock -> Finalized
   return new Promise(async (resolve, reject) => {
     try {

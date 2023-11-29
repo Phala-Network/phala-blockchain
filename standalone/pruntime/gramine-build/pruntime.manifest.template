@@ -45,10 +45,10 @@ path = "/lib"
 uri = "file:{{ libdir }}"
 
 [[fs.mounts]]
-path = "/data/protected_files"
-uri = "file:{{ seal_dir }}"
 type = "encrypted"
 key_name = "_sgx_mrenclave"
+path = "/data/protected_files"
+uri = "file:{{ seal_dir }}"
 
 [[fs.mounts]]
 type = "chroot"
@@ -69,24 +69,25 @@ uri = "file:{{ pink_runtime_dir }}"
 debug = false
 nonpie_binary = true
 enclave_size = "2G"
+thread_num = 32
 max_threads = 128
-remote_attestation = "{{ ra_method }}"
-
-{% if ra_method == "epid" %}
-ra_client_linkable = true
+remote_attestation = "{{ ra_type }}"
+{% if ra_type == "epid" %}
 ra_client_spid = "{{ ra_client_spid }}"
+ra_client_linkable = {{ 'true' if ra_client_linkable == '1' else 'false' }}
 {% endif %}
 
 trusted_files = [
   "file:{{ libos }}",
-  "file:pruntime",
   "file:{{ libdir }}",
   "file:{{ pink_runtime_dir }}",
+  "file:pruntime",
 ]
 
 allowed_files = [
   "file:/etc/hosts",
   "file:/etc/resolv.conf",
-  "file:Rocket.toml",
+  "file:/etc/sgx_default_qcnl.conf",
   "file:{{ storage_dir }}/",
+  "file:Rocket.toml",
 ]

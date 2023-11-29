@@ -8,8 +8,8 @@ homepage = "https://phala.network/"
 repository = "https://github.com/Phala-Network/phala-blockchain"
 
 [dependencies]
-parity-scale-codec = { version = "3.3", default-features = false }
-scale-info = { version = "2.3", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.6.5", default-features = false }
+scale-info = { version = "2.10.0", default-features = false, features = ["derive"] }
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", features = ["full_crypto"] }
 sp-trie = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 sp-state-machine = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
