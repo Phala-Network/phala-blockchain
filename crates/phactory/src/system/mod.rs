@@ -534,6 +534,7 @@ impl<Platform: pal::Platform> System<Platform> {
         self.worker_state.registered
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn make_query(
         &self,
         req_id: u64,

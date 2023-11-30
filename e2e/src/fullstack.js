@@ -782,7 +782,7 @@ describe('A full stack', function () {
             `;
             const arg0 = "Powered by QuickJS in SideVM!";
             const { output } = await ContractSystemChecker.query.pinkEvalJs(alice.address, { cert: certAlice }, jsCode, [arg0]);
-            assertTrue(output?.eq({Ok: {String: 'Powered by QuickJS in SideVM!'}}));
+            assertTrue(output?.eq({Ok: {String: arg0}}));
         });
 
         it('can parse json in contract delegate call', async function () {

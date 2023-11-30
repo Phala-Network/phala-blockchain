@@ -178,6 +178,7 @@ pub(crate) mod context {
     }
 
     impl ContractExecContext {
+        #[allow(clippy::too_many_arguments)]
         pub fn new(
             mode: ExecutionMode,
             now_ms: u64,
