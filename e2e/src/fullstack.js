@@ -775,7 +775,9 @@ describe('A full stack', function () {
             const jsCode = `
             (function(){
                 console.log("Hello, World!");
-                scriptOutput=scriptArgs[0];
+                setTimeout(function() {
+                    scriptOutput = scriptArgs[0];
+                }, 100);
             })()
             `;
             const arg0 = "Powered by QuickJS in SideVM!";

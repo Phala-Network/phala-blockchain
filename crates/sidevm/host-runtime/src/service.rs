@@ -321,4 +321,8 @@ impl Spawner {
     ) -> JoinHandle<O> {
         self.runtime_handle.spawn(fut.in_current_span())
     }
+
+    pub fn event_tx(&self) -> crate::OutgoingRequestChannel {
+        self.out_tx.clone()
+    }
 }
