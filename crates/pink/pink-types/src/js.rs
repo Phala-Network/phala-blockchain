@@ -8,7 +8,7 @@ pub enum JsCode {
     Bytecode(Vec<u8>),
 }
 
-#[derive(scale::Encode, scale::Decode, Debug)]
+#[derive(scale::Encode, scale::Decode, Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum JsValue {
     Undefined,
