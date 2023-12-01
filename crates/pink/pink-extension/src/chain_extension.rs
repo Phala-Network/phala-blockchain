@@ -638,7 +638,7 @@ pub trait PinkExt {
     #[ink(extension = 23, handle_status = false)]
     fn current_event_chain_head() -> (u64, Hash);
 
-    /// Execute JavaScript code using SideVM with the JsRuntime driver.
+    /// Execute JavaScript code using SideVM through the JsRuntime driver.
     ///
     /// # Arguments
     ///
