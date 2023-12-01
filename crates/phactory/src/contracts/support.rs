@@ -591,8 +591,8 @@ pub fn block_on_run_module(
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(1);
     let tx_for_logging = output_tx.clone();
     let config = WasmInstanceConfig {
-        max_memory_pages: 256, // 16MB
-        gas_per_breath: SidevmConfig::default().vital_capacity,
+        max_memory_pages: 256,           // 16MB
+        gas_per_breath: 100_000_000_000, // About 1 second tested with md5 calculation
         cache_ops: local_cache_ops(),
         scheduler: None,
         weight: 0,
