@@ -586,6 +586,7 @@ pub fn block_on_run_module(
         Timeout,
         Error(anyhow::Error),
     }
+    let (_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
     // Channel to bridge between the sync and async world
     let (output_tx, output_rx) = mpsc::channel();
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(1);
@@ -639,6 +640,9 @@ pub fn block_on_run_module(
                     if let Err(err) = output_tx.send(OutMsg::Timeout) {
                         error!("Failed to send timeout message to response channel: {}", err);
                     }
+                }
+                _ = cancel_rx => {
+                    warn!("The host thread returned while the sidevm task is running")
                 }
                 rv = &mut wasm_run => {
                     if let Err(err) = rv {
