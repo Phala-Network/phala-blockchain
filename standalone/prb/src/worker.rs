@@ -422,6 +422,7 @@ impl WorkerContext {
         Ok(())
     }
 
+    #[allow(unused_assignments)]
     async fn handle_on_preparing(c: WrappedWorkerContext) -> Result<()> {
         set_worker_message!(c, "Reached latest finalized height, start preparing...");
         let (lm, worker, pr) = extract_essential_values!(c);
