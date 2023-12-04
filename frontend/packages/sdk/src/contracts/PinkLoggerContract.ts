@@ -4,8 +4,8 @@ import type { KeyringPair } from '@polkadot/keyring/types'
 import type { Enum, Struct, Text } from '@polkadot/types'
 import type { AccountId } from '@polkadot/types/interfaces'
 import type { Result } from '@polkadot/types-codec'
-import { hexAddPrefix, hexToString, hexToU8a } from '@polkadot/util'
-import { sr25519Agreement } from '@polkadot/util-crypto'
+import { hexAddPrefix, hexToString, hexToU8a, u8aToHex } from '@polkadot/util'
+import { blake2AsU8a, sr25519Agreement } from '@polkadot/util-crypto'
 import type { OnChainRegistry } from '../OnChainRegistry'
 import { phalaTypes } from '../options'
 import { type CertificateData, generatePair, signCertificate } from '../pruntime/certificate'
@@ -13,6 +13,7 @@ import { InkQuerySidevmMessage } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
 import { type pruntime_rpc } from '../pruntime/proto'
 import type { InkResponse } from '../types'
+import { isPascalCase, snakeToPascalCase } from '../utils/snakeToPascalCase'
 import { ContractInitialError } from './Errors'
 import { type PinkContractPromise } from './PinkContract'
 
@@ -253,6 +254,28 @@ export function buildGetLogRequest(
       throw new Error('Unexpected parameters.')
   }
   return request as GetLogRequest
+}
+
+// LiteralTopic it looks like `System::Event', the contract name in PascalCase, split by `::', and then the event name.
+export type LiteralTopic = `${Capitalize<string>}::${string}`
+
+export function getTopicHash(topic: LiteralTopic): string {
+  if (topic.indexOf('::') === -1) {
+    throw new Error('Invalid topic.')
+  }
+  let [contract, event] = topic.split('::')
+  if (!isPascalCase(contract)) {
+    contract = snakeToPascalCase(contract)
+  }
+  event = `${contract}::${event}`
+
+  const length = event.length
+  const encoded = phalaTypes.createType(`(Vec<u8>, [u8; ${length}])`, [null, event]).toU8a()
+  if (encoded.length > 32) {
+    return u8aToHex(blake2AsU8a(encoded))
+  } else {
+    return u8aToHex(encoded) + '00'.repeat(32 - encoded.length)
+  }
 }
 
 export class PinkLoggerContractPromise {

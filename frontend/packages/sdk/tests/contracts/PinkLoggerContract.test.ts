@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildGetLogRequest } from '../../src/contracts/PinkLoggerContract'
+import { buildGetLogRequest, getTopicHash } from '../../src/contracts/PinkLoggerContract'
 
 function buildGetLogRequestTail(...params: any[]) {
   return buildGetLogRequest(
@@ -105,5 +105,19 @@ describe('buildGetLogRequest can handle variants shortcut of parameters for head
       block_number: 100,
     })
     expect(buildGetLogRequestHead([20, 40, 60])).toEqual({ from: 40, count: 20 })
+  })
+})
+
+describe('getTopicHash should convert literal topic to hash', () => {
+  it('should works as expected', () => {
+    const shortTopic = getTopicHash('System::Log')
+    expect(shortTopic).toEqual('0x0053797374656d3a3a4c6f670000000000000000000000000000000000000000')
+    const longTopic = getTopicHash('System::ALongEventThatCouldNotBeStoredInTheTopic')
+    expect(longTopic).toEqual('0xc195a2d447cc68a2902771a7242347233b1665662a47d52ac760922671dc1fb4')
+  })
+
+  it('should throw error if topic is not valid', () => {
+    // @ts-ignore
+    expect(() => getTopicHash('system')).toThrow()
   })
 })
