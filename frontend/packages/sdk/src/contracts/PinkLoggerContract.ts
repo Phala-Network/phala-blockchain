@@ -19,12 +19,14 @@ import { isPascalCase, snakeToPascalCase } from '../utils/snakeToPascalCase'
 import { ContractInitialError } from './Errors'
 import { type PinkContractPromise } from './PinkContract'
 
-interface GetLogRequest {
+export type LogTypeLiteral = 'Log' | 'Event' | 'MessageOutput' | 'QueryIn' | 'TooLarge'
+
+export interface GetLogRequest {
   contract?: string
   from: number
   count: number
   block_number?: number
-  type?: 'Log' | 'Event' | 'MessageOutput' | 'QueryIn' | 'TooLarge'
+  type?: LogTypeLiteral | LogTypeLiteral[]
   topic?: LiteralTopic
   abi?: Abi
 }
@@ -419,7 +421,9 @@ export class PinkLoggerContractPromise {
     )
     const result = await this.getLogRaw(request)
     if (type) {
-      if (type === 'Event' && topic) {
+      if (Array.isArray(type)) {
+        result.records = result.records.filter((record) => type.includes(record.type))
+      } else if (type === 'Event' && topic) {
         const topicHash = getTopicHash(topic)
         result.records = result.records.filter((record) => record.type === type && record.topics[0] === topicHash)
       } else {
@@ -446,7 +450,9 @@ export class PinkLoggerContractPromise {
     )
     const result = await this.getLogRaw(request)
     if (type) {
-      if (type === 'Event' && topic) {
+      if (Array.isArray(type)) {
+        result.records = result.records.filter((record) => type.includes(record.type))
+      } else if (type === 'Event' && topic) {
         const topicHash = getTopicHash(topic)
         result.records = result.records.filter((record) => record.type === type && record.topics[0] === topicHash)
       } else {

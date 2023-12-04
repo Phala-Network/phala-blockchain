@@ -195,6 +195,73 @@ describe('the client-side filter type & topic should works', () => {
     expect(result.records[0].type).toEqual('Event')
   })
 
+  it('the type filter can be array', async ({ expect }) => {
+    const keyring = new Keyring()
+    const logger = new PinkLoggerContractPromise(
+      createPruntimeClient('http://localhost:8080'),
+      '',
+      keyring.addFromUri('//Alice'),
+      ''
+    )
+    // @ts-ignore
+    vi.spyOn(logger, 'getLogRaw').mockImplementation(() => {
+      return Promise.resolve({
+        records: [
+          {
+            sequence: 6625,
+            type: 'Log',
+            blockNumber: 1821442,
+            contract: '0xc5dfcc7fff77f29ac5194d7280bfe6f6f0fb4978af7e209ef89eef590d483537',
+            entry: '0xc5dfcc7fff77f29ac5194d7280bfe6f6f0fb4978af7e209ef89eef590d483537',
+            execMode: 'estimating',
+            timestamp: 1701717261053,
+            level: 1,
+            message: 'contract call reverted',
+          },
+          {
+            sequence: 6626,
+            type: 'QueryIn',
+            user: '0xe11964fe773024fb',
+          },
+          {
+            sequence: 6627,
+            type: 'QueryIn',
+            user: '0x6aefdee5248bcfaf',
+          },
+          {
+            sequence: 6628,
+            type: 'QueryIn',
+            user: '0x6aefdee5248bcfaf',
+          },
+          {
+            sequence: 6629,
+            type: 'MessageOutput',
+            blockNumber: 1821449,
+            origin: '0x4613e7b5fdf418fe5472071e81dcf34195805ffd2f7f68a97f7710ff7e3c3a46',
+            contract: '0xc5dfcc7fff77f29ac5194d7280bfe6f6f0fb4978af7e209ef89eef590d483537',
+            nonce: '0x517492b3a5e0497281a56c915a0e31c329faf93614986ca996162b31282c187f',
+            output: '0x03d905cbed3a130600070000807e120200800000ff3f597307000000000000000000000000000000000008000000',
+          },
+          {
+            sequence: 6630,
+            type: 'Event',
+            blockNumber: 1821449,
+            contract: '0xc5dfcc7fff77f29ac5194d7280bfe6f6f0fb4978af7e209ef89eef590d483537',
+            topics: ['0x2397e37a88ffc850c2bbc863df83cbb459c20fb30c190667330e625531370491'],
+            payload: '0x02d41f763cb3326a5dc04f09c6eeab35ca809c756ea7e8c3fb1a9a89fc4d41c03d',
+          },
+        ],
+        next: 0,
+      })
+    })
+
+    const result = await logger.tail({ type: ['Log', 'Event'] })
+    expect(result.records.length).toEqual(2)
+    const types = result.records.map((x) => x.type)
+    expect(types).toContain('Log')
+    expect(types).toContain('Event')
+  })
+
   it('the topic filter should works', async ({ expect }) => {
     const keyring = new Keyring()
     const logger = new PinkLoggerContractPromise(
