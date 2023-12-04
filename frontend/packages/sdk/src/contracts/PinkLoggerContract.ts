@@ -340,7 +340,7 @@ export class PinkLoggerContractPromise {
     remotePubkey: string,
     pair: KeyringPair,
     contractId: string | AccountId,
-    systemContractId: string
+    systemContractId?: string
   ) {
     this.#phactory = phactory
     this.#remotePubkey = remotePubkey
@@ -402,7 +402,7 @@ export class PinkLoggerContractPromise {
    */
   async tail(): Promise<GetLogResponse>
   async tail(counts: number): Promise<GetLogResponse>
-  async tail(request: GetLogRequest): Promise<GetLogResponse>
+  async tail(request: Partial<GetLogRequest>): Promise<GetLogResponse>
   async tail(counts: number, from: number): Promise<GetLogResponse>
   async tail(counts: number, request: Omit<GetLogRequest, 'from' | 'count'>): Promise<GetLogResponse>
   async tail(counts: number, from: number, request?: Omit<GetLogRequest, 'from' | 'count'>): Promise<GetLogResponse>
@@ -434,7 +434,7 @@ export class PinkLoggerContractPromise {
    */
   async head(): Promise<GetLogResponse>
   async head(counts: number): Promise<GetLogResponse>
-  async head(request: GetLogRequest): Promise<GetLogResponse>
+  async head(request: Partial<GetLogRequest>): Promise<GetLogResponse>
   async head(counts: number, from: number): Promise<GetLogResponse>
   async head(counts: number, request: Omit<GetLogRequest, 'from' | 'count'>): Promise<GetLogResponse>
   async head(counts: number, from: number, request?: Omit<GetLogRequest, 'from' | 'count'>): Promise<GetLogResponse>
