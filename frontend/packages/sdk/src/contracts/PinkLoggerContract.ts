@@ -1,5 +1,7 @@
 import type { ApiPromise } from '@polkadot/api'
 import { Keyring } from '@polkadot/api'
+import type { Abi } from '@polkadot/api-contract'
+import type { DecodedEvent } from '@polkadot/api-contract/types'
 import type { KeyringPair } from '@polkadot/keyring/types'
 import type { Enum, Struct, Text } from '@polkadot/types'
 import type { AccountId } from '@polkadot/types/interfaces'
@@ -22,6 +24,9 @@ interface GetLogRequest {
   from: number
   count: number
   block_number?: number
+  type?: 'Log' | 'Event' | 'MessageOutput' | 'QueryIn' | 'TooLarge'
+  topic?: LiteralTopic
+  abi?: Abi
 }
 
 export interface SerMessageLog {
@@ -43,6 +48,16 @@ export interface SerMessageEvent {
   contract: string
   topics: string[]
   payload: string
+}
+
+export interface SerMessageEventWithDecoded<Decoded extends DecodedEvent = DecodedEvent> {
+  type: 'Event'
+  sequence: number
+  blockNumber: number
+  contract: string
+  topics: string[]
+  payload: string
+  decoded?: Decoded
 }
 
 interface OutputOk {
@@ -113,9 +128,9 @@ export type SerInnerMessage =
   | SerMessageQueryIn
   | SerMessageTooLarge
 
-export type SerMessage =
+export type SerMessage<TEvent extends DecodedEvent = DecodedEvent> =
   | SerMessageLog
-  | SerMessageEvent
+  | SerMessageEventWithDecoded<TEvent>
   | SerMessageMessageOutput
   | SerMessageQueryIn
   | SerMessageTooLarge
@@ -185,7 +200,10 @@ function sidevmQueryWithReader({ phactory, remotePubkey, address, cert }: Sidevm
   }
 }
 
-function postProcessLogRecord(messages: SerInnerMessage[]): SerMessage[] {
+function postProcessLogRecord<TDecodedEvent extends DecodedEvent = DecodedEvent>(
+  messages: SerInnerMessage[],
+  abi?: Abi
+): SerMessage<TDecodedEvent>[] {
   return messages.map((message) => {
     if (message.type === 'MessageOutput') {
       const execResult = phalaTypes.createType<ContractExecResult>('ContractExecResult', hexToU8a(message.output))
@@ -207,6 +225,13 @@ function postProcessLogRecord(messages: SerInnerMessage[]): SerMessage[] {
         } as OutputErr
       }
       return { ...message, output }
+    } else if (message.type === 'Event' && abi) {
+      try {
+        const decoded = abi.decodeEvent(hexToU8a(message.payload)) as TDecodedEvent
+        return { ...message, decoded }
+      } catch (_err) {
+        // silent
+      }
     }
     return message
   })
@@ -336,6 +361,11 @@ export class PinkLoggerContractPromise {
     return this.#address
   }
 
+  /**
+   * Get log records from the contract.
+   *
+   * @deprecated
+   */
   async getLog(contract: AccountId | string, from: number = 0, count: number = 100): Promise<GetLogResponse> {
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
@@ -348,24 +378,30 @@ export class PinkLoggerContractPromise {
     return { records: postProcessLogRecord(result.records), next: result.next } as const
   }
 
+  /**
+   * Get the logger info. It use for probe the logger status.
+   */
   async getInfo(): Promise<LogServerInfo> {
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
     return await unsafeRunSidevmQuery({ action: 'GetInfo' })
   }
 
+  /**
+   * Fetching the log records, from the latest one back to the oldest one.
+   */
   async tail(): Promise<GetLogResponse>
   async tail(counts: number): Promise<GetLogResponse>
-  async tail(filters: Pick<GetLogRequest, 'contract' | 'block_number' | 'count'>): Promise<GetLogResponse>
+  async tail(request: Pick<GetLogRequest, 'contract' | 'block_number' | 'count'>): Promise<GetLogResponse>
   async tail(counts: number, from: number): Promise<GetLogResponse>
-  async tail(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>
+  async tail(counts: number, request: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>
   async tail(
     counts: number,
     from: number,
-    filters?: Pick<GetLogRequest, 'contract' | 'block_number'>
+    request?: Pick<GetLogRequest, 'contract' | 'block_number'>
   ): Promise<GetLogResponse>
   async tail(...params: any[]): Promise<GetLogResponse> {
-    const request: GetLogRequest = buildGetLogRequest(
+    const { abi, type, topic, ...request }: GetLogRequest = buildGetLogRequest(
       params,
       (x) => {
         if (!x.from) {
@@ -381,21 +417,32 @@ export class PinkLoggerContractPromise {
       action: 'GetLog',
       ...request,
     })
-    return { records: postProcessLogRecord(result.records), next: result.next } as const
+    if (type) {
+      if (type === 'Event' && topic) {
+        const topicHash = getTopicHash(topic)
+        result.records = result.records.filter((record) => record.type === type && record.topics[0] === topicHash)
+      } else {
+        result.records = result.records.filter((record) => record.type === type)
+      }
+    }
+    return { records: postProcessLogRecord(result.records, abi), next: result.next } as const
   }
 
+  /**
+   * Fetching the log records, from the oldest one to the latest one.
+   */
   async head(): Promise<GetLogResponse>
   async head(counts: number): Promise<GetLogResponse>
-  async head(filters: Pick<GetLogRequest, 'contract' | 'block_number' | 'count'>): Promise<GetLogResponse>
+  async head(request: Pick<GetLogRequest, 'contract' | 'block_number' | 'count'>): Promise<GetLogResponse>
   async head(counts: number, from: number): Promise<GetLogResponse>
-  async head(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>
+  async head(counts: number, request: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>
   async head(
     counts: number,
     from: number,
-    filters?: Pick<GetLogRequest, 'contract' | 'block_number'>
+    request?: Pick<GetLogRequest, 'contract' | 'block_number'>
   ): Promise<GetLogResponse>
   async head(...params: any[]): Promise<GetLogResponse> {
-    const request: GetLogRequest = buildGetLogRequest(
+    const { abi, type, topic, ...request }: GetLogRequest = buildGetLogRequest(
       params,
       (x) => x.from || 0,
       () => ({ from: 0, count: 10 })
@@ -406,8 +453,18 @@ export class PinkLoggerContractPromise {
       action: 'GetLog',
       ...request,
     })
-    return { records: postProcessLogRecord(result.records), next: result.next } as const
+    if (type) {
+      if (type === 'Event' && topic) {
+        const topicHash = getTopicHash(topic)
+        result.records = result.records.filter((record) => record.type === type && record.topics[0] === topicHash)
+      } else {
+        result.records = result.records.filter((record) => record.type === type)
+      }
+    }
+    return { records: postProcessLogRecord(result.records, abi), next: result.next } as const
   }
+
+  /// System Contract Related.
 
   setSystemContract(contract: PinkContractPromise | string) {
     if (typeof contract === 'string') {
