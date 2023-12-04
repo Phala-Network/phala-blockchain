@@ -402,14 +402,10 @@ export class PinkLoggerContractPromise {
    */
   async tail(): Promise<GetLogResponse>
   async tail(counts: number): Promise<GetLogResponse>
-  async tail(request: Pick<GetLogRequest, 'contract' | 'block_number' | 'count'>): Promise<GetLogResponse>
+  async tail(request: GetLogRequest): Promise<GetLogResponse>
   async tail(counts: number, from: number): Promise<GetLogResponse>
-  async tail(counts: number, request: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>
-  async tail(
-    counts: number,
-    from: number,
-    request?: Pick<GetLogRequest, 'contract' | 'block_number'>
-  ): Promise<GetLogResponse>
+  async tail(counts: number, request: Omit<GetLogRequest, 'from' | 'count'>): Promise<GetLogResponse>
+  async tail(counts: number, from: number, request?: Omit<GetLogRequest, 'from' | 'count'>): Promise<GetLogResponse>
   async tail(...params: any[]): Promise<GetLogResponse> {
     const { abi, type, topic, ...request }: GetLogRequest = buildGetLogRequest(
       params,
@@ -438,14 +434,10 @@ export class PinkLoggerContractPromise {
    */
   async head(): Promise<GetLogResponse>
   async head(counts: number): Promise<GetLogResponse>
-  async head(request: Pick<GetLogRequest, 'contract' | 'block_number' | 'count'>): Promise<GetLogResponse>
+  async head(request: GetLogRequest): Promise<GetLogResponse>
   async head(counts: number, from: number): Promise<GetLogResponse>
-  async head(counts: number, request: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>
-  async head(
-    counts: number,
-    from: number,
-    request?: Pick<GetLogRequest, 'contract' | 'block_number'>
-  ): Promise<GetLogResponse>
+  async head(counts: number, request: Omit<GetLogRequest, 'from' | 'count'>): Promise<GetLogResponse>
+  async head(counts: number, from: number, request?: Omit<GetLogRequest, 'from' | 'count'>): Promise<GetLogResponse>
   async head(...params: any[]): Promise<GetLogResponse> {
     const { abi, type, topic, ...request }: GetLogRequest = buildGetLogRequest(
       params,
