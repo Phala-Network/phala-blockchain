@@ -368,7 +368,9 @@ export class PinkLoggerContractPromise {
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
     return await unsafeRunSidevmQuery<{ records: SerInnerMessage[]; next: number }>({
       action: 'GetLog',
-      ...query,
+      from: query.from,
+      count: query.count,
+      contract: query.contract,
     })
   }
 
