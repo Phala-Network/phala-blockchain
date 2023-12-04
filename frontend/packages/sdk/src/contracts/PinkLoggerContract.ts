@@ -311,7 +311,7 @@ export class PinkLoggerContractPromise {
   #systemContractId: string | undefined
 
   static async create(
-    api: ApiPromise,
+    _api: ApiPromise,
     registry: OnChainRegistry,
     systemContract: PinkContractPromise,
     pair?: KeyringPair
@@ -357,6 +357,19 @@ export class PinkLoggerContractPromise {
     return { phactory, remotePubkey, address, cert } as const
   }
 
+  /**
+   * This method call `GetLog` directly, and return the raw result. All encapulation methods is based on this method.
+   * We keep this one for testing purpose, and it should less likely to be used in production.
+   */
+  async getLogRaw(query: { from?: number; count?: number; contract?: string | AccountId } = {}) {
+    const ctx = await this.getSidevmQueryContext()
+    const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
+    return await unsafeRunSidevmQuery<{ records: SerInnerMessage[]; next: number }>({
+      action: 'GetLog',
+      ...query,
+    })
+  }
+
   get address() {
     return this.#address
   }
@@ -367,10 +380,7 @@ export class PinkLoggerContractPromise {
    * @deprecated
    */
   async getLog(contract: AccountId | string, from: number = 0, count: number = 100): Promise<GetLogResponse> {
-    const ctx = await this.getSidevmQueryContext()
-    const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
-    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[]; next: number }>({
-      action: 'GetLog',
+    const result = await this.getLogRaw({
       contract,
       from,
       count,
@@ -411,12 +421,7 @@ export class PinkLoggerContractPromise {
       },
       () => ({ count: 10 })
     )
-    const ctx = await this.getSidevmQueryContext()
-    const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
-    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[]; next: number }>({
-      action: 'GetLog',
-      ...request,
-    })
+    const result = await this.getLogRaw(request)
     if (type) {
       if (type === 'Event' && topic) {
         const topicHash = getTopicHash(topic)
@@ -447,12 +452,7 @@ export class PinkLoggerContractPromise {
       (x) => x.from || 0,
       () => ({ from: 0, count: 10 })
     )
-    const ctx = await this.getSidevmQueryContext()
-    const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
-    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[]; next: number }>({
-      action: 'GetLog',
-      ...request,
-    })
+    const result = await this.getLogRaw(request)
     if (type) {
       if (type === 'Event' && topic) {
         const topicHash = getTopicHash(topic)
