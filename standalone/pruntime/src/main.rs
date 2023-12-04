@@ -3,15 +3,15 @@ mod ias;
 mod pal_gramine;
 mod runtime;
 
-use std::{env, thread};
 use std::time::Duration;
+use std::{env, thread};
 
 use clap::Parser;
 use tracing::{error, info, info_span, Instrument};
 
 use phactory_api::ecall_args::InitArgs;
-use phala_git_revision::git_revision_with_ts;
 use phala_clap_parsers::parse_duration;
+use phala_git_revision::git_revision_with_ts;
 
 mod handover;
 use phala_sanitized_logger as logger;
@@ -98,6 +98,50 @@ struct Args {
     ra_max_retries: u32,
 }
 
+impl Args {
+    fn to_init_args(&self) -> InitArgs {
+        let sgx = pal_gramine::is_gramine();
+        let sealing_path;
+        let storage_path;
+        if sgx {
+            // In gramine, the protected files are configured via manifest file. So we must not allow it to
+            // be changed at runtime for security reason. Thus hardcoded it to `/data/protected_files` here.
+            // Should keep it the same with the manifest config.
+            sealing_path = "/data/protected_files";
+            storage_path = "/data/storage_files";
+        } else {
+            sealing_path = "./data/protected_files";
+            storage_path = "./data/storage_files";
+
+            fn mkdir(dir: &str) {
+                if let Err(err) = std::fs::create_dir_all(dir) {
+                    panic!("Failed to create {dir}: {err:?}");
+                }
+            }
+            mkdir(sealing_path);
+            mkdir(storage_path);
+        }
+        let cores: u32 = self.cores.unwrap_or_else(|| num_cpus::get() as _);
+        InitArgs {
+            sealing_path: sealing_path.into(),
+            storage_path: storage_path.into(),
+            init_bench: self.init_bench,
+            version: env!("CARGO_PKG_VERSION").into(),
+            git_revision: git_revision_with_ts().to_string(),
+            enable_checkpoint: !self.disable_checkpoint,
+            checkpoint_interval: self.checkpoint_interval,
+            remove_corrupted_checkpoint: self.remove_corrupted_checkpoint,
+            max_checkpoint_files: self.max_checkpoint_files,
+            cores,
+            public_port: self.public_port,
+            safe_mode_level: self.safe_mode_level,
+            no_rcu: self.no_rcu,
+            ra_timeout: self.ra_timeout,
+            ra_max_retries: self.ra_max_retries,
+        }
+    }
+}
+
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
     pal_gramine::print_target_info();
@@ -113,27 +157,6 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
 
     info!(sgx, "Starting pruntime...");
 
-    let sealing_path;
-    let storage_path;
-    if sgx {
-        // In gramine, the protected files are configured via manifest file. So we must not allow it to
-        // be changed at runtime for security reason. Thus hardcoded it to `/data/protected_files` here.
-        // Should keep it the same with the manifest config.
-        sealing_path = "/data/protected_files";
-        storage_path = "/data/storage_files";
-    } else {
-        sealing_path = "./data/protected_files";
-        storage_path = "./data/storage_files";
-
-        fn mkdir(dir: &str) {
-            if let Err(err) = std::fs::create_dir_all(dir) {
-                panic!("Failed to create {dir}: {err:?}");
-            }
-        }
-        mkdir(sealing_path);
-        mkdir(storage_path);
-    }
-
     if let Some(address) = &args.address {
         env::set_var("ROCKET_ADDRESS", address);
     }
@@ -142,29 +165,10 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
         env::set_var("ROCKET_PORT", port.to_string());
     }
 
-    let cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
-    info!(bench_cores = cores);
+    let init_args = args.to_init_args();
+    let cores = init_args.cores;
+    let storage_path = init_args.storage_path.clone();
 
-    let init_args = {
-        let args = args.clone();
-        InitArgs {
-            sealing_path: sealing_path.into(),
-            storage_path: storage_path.into(),
-            init_bench: args.init_bench,
-            version: env!("CARGO_PKG_VERSION").into(),
-            git_revision: git_revision_with_ts().to_string(),
-            enable_checkpoint: !args.disable_checkpoint,
-            checkpoint_interval: args.checkpoint_interval,
-            remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
-            max_checkpoint_files: args.max_checkpoint_files,
-            cores,
-            public_port: args.public_port,
-            safe_mode_level: args.safe_mode_level,
-            no_rcu: args.no_rcu,
-            ra_timeout: args.ra_timeout,
-            ra_max_retries: args.ra_max_retries,
-        }
-    };
     info!("init_args: {:#?}", init_args);
     if let Some(from) = args.request_handover_from {
         info!(%from, "Starting handover");
@@ -195,9 +199,10 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
 
     if args.public_port.is_some() {
         let args_clone = args.clone();
+        let storage_path = storage_path.clone();
         let server_acl = rocket::tokio::spawn(
             async move {
-                let _rocket = api_server::rocket_acl(&args_clone, storage_path)
+                let _rocket = api_server::rocket_acl(&args_clone, &storage_path)
                     .expect("should not failed as port is provided")
                     .launch()
                     .await
@@ -210,7 +215,7 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
 
     let server_internal = rocket::tokio::spawn(
         async move {
-            let _rocket = api_server::rocket(&args, storage_path)
+            let _rocket = api_server::rocket(&args, &storage_path)
                 .launch()
                 .await
                 .expect("Failed to launch API server");

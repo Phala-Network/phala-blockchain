@@ -2,9 +2,12 @@
 #![cfg_attr(not(feature = "std"), feature(alloc_error_handler))]
 #![doc = include_str!("../README.md")]
 
+#[macro_use]
 extern crate alloc;
 
+use alloc::string::String;
 use alloc::vec::Vec;
+
 use ink::env::{emit_event, topics::state::HasRemainingTopics, Environment, Topics};
 
 use ink::EnvAccess;
@@ -425,6 +428,21 @@ pub fn vrf(salt: &[u8]) -> Vec<u8> {
     let mut key_salt = b"vrf:".to_vec();
     key_salt.extend_from_slice(salt);
     ext().derive_sr25519_key(key_salt.into())
+}
+
+/// Query to a sidevm in current worker.
+pub fn query_local_sidevm(address: AccountId, payload: Vec<u8>) -> Result<Vec<u8>, String> {
+    let url = format!("sidevm://{}", hex::encode(address));
+    let response = http_post!(url, payload);
+    if response.status_code != 200 {
+        return Err(format!(
+            "SideVM query failed: {} {}: {}",
+            response.status_code,
+            response.reason_phrase,
+            String::from_utf8_lossy(&response.body)
+        ));
+    }
+    Ok(response.body)
 }
 
 /// Pink defined environment. This environment is used to access the phat contract extended runtime features.

@@ -30,6 +30,7 @@ impl Drop for WasmRun {
 }
 
 impl WasmRun {
+    #[allow(clippy::too_many_arguments)]
     pub fn run(
         code: &[u8],
         max_pages: u32,
@@ -38,6 +39,7 @@ impl WasmRun {
         cache_ops: DynCacheOps,
         scheduler: TaskScheduler<VmId>,
         weight: u32,
+        out_tx: crate::OutgoingRequestChannel,
     ) -> Result<(WasmRun, env::Env)> {
         let compiler_env = std::env::var("WASMER_COMPILER");
         let compiler_env = compiler_env
@@ -63,7 +65,7 @@ impl WasmRun {
         engine.set_tunables(tunables);
         let mut store = Store::new(engine);
         let module = Module::new(&store, code)?;
-        let (env, import_object) = env::create_env(id, &mut store, cache_ops);
+        let (env, import_object) = env::create_env(id, &mut store, cache_ops, out_tx);
         let instance = Instance::new(&mut store, &module, &import_object)?;
         let memory = instance
             .exports

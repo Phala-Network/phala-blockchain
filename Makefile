@@ -1,4 +1,4 @@
-.PHONY: all node pruntime e2e test clippy
+.PHONY: all node pruntime e2e test clippy dist
 
 all: node pruntime e2e
 
@@ -19,3 +19,15 @@ clippy:
 
 lint:
 	cargo dylint --all --workspace
+
+dist:
+	rm -rf dist && mkdir dist
+	cp standalone/pruntime/bin/libpink* dist/
+	cp standalone/pruntime/bin/pruntime dist/
+	cp target/release/pherry dist/
+	cp target/release/phala-node dist/
+	cp e2e/res/*.contract dist/
+	cp e2e/res/*.wasm dist/
+	rm -rf dist/check_system*
+	rm -rf dist/indeterministic_functions.contract
+

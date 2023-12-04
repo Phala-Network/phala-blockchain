@@ -17,3 +17,4 @@ rocket = "0.5.0"
 scale = { package = "parity-scale-codec", version = "3.6.5" }
 sp-core = "21"
 serde_json = "1.0"
+tracing = "0.1"

@@ -85,6 +85,15 @@ pub enum SidevmHandle {
     Stopped(ExitReason),
 }
 
+impl SidevmHandle {
+    pub fn cmd_sender(&self) -> Option<CommandSender> {
+        match self {
+            SidevmHandle::Running { cmd_sender, .. } => Some(cmd_sender.clone()),
+            SidevmHandle::Stopped(_) => None,
+        }
+    }
+}
+
 impl Serialize for SidevmHandle {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

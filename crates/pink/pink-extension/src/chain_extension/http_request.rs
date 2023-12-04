@@ -124,7 +124,7 @@ impl HttpResponse {
 #[macro_export]
 macro_rules! http_req {
     ($method: expr, $url: expr, $data: expr, $headers: expr) => {{
-        use $crate::chain_extension::{HttpRequest, HttpResponse};
+        use $crate::chain_extension::HttpRequest;
         let headers = $headers;
         let body = $data;
         let request = HttpRequest {

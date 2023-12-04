@@ -37,7 +37,7 @@ cfg_if::cfg_if! {
 
 pub type IntRet = i64;
 
-#[derive(Clone, Copy, Debug, derive_more::Display, IntoPrimitive, TryFromPrimitive)]
+#[derive(Clone, Copy, Debug, derive_more::Display, IntoPrimitive, TryFromPrimitive, Encode, Decode)]
 #[repr(u8)]
 pub enum OcallError {
     Ok = 0,

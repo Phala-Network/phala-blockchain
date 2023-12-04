@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use crate::benchmark::Flags;
 use crate::system::{System, MAX_SUPPORTED_CONSENSUS_VERSION};
+use crate::types::BaseBlockInfo;
 use crate::{hex, try_decode_hex};
 
 use super::*;
@@ -33,6 +34,7 @@ use phala_types::{
     VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfoV2,
 };
 use sp_application_crypto::UncheckedFrom;
+use sp_core::hashing::blake2_256;
 use tracing::{error, info};
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -288,6 +290,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             let now_ms = state.chain_storage.timestamp_now();
             let chain_storage = state.chain_storage.snapshot();
             let block_number = block.block_header.number;
+            let contracts = self.system()?.contracts.clone();
             let mut context = contracts::pink::context::ContractExecContext::new(
                 ExecutionMode::Transaction,
                 now_ms,
@@ -295,6 +298,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 self.system()?.identity_key.clone(),
                 chain_storage,
                 req_id,
+                contracts,
             );
             self.check_requirements();
             contracts::pink::context::using(&mut context, || {
@@ -483,7 +487,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             ecdh_key,
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
-            self.args.cores as _,
         );
 
         // Build WorkerRegistrationInfoV2
@@ -558,7 +561,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         // else he is able to fake a Secure Worker
         if allow_attestation && cached_resp.attestation.is_none() {
             // We hash the encoded bytes directly
-            let runtime_info_hash = sp_core::hashing::blake2_256(&cached_resp.encoded_runtime_info);
+            let runtime_info_hash = blake2_256(&cached_resp.encoded_runtime_info);
             info!("Encoded runtime info");
             info!("{:?}", hex::encode(&cached_resp.encoded_runtime_info));
 
@@ -582,18 +585,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .map(|state| state.send_mq.all_messages_grouped().into_iter().collect())
             .unwrap_or_default();
         Ok(messages)
-    }
-
-    fn apply_side_effects(&mut self, effects: ExecSideEffects) {
-        let Some(state) = self.runtime_state.as_ref() else {
-            error!("Failed to apply side effects: chain storage missing");
-            return;
-        };
-        let Some(system) = self.system.as_mut() else {
-            error!("Failed to apply side effects: system missing");
-            return;
-        };
-        system.apply_side_effects(effects, &state.chain_storage);
     }
 
     fn contract_query(
@@ -669,10 +660,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             )?;
 
         Ok(async move {
-            let (response, effects) = query_future.await?;
+            let (_, response, effects) = query_future.await?;
             let response = contract::ContractQueryResponse {
                 nonce: head.nonce,
-                result: contract::Data(response),
+                result: contract::Data(response.encode()),
             };
             let response_data = response.encode();
 
@@ -710,11 +701,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let now_ms = state.chain_storage.timestamp_now();
 
         let mut block = BlockInfo {
-            block_number,
-            now_ms,
-            storage: &state.chain_storage,
-            send_mq: &state.send_mq,
-            recv_mq: &mut state.recv_mq,
+            base: BaseBlockInfo {
+                block_number,
+                now_ms,
+                storage: &state.chain_storage,
+                send_mq: &state.send_mq,
+                recv_mq: &mut state.recv_mq,
+            },
+            sidevm_spawner: &self.sidevm_spawner,
         };
 
         system.will_process_block(&mut block);
@@ -908,8 +902,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     }
 
     pub fn upload_sidevm_code(&mut self, contract_id: AccountId, code: Vec<u8>) -> RpcResult<()> {
+        let spawner = self.sidevm_spawner.clone();
         self.system()?
-            .upload_sidevm_code(contract_id, code)
+            .upload_sidevm_code(contract_id, code, &spawner)
             .map_err(from_debug)
     }
 
@@ -1161,9 +1156,11 @@ pub struct RpcService<Platform> {
 }
 
 impl<Platform: pal::Platform> RpcService<Platform> {
-    pub fn new(platform: Platform) -> RpcService<Platform> {
+    pub fn new(platform: Platform, args: InitArgs) -> RpcService<Platform> {
         RpcService {
-            phactory: Arc::new(Mutex::new(Phactory::new(platform))),
+            phactory: Arc::new_cyclic(|weak_self| {
+                Mutex::new(Phactory::new(platform, args, weak_self.clone()))
+            }),
             req_id: 0,
         }
     }
@@ -1173,6 +1170,12 @@ impl<Platform: pal::Platform> RpcService<Platform> {
             phactory: self.phactory.clone(),
             req_id,
         }
+    }
+}
+
+impl<P> RpcService<P> {
+    pub fn weak_phactory(&self) -> Weak<Mutex<Phactory<P>>> {
+        Arc::downgrade(&self.phactory)
     }
 }
 
@@ -1448,17 +1451,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             if effects.is_empty() {
                 break 'apply_effects;
             }
-            let mut phactory = self.lock_phactory(true, false)?;
-            if phactory.rcu_dispatching {
-                const MAX_PENDING: usize = 64;
-                if phactory.pending_effects.len() >= MAX_PENDING {
-                    error!("Too many pending effects, dropping this");
-                    return Err(from_display("Too many pending effects"));
-                }
-                phactory.pending_effects.push(effects);
-            } else {
-                phactory.apply_side_effects(effects);
-            }
+            self.lock_phactory(true, false)?.apply_side_effects(effects);
         }
         Ok(response)
     }
@@ -1552,7 +1545,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let challenge_handler = request.decode_challenge_handler().map_err(from_display)?;
         let block_sec = now_ms / 1000;
         let attestation = if !dev_mode && in_sgx {
-            let payload_hash = sp_core::hashing::blake2_256(&challenge_handler.encode());
+            let payload_hash = blake2_256(&challenge_handler.encode());
             let raw_attestation = request
                 .attestation
                 .ok_or_else(|| from_display("Client attestation not found"))?;
@@ -1677,7 +1670,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             encrypted_key,
         };
 
-        let worker_key_hash = sp_core::hashing::blake2_256(&encrypted_worker_key.encode());
+        let worker_key_hash = blake2_256(&encrypted_worker_key.encode());
         let attestation = if !dev_mode && in_sgx {
             Some(create_attestation_report_on(
                 &phactory.platform,
@@ -1735,7 +1728,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             sgx_local_report,
             ecdh_pubkey,
         };
-        let handler_hash = sp_core::hashing::blake2_256(&challenge_handler.encode());
+        let handler_hash = blake2_256(&challenge_handler.encode());
         let attestation = if !dev_mode {
             Some(create_attestation_report_on(
                 &phactory.platform,
@@ -1762,7 +1755,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let dev_mode = encrypted_worker_key.dev_mode;
         // verify RA report
         if !dev_mode {
-            let worker_key_hash = sp_core::hashing::blake2_256(&encrypted_worker_key.encode());
+            let worker_key_hash = blake2_256(&encrypted_worker_key.encode());
             let raw_attestation = request
                 .attestation
                 .ok_or_else(|| from_display("Server attestation not found"))?;

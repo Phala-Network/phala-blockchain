@@ -19,6 +19,8 @@ scale-info = { version = "2.10.0", default-features = false, features = ["derive
 
 pink-extension = { default-features = false, path = "../../../crates/pink/pink-extension" }
 phat_js = { version = "0.2.0", default-features = false }
+pink-json = { version = "0.4", default-features = false }
+sideabi = { path = "./sideabi" }
 
 [dependencies.indeterministic_functions]
 version = "0.1"
@@ -46,5 +48,6 @@ std = [
     "scale-info/std",
     "pink-extension/std",
     "indeterministic_functions/std",
+    "pink-json/std",
 ]
 ink-as-dependency = []

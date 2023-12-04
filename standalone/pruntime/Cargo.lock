@@ -1774,6 +1774,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "downcast-rs"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
+
+[[package]]
 name = "dunce"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2443,7 +2449,7 @@ dependencies = [
 [[package]]
 name = "fflonk"
 version = "0.1.0"
-source = "git+https://github.com/w3f/fflonk#191d8eed1d09bc401c8afe789f61844938f49cdf"
+source = "git+https://github.com/w3f/fflonk#e141d4b6f42fb481aefe1b479788694945b6940d"
 dependencies = [
  "ark-ec",
  "ark-ff",
@@ -3523,6 +3529,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "indexmap-nostd"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e04e2fd2b8188ea827b32ef11de88377086d690286ab35747ef7f9bf3ccb590"
+
+[[package]]
 name = "ink"
 version = "4.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3931,6 +3943,12 @@ dependencies = [
  "cfg-if",
  "winapi",
 ]
+
+[[package]]
+name = "libm"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"
 
 [[package]]
 name = "libsecp256k1"
@@ -4706,6 +4724,58 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+]
+
+[[package]]
+name = "pallet-contracts"
+version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.2.0#72c453563937c36b895c543bc5e852e213a54f19"
+dependencies = [
+ "bitflags 1.3.2",
+ "environmental",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "impl-trait-for-tuples",
+ "log",
+ "pallet-balances",
+ "pallet-contracts-primitives",
+ "pallet-contracts-proc-macro",
+ "parity-scale-codec",
+ "rand 0.8.5",
+ "scale-info",
+ "serde",
+ "smallvec",
+ "sp-api",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "wasm-instrument 0.4.0",
+ "wasmi",
+]
+
+[[package]]
+name = "pallet-contracts-primitives"
+version = "24.0.0"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.2.0#72c453563937c36b895c543bc5e852e213a54f19"
+dependencies = [
+ "bitflags 1.3.2",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-runtime",
+ "sp-std",
+ "sp-weights",
+]
+
+[[package]]
+name = "pallet-contracts-proc-macro"
+version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.2.0#72c453563937c36b895c543bc5e852e213a54f19"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.38",
 ]
 
 [[package]]
@@ -5618,6 +5688,7 @@ dependencies = [
  "log",
  "num-traits",
  "once_cell",
+ "pallet-contracts-primitives",
  "parity-scale-codec",
  "phactory-api",
  "phactory-pal",
@@ -5642,6 +5713,7 @@ dependencies = [
  "serde_cbor",
  "serde_json",
  "sgx-api-lite",
+ "sidevm-env",
  "sidevm-host-runtime",
  "sp-application-crypto",
  "sp-consensus-grandpa",
@@ -5927,6 +5999,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-wasm-checker"
+version = "0.1.0"
+dependencies = [
+ "wasmparser 0.102.0",
+]
+
+[[package]]
 name = "pharos"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6045,6 +6124,41 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
+name = "pink"
+version = "1.2.0"
+dependencies = [
+ "anyhow",
+ "frame-support",
+ "frame-system",
+ "hash-db",
+ "hex",
+ "log",
+ "pallet-balances",
+ "pallet-contracts",
+ "pallet-contracts-primitives",
+ "pallet-insecure-randomness-collective-flip",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "phala-crypto",
+ "phala-git-revision",
+ "phala-sanitized-logger",
+ "phala-trie-storage",
+ "phala-types",
+ "phala-wasm-checker",
+ "pink-capi",
+ "pink-extension",
+ "pink-extension-runtime",
+ "scale-info",
+ "sp-core",
+ "sp-externalities",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-trie",
+ "tracing",
+]
+
+[[package]]
 name = "pink-capi"
 version = "0.1.0"
 dependencies = [
@@ -6060,6 +6174,7 @@ dependencies = [
 name = "pink-extension"
 version = "0.5.0"
 dependencies = [
+ "hex",
  "ink",
  "log",
  "num_enum 0.6.1",
@@ -6128,6 +6243,7 @@ dependencies = [
  "log",
  "once_cell",
  "phala-crypto",
+ "pink",
  "pink-capi",
  "pink-extension-runtime",
  "scale-info",
@@ -7762,7 +7878,7 @@ checksum = "43b2853a4d09f215c24cc5489c992ce46052d359b5109343cbafbf26bc62f8a3"
 
 [[package]]
 name = "sidevm-env"
-version = "0.2.0-alpha.2"
+version = "0.2.0-alpha.3"
 dependencies = [
  "cfg-if",
  "derive_more",
@@ -7801,7 +7917,7 @@ dependencies = [
  "tokio-proxy",
  "tokio-rustls 0.23.4",
  "tracing",
- "wasm-instrument",
+ "wasm-instrument 0.3.0",
  "wasmer",
  "wasmer-compiler-singlepass",
  "wasmer-middlewares",
@@ -7812,7 +7928,7 @@ dependencies = [
 
 [[package]]
 name = "sidevm-macro"
-version = "0.2.0-alpha.2"
+version = "0.2.0-alpha.3"
 dependencies = [
  "heck 0.4.1",
  "proc-macro2",
@@ -9412,7 +9528,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.7",
- "rand 0.8.5",
+ "rand 0.4.6",
  "static_assertions",
 ]
 
@@ -9864,6 +9980,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-instrument"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a47ecb37b9734d1085eaa5ae1a81e60801fd8c28d4cabdd8aedb982021918bc"
+dependencies = [
+ "parity-wasm",
+]
+
+[[package]]
 name = "wasmer"
 version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10048,6 +10173,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmi"
+version = "0.31.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f341edb80021141d4ae6468cbeefc50798716a347d4085c3811900049ea8945"
+dependencies = [
+ "smallvec",
+ "spin 0.9.4",
+ "wasmi_arena",
+ "wasmi_core",
+ "wasmparser-nostd",
+]
+
+[[package]]
+name = "wasmi_arena"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "401c1f35e413fac1846d4843745589d9ec678977ab35a384db8ae7830525d468"
+
+[[package]]
+name = "wasmi_core"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dcf1a7db34bff95b85c261002720c00c3a6168256dcb93041d3fa2054d19856a"
+dependencies = [
+ "downcast-rs",
+ "libm",
+ "num-traits",
+ "paste",
+]
+
+[[package]]
 name = "wasmparser"
 version = "0.95.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10065,6 +10221,15 @@ checksum = "48134de3d7598219ab9eaf6b91b15d8e50d31da76b8519fe4ecfcec2cf35104b"
 dependencies = [
  "indexmap 1.9.1",
  "url",
+]
+
+[[package]]
+name = "wasmparser-nostd"
+version = "0.100.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9157cab83003221bfd385833ab587a039f5d6fa7304854042ba358a3b09e0724"
+dependencies = [
+ "indexmap-nostd",
 ]
 
 [[package]]

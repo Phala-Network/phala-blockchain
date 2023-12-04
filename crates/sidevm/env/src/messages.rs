@@ -1,5 +1,7 @@
 use scale::{Decode, Encode};
 
+use crate::OcallError;
+
 pub type AccountId = [u8; 32];
 pub type H256 = [u8; 32];
 
@@ -72,4 +74,55 @@ pub enum SystemMessage {
 #[derive(Encode, Decode)]
 pub enum Metric {
     PinkQueryIn([u8; 8]),
+}
+
+/// Errors that may occur during the contract query.
+#[derive(Debug, Encode, Decode)]
+pub enum QueryError {
+    /// Ocall error.
+    OcallError(OcallError),
+    /// The origin is invalid.
+    BadOrigin,
+    /// An error occurred during the contract execution.
+    RuntimeError(String),
+    /// The contract is not found.
+    SidevmNotFound,
+    /// No response received from the contract. Maybe the contract was panicked during execution.
+    NoResponse,
+    /// The contract is busy and cannot process the request.
+    ServiceUnavailable,
+    /// The request is timeout.
+    Timeout,
+    /// Signature is invalid.
+    InvalidSignature,
+    /// No such contract.
+    ContractNotFound,
+    /// Unable to decode the request data.
+    DecodeError,
+    /// Other errors reported during the contract query execution.
+    OtherError(String),
+    /// The operation is unsupported.
+    Unsupported,
+    /// Failed to decode the ContractExecResult.
+    InvalidContractExecResult,
+    /// Error reported by the pink runtime.
+    DispatchError(String),
+}
+
+impl From<OcallError> for QueryError {
+    fn from(err: OcallError) -> Self {
+        Self::OcallError(err)
+    }
+}
+
+#[derive(Encode, Decode)]
+pub enum QueryResponse {
+    OutputWithGasEstimation {
+        output: Vec<u8>,
+        gas_consumed: u64,
+        gas_required: u64,
+        storage_deposit_value: u128,
+        storage_deposit_is_charge: bool,
+    },
+    SimpleOutput(Vec<u8>),
 }

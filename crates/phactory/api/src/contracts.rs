@@ -25,7 +25,6 @@ impl std::fmt::Display for QueryError {
     }
 }
 
-
 #[derive(Debug, Encode, Decode)]
 pub enum Query {
     InkMessage {
@@ -47,6 +46,22 @@ pub enum Query {
         /// Amount of tokens transfer from the caller to the target contract.
         transfer: u128,
     },
+}
+
+impl Query {
+    pub fn query_type(&self) -> QueryType {
+        match self {
+            Query::InkMessage { .. } => QueryType::InkMessage,
+            Query::SidevmQuery(_) => QueryType::SidevmQuery,
+            Query::InkInstantiate { .. } => QueryType::InkInstantiate,
+        }
+    }
+}
+
+pub enum QueryType {
+    InkMessage,
+    SidevmQuery,
+    InkInstantiate,
 }
 
 #[derive(Debug, Encode, Decode)]

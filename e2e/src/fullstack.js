@@ -526,10 +526,6 @@ describe('A full stack', function () {
         it('can upload system code', async function () {
             const systemCode = systemMetadata.source.wasm;
             await assert.txAccepted(
-                api.tx.sudo.sudo(api.tx.phalaPhatContracts.setPinkRuntimeVersion([1, 2])),
-                alice,
-            );
-            await assert.txAccepted(
                 api.tx.sudo.sudo(api.tx.phalaPhatContracts.setPinkSystemCode(systemCode)),
                 alice,
             );
@@ -822,8 +818,20 @@ describe('A full stack', function () {
 
         it('can upload sidevm code via pRPC', async function () {
             await pruntime[0].uploadSidevmCode(ContractSystemChecker.address, sidevmCode);
+            await sleep(200);
             const info = await pruntime[0].getContractInfo(ContractSystemChecker.address.toHex());
             assert.equal(info?.sidevm?.state, 'running');
+        });
+
+        it('can invoke query between sidevm and pink', async function () {
+            {
+                const { output } = await ContractSystemChecker.query['querySidevm'](alice.address, { cert: certAlice }, 'ping');
+                assertTrue(output.eq({ Ok: { Ok: 'pong'} }));
+            }
+            {
+                const { output } = await ContractSystemChecker.query['querySidevm'](alice.address, { cert: certAlice }, 'callback');
+                assertTrue(output.eq({ Ok: { Ok: [0, 42]} }));
+            }
         });
 
         it('can send batch http request', async function () {

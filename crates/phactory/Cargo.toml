@@ -54,13 +54,15 @@ sp-trie = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "re
 sp-consensus-grandpa = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 sp-application-crypto = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
+pallet-contracts-primitives = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 
 fixed = "1.9.0"
 fixed-sqrt = "0.2.4"
 fixed-macro = "1.2"
 
 glob = "0.3"
-sidevm = { version = "0.1.0", package = "sidevm-host-runtime", path = "../sidevm/host-runtime" }
+sidevm = { package = "sidevm-host-runtime", path = "../sidevm/host-runtime" }
+sidevm-env = { path = "../sidevm/env" }
 tokio = { version = "1", features = ["full"] }
 bitflags = "1"
 async-trait = "0.1.57"

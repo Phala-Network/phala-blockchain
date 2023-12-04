@@ -16,6 +16,7 @@ dlmalloc = { version = "0.2.4", default-features = false, features = ["global"],
 this-crate = { version = "0.1", path = "../../this-crate" }
 num_enum = { version = "0.6", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
+hex = { version = "0.4", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 insta = "1.7.2"

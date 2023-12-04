@@ -1,6 +1,7 @@
 //! Logger for sidevm programs.
 
-use log::{LevelFilter, Log, Metadata, Record};
+pub use log::LevelFilter;
+use log::{Log, Metadata, Record};
 use sidevm_env::ocall_funcs_guest as ocall;
 
 /// A logger working inside a Sidevm.
