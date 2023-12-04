@@ -9,7 +9,7 @@ use frame_support::{
 };
 use log::info;
 use pallet_contracts::{
-    migration::{v11, v12, v13, v14, v15},
+    migration::{v11, v12, v13, v14, v15, NoopMigration},
     weights::SubstrateWeight,
     Config, Frame, Migration, Schedule,
 };
@@ -155,6 +155,9 @@ impl Config for PinkRuntime {
     type UnsafeUnstableInterface = ConstBool<false>;
     type MaxDebugBufferLen = MaxDebugBufferLen;
     type Migrations = (
+        // Our on-chain runtime was started from polkadot-v0.9.41 but it already contains
+        // the changes handled by the v10::Migration. So we just use a NoopMigration here.
+        NoopMigration<10>,
         v11::Migration<Self>,
         v12::Migration<Self, Balances>,
         v13::Migration<Self>,

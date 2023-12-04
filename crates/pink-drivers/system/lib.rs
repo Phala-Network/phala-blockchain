@@ -287,6 +287,42 @@ mod system {
         fn current_event_chain_head(&self) -> (u64, pink::Hash) {
             pink::ext().current_event_chain_head()
         }
+
+        #[ink(message)]
+        fn deploy_sidevm_to_workers(
+            &self,
+            contract: AccountId,
+            code_hash: pink::Hash,
+            workers: Vec<pink::WorkerId>,
+            config: pink::SidevmConfig,
+        ) -> Result<()> {
+            self.ensure_admin()?;
+            ink::env::emit_event::<PinkEnvironment, _>(pink::PinkEvent::SidevmOperation(
+                pink::SidevmOperation::Start {
+                    contract,
+                    code_hash,
+                    workers: pink::Workers::List(workers),
+                    config,
+                },
+            ));
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn set_sidevm_deadline(
+            &self,
+            contract: AccountId,
+            deadline: pink::BlockNumber,
+        ) -> Result<()> {
+            self.ensure_admin()?;
+            ink::env::emit_event::<PinkEnvironment, _>(pink::PinkEvent::SidevmOperation(
+                pink::SidevmOperation::SetDeadline {
+                    contract,
+                    deadline,
+                },
+            ));
+            Ok(())
+        }
     }
 
     impl ContractDeposit for System {

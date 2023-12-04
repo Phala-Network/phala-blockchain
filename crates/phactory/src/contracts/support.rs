@@ -1,5 +1,6 @@
 use anyhow::{anyhow, bail, Result};
 use pink::types::{AccountId, ExecutionMode, TransactionArguments};
+use pink_extension::SidevmConfig;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
@@ -21,6 +22,7 @@ use crate::{
     ChainStorage, H256,
 };
 use phactory_api::prpc as pb;
+use tokio::sync::watch::Receiver as WatchReceiver;
 use tracing::{error, info, Instrument};
 
 pub struct ExecuteEnv<'a, 'b> {
@@ -76,7 +78,10 @@ impl Decode for RawData {
 
 #[derive(Clone)]
 pub enum SidevmHandle {
-    Running(CommandSender),
+    Running {
+        cmd_sender: CommandSender,
+        stopped: WatchReceiver<bool>,
+    },
     Stopped(ExitReason),
 }
 
@@ -86,7 +91,7 @@ impl Serialize for SidevmHandle {
         S: serde::Serializer,
     {
         match self {
-            SidevmHandle::Running(_) => ExitReason::Restore.serialize(serializer),
+            SidevmHandle::Running { .. } => ExitReason::Restore.serialize(serializer),
             SidevmHandle::Stopped(r) => r.serialize(serializer),
         }
     }
@@ -103,13 +108,15 @@ impl<'de> Deserialize<'de> for SidevmHandle {
 }
 
 #[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
-struct SidevmInfo {
+pub struct SidevmInfo {
     code: Vec<u8>,
     code_hash: H256,
     start_time: String,
     auto_restart: bool,
     #[codec(skip)]
     handle: Arc<Mutex<SidevmHandle>>,
+    #[serde(default)]
+    pub config: SidevmConfig,
 }
 
 pub(crate) enum SidevmCode {
@@ -127,7 +134,7 @@ pub struct Contract {
     ecdh_key: KeyPair,
     cluster_id: phala_mq::ContractClusterId,
     address: AccountId,
-    sidevm_info: Option<SidevmInfo>,
+    pub sidevm_info: Option<SidevmInfo>,
     weight: u32,
     code_hash: Option<H256>,
     on_block_end: Option<OnBlockEnd>,
@@ -201,7 +208,11 @@ impl Contract {
     }
 
     pub(crate) fn on_block_end(&mut self, env: &mut ExecuteEnv) -> TransactionResult {
-        let Some(OnBlockEnd { selector, gas_limit }) = self.on_block_end else {
+        let Some(OnBlockEnd {
+            selector,
+            gas_limit,
+        }) = self.on_block_end
+        else {
             return Ok(None);
         };
 
@@ -236,10 +247,19 @@ impl Contract {
         spawner: &sidevm::service::Spawner,
         code: SidevmCode,
         ensure_waiting_code: bool,
+        config: SidevmConfig,
     ) -> Result<()> {
         let handle = self.sidevm_handle();
-        if let Some(SidevmHandle::Running(_)) = &handle {
-            bail!("Sidevm can only be started once");
+        let mut prev = None;
+        if let Some(SidevmHandle::Running {
+            cmd_sender,
+            stopped,
+        }) = &handle
+        {
+            if let Err(err) = cmd_sender.try_send(SidevmCommand::Stop) {
+                error!("Failed to send stop command to sidevm: {err}");
+            }
+            prev = Some(stopped.clone());
         }
 
         let (code, code_hash) = match code {
@@ -273,8 +293,22 @@ impl Contract {
             Arc::new(Mutex::new(SidevmHandle::Stopped(
                 ExitReason::WaitingForCode,
             )))
+        } else if code.len() > config.max_code_size as usize {
+            warn!(
+                "Sidevm code size {} exceeds max_code_size {}",
+                code.len(),
+                config.max_code_size
+            );
+            Arc::new(Mutex::new(SidevmHandle::Stopped(ExitReason::CodeTooLarge)))
         } else {
-            do_start_sidevm(spawner, &code, *self.address.as_ref(), self.weight)?
+            do_start_sidevm(
+                spawner,
+                &code,
+                *self.address.as_ref(),
+                self.weight,
+                &config,
+                prev,
+            )?
         };
 
         let start_time = chrono::Utc::now().to_rfc3339();
@@ -284,6 +318,7 @@ impl Contract {
             start_time,
             handle,
             auto_restart: true,
+            config,
         });
         Ok(())
     }
@@ -291,10 +326,11 @@ impl Contract {
     pub(crate) fn restart_sidevm_if_needed(
         &mut self,
         spawner: &sidevm::service::Spawner,
+        current_block: BlockNumber,
     ) -> Result<()> {
         if let Some(sidevm_info) = &mut self.sidevm_info {
-            let guard = sidevm_info.handle.lock().unwrap();
-            let handle = if let SidevmHandle::Stopped(reason) = &*guard {
+            let handle = sidevm_info.handle.lock().unwrap().clone();
+            if let SidevmHandle::Stopped(reason) = &handle {
                 let need_restart = match reason {
                     ExitReason::Exited(_) => false,
                     ExitReason::Stopped => false,
@@ -307,22 +343,30 @@ impl Contract {
                     ExitReason::OcallAborted(OcallAborted::Stifled) => true,
                     ExitReason::Restore => true,
                     ExitReason::WaitingForCode => false,
+                    ExitReason::CodeTooLarge => false,
+                    ExitReason::FailedToStart => false,
                 };
                 if !need_restart {
                     return Ok(());
                 }
                 sidevm_info.start_time = chrono::Utc::now().to_rfc3339();
-                do_start_sidevm(
+                let handle = do_start_sidevm(
                     spawner,
                     &sidevm_info.code,
                     *self.address.as_ref(),
                     self.weight,
-                )?
+                    &sidevm_info.config,
+                    None,
+                )?;
+                sidevm_info.handle = handle;
             } else {
+                if current_block > sidevm_info.config.deadline {
+                    let id = sidevm::ShortId(&self.address);
+                    info!(target: "sidevm", id=%id, "Sidevm deadline reached, stopping");
+                    return self.push_message_to_sidevm(SidevmCommand::Stop);
+                }
                 return Ok(());
             };
-            drop(guard);
-            sidevm_info.handle = handle;
         }
         Ok(())
     }
@@ -346,7 +390,7 @@ impl Contract {
                     "Push message to sidevm failed, instance terminated"
                 ));
             }
-            SidevmHandle::Running(tx) => tx.clone(),
+            SidevmHandle::Running { cmd_sender: tx, .. } => tx.clone(),
         };
         let result = tx.try_send(message);
         if let Err(err) = result {
@@ -367,7 +411,7 @@ impl Contract {
         let guard = self.sidevm_info.as_ref()?.handle.lock().unwrap();
         match &*guard {
             SidevmHandle::Stopped(_) => None,
-            SidevmHandle::Running(tx) => Some(tx.clone()),
+            SidevmHandle::Running { cmd_sender: tx, .. } => Some(tx.clone()),
         }
     }
 
@@ -375,7 +419,7 @@ impl Contract {
         if let Some(sidevm_info) = &self.sidevm_info {
             match sidevm_info.handle.lock().unwrap().clone() {
                 SidevmHandle::Stopped(_) => {}
-                SidevmHandle::Running(tx) => {
+                SidevmHandle::Running { cmd_sender: tx, .. } => {
                     spawner.spawn(
                         async move {
                             if let Err(err) = tx.send(SidevmCommand::Stop).await {
@@ -396,7 +440,7 @@ impl Contract {
             self.address(),
             weight
         );
-        if let Some(SidevmHandle::Running(tx)) = self.sidevm_handle() {
+        if let Some(SidevmHandle::Running { cmd_sender: tx, .. }) = self.sidevm_handle() {
             if tx.try_send(SidevmCommand::UpdateWeight(weight)).is_err() {
                 error!("Failed to update weight for sidevm, maybe it has crashed");
             }
@@ -415,11 +459,19 @@ impl Contract {
                 let handle = info.handle.lock().unwrap().clone();
                 let start_time = info.start_time.clone();
                 let code_hash = hex(info.code_hash);
+                let max_code_size = info.config.max_code_size;
+                let max_memory_pages = info.config.max_memory_pages;
+                let vital_capacity = info.config.vital_capacity;
+                let deadline = info.config.deadline;
                 match handle {
-                    SidevmHandle::Running(_) => pb::SidevmInfo {
+                    SidevmHandle::Running { .. } => pb::SidevmInfo {
                         state: "running".into(),
                         code_hash,
                         start_time,
+                        max_memory_pages,
+                        vital_capacity,
+                        deadline,
+                        max_code_size,
                         ..Default::default()
                     },
                     SidevmHandle::Stopped(reason) => pb::SidevmInfo {
@@ -427,6 +479,10 @@ impl Contract {
                         code_hash,
                         start_time,
                         stop_reason: format!("{reason}"),
+                        max_memory_pages,
+                        vital_capacity,
+                        deadline,
+                        max_code_size,
                     },
                 }
             }),
@@ -440,25 +496,31 @@ fn do_start_sidevm(
     code: &[u8],
     id: VmId,
     weight: u32,
+    config: &SidevmConfig,
+    prev: Option<WatchReceiver<bool>>,
 ) -> Result<Arc<Mutex<SidevmHandle>>> {
-    info!(target: "sidevm", "Starting sidevm...");
-    let max_memory_pages: u32 = 1024; // 64MB
-    let gas_per_breath = 50_000_000_000_u64; // about 20 ms bench
-    let (sender, join_handle) = spawner.start(
+    info!(target: "sidevm", ?config, "Starting sidevm...");
+    let (stopped_tx, stopped) = tokio::sync::watch::channel(false);
+    let (cmd_sender, join_handle) = spawner.start(
         code,
-        max_memory_pages,
+        config.max_memory_pages,
         id,
-        gas_per_breath,
+        config.vital_capacity,
         local_cache_ops(),
         weight,
+        prev,
     )?;
-    let handle = Arc::new(Mutex::new(SidevmHandle::Running(sender)));
+    let handle = Arc::new(Mutex::new(SidevmHandle::Running {
+        cmd_sender,
+        stopped,
+    }));
     let cloned_handle = handle.clone();
     spawner.spawn(
         async move {
             let reason = join_handle.await.unwrap_or(ExitReason::Cancelled);
             error!(target: "sidevm", ?reason, "Sidevm process terminated");
             *cloned_handle.lock().unwrap() = SidevmHandle::Stopped(reason);
+            let _ = stopped_tx.send(true);
         }
         .in_current_span(),
     );

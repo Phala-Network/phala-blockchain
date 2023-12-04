@@ -9,7 +9,7 @@ mod check_system {
     use super::pink;
     use alloc::vec::Vec;
     use pink::system::{ContractDeposit, DriverError, Result, SystemRef};
-    use pink::PinkEnvironment;
+    use pink::{PinkEnvironment, WorkerId};
 
     use alloc::string::String;
     use indeterministic_functions::Usd;
@@ -18,7 +18,7 @@ mod check_system {
     #[ink(storage)]
     pub struct CheckSystem {
         on_block_end_called: bool,
-        flag: u32,
+        flag: String,
     }
 
     impl CheckSystem {
@@ -27,13 +27,23 @@ mod check_system {
         pub fn default() -> Self {
             Self {
                 on_block_end_called: false,
-                flag: 0,
+                flag: String::new(),
             }
         }
 
         #[ink(message)]
         pub fn on_block_end_called(&self) -> bool {
             self.on_block_end_called
+        }
+
+        #[ink(message)]
+        pub fn set_flag(&mut self, flag: String) {
+            self.flag = flag;
+        }
+
+        #[ink(message)]
+        pub fn flag(&self) -> String {
+            self.flag.clone()
         }
 
         #[ink(message)]
@@ -157,6 +167,63 @@ mod check_system {
         }
 
         #[ink(message)]
+        pub fn stop_sidevm(&mut self) {
+            pink::force_stop_sidevm()
+        }
+
+        #[ink(message)]
+        pub fn deploy_paid_sidevm(
+            &mut self,
+            wokers: Vec<WorkerId>,
+            ttl: u32,
+            mem_pages: u32,
+            pay: Balance,
+        ) -> Result<(), pink::system::DriverError> {
+            use pink::system::SidevmOperationRef;
+            use pink::ResultExt;
+
+            const HASH: [u8; 32] = *include_bytes!("./sideprog.wasm.hash");
+            const CODE_LEN: usize = include_bytes!("./sideprog.wasm").len();
+            let driver = SidevmOperationRef::instance()
+                .ok_or(pink::system::Error::DriverNotFound)
+                .log_err("SidevmDeployer not found")?;
+            driver
+                .set_value_transferred(pay)
+                .deploy_to_workers(HASH, CODE_LEN as _, wokers, mem_pages, ttl)
+                .log_err("Failed to deploy sidevm")
+        }
+
+        #[ink(message)]
+        pub fn calc_paid_sidevm_price(
+            &mut self,
+            n_wokers: u32,
+            mem_pages: u32,
+        ) -> Result<Balance, pink::system::DriverError> {
+            use pink::system::SidevmOperationRef;
+
+            const CODE_LEN: usize = include_bytes!("./sideprog.wasm").len();
+            let driver =
+                SidevmOperationRef::instance().ok_or(pink::system::Error::DriverNotFound)?;
+            driver.calc_price(CODE_LEN as _, mem_pages, n_wokers)
+        }
+
+        #[ink(message)]
+        pub fn set_sidevm_deadline(
+            &mut self,
+            deadline: BlockNumber,
+            pay: Balance,
+        ) -> Result<(), pink::system::DriverError> {
+            use pink::system::SidevmOperationRef;
+            use pink::ResultExt;
+            let driver =
+                SidevmOperationRef::instance().ok_or(pink::system::Error::DriverNotFound)?;
+            driver
+                .set_value_transferred(pay)
+                .update_deadline(deadline)
+                .log_err("Failed to update deadline")
+        }
+
+        #[ink(message)]
         pub fn system_contract_version(&self) -> (u16, u16, u16) {
             pink::system::SystemRef::instance().version()
         }
@@ -168,16 +235,6 @@ mod check_system {
             args: Vec<String>,
         ) -> Result<js::Output, String> {
             js::eval(&script, &args)
-        }
-
-        #[ink(message)]
-        pub fn set_flag(&mut self, flag: u32) {
-            self.flag = flag;
-        }
-
-        #[ink(message)]
-        pub fn get_flag(&self) -> u32 {
-            self.flag
         }
     }
 
@@ -213,9 +270,9 @@ mod check_system {
             let mut checker = CheckSystemRef::default()
                 .deploy_bundle(&BundleProvider::local()?, &mut session)
                 .expect("Failed to deploy checker contract");
-            checker.call_mut().set_flag(42).submit_tx(&mut session)?;
-            let flag = checker.call().get_flag().query(&mut session)?;
-            assert_eq!(flag, 42);
+            checker.call_mut().set_flag("42".into()).submit_tx(&mut session)?;
+            let flag = checker.call().flag().query(&mut session)?;
+            assert_eq!(flag, "42");
             Ok(())
         }
     }

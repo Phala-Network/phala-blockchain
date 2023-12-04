@@ -6,7 +6,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use scale::{Decode, Encode};
 
-use crate::{AccountId, Balance, Hash};
+use crate::{AccountId, Balance, Hash, SidevmConfig, WorkerId};
 
 /// Errors that can occur upon calling the system contract.
 #[derive(Debug, PartialEq, Eq, Encode, Decode)]
@@ -154,6 +154,24 @@ pub trait System {
     /// Returns (next event block number, last event block hash)
     #[ink(message)]
     fn current_event_chain_head(&self) -> (u64, Hash);
+
+    /// Deploys a sidevm instance attached to a contract on selected workers. Must be called by an administrator.
+    #[ink(message)]
+    fn deploy_sidevm_to_workers(
+        &self,
+        contract_id: AccountId,
+        code_hash: Hash,
+        workers: Vec<crate::WorkerId>,
+        config: SidevmConfig,
+    ) -> Result<()>;
+
+    /// Sets a deadline for sidevm instances attached to a contract on selected workers. Must be called by an administrator.
+    #[ink(message)]
+    fn set_sidevm_deadline(
+        &self,
+        contract_id: AccountId,
+        run_until: crate::BlockNumber,
+    ) -> Result<()>;
 }
 
 /// Errors that can occur upon calling a driver contract.
@@ -182,6 +200,67 @@ pub trait SidevmOperation {
     /// Check if given address has the permission to deploy a sidevm.
     #[ink(message)]
     fn can_deploy(&self, contract_id: AccountId) -> bool;
+
+    /// Deploys a paid side VM instance to a set of worker nodes with the specified configurations.
+    ///
+    /// # Parameters
+    /// - `code_hash`: The hash of the code to be deployed.
+    /// - `code_size`: Size of the code.
+    /// - `workers`: A vector of worker IDs to which the code will be deployed.
+    /// - `max_memory_pages`: Maximum memory pages allowed for the side VM.
+    /// - `blocks_to_live`: How many blocks the deployment will live.
+    ///
+    /// # Returns
+    /// - `Ok(())` if the deployment was commited.
+    /// - Various `Err` variants for different types of failures.
+    #[ink(message, payable)]
+    fn deploy_to_workers(
+        &mut self,
+        code_hash: Hash,
+        code_size: u32,
+        workers: Vec<WorkerId>,
+        max_memory_pages: u32,
+        blocks_to_live: u32,
+    ) -> Result<(), DriverError>;
+
+    /// Calculates the price for deploying a paid side VM.
+    ///
+    /// # Parameters
+    /// - `code_size`: Size of the code.
+    /// - `max_memory_pages`: Maximum memory pages.
+    /// - `n_workers`: Number of worker nodes.
+    ///
+    /// # Returns
+    /// - `Result<Balance>` representing the price of the deployment.
+    #[ink(message)]
+    fn calc_price(
+        &self,
+        code_size: u32,
+        max_memory_pages: u32,
+        n_workers: u32,
+    ) -> Result<Balance, DriverError>;
+
+    /// Updates the deadline for a previously deployed side VM.
+    ///
+    /// # Parameters
+    /// - `deadline`: The new deadline (in blocks) for the side VM.
+    ///
+    /// # Returns
+    /// - `Ok(())` if the update was successful.
+    /// - `Err` variants for different types of failures.
+    #[ink(message, payable)]
+    fn update_deadline(&mut self, deadline: u32) -> Result<(), DriverError>;
+
+    /// Retrieves the deadline (in blocks) for the deployed side VM of a given account.
+    ///
+    /// # Parameters
+    /// - `account`: The account ID to query.
+    ///
+    /// # Returns
+    /// - `Some(u32)` containing the deadline if found.
+    /// - `None` if the account has not deployed a side VM.
+    #[ink(message)]
+    fn deadline_of(&self, account: AccountId) -> Option<u32>;
 }
 
 /// Contracts receiving processing deposit events. Can be a driver and the system.

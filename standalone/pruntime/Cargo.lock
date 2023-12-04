@@ -5629,6 +5629,7 @@ dependencies = [
  "phala-serde-more",
  "phala-trie-storage",
  "phala-types",
+ "pink-extension",
  "pink-extension-runtime",
  "pink-runner",
  "prpc",
@@ -6065,6 +6066,7 @@ dependencies = [
  "parity-scale-codec",
  "pink-extension-macro",
  "scale-info",
+ "serde",
  "this-crate 0.1.0",
 ]
 

@@ -696,7 +696,7 @@ impl Cluster {
                     .ok_or(QueryError::SidevmNotFound)?;
                 let cmd_sender = match handle {
                     contracts::SidevmHandle::Stopped(_) => return Err(QueryError::SidevmNotFound),
-                    contracts::SidevmHandle::Running(sender) => sender,
+                    contracts::SidevmHandle::Running { cmd_sender, .. } => cmd_sender,
                 };
                 let origin = origin.cloned().map(Into::into);
 

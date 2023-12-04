@@ -57,6 +57,7 @@ use sidevm::service::{Command as SidevmCommand, CommandSender, Report, Spawner, 
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
 use pink::types::{HookPoint, PinkEvent};
+use pink_extension::{SidevmOperation, Workers};
 use std::cell::Cell;
 use std::convert::TryFrom;
 use std::future::Future;
@@ -696,6 +697,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     None => break,
                 };
                 handle_contract_command_result(
+                    self.identity_key.public(),
                     result,
                     &mut self.contracts,
                     cluster,
@@ -740,6 +742,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 };
                 let result = contract.on_block_end(&mut env);
                 handle_contract_command_result(
+                    self.identity_key.public(),
                     result,
                     &mut self.contracts,
                     cluster,
@@ -755,7 +758,8 @@ impl<Platform: pal::Platform> System<Platform> {
             self.contracts.weight_changed = false;
             self.contracts.apply_local_cache_quotas();
         }
-        self.contracts.try_restart_sidevms(&self.sidevm_spawner);
+        self.contracts
+            .try_restart_sidevms(&self.sidevm_spawner, self.block_number);
 
         let contract_running = self.contract_cluster.is_some();
         benchmark::set_flag(benchmark::Flags::CONTRACT_RUNNING, contract_running);
@@ -1269,6 +1273,7 @@ impl<Platform: pal::Platform> System<Platform> {
                         );
                         if let Some(effects) = effects {
                             apply_pink_side_effects(
+                                self.identity_key.public(),
                                 effects,
                                 &mut self.contracts,
                                 cluster,
@@ -1519,6 +1524,7 @@ impl<Platform: pal::Platform> System<Platform> {
             }
             if let Some(effects) = runtime.effects {
                 apply_pink_side_effects(
+                    self.identity_key.public(),
                     effects,
                     &mut self.contracts,
                     &mut cluster,
@@ -1585,7 +1591,8 @@ impl<P: pal::Platform> System<P> {
         if safe_mode_level > 0 {
             return Ok(());
         }
-        self.contracts.try_restart_sidevms(&self.sidevm_spawner);
+        self.contracts
+            .try_restart_sidevms(&self.sidevm_spawner, self.block_number);
         self.contracts.apply_local_cache_quotas();
         Ok(())
     }
@@ -1605,6 +1612,7 @@ impl<P: pal::Platform> System<P> {
             instantiated: _,
         } = effects;
         apply_pink_events(
+            self.identity_key.public(),
             pink_events,
             &mut self.contracts,
             cluster,
@@ -1622,12 +1630,20 @@ impl<P: pal::Platform> System<P> {
             .contracts
             .get_mut(&contract_id)
             .ok_or_else(|| anyhow!("Contract not found"))?;
-        contract.start_sidevm(&self.sidevm_spawner, SidevmCode::Code(code), true)
+        let Some(info) = &contract.sidevm_info else {
+            anyhow::bail!("Sidevm not found");
+        };
+        if self.block_number > info.config.deadline {
+            anyhow::bail!("Sidevm is expired");
+        }
+        let config = info.config.clone();
+        contract.start_sidevm(&self.sidevm_spawner, SidevmCode::Code(code), true, config)
     }
 }
 
 #[allow(clippy::too_many_arguments)]
 pub fn handle_contract_command_result(
+    this_worker: WorkerPublicKey,
     result: TransactionResult,
     contracts: &mut ContractsKeeper,
     cluster: &mut Cluster,
@@ -1646,6 +1662,7 @@ pub fn handle_contract_command_result(
         Ok(None) => return,
     };
     apply_pink_side_effects(
+        this_worker,
         effects,
         contracts,
         cluster,
@@ -1659,6 +1676,7 @@ pub fn handle_contract_command_result(
 
 #[allow(clippy::too_many_arguments)]
 pub fn apply_pink_side_effects(
+    this_worker: WorkerPublicKey,
     effects: ExecSideEffects,
     contracts: &mut ContractsKeeper,
     cluster: &mut Cluster,
@@ -1674,7 +1692,14 @@ pub fn apply_pink_side_effects(
         instantiated,
     } = effects;
     apply_instantiating_events(instantiated, contracts, cluster, block, egress);
-    apply_pink_events(pink_events, contracts, cluster, spawner, chain_storage);
+    apply_pink_events(
+        this_worker,
+        pink_events,
+        contracts,
+        cluster,
+        spawner,
+        chain_storage,
+    );
     apply_ink_side_effects(ink_events, block, log_handler);
 }
 
@@ -1724,6 +1749,7 @@ fn apply_instantiating_events(
 }
 
 pub(crate) fn apply_pink_events(
+    this_worker: WorkerPublicKey,
     pink_events: Vec<(AccountId, PinkEvent)>,
     contracts: &mut ContractsKeeper,
     cluster: &mut Cluster,
@@ -1782,7 +1808,10 @@ pub(crate) fn apply_pink_events(
                     Some(code) => SidevmCode::Code(code),
                     None => SidevmCode::Hash(code_hash),
                 };
-                if let Err(err) = target_contract.start_sidevm(spawner, code, false) {
+
+                if let Err(err) =
+                    target_contract.start_sidevm(spawner, code, false, Default::default())
+                {
                     error!(target: "sidevm", %vmid, ?err, "Start sidevm failed");
                 }
             }
@@ -1810,7 +1839,7 @@ pub(crate) fn apply_pink_events(
             } => {
                 ensure_system!();
                 let vmid = sidevm::ShortId(&target_contract);
-                let contract = get_contract!(&origin);
+                let contract = get_contract!(&target_contract);
                 if let Err(err) = contract.push_message_to_sidevm(SidevmCommand::Stop) {
                     error!(target: "sidevm", %vmid, ?err, "Push message to sidevm failed");
                 }
@@ -1830,6 +1859,53 @@ pub(crate) fn apply_pink_events(
             PinkEvent::UpgradeRuntimeTo { version } => {
                 ensure_system!();
                 cluster.upgrade_runtime(version);
+            }
+            PinkEvent::SidevmOperation(event) => {
+                ensure_system!();
+                match event {
+                    SidevmOperation::Start {
+                        contract: target_contract,
+                        code_hash,
+                        workers,
+                        config,
+                    } => {
+                        let vmid = sidevm::ShortId(&target_contract);
+                        let contract = get_contract!(&target_contract);
+                        if let Err(err) =
+                            contract.push_message_to_sidevm(SidevmCommand::Stop)
+                        {
+                            error!(target: "sidevm", %vmid, ?err, "Push message to sidevm failed");
+                        }
+                        if let Workers::List(workers) = workers {
+                            if !workers.contains(&this_worker.0) {
+                                continue;
+                            }
+                        }
+                        let code_hash = code_hash.into();
+                        let code = match cluster.get_resource(ResourceType::SidevmCode, &code_hash)
+                        {
+                            Some(code) => SidevmCode::Code(code),
+                            None => SidevmCode::Hash(code_hash),
+                        };
+                        if let Err(err) = contract.start_sidevm(spawner, code, false, config)
+                        {
+                            error!(target: "sidevm", %vmid, ?err, "Start sidevm failed");
+                        }
+                    }
+                    SidevmOperation::SetDeadline {
+                        contract: target_contract,
+                        deadline,
+                    } => {
+                        let vmid = sidevm::ShortId(&target_contract);
+                        let target_contract = get_contract!(&target_contract);
+                        if let Some(info) = &mut target_contract.sidevm_info {
+                            info.config.deadline = deadline;
+                            info!(target: "sidevm", vmid=%vmid, "Set deadline to {deadline}");
+                        } else {
+                            info!(target: "sidevm", vmid=%vmid, "Ignored deadline update");
+                        }
+                    }
+                }
             }
         }
     }

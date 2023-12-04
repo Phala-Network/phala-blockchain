@@ -21,9 +21,11 @@ pub mod system;
 mod allocator_dlmalloc;
 
 pub use logger::ResultExt;
+use serde::{Deserialize, Serialize};
 
 const PINK_EVENT_TOPIC: &[u8] = b"phala.pink.event";
 
+pub type WorkerId = [u8; 32];
 pub type EcdhPublicKey = [u8; 32];
 pub type Hash = [u8; 32];
 pub type EcdsaPublicKey = [u8; 33];
@@ -161,6 +163,65 @@ pub enum PinkEvent {
     /// System contract
     #[codec(index = 10)]
     UpgradeRuntimeTo { version: (u32, u32) },
+    /// Deploy a sidevm instance to given contract instance on given workers.
+    ///
+    /// # Availability
+    /// System contract
+    #[codec(index = 11)]
+    SidevmOperation(SidevmOperation),
+}
+
+#[derive(Encode, Decode, Debug, Clone)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub enum SidevmOperation {
+    Start {
+        /// The target contract address
+        contract: AccountId,
+        /// The hash of the sidevm code.
+        code_hash: Hash,
+        /// The workers to deploy the sidevm instance.
+        workers: Workers,
+        config: SidevmConfig,
+    },
+    SetDeadline {
+        /// The target contract address
+        contract: AccountId,
+        /// The block number that the SideVM instance is allowed to run until.
+        deadline: u32,
+    },
+}
+
+#[derive(Encode, Decode, Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct SidevmConfig {
+    /// The maximum size of the code that can be uploaded to the SideVM instance.
+    pub max_code_size: u32,
+    /// The maximum number of memory pages(64KB per page) that can be allocated by the SideVM instance.
+    pub max_memory_pages: u32,
+    /// The max gas between two host function calls for the SideVM instance.
+    pub vital_capacity: u64,
+    /// The block number that the SideVM instance is allowed to run until.
+    pub deadline: u32,
+}
+
+impl Default for SidevmConfig {
+    fn default() -> Self {
+        Self {
+            max_code_size: 1024 * 1024 * 10,
+            // 64MB
+            max_memory_pages: 1024,
+            // about 20 ms
+            vital_capacity: 50_000_000_000_u64,
+            deadline: u32::MAX,
+        }
+    }
+}
+
+#[derive(Encode, Decode, Debug, Clone)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub enum Workers {
+    All,
+    List(Vec<WorkerId>),
 }
 
 impl PinkEvent {
@@ -175,6 +236,7 @@ impl PinkEvent {
             PinkEvent::SetLogHandler(_) => false,
             PinkEvent::SetContractWeight { .. } => false,
             PinkEvent::UpgradeRuntimeTo { .. } => false,
+            PinkEvent::SidevmOperation(_) => true,
         }
     }
 
@@ -189,6 +251,7 @@ impl PinkEvent {
             PinkEvent::SetLogHandler(_) => "SetLogHandler",
             PinkEvent::SetContractWeight { .. } => "SetContractWeight",
             PinkEvent::UpgradeRuntimeTo { .. } => "UpgradeRuntimeTo",
+            PinkEvent::SidevmOperation(_) => "SidevmOperation",
         }
     }
 
@@ -203,6 +266,7 @@ impl PinkEvent {
             PinkEvent::SetLogHandler(_) => false,
             PinkEvent::SetContractWeight { .. } => false,
             PinkEvent::UpgradeRuntimeTo { .. } => false,
+            PinkEvent::SidevmOperation(_) => false,
         }
     }
 }
@@ -264,7 +328,7 @@ impl PinkEvent {
 /// * `gas_limit`: The maximum amount of gas that can be used when calling the receiver contract.
 ///
 /// Note: The cost of the execution would be charged to the contract itself.
-/// 
+///
 /// This api is only available for the system contract. User contracts should use `System::set_hook` instead.
 pub fn set_hook(hook: HookPoint, contract: AccountId, selector: u32, gas_limit: u64) {
     emit_event::<PinkEnvironment, _>(PinkEvent::SetHook {
