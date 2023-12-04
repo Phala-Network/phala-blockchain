@@ -121,6 +121,8 @@ pub enum InputChannel {
     GeneralMessage = 2,
     /// Input channel for queries from external RPC requests.
     Query = 3,
+    /// Input channel for incoming HTTP requests.
+    HttpRequest = 4,
 }
 
 impl I32Convertible for InputChannel {
@@ -132,6 +134,7 @@ impl I32Convertible for InputChannel {
             1 => Ok(InputChannel::SystemMessage),
             2 => Ok(InputChannel::GeneralMessage),
             3 => Ok(InputChannel::Query),
+            4 => Ok(InputChannel::HttpRequest),
             _ => Err(OcallError::InvalidParameter),
         }
     }

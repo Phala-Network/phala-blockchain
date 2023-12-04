@@ -94,7 +94,8 @@ impl Future for TcpConnector {
 }
 
 impl TcpStream {
-    fn new(res_id: ResourceId) -> Self {
+    /// Create a new TcpStream from a resource ID.
+    pub fn new(res_id: ResourceId) -> Self {
         Self { res_id }
     }
 

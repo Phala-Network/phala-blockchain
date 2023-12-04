@@ -1,11 +1,16 @@
 //! Multi-producer, single-consumer channel implementation.
 use sidevm_env::{
-    messages::{AccountId, QueryRequest, SystemMessage},
+    messages::{
+        AccountId, HttpHead, HttpRequest as MsgHttpReqeust, HttpResponseHead, QueryRequest,
+        SystemMessage,
+    },
     InputChannel, OcallError,
 };
 
+use crate::net::TcpStream;
+
 use super::{ocall, ResourceId};
-use scale::{Decode, Error as CodecError};
+use scale::{Decode, Encode, Error as CodecError};
 use std::{
     future::Future,
     pin::Pin,
@@ -26,6 +31,38 @@ pub struct Query {
 
 /// A message from ink! to the side VM.
 pub type GeneralMessage = Vec<u8>;
+
+/// A incoming HTTP request.
+pub struct HttpRequest {
+    /// The HTTP request head.
+    pub head: HttpHead,
+    /// The IO stream to read the request body and write the response body.
+    pub io_stream: TcpStream,
+    /// The reply channel to send the response head.
+    pub response_tx: ScaleOneshotSender<HttpResponseHead>,
+}
+
+/// Sender end of a oneshot channel connected to host-side.
+pub struct ScaleOneshotSender<M> {
+    sender: OneshotSender,
+    _marker: std::marker::PhantomData<M>,
+}
+
+impl<M: Encode> ScaleOneshotSender<M> {
+    /// Send a message to the other end of the channel.
+    pub fn send(self, msg: M) -> Result<(), OcallError> {
+        self.sender.send(&msg.encode())
+    }
+}
+
+impl<M: Encode> From<OneshotSender> for ScaleOneshotSender<M> {
+    fn from(sender: OneshotSender) -> Self {
+        Self {
+            sender,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
 
 /// Sender end of a oneshot channel connected to host-side.
 pub struct OneshotSender {
@@ -150,4 +187,33 @@ pub fn incoming_system_messages() -> &'static Receiver<SystemMessage> {
 /// Queries from RPC channel.
 pub fn incoming_queries() -> &'static Receiver<Query> {
     singleton_channel!(Query)
+}
+
+impl Future for Next<'_, HttpRequest> {
+    type Output = Option<HttpRequest>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let waker_id = crate::env::tasks::intern_waker(cx.waker().clone());
+        match ocall::poll(waker_id, self.ch.res_id.0) {
+            Ok(msg) => {
+                let request =
+                    MsgHttpReqeust::decode(&mut &msg[..]).expect("Failed to decode MsgHttpReqeust");
+                let response_tx = OneshotSender::new(ResourceId(request.response_tx)).into();
+                let io_stream = TcpStream::new(ResourceId(request.io_stream));
+                Poll::Ready(Some(HttpRequest {
+                    head: request.head,
+                    io_stream,
+                    response_tx,
+                }))
+            }
+            Err(OcallError::EndOfFile) => Poll::Ready(None), // The tx dropped
+            Err(OcallError::Pending) => Poll::Pending,
+            Err(err) => panic!("unexpected error: {err:?}"),
+        }
+    }
+}
+
+/// Incoming HTTP connections.
+pub fn incoming_http_connections() -> &'static Receiver<HttpRequest> {
+    singleton_channel!(HttpRequest)
 }

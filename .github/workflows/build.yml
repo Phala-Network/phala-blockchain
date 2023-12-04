@@ -73,7 +73,7 @@ jobs:
       - name: Setup Node.js environment
         uses: actions/setup-node@v3
         with:
-          node-version: 16
+          node-version: 18
       - name: Install yarn 2
         run: sudo npm install -g yarn && yarn set version 3.6.4
       - name: Download core-blockchain binaries

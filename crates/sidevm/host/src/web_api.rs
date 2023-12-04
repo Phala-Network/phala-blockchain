@@ -1,21 +1,33 @@
+use log::{info, warn};
 use rocket::data::ToByteUnit;
 use rocket::http::Status;
 use rocket::response::status::Custom;
-use rocket::{post, routes};
+use rocket::{get, post, routes};
 use rocket::{Data, State};
+
 use scale::Decode;
 use sp_core::crypto::AccountId32;
+use tokio::task::JoinHandle;
+
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::path::PathBuf;
+
+use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 
-use sidevm_host_runtime::service as sidevm;
 use sidevm::{Command, CommandSender, Spawner, SystemMessage};
+use sidevm_host_runtime::rocket_stream::{connect, RequestInfo, StreamResponse};
+use sidevm_host_runtime::service::{self as sidevm, ExitReason};
 
 use crate::Args;
+struct VmHandle {
+    sender: CommandSender,
+    handle: JoinHandle<ExitReason>,
+}
 struct AppInner {
     next_id: u32,
-    instances: HashMap<u32, CommandSender>,
+    instances: HashMap<u32, VmHandle>,
     args: Args,
     spawner: Spawner,
 }
@@ -37,11 +49,8 @@ impl App {
     }
 
     async fn send(&self, vmid: u32, message: Command) -> Result<(), (u16, &'static str)> {
-        self.inner
-            .lock()
+        self.sender_for(vmid)
             .await
-            .instances
-            .get(&vmid)
             .ok_or((404, "Instance not found"))?
             .send(message)
             .await
@@ -49,10 +58,29 @@ impl App {
         Ok(())
     }
 
-    async fn run_wasm(&self, weight: u32, wasm_bytes: Vec<u8>) -> Result<u32, &'static str> {
+    async fn sender_for(&self, vmid: u32) -> Option<Sender<Command>> {
+        Some(self.inner.lock().await.instances.get(&vmid)?.sender.clone())
+    }
+
+    async fn take_handle(&self, vmid: u32) -> Option<VmHandle> {
+        self.inner.lock().await.instances.remove(&vmid)
+    }
+
+    async fn run_wasm(
+        &self,
+        wasm_bytes: Vec<u8>,
+        weight: u32,
+        id: Option<u32>,
+    ) -> Result<u32, &'static str> {
         let mut inner = self.inner.lock().await;
-        let id = inner.next_id;
-        inner.next_id += 1;
+        let id = match id {
+            Some(id) => id,
+            None => inner.next_id,
+        };
+        inner.next_id = id
+            .checked_add(1)
+            .ok_or("Too many instances")?
+            .max(inner.next_id);
 
         let mut vmid = [0u8; 32];
 
@@ -70,8 +98,7 @@ impl App {
                 weight,
             )
             .unwrap();
-        inner.instances.insert(id, sender);
-        tokio::spawn(handle);
+        inner.instances.insert(id, VmHandle { sender, handle });
         Ok(id)
     }
 }
@@ -166,16 +193,98 @@ async fn push_query(
     Ok(reply)
 }
 
-#[post("/run/<weight>", data = "<data>")]
-async fn run(app: &State<App>, weight: u32, data: Data<'_>) -> Result<String, Custom<&'static str>> {
+#[post("/sidevm/<id>/<path..>", data = "<body>")]
+async fn connect_vm_post<'r>(
+    app: &State<App>,
+    head: RequestInfo,
+    id: u32,
+    path: PathBuf,
+    body: Data<'r>,
+) -> Result<StreamResponse, (Status, String)> {
+    connect_vm(app, head, id, path, Some(body)).await
+}
+
+#[get("/sidevm/<id>/<path..>")]
+async fn connect_vm_get<'r>(
+    app: &State<App>,
+    head: RequestInfo,
+    id: u32,
+    path: PathBuf,
+) -> Result<StreamResponse, (Status, String)> {
+    connect_vm(app, head, id, path, None).await
+}
+
+async fn connect_vm<'r>(
+    app: &State<App>,
+    head: RequestInfo,
+    id: u32,
+    path: PathBuf,
+    body: Option<Data<'r>>,
+) -> Result<StreamResponse, (Status, String)> {
+    let Some(command_tx) = app.sender_for(id).await else {
+        return Err((Status::NotFound, Default::default()));
+    };
+    let path = path.to_str().ok_or((Status::BadRequest, "Invalid path".to_string()))?;
+    let result = connect(head, path, body, command_tx).await;
+    match result {
+        Ok(response) => Ok(response),
+        Err(err) => Err((Status::InternalServerError, err.to_string())),
+    }
+}
+
+#[post("/run?<weight>&<id>", data = "<data>")]
+async fn run(
+    app: &State<App>,
+    weight: Option<u32>,
+    id: Option<u32>,
+    data: Data<'_>,
+) -> Result<String, Custom<&'static str>> {
+    if let Some(id) = id {
+        if let Some(handle) = app.take_handle(id).await {
+            info!("Stopping VM {id}...");
+            if let Err(err) = handle.sender.send(Command::Stop).await {
+                warn!("Failed to send stop command to the VM: {err:?}");
+            }
+            match handle.handle.await {
+                Ok(reason) => info!("VM exited: {reason:?}"),
+                Err(err) => warn!("Failed to wait VM exit: {err:?}"),
+            }
+        };
+    }
     let code = read_data(data)
         .await
         .ok_or(Custom(Status::BadRequest, "No message payload"))?;
     let id = app
-        .run_wasm(weight, code)
+        .run_wasm(code, weight.unwrap_or(1), id)
         .await
         .map_err(|reason| Custom(Status::InternalServerError, reason))?;
     Ok(id.to_string())
+}
+
+#[post("/stop?<id>")]
+async fn stop(app: &State<App>, id: u32) -> Result<(), Custom<&'static str>> {
+    let Some(handle) = app.take_handle(id).await else {
+        return Err(Custom(Status::NotFound, "Instance not found"));
+    };
+    info!("Stopping VM {id}...");
+    if let Err(err) = handle.sender.send(Command::Stop).await {
+        warn!("Failed to send stop command to the VM: {err:?}");
+    }
+    match handle.handle.await {
+        Ok(reason) => info!("VM exited: {reason:?}"),
+        Err(err) => warn!("Failed to wait VM exit: {err:?}"),
+    }
+    Ok(())
+}
+
+#[get("/info")]
+async fn info(app: &State<App>) -> String {
+    let inner = app.inner.lock().await;
+    serde_json::json!({
+        "running": sidevm_host_runtime::vm_count(),
+        "deployed": inner.instances.len(),
+        "ids": inner.instances.keys().cloned().collect::<Vec<_>>(),
+    }).to_string()
 }
 
 pub async fn serve(args: Args) -> anyhow::Result<()> {
@@ -189,9 +298,9 @@ pub async fn serve(args: Args) -> anyhow::Result<()> {
     let app = App::new(spawner, args);
     if let Some(program) = program {
         let wasm_codes = std::fs::read(&program)?;
-        app.run_wasm(1, wasm_codes).await.map_err(|reason| {
-            anyhow::anyhow!("Failed to run wasm: {}", reason)
-        })?;
+        app.run_wasm(wasm_codes, 1, None)
+            .await
+            .map_err(|reason| anyhow::anyhow!("Failed to run wasm: {}", reason))?;
     }
     let _rocket = rocket::build()
         .manage(app)
@@ -203,6 +312,10 @@ pub async fn serve(args: Args) -> anyhow::Result<()> {
                 push_query,
                 push_query_no_origin,
                 run,
+                stop,
+                connect_vm_get,
+                connect_vm_post,
+                info,
             ],
         )
         .launch()

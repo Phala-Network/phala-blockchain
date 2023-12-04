@@ -3,6 +3,9 @@ use crate::pal_gramine::GraminePlatform;
 use anyhow::Result;
 use core::sync::atomic::{AtomicU32, Ordering};
 use phactory::{benchmark, Phactory, RpcService};
+use rocket::http::Status;
+use sidevm_host_runtime::rocket_stream::{connect, RequestInfo, StreamResponse};
+use std::path::PathBuf;
 use tracing::info;
 
 lazy_static::lazy_static! {
@@ -24,7 +27,10 @@ pub fn ecall_getinfo() -> String {
 }
 
 pub fn ecall_sign_http_response(data: &[u8]) -> Option<String> {
-    APPLICATION.lock_phactory(true, true).ok()?.sign_http_response(data)
+    APPLICATION
+        .lock_phactory(true, true)
+        .ok()?
+        .sign_http_response(data)
 }
 
 pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
@@ -37,7 +43,9 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
         match Phactory::restore_from_checkpoint(&GraminePlatform, &args) {
             Ok(Some(factory)) => {
                 info!("Loaded checkpoint");
-                **APPLICATION.lock_phactory(true, true).expect("Failed to lock Phactory") = factory;
+                **APPLICATION
+                    .lock_phactory(true, true)
+                    .expect("Failed to lock Phactory") = factory;
                 return Ok(());
             }
             Err(err) => {
@@ -64,9 +72,39 @@ pub fn ecall_bench_run(index: u32) {
     }
 }
 
-pub async fn ecall_prpc_request(req_id: u64, path: String, data: &[u8], json: bool) -> (u16, Vec<u8>) {
+pub async fn ecall_prpc_request(
+    req_id: u64,
+    path: String,
+    data: &[u8],
+    json: bool,
+) -> (u16, Vec<u8>) {
     info!(%path, json, "Handling pRPC request");
     let (code, data) = APPLICATION.dispatch_request(req_id, path, data, json).await;
     info!(code, size = data.len(), "pRPC returned");
     (code, data)
+}
+
+pub(crate) async fn ecall_connect_sidevm(
+    head: RequestInfo,
+    id: String,
+    path: PathBuf,
+    body: Option<rocket::Data<'_>>,
+) -> Result<StreamResponse, (Status, String)> {
+    let contract_id = hex::decode(id.trim_start_matches("0x"))
+        .map_err(|err| (Status::BadRequest, err.to_string()))?;
+    let Some(command_tx) = APPLICATION
+        .lock_phactory(false, false)
+        .map_err(|err| (Status::InternalServerError, err.to_string()))?
+        .sidevm_command_sender(&contract_id)
+    else {
+        return Err((Status::NotFound, Default::default()));
+    };
+    let path = path
+        .to_str()
+        .ok_or((Status::BadRequest, "Invalid path".to_string()))?;
+    let result = connect(head, path, body, command_tx).await;
+    match result {
+        Ok(response) => Ok(response),
+        Err(err) => Err((Status::InternalServerError, err.to_string())),
+    }
 }

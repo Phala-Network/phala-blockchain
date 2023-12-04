@@ -4,12 +4,13 @@ license = "Apache-2.0"
 homepage = "https://github.com/Phala-Network/phala-blockchain"
 edition = "2021"
 name = "sidevm"
-version = "0.1.10"
+version = "0.2.0-alpha.2"
 
 [dependencies]
-sidevm-env = { version = "0.1.6", path = "../env" }
-sidevm-logger = { version = "0.1.0", path = "../logger" }
-sidevm-macro = { version = "0.1.0", path = "../macro" }
+sidevm-env = { version = "0.2.0-alpha.2", path = "../env" }
+sidevm-logger = { version = "0.2.0-alpha.2", path = "../logger" }
+sidevm-macro = { version = "0.2.0-alpha.2", path = "../macro" }
+log = "0.4.16"
 derive_more = "0.99"
 
 hyper = { version = "0.14.18", features = ["server", "client"], optional = true }

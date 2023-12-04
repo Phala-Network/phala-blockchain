@@ -13,8 +13,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 log = "0.4.16"
-sidevm = { version = "0.1", path = "../../../sidevm/sidevm" }
-phala-allocator = { version = "0.1", path = "../../../phala-allocator" }
+sidevm = { path = "../../../sidevm/sidevm" }
+phala-allocator = { path = "../../../phala-allocator" }
 hex_fmt = "0.3.0"
 scale = { package = "parity-scale-codec", version = "3.6.5" }
 serde_json = "1"

@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::str;
 
 use phactory_api::prpc::phactory_api_server::PhactoryAPIMethod;
@@ -12,12 +13,13 @@ use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use sidevm_host_runtime::rocket_stream::{RequestInfo, StreamResponse};
 use tracing::{error, info, instrument};
 
 use phactory_api::{actions, prpc};
 use phala_rocket_middleware::{RequestTracer, ResponseSigner, TimeMeter, TraceId};
 
-use crate::runtime;
+use crate::runtime::{self, ecall_connect_sidevm};
 
 #[derive(Serialize, Deserialize)]
 struct ContractInput {
@@ -346,6 +348,25 @@ async fn prpc_proxy_get(id: TraceId, method: String) -> Custom<Vec<u8>> {
     prpc_call(id.id(), method, b"", true).await
 }
 
+#[post("/sidevm/<id>/<path..>", data = "<body>")]
+async fn connect_sidevm_post(
+    head: RequestInfo,
+    id: String,
+    path: PathBuf,
+    body: Data<'_>,
+) -> Result<StreamResponse, (Status, String)> {
+    ecall_connect_sidevm(head, id, path, Some(body)).await
+}
+
+#[get("/sidevm/<id>/<path..>")]
+async fn connect_sidevm_get(
+    head: RequestInfo,
+    id: String,
+    path: PathBuf,
+) -> Result<StreamResponse, (Status, String)> {
+    ecall_connect_sidevm(head, id, path, None).await
+}
+
 fn cors_options() -> CorsOptions {
     let allowed_origins = AllowedOrigins::all();
     let allowed_methods: AllowedMethods = vec![Method::Get, Method::Post]
@@ -405,7 +426,10 @@ pub(super) fn rocket(args: &super::Args, storage_path: &str) -> rocket::Rocket<i
                 ),
             ],
         )
-        .mount("/", routes![getinfo, help]);
+        .mount(
+            "/",
+            routes![getinfo, help, connect_sidevm_post, connect_sidevm_get],
+        );
 
     if args.enable_kick_api {
         info!("ENABLE `kick` API");
@@ -429,7 +453,10 @@ pub(super) fn rocket(args: &super::Args, storage_path: &str) -> rocket::Rocket<i
 }
 
 /// api endpoint with access control, will be exposed to the public
-pub(super) fn rocket_acl(args: &super::Args, storage_path: &str) -> Option<rocket::Rocket<impl Phase>> {
+pub(super) fn rocket_acl(
+    args: &super::Args,
+    storage_path: &str,
+) -> Option<rocket::Rocket<impl Phase>> {
     let public_port: u16 = if args.public_port.is_some() {
         args.public_port.expect("public_port should be set")
     } else {
@@ -441,7 +468,10 @@ pub(super) fn rocket_acl(args: &super::Args, storage_path: &str) -> Option<rocke
         .merge(("port", public_port))
         .merge(("limits", Limits::new().limit("json", 100.mebibytes())));
 
-    let mut server_acl = rocket::custom(figment).mount("/", routes![getinfo, help]);
+    let mut server_acl = rocket::custom(figment).mount(
+        "/",
+        routes![getinfo, help, connect_sidevm_post, connect_sidevm_get],
+    );
 
     server_acl = server_acl.mount("/prpc", routes![prpc_proxy_acl, prpc_proxy_get_acl]);
 

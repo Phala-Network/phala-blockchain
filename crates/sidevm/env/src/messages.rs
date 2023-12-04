@@ -10,6 +10,38 @@ pub struct QueryRequest {
     pub reply_tx: i32,
 }
 
+#[derive(Encode, Decode, Debug)]
+pub struct HttpHead {
+    pub method: String,
+    pub url: String,
+    pub headers: Vec<(String, String)>,
+}
+
+impl HttpHead {
+    pub fn get_header(&self, key: &str) -> Option<&str> {
+        let key = key.to_ascii_lowercase();
+        for (k, v) in &self.headers {
+            if k.to_ascii_lowercase() == key {
+                return Some(v);
+            }
+        }
+        None
+    }
+}
+
+#[derive(Encode, Decode, Debug)]
+pub struct HttpRequest {
+    pub head: HttpHead,
+    pub response_tx: i32,
+    pub io_stream: i32,
+}
+
+#[derive(Encode, Decode, Debug)]
+pub struct HttpResponseHead {
+    pub status: u16,
+    pub headers: Vec<(String, String)>,
+}
+
 #[derive(Encode, Decode)]
 pub enum SystemMessage {
     PinkLog {

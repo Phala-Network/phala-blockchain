@@ -1230,7 +1230,7 @@ class Cluster {
         await waitRelayerOutput(cluster.relayer.processRelayer);
 
         cluster.workers.forEach(w => {
-            w.api = new PRuntimeApi(`http://localhost:${w.port}`);
+            w.api = new PRuntimeApi(`http://127.0.0.1:${w.port}`);
         })
     }
 
@@ -1277,12 +1277,12 @@ class Cluster {
 
     async _createApi() {
         this.api = await ApiPromise.create({
-            provider: new WsProvider(`ws://localhost:${this.wsPort}`),
+            provider: new WsProvider(`ws://127.0.0.1:${this.wsPort}`),
             types: { ...types, ...typeDefinitions, ...Phala.types, ...typeOverrides },
             typeAlias
         });
         this.workers.forEach(w => {
-            w.api = new PRuntimeApi(`http://localhost:${w.port}`);
+            w.api = new PRuntimeApi(`http://127.0.0.1:${w.port}`);
         })
     }
 
@@ -1358,8 +1358,8 @@ function newRelayer(wsPort, teePort, tmpPath, gasAccountKey, key = '', name = 'r
     const args = [
         '--no-wait',
         `--mnemonic=${gasAccountKey}`,
-        `--substrate-ws-endpoint=ws://localhost:${wsPort}`,
-        `--pruntime-endpoint=http://localhost:${teePort}`,
+        `--substrate-ws-endpoint=ws://127.0.0.1:${wsPort}`,
+        `--pruntime-endpoint=http://127.0.0.1:${teePort}`,
         '--dev-wait-block-ms=1000',
         '--attestation-provider', 'none',
     ];
@@ -1368,7 +1368,7 @@ function newRelayer(wsPort, teePort, tmpPath, gasAccountKey, key = '', name = 'r
         args.push(`--inject-key=${key}`);
     }
     if (keyClientPort) {
-        args.push(`--next-pruntime-endpoint=http://localhost:${keyClientPort}`);
+        args.push(`--next-pruntime-endpoint=http://127.0.0.1:${keyClientPort}`);
     }
 
     return new Process([
