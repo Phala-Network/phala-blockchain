@@ -8,8 +8,8 @@ use std::{
 
 use pink_extension::{
     chain_extension::{
-        self as ext, HttpRequest, HttpRequestError, HttpResponse, PinkExtBackend, SigType,
-        StorageQuotaExceeded,
+        self as ext, HttpRequest, HttpRequestError, HttpResponse, JsCode, JsValue, PinkExtBackend,
+        SigType, StorageQuotaExceeded,
     },
     Balance, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash,
 };
@@ -370,6 +370,10 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
 
     fn current_event_chain_head(&self) -> Result<(u64, Hash), Self::Error> {
         Ok((0, Default::default()))
+    }
+
+    fn js_eval(&self, _codes: Vec<JsCode>, _args: Vec<String>) -> Result<JsValue, Self::Error> {
+        Ok(JsValue::Exception("No Js Runtime".into()))
     }
 }
 

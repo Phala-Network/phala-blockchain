@@ -14,7 +14,7 @@ pub use env::{
 };
 
 pub type VmId = [u8; 32];
-pub use run::WasmRun;
+pub use run::{WasmRun, WasmEngine, WasmInstanceConfig, WasmModule};
 
 pub use service::IncomingHttpRequest;
 pub use sidevm_env::OcallError;

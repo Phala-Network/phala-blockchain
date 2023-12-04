@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 
-use pink_extension::chain_extension::mock::mock_all_with;
-use pink_extension::chain_extension::SigType;
+use pink_extension::chain_extension::{mock::mock_all_with, JsCode, JsValue, SigType};
 use pink_extension::{chain_extension as ext, EcdsaPublicKey, EcdsaSignature, Hash};
 use sp_core::crypto::AccountId32;
 
@@ -151,6 +150,10 @@ impl ext::PinkExtBackend for MockExtension {
 
     fn current_event_chain_head(&self) -> Result<(u64, Hash), Self::Error> {
         Ok((0, Default::default()))
+    }
+
+    fn js_eval(&self, codes: Vec<JsCode>, args: Vec<String>) -> Result<JsValue, Self::Error> {
+        super::DefaultPinkExtension::new(self).js_eval(codes, args)
     }
 }
 

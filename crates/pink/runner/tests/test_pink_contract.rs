@@ -256,8 +256,8 @@ mod test_cluster {
     use pink_capi::v1::{
         ecall::ECalls,
         ocall::{
-            BatchHttpResult, ExecContext, HttpRequest, HttpRequestError, HttpResponse, OCalls,
-            StorageChanges,
+            BatchHttpResult, ExecContext, HttpRequest, HttpRequestError, HttpResponse, JsCode,
+            JsValue, OCalls, StorageChanges,
         },
         CrossCall, CrossCallMut, ECall,
     };
@@ -502,7 +502,16 @@ mod test_cluster {
         }
 
         fn entry_contract(&self) -> Option<AccountId> {
-            None    
+            None
+        }
+
+        fn js_eval(
+            &self,
+            _contract: AccountId,
+            _codes: Vec<JsCode>,
+            _args: Vec<String>,
+        ) -> JsValue {
+            JsValue::Exception("Not implemented".to_string())
         }
     }
 

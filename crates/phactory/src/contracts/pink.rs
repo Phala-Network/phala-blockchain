@@ -1,10 +1,12 @@
+use once_cell::sync::Lazy;
+use std::sync::Mutex;
 use std::{convert::TryInto, time::Duration};
 
 use crate::{
-    contracts::{self, QueryContext, TransactionContext},
+    contracts::{self, block_on_run_module, QueryContext, TransactionContext},
     system::{TransactionError, TransactionResult},
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use parity_scale_codec::Encode;
 use phala_crypto::sr25519::Persistence;
 use phala_mq::{ContractClusterId, MessageOrigin};
@@ -21,8 +23,12 @@ use pink::{
     runtimes::v1::{get_runtime, using_ocalls},
     types::{BlockNumber, ExecutionMode},
 };
+use pink_extension::chain_extension::{JsCode, JsValue};
 use serde::{Deserialize, Serialize};
-use sidevm::service::{Command as SidevmCommand, CommandSender, Metric, SystemMessage};
+use sidevm::{
+    service::{Command as SidevmCommand, CommandSender, Metric, SystemMessage},
+    WasmEngine, WasmModule,
+};
 use sp_core::{blake2_256, sr25519, twox_64};
 
 use ::pink::{
@@ -44,6 +50,8 @@ pub struct ClusterConfig {
     pub log_handler: Option<AccountId>,
     pub runtime_version: (u32, u32),
     pub secret_salt: [u8; 32],
+    #[serde(default)]
+    pub js_runtime: Option<Hash>,
 }
 
 #[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
@@ -128,12 +136,13 @@ impl RuntimeHandle<'_> {
 pub(crate) mod context {
     use std::time::{Duration, Instant};
 
-    use anyhow::anyhow;
+    use anyhow::{anyhow, Result};
     use phala_types::{wrap_content_to_sign, SignedContentType};
     use pink::{
         capi::v1::ocall::ExecContext,
         types::{AccountId, BlockNumber, ExecutionMode},
     };
+    use sidevm::OutgoingRequestChannel;
     use sp_core::Pair;
 
     use crate::{contracts::ContractsKeeper, system::WorkerIdentityKey, ChainStorage};
@@ -152,7 +161,8 @@ pub(crate) mod context {
             vmid: [u8; 32],
             input: Vec<u8>,
             timeout: Duration,
-        ) -> anyhow::Result<Vec<u8>>;
+        ) -> Result<Vec<u8>>;
+        fn sidevm_event_tx(&self) -> OutgoingRequestChannel;
     }
 
     pub struct ContractExecContext {
@@ -164,9 +174,11 @@ pub(crate) mod context {
         pub contracts: ContractsKeeper,
         pub start_at: Instant,
         pub req_id: u64,
+        pub sidevm_event_tx: OutgoingRequestChannel,
     }
 
     impl ContractExecContext {
+        #[allow(clippy::too_many_arguments)]
         pub fn new(
             mode: ExecutionMode,
             now_ms: u64,
@@ -175,6 +187,7 @@ pub(crate) mod context {
             chain_storage: ChainStorage,
             req_id: u64,
             contracts: ContractsKeeper,
+            sidevm_event_tx: OutgoingRequestChannel,
         ) -> Self {
             Self {
                 mode,
@@ -185,6 +198,7 @@ pub(crate) mod context {
                 start_at: Instant::now(),
                 req_id,
                 contracts,
+                sidevm_event_tx,
             }
         }
     }
@@ -221,7 +235,7 @@ pub(crate) mod context {
             vmid: [u8; 32],
             payload: Vec<u8>,
             timeout: Duration,
-        ) -> anyhow::Result<Vec<u8>> {
+        ) -> Result<Vec<u8>> {
             let contract_id = AccountId::new(vmid);
             let contract = self
                 .contracts
@@ -247,6 +261,10 @@ pub(crate) mod context {
                 .await
                 .or(Err(anyhow!("Sidevm query timeout")))?
             })
+        }
+
+        fn sidevm_event_tx(&self) -> OutgoingRequestChannel {
+            self.sidevm_event_tx.clone()
         }
     }
 
@@ -282,14 +300,15 @@ pub(crate) mod context {
         MAX_QUERY_TIME.saturating_sub(call_elapsed()).as_millis() as _
     }
 
-    pub fn sidevm_query(
-        origin: [u8; 32],
-        vmid: [u8; 32],
-        payload: Vec<u8>,
-    ) -> anyhow::Result<Vec<u8>> {
+    pub fn sidevm_query(origin: [u8; 32], vmid: [u8; 32], payload: Vec<u8>) -> Result<Vec<u8>> {
         let timeout = Duration::from_millis(time_remaining());
         exec_context::with(|ctx| ctx.sidevm_query(origin, vmid, payload, timeout))
             .ok_or(anyhow!("sidevm_query called outside of contract execution"))?
+    }
+
+    pub fn sidevm_event_tx() -> OutgoingRequestChannel {
+        exec_context::with(|ctx| ctx.sidevm_event_tx())
+            .expect("sidevm_event_tx called outside of contract execution")
     }
 
     pub use entry::{get_entry_contract, using_entry_contract};
@@ -483,6 +502,84 @@ impl OCalls for RuntimeHandle<'_> {
     fn entry_contract(&self) -> Option<AccountId> {
         context::get_entry_contract()
     }
+
+    fn js_eval(&self, caller: AccountId, codes: Vec<JsCode>, js_args: Vec<String>) -> JsValue {
+        info!("evaluating js from {caller:?}");
+        let Some(js_runtime) = self.cluster.config.js_runtime else {
+            return JsValue::Exception("No js runtime".into());
+        };
+        let timeout = Duration::from_millis(context::time_remaining());
+        let mut args = vec!["phatjs".into()];
+        for code in codes {
+            match code {
+                JsCode::Source(src) => {
+                    args.push("-c".into());
+                    args.push(src);
+                }
+                JsCode::Bytecode(code) => {
+                    args.push("-b".into());
+                    args.push(hex::encode(code));
+                }
+            }
+        }
+        args.push("--".into());
+        args.extend(js_args);
+
+        let result = load_module(&js_runtime, || {
+            self.cluster
+                .get_resource(ResourceType::SidevmCode, &js_runtime)
+        });
+        let module = match result {
+            Err(err) => {
+                let err = format!("Failed to load Javascript runtime module: {:?}", err);
+                error!("{}", err);
+                return JsValue::Exception(err);
+            }
+            Ok(module) => module,
+        };
+        let result = block_on_run_module(
+            caller.into(),
+            &module,
+            args,
+            timeout,
+            context::sidevm_event_tx(),
+            |vmid, level, message| self.log_to_server(vmid.into(), level, message),
+        );
+        match result {
+            Ok(value) => value,
+            Err(err) => {
+                let err = format!("Failed to run Javascript: {:?}", err);
+                error!("{}", err);
+                JsValue::Exception(err)
+            }
+        }
+    }
+}
+
+pub fn load_module(code_hash: &Hash, init: impl FnOnce() -> Option<Vec<u8>>) -> Result<WasmModule> {
+    struct Cache {
+        engine: WasmEngine,
+        cached_module: Option<(Hash, WasmModule)>,
+    }
+    static WASM_CACHE: Lazy<Mutex<Cache>> = Lazy::new(|| {
+        Mutex::new(Cache {
+            engine: WasmEngine::new(),
+            cached_module: None,
+        })
+    });
+    let mut cache = WASM_CACHE.lock().unwrap();
+    if let Some((hash, module)) = &cache.cached_module {
+        if hash == code_hash {
+            return Ok(module.clone());
+        }
+    }
+    let code = init().ok_or_else(|| anyhow::anyhow!("Js runtime code not found"))?;
+    let module = cache
+        .engine
+        .compile(&code)
+        .context("Failed to compile js runtime")?;
+    cache.cached_module = Some((*code_hash, module.clone()));
+    Ok(module)
 }
 
 impl OCalls for RuntimeHandleMut<'_> {
@@ -580,6 +677,10 @@ impl OCalls for RuntimeHandleMut<'_> {
 
     fn entry_contract(&self) -> Option<AccountId> {
         self.readonly().entry_contract()
+    }
+
+    fn js_eval(&self, caller: AccountId, codes: Vec<JsCode>, args: Vec<String>) -> JsValue {
+        self.readonly().js_eval(caller, codes, args)
     }
 }
 
@@ -743,6 +844,7 @@ impl Cluster {
                     context.chain_storage,
                     context.req_id,
                     contracts,
+                    context.sidevm_event_tx.clone(),
                 );
                 let log_handler = context.log_handler.clone();
                 let span = tracing::Span::current();
@@ -827,6 +929,7 @@ impl Cluster {
                     context.chain_storage,
                     context.req_id,
                     contracts,
+                    context.sidevm_event_tx.clone(),
                 );
                 let log_handler = context.log_handler.clone();
                 context::using(&mut ctx, move || {

@@ -624,12 +624,15 @@ impl<P: pal::Platform> Phactory<P> {
         from: [u8; 32],
         request: sidevm::OutgoingRequest,
         weak_phactory: Weak<Mutex<Phactory<P>>>,
-    ) -> impl Future<Output = ()> {
+    ) -> Option<impl Future<Output = ()>> {
         let sidevm::OutgoingRequest::Query {
             contract_id,
             payload,
             reply_tx,
-        } = request;
+        } = request
+        else {
+            return None;
+        };
         let query_scheduler = self.query_scheduler.clone();
         let mut derived_from = from.to_vec();
         derived_from.extend_from_slice(b"/sidevm");
@@ -657,11 +660,12 @@ impl<P: pal::Platform> Phactory<P> {
                     .as_ref()
                     .expect("runtime state always exists here")
                     .chain_storage,
+                self.sidevm_spawner.event_tx(),
             );
         let pink_runtime_version = self
             .cluster_runtime_version()
             .expect("BUG: no runtime version");
-        async move {
+        Some(async move {
             let result: Result<QueryResponse, SidevmQueryError> = async move {
                 let (query_type, output, effects) = query_future
                     .map_err(opaque_to_sidevm_err)?
@@ -693,7 +697,7 @@ impl<P: pal::Platform> Phactory<P> {
             if reply_tx.send(result.encode()).is_err() {
                 error!("Failed to send sidevm query reply");
             }
-        }
+        })
     }
 }
 
@@ -1112,7 +1116,9 @@ fn create_sidevm_outgoing_channel<Platform: pal::Platform>(
                             request,
                             weak_phactory,
                         );
-                        fut.await
+                        if let Some(fut) = fut {
+                            fut.await
+                        }
                     });
                 }
                 None => {

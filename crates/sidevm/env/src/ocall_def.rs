@@ -123,6 +123,10 @@ pub trait OcallFuncs {
     /// Returns the vmid of the current instance.
     #[ocall(id = 242, encode_output)]
     fn vmid() -> Result<[u8; 32]>;
+
+    /// Emit program output.
+    #[ocall(id = 243)]
+    fn emit_program_output(output: &[u8]) -> Result<()>;
 }
 
 #[repr(u8)]

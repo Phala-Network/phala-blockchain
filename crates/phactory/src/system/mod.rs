@@ -54,7 +54,10 @@ use phala_types::{
     wrap_content_to_sign, EcdhPublicKey, SignedContentType, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
-use sidevm::service::{Command as SidevmCommand, CommandSender, Spawner, SystemMessage};
+use sidevm::{
+    service::{Command as SidevmCommand, CommandSender, Spawner, SystemMessage},
+    OutgoingRequestChannel,
+};
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
 use pink::types::{HookPoint, PinkEvent};
@@ -531,6 +534,7 @@ impl<Platform: pal::Platform> System<Platform> {
         self.worker_state.registered
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn make_query(
         &self,
         req_id: u64,
@@ -539,6 +543,7 @@ impl<Platform: pal::Platform> System<Platform> {
         query: OpaqueQuery,
         query_scheduler: RequestScheduler<AccountId>,
         chain_storage: &ChainStorage,
+        sidevm_event_tx: OutgoingRequestChannel,
     ) -> Result<
         impl Future<
             Output = Result<
@@ -573,6 +578,7 @@ impl<Platform: pal::Platform> System<Platform> {
             worker_identity_key: self.identity_key.clone(),
             chain_storage: chain_storage.snapshot(),
             req_id,
+            sidevm_event_tx,
         };
         let origin = origin.cloned();
         let query = deopaque_query::<Query>(&query)?;
@@ -1880,6 +1886,11 @@ pub(crate) fn apply_pink_events(
                         }
                     }
                 }
+            }
+            PinkEvent::SetJsRuntime(code_hash) => {
+                ensure_system!();
+                info!("Set JsRuntime to 0x{}", hex_fmt::HexFmt(&code_hash));
+                cluster.config.js_runtime = Some(code_hash.into());
             }
         }
     }

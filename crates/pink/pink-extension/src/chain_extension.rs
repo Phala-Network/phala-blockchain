@@ -1,4 +1,5 @@
 use alloc::borrow::Cow;
+use alloc::string::String;
 use alloc::vec::Vec;
 use ink::ChainExtensionInstance;
 
@@ -7,9 +8,10 @@ pub use ink::primitives::AccountId;
 pub use signing::SigType;
 
 use crate::{Balance, EcdsaPublicKey, EcdsaSignature, Hash};
+pub use pink_types::js::{JsCode, JsValue};
 
 #[cfg(doc)]
-use crate::{http_get, http_post, http_put, debug, info, warn, error};
+use crate::{debug, error, http_get, http_post, http_put, info, warn};
 
 mod http_request;
 pub mod signing;
@@ -635,6 +637,60 @@ pub trait PinkExt {
     /// Returns (next event block number, last event block hash)
     #[ink(extension = 23, handle_status = false)]
     fn current_event_chain_head() -> (u64, Hash);
+
+    /// Execute JavaScript code using SideVM through the JsRuntime driver.
+    ///
+    /// # Arguments
+    ///
+    /// * `codes`: Vector of `JsCode` representing JavaScript code to be evaluated.
+    /// * `args`: Vector of `String`, passed into the script as `scriptArgs`.
+    ///
+    /// # Returns
+    ///
+    /// * `JsValue`: Result of the JavaScript expression evaluation.
+    ///
+    /// # Notes
+    /// The underlying JavaScript engine is an extended version of QuickJS, compiled to WebAssembly
+    /// and running inside SideVM. This environment has several limitations compared to more
+    /// traditional JavaScript engines like those in browsers or Node.js. For details on JavaScript
+    /// language features supported, refer to the [official QuickJS documentation](https://bellard.org/quickjs/).
+    ///
+    /// In terms of library features, some basic asynchronous I/O APIs are added to QuickJS, including:
+    /// - [setTimeout/setInterval](https://developer.mozilla.org/en-US/docs/Web/API/setTimeout)
+    /// - [Streams](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API)
+    /// - [URL](https://developer.mozilla.org/en-US/docs/Web/API/URL)
+    /// - [TextEncoder/Decoder](https://developer.mozilla.org/zh-CN/docs/Web/API/TextEncoder) - 
+    ///   Note that this implementation is incomplete. It only supports utf8 encoding/decoding.
+    ///   Additional polyfills may be necessary for other requirements.
+    /// - [fetch](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch)
+    /// - [XMLHttpRequest](https://developer.mozilla.org/zh-CN/docs/Web/API/XMLHttpRequest)
+    ///
+    /// # Returning Values from JavaScript to Rust
+    /// There are two methods to return values from JavaScript to Rust:
+    /// - Last Expression Value: By default, the value of the last JavaScript code
+    ///   expression is returned to Rust. However, this can be problematic in asynchronous code.
+    /// - `globalThis.scriptOutput`: If a value is assigned to `globalThis.scriptOutput` within the
+    ///   script, it will be returned to Rust, taking precedence over the last expression's value.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// // Return value via the last expression.
+    /// let js_code = "console.log('Hello, world!'); scriptArgs[0];"
+    /// let result = pink::ext().js_eval(vec![js_code.into()], vec!["bar".into()]);
+    /// assert_eq!(result, Ok(JsValue::String("bar".to_string())));
+    ///
+    /// // Return value by setting scriptOutput.
+    /// let js_code = r#"
+    ///     setTimeout(function() {
+    ///         scriptOutput = scriptArgs[0];
+    ///     }, 1000);
+    /// "#;
+    /// let result = pink::ext().js_eval(vec![js_code.into()], vec!["bar".into()]);
+    /// assert_eq!(result, Ok(JsValue::String("bar".to_string())));
+    /// ```
+    #[ink(extension = 24, handle_status = false)]
+    fn js_eval(codes: Vec<JsCode>, args: Vec<String>) -> JsValue;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

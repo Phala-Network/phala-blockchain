@@ -300,15 +300,22 @@ pub async fn serve(args: Args) -> anyhow::Result<()> {
     let (run, spawner) = sidevm::service(args.workers, tx);
     tokio::spawn(async move {
         while let Some((id, message)) = rx.recv().await {
-            let OutgoingRequest::Query {
-                contract_id,
-                payload,
-                reply_tx,
-            } = message;
             let vmid = ShortId(id);
-            let dest = ShortId(contract_id);
-            info!(%vmid, "Outgoing message to {dest} payload: {payload:?}");
-            _ = reply_tx.send(Vec::new());
+
+            match message {
+                OutgoingRequest::Query {
+                    contract_id,
+                    payload,
+                    reply_tx,
+                } => {
+                    let dest = ShortId(contract_id);
+                    info!(%vmid, "Outgoing message to {dest} payload: {payload:?}");
+                    _ = reply_tx.send(Vec::new());
+                }
+                OutgoingRequest::Output(output) => {
+                    info!(%vmid, "Outgoing message: {output:?}");
+                }
+            }
         }
     });
     std::thread::spawn(move || {

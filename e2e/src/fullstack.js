@@ -5,7 +5,7 @@ const path = require('path');
 const portfinder = require('portfinder');
 const fs = require('fs');
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
-const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
+const { cryptoWaitReady, mnemonicGenerate, blake2AsHex } = require('@polkadot/util-crypto');
 const { ContractPromise } = require('@polkadot/api-contract');
 const Phala = require('@phala/sdk');
 const { typeDefinitions } = require('@polkadot/types/bundle');
@@ -481,6 +481,8 @@ describe('A full stack', function () {
         const sidevmDeployerMetadata = JSON.parse(fs.readFileSync('./res/sidevm_deployer.contract'));
         const quickjsMetadata = JSON.parse(fs.readFileSync('./res/prebuilt/qjs.contract'));
         const sidevmCode = fs.readFileSync('./res/check_system.sidevm.wasm');
+        const jsRuntimeCode = hex(fs.readFileSync('./res/prebuilt/phatjs.wasm').toString('hex'));
+        const jsRuntimeCodeHash = hex(blake2AsHex(jsRuntimeCode));
         const contract = checkerMetadata.source;
         const codeHash = hex(contract.hash);
         const selectorDefault = hex('0xed4b9d1b'); // for default() function
@@ -759,6 +761,30 @@ describe('A full stack', function () {
                 assertTrue(output?.eq({ Ok: { Ok: { Bytes: "0x010203" } } }), "Failed to return bytes");
             }
         });
+
+        it('can eval JavaScript with JsRuntime running in SideVM', async function () {
+            await assert.txAccepted(
+                api.tx.phalaPhatContracts.clusterUploadResource(clusterId, 'SidevmCode', jsRuntimeCode),
+                alice,
+            );
+            await assert.txAccepted(
+                ContractSystem.tx['system::setDriver'](txConfig, "JsRuntime", jsRuntimeCodeHash),
+                alice,
+            );
+            await syncBarrier();
+            const jsCode = `
+            (function(){
+                console.log("Hello, World!");
+                setTimeout(function() {
+                    scriptOutput = scriptArgs[0];
+                }, 100);
+            })()
+            `;
+            const arg0 = "Powered by QuickJS in SideVM!";
+            const { output } = await ContractSystemChecker.query.pinkEvalJs(alice.address, { cert: certAlice }, jsCode, [arg0]);
+            assertTrue(output?.eq({Ok: {String: arg0}}));
+        });
+
         it('can parse json in contract delegate call', async function () {
             const code = indeterminMetadata.source.wasm;
             const codeHash = indeterminMetadata.source.hash;

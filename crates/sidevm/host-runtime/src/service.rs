@@ -1,5 +1,5 @@
-use crate::env::DynCacheOps;
-use crate::{env::OcallAborted, run::WasmRun};
+use crate::env::{DynCacheOps, OcallAborted};
+use crate::run::{WasmEngine, WasmInstanceConfig};
 use crate::{ShortId, VmId};
 use anyhow::Result;
 use phala_scheduler::TaskScheduler;
@@ -149,7 +149,7 @@ impl Spawner {
         weight: u32,
         prev_stopped: Option<WatchReceiver<bool>>,
     ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
-        let out_tx = self.out_tx.clone();
+        let event_tx = self.out_tx.clone();
         let (cmd_tx, mut cmd_rx) = channel(128);
         let spawner = self.runtime_handle.clone();
         let scheduler = self.scheduler.clone();
@@ -217,17 +217,26 @@ impl Spawner {
                 }
             }
             info!(target: "sidevm", "Starting sidevm instance...");
-            let instance = WasmRun::run(
-                &wasm_bytes,
+            let engine = WasmEngine::new();
+            let module = match engine.compile(&wasm_bytes) {
+                Ok(m) => m,
+                Err(err) => {
+                    error!(target: "sidevm", ?err, "Failed to compile wasm module");
+                    return ExitReason::FailedToStart;
+                }
+            };
+            info!(target: "sidevm", "Wasm module compiled");
+            let config = WasmInstanceConfig {
                 max_memory_pages,
                 id,
                 gas_per_breath,
                 cache_ops,
-                scheduler,
+                scheduler: Some(scheduler),
                 weight,
-                out_tx,
-            );
-            let (mut wasm_run, env) = match instance {
+                event_tx,
+                log_handler: None,
+            };
+            let (mut wasm_run, env) = match module.run(vec![], config) {
                 Ok(i) => i,
                 Err(err) => {
                     error!(target: "sidevm", "Failed to create sidevm instance: {err:?}");
@@ -311,5 +320,9 @@ impl Spawner {
         fut: impl Future<Output = O> + Send + 'static,
     ) -> JoinHandle<O> {
         self.runtime_handle.spawn(fut.in_current_span())
+    }
+
+    pub fn event_tx(&self) -> crate::OutgoingRequestChannel {
+        self.out_tx.clone()
     }
 }

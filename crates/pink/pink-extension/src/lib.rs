@@ -172,6 +172,14 @@ pub enum PinkEvent {
     /// System contract
     #[codec(index = 11)]
     SidevmOperation(SidevmOperation),
+    /// Set the Sidevm program that used to evaluate js code.
+    ///
+    /// Please do not use this event directly, use [`set_js_runtime()`] instead.
+    ///
+    /// # Availability
+    /// System contract
+    #[codec(index = 12)]
+    SetJsRuntime(Hash),
 }
 
 #[derive(Encode, Decode, Debug, Clone)]
@@ -240,6 +248,7 @@ impl PinkEvent {
             PinkEvent::SetContractWeight { .. } => false,
             PinkEvent::UpgradeRuntimeTo { .. } => false,
             PinkEvent::SidevmOperation(_) => true,
+            PinkEvent::SetJsRuntime(_) => false,
         }
     }
 
@@ -255,6 +264,7 @@ impl PinkEvent {
             PinkEvent::SetContractWeight { .. } => "SetContractWeight",
             PinkEvent::UpgradeRuntimeTo { .. } => "UpgradeRuntimeTo",
             PinkEvent::SidevmOperation(_) => "SidevmOperation",
+            PinkEvent::SetJsRuntime(_) => "SetJsRuntime",
         }
     }
 
@@ -270,6 +280,7 @@ impl PinkEvent {
             PinkEvent::SetContractWeight { .. } => false,
             PinkEvent::UpgradeRuntimeTo { .. } => false,
             PinkEvent::SidevmOperation(_) => false,
+            PinkEvent::SetJsRuntime(_) => false,
         }
     }
 }
@@ -403,6 +414,11 @@ pub fn push_sidevm_message(message: Vec<u8>) {
 /// Set the log handler contract of current cluster. (system only)
 pub fn set_log_handler(contract: AccountId) {
     emit_event::<PinkEnvironment, _>(PinkEvent::SetLogHandler(contract))
+}
+
+/// Set the SideVM program that used by js_eval code. (system only)
+pub fn set_js_runtime(code_hash: Hash) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::SetJsRuntime(code_hash))
 }
 
 /// Set the weight of contract used to schedule queries and sidevm virtual runtime. (system only)

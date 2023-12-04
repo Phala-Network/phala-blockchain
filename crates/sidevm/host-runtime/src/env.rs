@@ -92,8 +92,10 @@ pub fn create_env(
     store: &mut Store,
     cache_ops: DynCacheOps,
     out_tx: OutgoingRequestChannel,
+    log_handler: Option<LogHandler>,
+    args: Vec<String>,
 ) -> (Env, Imports) {
-    let raw_env = Env::new(id, cache_ops, out_tx);
+    let raw_env = Env::new(id, cache_ops, out_tx, log_handler, args);
     let env = FunctionEnv::new(store, raw_env.clone());
     let wasi_imports = wasi_env::wasi_imports(store, &env);
     (
@@ -160,6 +162,7 @@ pub trait CacheOps {
 }
 
 pub type DynCacheOps = &'static (dyn CacheOps + Send + Sync);
+pub type LogHandler = Box<dyn Fn(VmId, u8, &str) + Send + Sync>;
 
 pub type OutgoingRequestChannel = Sender<(VmId, OutgoingRequest)>;
 
@@ -169,6 +172,8 @@ pub enum OutgoingRequest {
         payload: Vec<u8>,
         reply_tx: OneshotSender<Vec<u8>>,
     },
+    // Used by Js Engine to send js eval result
+    Output(Vec<u8>),
 }
 
 struct VmMemory(Option<Memory>);
@@ -191,7 +196,9 @@ pub(crate) struct EnvInner {
     instance: Option<Instance>,
     outgoing_query_guard: Arc<Semaphore>,
     outgoing_request_tx: OutgoingRequestChannel,
+    log_handler: Option<LogHandler>,
     _counter: vm_counter::Counter,
+    args: Vec<String>,
 }
 
 impl VmMemory {
@@ -249,7 +256,13 @@ pub struct Env {
 }
 
 impl Env {
-    fn new(id: VmId, cache_ops: DynCacheOps, outgoing_request_tx: OutgoingRequestChannel) -> Self {
+    fn new(
+        id: VmId,
+        cache_ops: DynCacheOps,
+        outgoing_request_tx: OutgoingRequestChannel,
+        log_handler: Option<LogHandler>,
+        args: Vec<String>,
+    ) -> Self {
         Self {
             inner: Arc::new(Mutex::new(EnvInner {
                 memory: VmMemory(None),
@@ -269,7 +282,9 @@ impl Env {
                 instance: None,
                 outgoing_query_guard: Arc::new(Semaphore::new(1)),
                 outgoing_request_tx,
+                log_handler,
                 _counter: Default::default(),
+                args,
             })),
         }
     }
@@ -431,6 +446,10 @@ impl Env {
             Ok(())
         })
     }
+
+    pub fn with_args<T>(&self, f: impl FnOnce(&[String]) -> T) -> T {
+        f(&self.inner.lock().unwrap().args)
+    }
 }
 
 impl<'a, 'b> env::OcallEnv for FnEnvMut<'a, &'b mut EnvInner> {
@@ -566,6 +585,9 @@ impl<'a, 'b> env::OcallFuncs for FnEnvMut<'a, &'b mut EnvInner> {
 
     fn log(&mut self, level: log::Level, message: &str) -> Result<()> {
         log::log!(target: "sidevm", level, "{message}");
+        if let Some(log_handler) = &self.log_handler {
+            log_handler(self.id, level as u8, message);
+        }
         Ok(())
     }
 
@@ -687,6 +709,15 @@ impl<'a, 'b> env::OcallFuncs for FnEnvMut<'a, &'b mut EnvInner> {
     /// Returns the vmid of the current instance.
     fn vmid(&mut self) -> Result<[u8; 32]> {
         Ok(self.id)
+    }
+
+    fn emit_program_output(&mut self, output: &[u8]) -> Result<()> {
+        let from = self.inner.id;
+        let request = OutgoingRequest::Output(output.to_vec());
+        self.inner
+            .outgoing_request_tx
+            .try_send((from, request))
+            .or(Err(OcallError::IoError))
     }
 }
 

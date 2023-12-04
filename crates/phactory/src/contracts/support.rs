@@ -1,8 +1,9 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
+use core::time::Duration;
 use pink::types::{AccountId, ExecutionMode, TransactionArguments};
-use pink_extension::SidevmConfig;
+use pink_extension::{chain_extension::JsValue, SidevmConfig};
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 
 use parity_scale_codec::Decode;
 use phala_mq::SignedMessageChannel;
@@ -10,7 +11,7 @@ use phala_scheduler::RequestScheduler;
 use runtime::BlockNumber;
 use sidevm::{
     service::{Command as SidevmCommand, CommandSender, ExitReason},
-    OcallAborted, VmId,
+    OcallAborted, OutgoingRequestChannel, ShortId, VmId, WasmInstanceConfig, WasmModule,
 };
 
 use super::pink::Cluster;
@@ -23,7 +24,7 @@ use crate::{
 };
 use phactory_api::prpc as pb;
 use tokio::sync::watch::Receiver as WatchReceiver;
-use tracing::{error, info, Instrument};
+use tracing::{error, info, instrument, Instrument};
 
 pub struct ExecuteEnv<'a, 'b> {
     pub block: &'a mut BlockInfo<'b>,
@@ -48,6 +49,7 @@ pub struct QueryContext {
     pub worker_identity_key: WorkerIdentityKey,
     pub chain_storage: ChainStorage,
     pub req_id: u64,
+    pub sidevm_event_tx: OutgoingRequestChannel,
 }
 
 pub(crate) struct RawData(Vec<u8>);
@@ -499,7 +501,7 @@ impl Contract {
     }
 }
 
-#[tracing::instrument(name="sidevm", skip_all, fields(id=%sidevm::ShortId(&id)))]
+#[instrument(name="sidevm", skip_all, fields(id=%sidevm::ShortId(&id)))]
 fn do_start_sidevm(
     spawner: &sidevm::service::Spawner,
     code: &[u8],
@@ -565,6 +567,135 @@ fn local_cache_ops() -> sidevm::DynCacheOps {
         }
     }
     &CacheOps
+}
+
+#[instrument(skip_all, fields(id=%ShortId(id)), name = "run")]
+pub fn block_on_run_module(
+    id: VmId,
+    module: &WasmModule,
+    args: Vec<String>,
+    timeout: Duration,
+    sidevm_event_tx: OutgoingRequestChannel,
+    log_handler: impl Fn(VmId, u8, String),
+) -> Result<JsValue> {
+    info!("Run wasm module timeout={}ms", timeout.as_millis());
+    enum OutMsg {
+        Log(u8, String),
+        Output(Vec<u8>),
+        Terminated,
+        Timeout,
+        Error(anyhow::Error),
+    }
+    let (_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
+    // Channel to bridge between the sync and async world
+    let (output_tx, output_rx) = mpsc::channel();
+    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(1);
+    let tx_for_logging = output_tx.clone();
+    let config = WasmInstanceConfig {
+        max_memory_pages: 256,           // 16MB
+        gas_per_breath: 100_000_000_000, // About 1 second tested with md5 calculation
+        cache_ops: local_cache_ops(),
+        scheduler: None,
+        weight: 0,
+        id,
+        event_tx,
+        log_handler: Some(Box::new(move |_vmid, level, msg| {
+            if let Err(err) = tx_for_logging.send(OutMsg::Log(level, msg.into())) {
+                error!("Failed to send log message to response channel: {}", err);
+            }
+        })),
+    };
+    let (mut wasm_run, _env) = module
+        .run(args, config)
+        .context("Failed to start sidevm instance")?;
+    tokio::spawn(
+        async move {
+            /// Returns true if the sidevm should be terminated
+            async fn forward_event(
+                vmid: VmId,
+                event: sidevm::OutgoingRequest,
+                response_tx: &mpsc::Sender<OutMsg>,
+                event_tx: &OutgoingRequestChannel,
+            ) -> bool {
+                match event {
+                    event @ sidevm::OutgoingRequest::Query { .. } => {
+                        match event_tx.send((vmid, event)).await {
+                            Ok(_) => false,
+                            Err(err) => {
+                                error!("Failed to send query request: {err}");
+                                true
+                            }
+                        }
+                    }
+                    sidevm::OutgoingRequest::Output(output) => {
+                        if let Err(err) = response_tx.send(OutMsg::Output(output)) {
+                            error!("Failed to send output to response channel: {}", err);
+                        }
+                        true
+                    }
+                }
+            }
+            tokio::select! {
+                _ = tokio::time::sleep(timeout) => {
+                    if let Err(err) = output_tx.send(OutMsg::Timeout) {
+                        error!("Failed to send timeout message to response channel: {}", err);
+                    }
+                }
+                _ = cancel_rx => {
+                    warn!("The host thread returned while the sidevm task is running")
+                }
+                rv = &mut wasm_run => {
+                    if let Err(err) = rv {
+                        error!(target: "sidevm", ?err, "Js runtime exited with error.");
+                        if let Err(err) = output_tx.send(OutMsg::Error(err.into())) {
+                            error!("Failed to send error message to response channel: {}", err);
+                        }
+                    }
+                }
+                _ = async {
+                    while let Some((vmid, event)) = event_rx.recv().await {
+                        if forward_event(vmid, event, &output_tx, &sidevm_event_tx).await {
+                            break;
+                        }
+                    }
+                } => {}
+            }
+            // Continue to process events incase there are some pending events in the channel
+            while let Ok((vmid, event)) = event_rx.try_recv() {
+                if forward_event(vmid, event, &output_tx, &sidevm_event_tx).await {
+                    break;
+                }
+            }
+            if output_tx.send(OutMsg::Terminated).is_err() {
+                error!("Failed to send termination message to response channel");
+            }
+        }
+        .in_current_span(),
+    );
+    loop {
+        match output_rx.recv() {
+            Ok(OutMsg::Log(level, msg)) => {
+                log_handler(id, level, msg);
+            }
+            Ok(OutMsg::Output(o)) => {
+                let value =
+                    JsValue::decode(&mut &o[..]).map_err(|_| anyhow!("Failed to decode output"))?;
+                return Ok(value);
+            }
+            Ok(OutMsg::Terminated) => {
+                return Err(anyhow!("Sidevm terminated without output"));
+            }
+            Ok(OutMsg::Timeout) => {
+                return Err(anyhow!("Sidevm execution timeout"));
+            }
+            Ok(OutMsg::Error(err)) => {
+                return Err(err);
+            }
+            Err(err) => {
+                return Err(anyhow!("Failed to receive response from sidevm: {err}"));
+            }
+        }
+    }
 }
 
 pub use keeper::*;

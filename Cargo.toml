@@ -71,6 +71,7 @@ members = [
 	"crates/pink/runtime/unittests",
 	"crates/pink/capi",
 	"crates/pink/macro",
+	"crates/pink/pink-types",
 	"crates/pink/pink-extension",
 	"crates/pink/pink-extension-runtime",
 	"crates/pink-libs/s3",

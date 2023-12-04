@@ -299,6 +299,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 chain_storage,
                 req_id,
                 contracts,
+                self.sidevm_spawner.event_tx(),
             );
             self.check_requirements();
             contracts::pink::context::using(&mut context, || {
@@ -657,6 +658,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                     .as_ref()
                     .expect("runtime state always exists here")
                     .chain_storage,
+                self.sidevm_spawner.event_tx(),
             )?;
 
         Ok(async move {
@@ -894,6 +896,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 logger_contract: cluster
                     .config
                     .log_handler
+                    .as_ref()
+                    .map(hex)
+                    .unwrap_or_default(),
+                js_runtime: cluster
+                    .config
+                    .js_runtime
                     .as_ref()
                     .map(hex)
                     .unwrap_or_default(),
@@ -1629,7 +1637,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                         .map_err(|_| from_display("Invalid client RA report"))?;
                     ias_fields.extend_mrenclave()
                 }
-                AttestationReport::SgxDcap { quote: _, collateral: _ } => todo!(),
+                AttestationReport::SgxDcap {
+                    quote: _,
+                    collateral: _,
+                } => todo!(),
             };
             let req_runtime_timestamp = runtime_state
                 .chain_storage
