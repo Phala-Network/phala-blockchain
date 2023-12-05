@@ -628,6 +628,9 @@ pub trait PinkExt {
     ///     ),
     /// ];
     /// let result = pink::ext().batch_http_request(requests, 5000);
+    ///
+    /// # Runtime version
+    /// 1.1
     /// ```
     #[ink(extension = 22, handle_status = true)]
     fn batch_http_request(requests: Vec<HttpRequest>, timeout_ms: u64) -> BatchHttpResult;
@@ -635,6 +638,9 @@ pub trait PinkExt {
     /// Get current event chain head info
     ///
     /// Returns (next event block number, last event block hash)
+    ///
+    /// # Runtime version
+    /// 1.1
     #[ink(extension = 23, handle_status = false)]
     fn current_event_chain_head() -> (u64, Hash);
 
@@ -689,6 +695,9 @@ pub trait PinkExt {
     /// let result = pink::ext().js_eval(vec![js_code.into()], vec!["bar".into()]);
     /// assert_eq!(result, Ok(JsValue::String("bar".to_string())));
     /// ```
+    ///
+    /// # Runtime version
+    /// 1.2
     #[ink(extension = 24, handle_status = false)]
     fn js_eval(codes: Vec<JsCode>, args: Vec<String>) -> JsValue;
 }
