@@ -310,7 +310,7 @@ mod impl_tokio {
             buf: &mut tokio::io::ReadBuf<'_>,
         ) -> Poll<std::io::Result<()>> {
             let result = {
-                let size = buf.remaining().min(512);
+                let size = buf.remaining();
                 let buf = buf.initialize_unfilled_to(size);
                 let waker_id = tasks::intern_waker(cx.waker().clone());
                 ocall::poll_read(waker_id, self.res_id.0, buf)
