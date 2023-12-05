@@ -10017,7 +10017,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "dlmalloc",
  "hex",
