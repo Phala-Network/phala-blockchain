@@ -1,6 +1,6 @@
 import type { ApiPromise } from '@polkadot/api'
 import { Keyring } from '@polkadot/api'
-import type { Abi } from '@polkadot/api-contract'
+import { Abi } from '@polkadot/api-contract'
 import type { DecodedEvent } from '@polkadot/api-contract/types'
 import type { KeyringPair } from '@polkadot/keyring/types'
 import type { Enum, Struct, Text } from '@polkadot/types'
@@ -14,7 +14,7 @@ import { type CertificateData, generatePair, signCertificate } from '../pruntime
 import { InkQuerySidevmMessage } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
 import { type pruntime_rpc } from '../pruntime/proto'
-import type { InkResponse } from '../types'
+import type { AbiLike, InkResponse } from '../types'
 import { isPascalCase, snakeToPascalCase } from '../utils/snakeToPascalCase'
 import { ContractInitialError } from './Errors'
 import { type PinkContractPromise } from './PinkContract'
@@ -28,7 +28,7 @@ export interface GetLogRequest {
   block_number?: number
   type?: LogTypeLiteral | LogTypeLiteral[]
   topic?: LiteralTopic
-  abi?: Abi
+  abi?: AbiLike
 }
 
 export interface SerMessageLog {
@@ -204,8 +204,13 @@ function sidevmQueryWithReader({ phactory, remotePubkey, address, cert }: Sidevm
 
 function postProcessLogRecord<TDecodedEvent extends DecodedEvent = DecodedEvent>(
   messages: SerInnerMessage[],
-  abi?: Abi
+  abiLike?: AbiLike
 ): SerMessage<TDecodedEvent>[] {
+  let abi: Abi | undefined
+  if (abiLike) {
+    abi = abiLike instanceof Abi ? abiLike : new Abi(abiLike)
+  }
+
   return messages.map((message) => {
     if (message.type === 'MessageOutput') {
       const execResult = phalaTypes.createType<ContractExecResult>('ContractExecResult', hexToU8a(message.output))
@@ -310,7 +315,7 @@ export class PinkLoggerContractPromise {
   #remotePubkey: string
   #address: AccountId
   #pair: KeyringPair
-  #systemContractId: string | undefined
+  #systemContractId: string | AccountId | undefined
 
   static async create(
     _api: ApiPromise,
@@ -342,7 +347,7 @@ export class PinkLoggerContractPromise {
     remotePubkey: string,
     pair: KeyringPair,
     contractId: string | AccountId,
-    systemContractId?: string
+    systemContractId?: string | AccountId
   ) {
     this.#phactory = phactory
     this.#remotePubkey = remotePubkey
@@ -478,13 +483,17 @@ export class PinkLoggerContractPromise {
     if (!this.#systemContractId) {
       throw new Error('System contract ID is not set.')
     }
-    return this.head(counts, from, { contract: this.#systemContractId })
+    const contract =
+      typeof this.#systemContractId === 'string' ? this.#systemContractId : this.#systemContractId.toHex()
+    return this.head(counts, from, { contract })
   }
 
   async tailSystemLog(counts: number = 10, from: number = -10) {
     if (!this.#systemContractId) {
       throw new Error('System contract ID is not set.')
     }
-    return this.tail(counts, from, { contract: this.#systemContractId })
+    const contract =
+      typeof this.#systemContractId === 'string' ? this.#systemContractId : this.#systemContractId.toHex()
+    return this.tail(counts, from, { contract })
   }
 }
