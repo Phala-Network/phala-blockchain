@@ -4,10 +4,17 @@ edition = "2021"
 name = "sidevm-host"
 version = "0.1.0"
 
+[[bin]]
+name = "sidevm-host"
+path = "src/main.rs"
+
+[[bin]]
+name = "sidevm-run"
+path = "src/run.rs"
+
 [dependencies]
-sidevm-host-runtime = { path = "../host-runtime", features = [
-    "wasmer-compiler-cranelift",
-] }
+sidevm-host-runtime = { path = "../host-runtime", features = ["wasmer-compiler-cranelift"] }
+pink-types = { version = "0.1", path = "../../pink/pink-types", default-features = false }
 tokio = { version = "1.17.0", features = ["full"] }
 tracing-subscriber = "0.3"
 anyhow = "1.0.69"
