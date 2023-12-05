@@ -12,7 +12,7 @@ import { applyOnEvent } from '@polkadot/api-contract/util'
 import type { Bytes, Null, Result, Struct, Text, Vec, u8 } from '@polkadot/types'
 import type { AccountId, ContractExecResult, EventRecord } from '@polkadot/types/interfaces'
 import type { Codec, IEnum, IKeyringPair, ISubmittableResult, Registry } from '@polkadot/types/types'
-import { BN, BN_ZERO, hexAddPrefix, hexToU8a } from '@polkadot/util'
+import { BN, BN_ZERO, hexAddPrefix, hexToU8a, isHex } from '@polkadot/util'
 import { sr25519Agreement, sr25519PairFromSeed } from '@polkadot/util-crypto'
 import { from } from 'rxjs'
 import type { OnChainRegistry } from '../OnChainRegistry'
@@ -59,6 +59,8 @@ export interface PinkContractOptions extends ContractOptions {
 
   //
   plain?: boolean
+
+  nonce?: `0x${string}`
 }
 
 interface SendOptions {
@@ -91,10 +93,12 @@ class PinkContractSubmittableResult extends ContractSubmittableResult {
   #isFinalized: boolean = false
   #contract: PinkContractPromise
   #message: AbiMessage
+  #nonce: string
 
   constructor(
     registry: OnChainRegistry,
     contract: PinkContractPromise,
+    nonce: string,
     message: AbiMessage,
     result: ISubmittableResult,
     contractEvents?: DecodedEvent[]
@@ -103,6 +107,11 @@ class PinkContractSubmittableResult extends ContractSubmittableResult {
     this.#registry = registry
     this.#contract = contract
     this.#message = message
+    this.#nonce = nonce
+  }
+
+  get nonce() {
+    return this.#nonce
   }
 
   protected async throwsOnErrorLog(chainHeight: number): Promise<void> {
@@ -400,11 +409,14 @@ export class PinkContractPromise<
     options: PinkContractOptions,
     params: unknown[]
   ): SubmittableExtrinsic<'promise'> => {
+    options.nonce && assert(isHex(options.nonce) && options.nonce.length === 66, 'Invalid nonce provided')
+    const nonce = options.nonce || hexAddPrefix(randomHex(32))
     const command = options.plain ? PlainInkCommand : EncryptedInkCommand
     const message = this.abi.findMessage(messageOrId)
     const payload = command(
       this.contractKey,
       message.toU8a(params),
+      nonce,
       options.value,
       convertWeight(options.gasLimit || BN_ZERO).v2Weight,
       options.storageDepositLimit
@@ -415,6 +427,7 @@ export class PinkContractPromise<
         return new PinkContractSubmittableResult(
           this.phatRegistry,
           this,
+          nonce,
           message,
           result,
           applyOnEvent(result, ['ContractEmitted', 'ContractExecution'], (records: EventRecord[]) => {

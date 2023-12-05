@@ -83,6 +83,7 @@ export function InkQueryInstantiate(
 export function PlainInkCommand(
   address: ContractAddress,
   encParams: Uint8Array,
+  nonce: string,
   value: LooseNumber | undefined,
   gas: { refTime: LooseNumber },
   storageDepositLimit?: LooseNumber
@@ -90,8 +91,7 @@ export function PlainInkCommand(
   return phalaTypes.createType('CommandPayload', {
     Plain: phalaTypes.createType('InkCommand', {
       InkMessage: {
-        nonce: hexAddPrefix(randomHex(32)),
-        // FIXME: unexpected u8a prefix
+        nonce,
         message: phalaTypes.createType('Vec<u8>', encParams).toHex(),
         transfer: value,
         gasLimit: gas.refTime,
@@ -104,6 +104,7 @@ export function PlainInkCommand(
 export function EncryptedInkCommand(
   address: string,
   encParams: Uint8Array,
+  nonce: string,
   value: LooseNumber | undefined,
   gas: { refTime: LooseNumber },
   storageDepositLimit?: LooseNumber
@@ -112,8 +113,7 @@ export function EncryptedInkCommand(
   const commandAgreementKey = sr25519Agreement(sk, hexToU8a(address))
   const payload = phalaTypes.createType('InkCommand', {
     InkMessage: {
-      nonce: hexAddPrefix(randomHex(32)),
-      // FIXME: unexpected u8a prefix
+      nonce,
       message: phalaTypes.createType('Vec<u8>', encParams).toHex(),
       transfer: value,
       gasLimit: gas.refTime,
