@@ -1109,7 +1109,7 @@ impl DataSourceManager {
     pub async fn get_latest_relay_block_num(
         self: Arc<Self>,
     ) -> Result<u32> {
-        let key = format!("lrbn");
+        let key = "lrbn".to_string();
         let cache = self.cache.clone();
         match cache
             .try_get_with(key, self.clone().do_get_latest_relay_block_num())
