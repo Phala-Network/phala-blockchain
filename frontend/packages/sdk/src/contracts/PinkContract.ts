@@ -460,6 +460,7 @@ export class PinkContractPromise<
       value: options.value,
       storageDepositLimit: options.storageDepositLimit,
       plain: options.plain,
+      nonce: options.nonce,
     }
 
     const tx = this.#tx[messageOrId]
