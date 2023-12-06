@@ -456,7 +456,7 @@ export class PinkContractPromise<
   }
 
   private async _send(messageOrId: string, options: PinkContractSendOptions, ...args: unknown[]) {
-    const { cert: userCert, nonce, ...rest } = options
+    const { cert: userCert, ...rest } = options
     const txOptions: PinkContractOptions = {
       gasLimit: options.gasLimit,
       value: options.value,
