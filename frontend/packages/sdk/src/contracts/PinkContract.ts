@@ -338,7 +338,8 @@ export class PinkContractPromise<
 
     if (!options.cert) {
       throw new Error(
-        'You need to provide the `cert` parameter in the options to process a Phat Contract query. Please check the document for a more detailed code snippet: https://www.npmjs.com/package/@phala/sdk'
+        'You need to provide the `cert` parameter in the options to process a Phat Contract query. ' +
+          'Please check the document for a more detailed code snippet: https://www.npmjs.com/package/@phala/sdk'
       )
     }
 
