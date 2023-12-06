@@ -43,9 +43,9 @@ pub struct RaReport {
     pub timestamp: String,
     pub version: u8,
     pub epid_pseudonym: String,
-    #[serde(rename = "advisoryURL")]
+    #[serde(rename = "advisoryURL", default)]
     pub advisory_url: String,
-    #[serde(rename = "advisoryIDs")]
+    #[serde(rename = "advisoryIDs", default)]
     pub advisory_ids: Vec<String>,
     pub isv_enclave_quote_status: String,
     pub isv_enclave_quote_body: String,
