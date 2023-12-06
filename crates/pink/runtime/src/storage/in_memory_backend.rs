@@ -1,3 +1,5 @@
+//! An in-memory database backend intended for unit testing purposes.
+
 use sp_state_machine::BackendTransaction;
 
 use super::{CommitTransaction, Hash, Hashing, Storage};

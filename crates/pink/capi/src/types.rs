@@ -13,11 +13,17 @@ pub type Weight = u64;
 
 pub use pink_extension::{HookPoint, PinkEvent};
 
+/// The mode in which the runtime is currently executing.
 #[derive(Decode, Encode, Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ExecutionMode {
+    /// In this mode, the runtime is executing an RPC query. Any state changes are discarded
+    /// after execution. Indeterministic operations like HTTP requests are allowed in this mode.
     Query,
+    /// In this mode, the runtime is simulating a transaction but state changes are discarded.
     #[default]
     Estimating,
+    /// In this mode, the runtime is executing a real transaction. State changes will be committed.
+    /// Indeterministic operations like HTTP requests aren't allowed in this mode.
     Transaction,
 }
 
@@ -30,18 +36,25 @@ impl ExecutionMode {
         }
     }
 
+    /// Returns whether the execution mode is `Query`.
     pub fn is_query(&self) -> bool {
         matches!(self, ExecutionMode::Query)
     }
 
+    /// Returns whether the execution mode is `Transaction`.
     pub fn is_transaction(&self) -> bool {
         matches!(self, ExecutionMode::Transaction)
     }
 
+    /// Returns whether the execution mode is `Estimating`.
     pub fn is_estimating(&self) -> bool {
         matches!(self, ExecutionMode::Estimating)
     }
 
+    /// Returns whether the execution mode should return coarse gas.
+    ///
+    /// Coarse gas is returned in `Query` and `Estimating` modes to help mitigate
+    /// potential side-channel attacks.
     pub fn should_return_coarse_gas(&self) -> bool {
         match self {
             ExecutionMode::Query => true,
@@ -50,6 +63,7 @@ impl ExecutionMode {
         }
     }
 
+    /// Returns whether the execution mode requires deterministic execution.
     pub fn deterministic_required(&self) -> bool {
         match self {
             ExecutionMode::Query => false,
@@ -59,6 +73,7 @@ impl ExecutionMode {
     }
 }
 
+/// Events emitted by contracts which can potentially lead to further actions by the pruntime.
 #[derive(Decode, Encode, Debug, Clone)]
 pub enum ExecSideEffects {
     V1 {
@@ -69,6 +84,7 @@ pub enum ExecSideEffects {
 }
 
 impl ExecSideEffects {
+    /// Filters and retains only those events which are permissible in a query context.
     pub fn into_query_only_effects(self) -> Self {
         match self {
             ExecSideEffects::V1 {
@@ -86,6 +102,7 @@ impl ExecSideEffects {
         }
     }
 
+    /// Returns true if there are no side effects inside.
     pub fn is_empty(&self) -> bool {
         match self {
             ExecSideEffects::V1 {

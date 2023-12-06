@@ -1,3 +1,9 @@
+//! A database type (`ExternalDB`) that implements the `TrieBackendStorage` trait,
+//! a necessary requirement for `TrieBackend`.
+//!
+//! The "external" signifies it does not manage any key-value backend by itself.
+//! Instead, it delegates the key-value reads and writes to the host via ocalls.
+
 use super::{CommitTransaction, Storage};
 use crate::{capi::OCallImpl, types::Hashing};
 use hash_db::Prefix;
@@ -47,6 +53,7 @@ pub mod helper {
     use scale::Encode;
     use sp_core::hashing::twox_128;
 
+    /// Check the existence of a particular ink code in the storage.
     pub fn code_exists(code_hash: &Hash) -> bool {
         let key = code_owner_key(code_hash);
         super::ExternalStorage::instantiate().get(&key).is_some()
