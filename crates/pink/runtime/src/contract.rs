@@ -145,6 +145,7 @@ pub fn check_instantiate_result(result: &ContractInstantiateResult) -> Result<Ac
     Ok(ret.account_id.clone())
 }
 
+/// Instantiate a contract with given code hash and input data.
 pub fn instantiate(
     code_hash: Hash,
     input_data: Vec<u8>,

@@ -156,6 +156,7 @@ impl Runtime {
 
 environmental::environmental! { current_ocalls: trait OCalls }
 
+/// Do a runtime call with the given OCalls set.
 pub fn using_ocalls<F, R>(ocalls: &mut impl OCalls, f: F) -> R
 where
     F: FnOnce() -> R,
