@@ -27,8 +27,15 @@ export interface GetLogRequest {
   count: number
   block_number?: number
   type?: LogTypeLiteral | LogTypeLiteral[]
+
+  // Event type logs specified filter.
   topic?: LiteralTopic
+
+  // Use for decode event data
   abi?: AbiLike
+
+  // MessageOutput type logs specified filter.
+  nonce?: string
 }
 
 export interface SerMessageLog {
@@ -416,7 +423,7 @@ export class PinkLoggerContractPromise {
   async tail(counts: number, request: Omit<GetLogRequest, 'from' | 'count'>): Promise<GetLogResponse>
   async tail(counts: number, from: number, request?: Omit<GetLogRequest, 'from' | 'count'>): Promise<GetLogResponse>
   async tail(...params: any[]): Promise<GetLogResponse> {
-    const { abi, type, topic, ...request }: GetLogRequest = buildGetLogRequest(
+    const { abi, type, topic, nonce, ...request }: GetLogRequest = buildGetLogRequest(
       params,
       (x) => {
         if (!x.from) {
@@ -433,6 +440,8 @@ export class PinkLoggerContractPromise {
       } else if (type === 'Event' && topic) {
         const topicHash = getTopicHash(topic)
         result.records = result.records.filter((record) => record.type === type && record.topics[0] === topicHash)
+      } else if (type === 'MessageOutput' && nonce) {
+        result.records = result.records.filter((record) => record.type === type && record.nonce === nonce)
       } else {
         result.records = result.records.filter((record) => record.type === type)
       }
@@ -450,7 +459,7 @@ export class PinkLoggerContractPromise {
   async head(counts: number, request: Omit<GetLogRequest, 'from' | 'count'>): Promise<GetLogResponse>
   async head(counts: number, from: number, request?: Omit<GetLogRequest, 'from' | 'count'>): Promise<GetLogResponse>
   async head(...params: any[]): Promise<GetLogResponse> {
-    const { abi, type, topic, ...request }: GetLogRequest = buildGetLogRequest(
+    const { abi, type, topic, nonce, ...request }: GetLogRequest = buildGetLogRequest(
       params,
       (x) => x.from || 0,
       () => ({ from: 0, count: 10 })
@@ -462,6 +471,8 @@ export class PinkLoggerContractPromise {
       } else if (type === 'Event' && topic) {
         const topicHash = getTopicHash(topic)
         result.records = result.records.filter((record) => record.type === type && record.topics[0] === topicHash)
+      } else if (type === 'MessageOutput' && nonce) {
+        result.records = result.records.filter((record) => record.type === type && record.nonce === nonce)
       } else {
         result.records = result.records.filter((record) => record.type === type)
       }
