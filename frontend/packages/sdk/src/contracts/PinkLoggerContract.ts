@@ -1,26 +1,34 @@
 import type { ApiPromise } from '@polkadot/api'
 import { Keyring } from '@polkadot/api'
+import { Abi } from '@polkadot/api-contract'
+import type { DecodedEvent } from '@polkadot/api-contract/types'
 import type { KeyringPair } from '@polkadot/keyring/types'
 import type { Enum, Struct, Text } from '@polkadot/types'
 import type { AccountId } from '@polkadot/types/interfaces'
 import type { Result } from '@polkadot/types-codec'
-import { hexAddPrefix, hexToString, hexToU8a } from '@polkadot/util'
-import { sr25519Agreement } from '@polkadot/util-crypto'
+import { hexAddPrefix, hexToString, hexToU8a, u8aToHex } from '@polkadot/util'
+import { blake2AsU8a, sr25519Agreement } from '@polkadot/util-crypto'
 import type { OnChainRegistry } from '../OnChainRegistry'
 import { phalaTypes } from '../options'
 import { type CertificateData, generatePair, signCertificate } from '../pruntime/certificate'
 import { InkQuerySidevmMessage } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
 import { type pruntime_rpc } from '../pruntime/proto'
-import type { InkResponse } from '../types'
+import type { AbiLike, InkResponse } from '../types'
+import { isPascalCase, snakeToPascalCase } from '../utils/snakeToPascalCase'
 import { ContractInitialError } from './Errors'
 import { type PinkContractPromise } from './PinkContract'
 
-interface GetLogRequest {
+export type LogTypeLiteral = 'Log' | 'Event' | 'MessageOutput' | 'QueryIn' | 'TooLarge'
+
+export interface GetLogRequest {
   contract?: string
   from: number
   count: number
   block_number?: number
+  type?: LogTypeLiteral | LogTypeLiteral[]
+  topic?: LiteralTopic
+  abi?: AbiLike
 }
 
 export interface SerMessageLog {
@@ -42,6 +50,16 @@ export interface SerMessageEvent {
   contract: string
   topics: string[]
   payload: string
+}
+
+export interface SerMessageEventWithDecoded<Decoded extends DecodedEvent = DecodedEvent> {
+  type: 'Event'
+  sequence: number
+  blockNumber: number
+  contract: string
+  topics: string[]
+  payload: string
+  decoded?: Decoded
 }
 
 interface OutputOk {
@@ -112,9 +130,9 @@ export type SerInnerMessage =
   | SerMessageQueryIn
   | SerMessageTooLarge
 
-export type SerMessage =
+export type SerMessage<TEvent extends DecodedEvent = DecodedEvent> =
   | SerMessageLog
-  | SerMessageEvent
+  | SerMessageEventWithDecoded<TEvent>
   | SerMessageMessageOutput
   | SerMessageQueryIn
   | SerMessageTooLarge
@@ -184,7 +202,15 @@ function sidevmQueryWithReader({ phactory, remotePubkey, address, cert }: Sidevm
   }
 }
 
-function postProcessLogRecord(messages: SerInnerMessage[]): SerMessage[] {
+function postProcessLogRecord<TDecodedEvent extends DecodedEvent = DecodedEvent>(
+  messages: SerInnerMessage[],
+  abiLike?: AbiLike
+): SerMessage<TDecodedEvent>[] {
+  let abi: Abi | undefined
+  if (abiLike) {
+    abi = abiLike instanceof Abi ? abiLike : new Abi(abiLike)
+  }
+
   return messages.map((message) => {
     if (message.type === 'MessageOutput') {
       const execResult = phalaTypes.createType<ContractExecResult>('ContractExecResult', hexToU8a(message.output))
@@ -206,6 +232,13 @@ function postProcessLogRecord(messages: SerInnerMessage[]): SerMessage[] {
         } as OutputErr
       }
       return { ...message, output }
+    } else if (message.type === 'Event' && abi) {
+      try {
+        const decoded = abi.decodeEvent(hexToU8a(message.payload)) as TDecodedEvent
+        return { ...message, decoded }
+      } catch (_err) {
+        // silent
+      }
     }
     return message
   })
@@ -255,15 +288,37 @@ export function buildGetLogRequest(
   return request as GetLogRequest
 }
 
+// LiteralTopic it looks like `System::Event', the contract name in PascalCase, split by `::', and then the event name.
+export type LiteralTopic = `${Capitalize<string>}::${string}`
+
+export function getTopicHash(topic: LiteralTopic): string {
+  if (topic.indexOf('::') === -1) {
+    throw new Error('Invalid topic.')
+  }
+  let [contract, event] = topic.split('::')
+  if (!isPascalCase(contract)) {
+    contract = snakeToPascalCase(contract)
+  }
+  event = `${contract}::${event}`
+
+  const length = event.length
+  const encoded = phalaTypes.createType(`(Vec<u8>, [u8; ${length}])`, [null, event]).toU8a()
+  if (encoded.length > 32) {
+    return u8aToHex(blake2AsU8a(encoded))
+  } else {
+    return u8aToHex(encoded) + '00'.repeat(32 - encoded.length)
+  }
+}
+
 export class PinkLoggerContractPromise {
   #phactory: pruntime_rpc.PhactoryAPI
   #remotePubkey: string
   #address: AccountId
   #pair: KeyringPair
-  #systemContractId: string | undefined
+  #systemContractId: string | AccountId | undefined
 
   static async create(
-    api: ApiPromise,
+    _api: ApiPromise,
     registry: OnChainRegistry,
     systemContract: PinkContractPromise,
     pair?: KeyringPair
@@ -292,7 +347,7 @@ export class PinkLoggerContractPromise {
     remotePubkey: string,
     pair: KeyringPair,
     contractId: string | AccountId,
-    systemContractId: string
+    systemContractId?: string | AccountId
   ) {
     this.#phactory = phactory
     this.#remotePubkey = remotePubkey
@@ -309,15 +364,32 @@ export class PinkLoggerContractPromise {
     return { phactory, remotePubkey, address, cert } as const
   }
 
+  /**
+   * This method call `GetLog` directly, and return the raw result. All encapulation methods is based on this method.
+   * We keep this one for testing purpose, and it should less likely to be used in production.
+   */
+  async getLogRaw(query: { from?: number; count?: number; contract?: string | AccountId } = {}) {
+    const ctx = await this.getSidevmQueryContext()
+    const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
+    return await unsafeRunSidevmQuery<{ records: SerInnerMessage[]; next: number }>({
+      action: 'GetLog',
+      from: query.from,
+      count: query.count,
+      contract: query.contract,
+    })
+  }
+
   get address() {
     return this.#address
   }
 
+  /**
+   * Get log records from the contract.
+   *
+   * @deprecated
+   */
   async getLog(contract: AccountId | string, from: number = 0, count: number = 100): Promise<GetLogResponse> {
-    const ctx = await this.getSidevmQueryContext()
-    const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
-    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[]; next: number }>({
-      action: 'GetLog',
+    const result = await this.getLogRaw({
       contract,
       from,
       count,
@@ -325,24 +397,26 @@ export class PinkLoggerContractPromise {
     return { records: postProcessLogRecord(result.records), next: result.next } as const
   }
 
+  /**
+   * Get the logger info. It use for probe the logger status.
+   */
   async getInfo(): Promise<LogServerInfo> {
     const ctx = await this.getSidevmQueryContext()
     const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
     return await unsafeRunSidevmQuery({ action: 'GetInfo' })
   }
 
+  /**
+   * Fetching the log records, from the latest one back to the oldest one.
+   */
   async tail(): Promise<GetLogResponse>
   async tail(counts: number): Promise<GetLogResponse>
-  async tail(filters: Pick<GetLogRequest, 'contract' | 'block_number' | 'count'>): Promise<GetLogResponse>
+  async tail(request: Partial<GetLogRequest>): Promise<GetLogResponse>
   async tail(counts: number, from: number): Promise<GetLogResponse>
-  async tail(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>
-  async tail(
-    counts: number,
-    from: number,
-    filters?: Pick<GetLogRequest, 'contract' | 'block_number'>
-  ): Promise<GetLogResponse>
+  async tail(counts: number, request: Omit<GetLogRequest, 'from' | 'count'>): Promise<GetLogResponse>
+  async tail(counts: number, from: number, request?: Omit<GetLogRequest, 'from' | 'count'>): Promise<GetLogResponse>
   async tail(...params: any[]): Promise<GetLogResponse> {
-    const request: GetLogRequest = buildGetLogRequest(
+    const { abi, type, topic, ...request }: GetLogRequest = buildGetLogRequest(
       params,
       (x) => {
         if (!x.from) {
@@ -352,39 +426,50 @@ export class PinkLoggerContractPromise {
       },
       () => ({ count: 10 })
     )
-    const ctx = await this.getSidevmQueryContext()
-    const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
-    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[]; next: number }>({
-      action: 'GetLog',
-      ...request,
-    })
-    return { records: postProcessLogRecord(result.records), next: result.next } as const
+    const result = await this.getLogRaw(request)
+    if (type) {
+      if (Array.isArray(type)) {
+        result.records = result.records.filter((record) => type.includes(record.type))
+      } else if (type === 'Event' && topic) {
+        const topicHash = getTopicHash(topic)
+        result.records = result.records.filter((record) => record.type === type && record.topics[0] === topicHash)
+      } else {
+        result.records = result.records.filter((record) => record.type === type)
+      }
+    }
+    return { records: postProcessLogRecord(result.records, abi), next: result.next } as const
   }
 
+  /**
+   * Fetching the log records, from the oldest one to the latest one.
+   */
   async head(): Promise<GetLogResponse>
   async head(counts: number): Promise<GetLogResponse>
-  async head(filters: Pick<GetLogRequest, 'contract' | 'block_number' | 'count'>): Promise<GetLogResponse>
+  async head(request: Partial<GetLogRequest>): Promise<GetLogResponse>
   async head(counts: number, from: number): Promise<GetLogResponse>
-  async head(counts: number, filters: Pick<GetLogRequest, 'contract' | 'block_number'>): Promise<GetLogResponse>
-  async head(
-    counts: number,
-    from: number,
-    filters?: Pick<GetLogRequest, 'contract' | 'block_number'>
-  ): Promise<GetLogResponse>
+  async head(counts: number, request: Omit<GetLogRequest, 'from' | 'count'>): Promise<GetLogResponse>
+  async head(counts: number, from: number, request?: Omit<GetLogRequest, 'from' | 'count'>): Promise<GetLogResponse>
   async head(...params: any[]): Promise<GetLogResponse> {
-    const request: GetLogRequest = buildGetLogRequest(
+    const { abi, type, topic, ...request }: GetLogRequest = buildGetLogRequest(
       params,
       (x) => x.from || 0,
       () => ({ from: 0, count: 10 })
     )
-    const ctx = await this.getSidevmQueryContext()
-    const unsafeRunSidevmQuery = sidevmQueryWithReader(ctx)
-    const result = await unsafeRunSidevmQuery<{ records: SerInnerMessage[]; next: number }>({
-      action: 'GetLog',
-      ...request,
-    })
-    return { records: postProcessLogRecord(result.records), next: result.next } as const
+    const result = await this.getLogRaw(request)
+    if (type) {
+      if (Array.isArray(type)) {
+        result.records = result.records.filter((record) => type.includes(record.type))
+      } else if (type === 'Event' && topic) {
+        const topicHash = getTopicHash(topic)
+        result.records = result.records.filter((record) => record.type === type && record.topics[0] === topicHash)
+      } else {
+        result.records = result.records.filter((record) => record.type === type)
+      }
+    }
+    return { records: postProcessLogRecord(result.records, abi), next: result.next } as const
   }
+
+  /// System Contract Related.
 
   setSystemContract(contract: PinkContractPromise | string) {
     if (typeof contract === 'string') {
@@ -398,13 +483,17 @@ export class PinkLoggerContractPromise {
     if (!this.#systemContractId) {
       throw new Error('System contract ID is not set.')
     }
-    return this.head(counts, from, { contract: this.#systemContractId })
+    const contract =
+      typeof this.#systemContractId === 'string' ? this.#systemContractId : this.#systemContractId.toHex()
+    return this.head(counts, from, { contract })
   }
 
   async tailSystemLog(counts: number = 10, from: number = -10) {
     if (!this.#systemContractId) {
       throw new Error('System contract ID is not set.')
     }
-    return this.tail(counts, from, { contract: this.#systemContractId })
+    const contract =
+      typeof this.#systemContractId === 'string' ? this.#systemContractId : this.#systemContractId.toHex()
+    return this.tail(counts, from, { contract })
   }
 }
