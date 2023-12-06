@@ -42,7 +42,7 @@ export interface CreateOptions {
   pruntimeURL?: string
   systemContractId?: string
   skipCheck?: boolean
-  strategy?: 'ack-first' | (() => Promise<Readonly<[string, ReturnType<typeof createPruntimeClient>]>>)
+  strategy?: 'ack-first' | (() => Promise<Readonly<[string, string, ReturnType<typeof createPruntimeClient>]>>)
 }
 
 export interface WorkerInfo {
