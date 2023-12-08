@@ -1,6 +1,6 @@
 ---
 source: crates/phactory/src/lib.rs
-assertion_line: 360
+assertion_line: 372
 expression: "travel_types::<Phactory<()>>()"
 ---
 [
@@ -3634,11 +3634,6 @@ expression: "travel_types::<Phactory<()>>()"
               "name": "weight",
               "type": 23,
               "typeName": "u32"
-            },
-            {
-              "name": "code_hash",
-              "type": 41,
-              "typeName": "Option<H256>"
             },
             {
               "name": "on_block_end",
