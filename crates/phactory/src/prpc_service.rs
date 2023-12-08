@@ -848,11 +848,16 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             None => return Ok(Default::default()),
             Some(system) => system,
         };
+        let cluster = system
+            .contract_cluster
+            .as_ref()
+            .ok_or_else(|| from_display("No cluster found"))?;
         let contracts = if contract_ids.is_empty() {
+            // TODO.kevin: reject to query all for performance reason
             system
                 .contracts
                 .iter()
-                .map(|(_, contract)| contract.info())
+                .map(|(_, contract)| contract.info(cluster))
                 .collect()
         } else {
             let mut contracts = vec![];
@@ -867,7 +872,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                     None => continue,
                     Some(contract) => contract,
                 };
-                contracts.push(contract.info());
+                contracts.push(contract.info(cluster));
             }
             contracts
         };

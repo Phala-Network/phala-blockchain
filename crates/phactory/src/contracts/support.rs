@@ -147,7 +147,6 @@ pub struct Contract {
     address: AccountId,
     pub sidevm_info: Option<SidevmInfo>,
     weight: u32,
-    code_hash: Option<H256>,
     on_block_end: Option<OnBlockEnd>,
 }
 
@@ -164,7 +163,6 @@ impl Contract {
         ecdh_key: KeyPair,
         cluster_id: phala_mq::ContractClusterId,
         address: AccountId,
-        code_hash: Option<H256>,
     ) -> Self {
         Contract {
             send_mq,
@@ -174,7 +172,6 @@ impl Contract {
             address,
             sidevm_info: None,
             weight: 0,
-            code_hash,
             on_block_end: None,
         }
     }
@@ -461,11 +458,14 @@ impl Contract {
         self.weight
     }
 
-    pub fn info(&self) -> pb::ContractInfo {
+    pub fn info(&self, cluster: &Cluster) -> pb::ContractInfo {
         pb::ContractInfo {
             id: hex(&self.address),
             weight: self.weight,
-            code_hash: self.code_hash.as_ref().map(hex).unwrap_or_default(),
+            code_hash: cluster
+                .code_hash(&self.address)
+                .map(hex)
+                .unwrap_or_default(),
             sidevm: self.sidevm_info.as_ref().map(|info| {
                 let handle = info.handle.lock().unwrap().clone();
                 let start_time = info.start_time.clone();

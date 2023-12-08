@@ -1699,11 +1699,9 @@ fn apply_instantiating_events(
         let ecdh_key = contract_key
             .derive_ecdh_key()
             .expect("Derive ecdh_key should not fail");
-        let code_hash = cluster.code_hash(&address);
         let result = install_contract(
             contracts,
             address,
-            code_hash,
             contract_key.clone(),
             ecdh_key.clone(),
             block,
@@ -1922,7 +1920,6 @@ fn apply_ink_side_effects(
 pub fn install_contract(
     contracts: &mut ContractsKeeper,
     address: AccountId,
-    code_hash: Option<crate::H256>,
     contract_key: sr25519::Pair,
     ecdh_key: EcdhKey,
     block: &mut BlockInfo,
@@ -1940,7 +1937,7 @@ pub fn install_contract(
             .into(),
         ecdh_key.clone(),
     );
-    let wrapped = contracts::Contract::new(mq, cmd_mq, ecdh_key, cluster_id, address, code_hash);
+    let wrapped = contracts::Contract::new(mq, cmd_mq, ecdh_key, cluster_id, address);
     contracts.insert(wrapped);
     Ok(())
 }
