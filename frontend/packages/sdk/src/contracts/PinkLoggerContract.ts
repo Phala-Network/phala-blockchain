@@ -111,9 +111,9 @@ export interface SerMessageMessageOutput {
     gasRequired: {
       refTime: number
       proofSize: number
-      storageDeposit: {
-        charge: number
-      }
+    }
+    storageDeposit: {
+      charge: number
     }
     debugMessage: string
     result: OutputOk | OutputErr
