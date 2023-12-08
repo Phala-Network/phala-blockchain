@@ -7831,6 +7831,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "num_enum"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "683751d591e6d81200c39fb0d1032608b77724f34114db54f571ff1317b337c0"
+dependencies = [
+ "num_enum_derive 0.7.1",
+]
+
+[[package]]
 name = "num_enum_derive"
 version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7847,6 +7856,18 @@ name = "num_enum_derive"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96667db765a921f7b295ffee8b60472b686a51d4f21c2ee4ffdb94c7013b65a6"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.38",
+]
+
+[[package]]
+name = "num_enum_derive"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c11e44798ad209ccdd91fc192f0526a369a01234f7373e1b141c96d7cee4f0e"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -13602,7 +13623,7 @@ checksum = "43b2853a4d09f215c24cc5489c992ce46052d359b5109343cbafbf26bc62f8a3"
 
 [[package]]
 name = "sidevm"
-version = "0.2.0-alpha.4"
+version = "0.2.0-alpha.6"
 dependencies = [
  "derive_more",
  "futures",
@@ -13619,13 +13640,13 @@ dependencies = [
 
 [[package]]
 name = "sidevm-env"
-version = "0.2.0-alpha.4"
+version = "0.2.0-alpha.6"
 dependencies = [
  "cfg-if",
  "derive_more",
  "futures",
  "log",
- "num_enum 0.5.7",
+ "num_enum 0.7.1",
  "parity-scale-codec",
  "sidevm-macro",
  "tinyvec",
@@ -13652,6 +13673,7 @@ dependencies = [
  "rustls-pemfile",
  "serde",
  "sidevm-env",
+ "sp-core",
  "thiserror",
  "thread_local",
  "tokio",

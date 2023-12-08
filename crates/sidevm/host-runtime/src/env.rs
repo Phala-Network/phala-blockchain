@@ -29,7 +29,7 @@ use wasmer::{
 use env::{
     messages::{AccountId, HttpRequest, HttpResponseHead, QueryRequest, SystemMessage},
     tls::{TlsClientConfig, TlsServerConfig},
-    IntPtr, IntRet, OcallError, Result, RetEncode,
+    HashAlgorithm, IntPtr, IntRet, OcallError, Result, RetEncode,
 };
 use scale::{Decode, Encode};
 use sidevm_env as env;
@@ -718,6 +718,23 @@ impl<'a, 'b> env::OcallFuncs for FnEnvMut<'a, &'b mut EnvInner> {
             .outgoing_request_tx
             .try_send((from, request))
             .or(Err(OcallError::IoError))
+    }
+
+    fn hash(&mut self, message: &[u8], algorithm: HashAlgorithm) -> Result<Vec<u8>> {
+        use HashAlgorithm::*;
+        let hash = match algorithm {
+            Twox64 => sp_core::hashing::twox_64(message).to_vec(),
+            Twox128 => sp_core::hashing::twox_128(message).to_vec(),
+            Twox256 => sp_core::hashing::twox_256(message).to_vec(),
+            Sha2x256 => sp_core::hashing::sha2_256(message).to_vec(),
+            Keccak256 => sp_core::hashing::keccak_256(message).to_vec(),
+            Keccak512 => sp_core::hashing::keccak_512(message).to_vec(),
+            Blake2x64 => sp_core::hashing::blake2_64(message).to_vec(),
+            Blake2x128 => sp_core::hashing::blake2_128(message).to_vec(),
+            Blake2x256 => sp_core::hashing::blake2_256(message).to_vec(),
+            Blake2x512 => sp_core::hashing::blake2_512(message).to_vec(),
+        };
+        Ok(hash)
     }
 }
 

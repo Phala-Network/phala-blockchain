@@ -3,6 +3,8 @@ use crate::args_stack::{I32Convertible, RetDecode, StackedArgs};
 use crate::tls::{TlsClientConfig, TlsServerConfig};
 use std::borrow::Cow;
 
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+
 /// All ocall definitions for pink Sidevm.
 #[sidevm_macro::ocall]
 pub trait OcallFuncs {
@@ -127,6 +129,37 @@ pub trait OcallFuncs {
     /// Emit program output.
     #[ocall(id = 243)]
     fn emit_program_output(output: &[u8]) -> Result<()>;
+
+    /// Calculate the hash digest of given message.
+    ///
+    /// Currently supports the algorithms `sp_core` supports.
+    #[ocall(id = 244, encode_output)]
+    fn hash(message: &[u8], algorithm: HashAlgorithm) -> Result<Vec<u8>>;
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
+#[repr(i32)]
+pub enum HashAlgorithm {
+    Twox64,
+    Twox128,
+    Twox256,
+    Sha2x256,
+    Keccak256,
+    Keccak512,
+    Blake2x64,
+    Blake2x128,
+    Blake2x256,
+    Blake2x512,
+}
+
+impl I32Convertible for HashAlgorithm {
+    fn to_i32(&self) -> i32 {
+        (*self).into()
+    }
+
+    fn from_i32(i: i32) -> Result<Self> {
+        TryFromPrimitive::try_from_primitive(i).or(Err(OcallError::InvalidParameter))
+    }
 }
 
 #[repr(u8)]

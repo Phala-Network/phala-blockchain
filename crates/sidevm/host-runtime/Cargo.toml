@@ -36,6 +36,7 @@ page_size = "0.6.0"
 phala-scheduler = { path = "../../phala-scheduler" }
 derive_more = "0.99.17"
 rocket = { version = "0.5.0", optional = true }
+sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0" }
 
 [features]
 default = ["rocket-stream"]
