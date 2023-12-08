@@ -499,17 +499,22 @@ describe('A full stack', function () {
         let registry;
         let barrierFlag = 0;
 
+        /// Make sure the on-chain operation before this barrier is synced to specified workers.
         async function syncBarrier(workers) {
             const flag = `barrier-flag-${barrierFlag++}`;
+            const defaultWorker = pruntime[0];
             await assert.txAccepted(ContractSystemChecker.tx.setFlag(txConfig, flag), alice);
-            assertTrue(await checkUntil(async () => {
-                const { output } = await ContractSystemChecker.query.flag(alice.address, { cert: certAlice });
-                return output.asOk.eq(flag);
-            }, 6000 * 2), `Barrier ${flag} should be set`);
-            if (workers) {
-                // TODO.kevin: check for each worker
-                await sleep(200);
+            if (!workers) {
+                workers = [defaultWorker];
             }
+            for (const worker of workers) {
+                await registry.connect({ pruntimeURL: worker.uri });
+                assertTrue(await checkUntil(async () => {
+                    const { output } = await ContractSystemChecker.query.flag(alice.address, { cert: certAlice });
+                    return output.asOk.eq(flag);
+                }, 6000 * 2), `Barrier ${flag} should be set`);
+            }
+            await registry.connect({ pruntimeURL: defaultWorker.uri });
         }
 
         before(async () => {
@@ -782,7 +787,7 @@ describe('A full stack', function () {
             `;
             const arg0 = "Powered by QuickJS in SideVM!";
             const { output } = await ContractSystemChecker.query.pinkEvalJs(alice.address, { cert: certAlice }, jsCode, [arg0]);
-            assertTrue(output?.eq({Ok: {String: arg0}}));
+            assertTrue(output?.eq({ Ok: { String: arg0 } }));
         });
 
         it('can parse json in contract delegate call', async function () {
@@ -948,7 +953,7 @@ describe('A full stack', function () {
                 paidSidevmCheckers[0].tx['deployPaidSidevm'](txConfig, keys, ttl, mem_pages, transfer),
                 alice,
             );
-            await syncBarrier();
+            await syncBarrier(workers);
             for (let worker of workers) {
                 const info = await worker.getContractInfo(paidSidevmCheckers[0].address.toHex());
                 assertTrue(info?.sidevm?.state == 'stopped', 'sidevm should be deployed with enough money');
