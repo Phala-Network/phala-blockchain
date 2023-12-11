@@ -1,0 +1,11 @@
+[package]
+description = "A wasmer tunables library for memory limits."
+license = "Apache-2.0"
+homepage = "https://github.com/Phala-Network/phala-blockchain"
+name = "phala-wasmer-tunables"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wasmer = "3"
+
