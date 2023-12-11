@@ -4,10 +4,10 @@ homepage = "https://github.com/Phala-Network/phala-blockchain"
 license = "Apache-2.0"
 edition = "2021"
 name = "sidevm-env"
-version = "0.2.0-alpha.4"
+version = "0.2.0-alpha.7"
 
 [dependencies]
-sidevm-macro = { version = "0.2.0-alpha.6", path = "../macro" }
+sidevm-macro = { version = "0.2.0-alpha.7", path = "../macro" }
 
 cfg-if = "1.0.0"
 derive_more = "0.99.17"

@@ -5,7 +5,7 @@ license = "Apache-2.0"
 edition = "2021"
 keywords = ["phat-contract", "pink", "ink", "sidevm"]
 name = "sidevm-macro"
-version = "0.2.0-alpha.6"
+version = "0.2.0-alpha.7"
 
 [lib]
 proc-macro = true

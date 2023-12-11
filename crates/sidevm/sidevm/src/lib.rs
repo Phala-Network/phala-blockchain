@@ -6,7 +6,6 @@
 pub use env::ocall_funcs_guest as ocall;
 pub use res_id::ResourceId;
 pub use sidevm_env as env;
-pub use sidevm_logger as logger;
 pub use sidevm_macro::main;
 
 pub use env::spawn;
@@ -17,5 +16,6 @@ pub mod exec;
 pub mod net;
 pub mod time;
 pub mod local_contract;
+pub mod logger;
 
 mod res_id;

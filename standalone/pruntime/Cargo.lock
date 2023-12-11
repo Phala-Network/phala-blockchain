@@ -7887,7 +7887,7 @@ checksum = "43b2853a4d09f215c24cc5489c992ce46052d359b5109343cbafbf26bc62f8a3"
 
 [[package]]
 name = "sidevm-env"
-version = "0.2.0-alpha.4"
+version = "0.2.0-alpha.7"
 dependencies = [
  "cfg-if",
  "derive_more",
@@ -7937,7 +7937,7 @@ dependencies = [
 
 [[package]]
 name = "sidevm-macro"
-version = "0.2.0-alpha.6"
+version = "0.2.0-alpha.7"
 dependencies = [
  "heck 0.4.1",
  "proc-macro-crate",
