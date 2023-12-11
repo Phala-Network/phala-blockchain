@@ -6172,7 +6172,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "hex",
  "ink",
@@ -7937,9 +7937,10 @@ dependencies = [
 
 [[package]]
 name = "sidevm-macro"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.6"
 dependencies = [
  "heck 0.4.1",
+ "proc-macro-crate",
  "proc-macro2",
  "syn 1.0.109",
 ]

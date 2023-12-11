@@ -7,7 +7,7 @@ name = "sidevm-env"
 version = "0.2.0-alpha.4"
 
 [dependencies]
-sidevm-macro = { version = "0.2.0-alpha.3", path = "../macro" }
+sidevm-macro = { version = "0.2.0-alpha.6", path = "../macro" }
 
 cfg-if = "1.0.0"
 derive_more = "0.99.17"
