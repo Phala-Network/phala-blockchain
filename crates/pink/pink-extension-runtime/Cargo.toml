@@ -3,7 +3,7 @@ description = "Mock pink chain extension for Phala pink contract"
 homepage = "https://github.com/Phala-Network/phala-blockchain"
 license = "Apache-2.0"
 name = "pink-extension-runtime"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 
 [dependencies]

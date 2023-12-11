@@ -6172,7 +6172,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "hex",
  "ink",
@@ -6201,7 +6201,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension-runtime"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "futures",
  "getrandom 0.2.10",
