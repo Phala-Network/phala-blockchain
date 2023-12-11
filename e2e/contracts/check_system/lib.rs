@@ -284,6 +284,7 @@ mod check_system {
         use drink::session::Session;
         use drink_pink_runtime::{Callable, DeployBundle, PinkRuntime};
         use ink::codegen::TraitCallBuilder;
+        use pink_extension::chain_extension::JsValue;
 
         use super::CheckSystemRef;
 
@@ -292,13 +293,36 @@ mod check_system {
 
         #[test]
         fn it_works() -> Result<(), Box<dyn std::error::Error>> {
+            tracing_subscriber::fmt::init();
             let mut session = Session::<PinkRuntime>::new()?;
             let mut checker = CheckSystemRef::default()
                 .deploy_bundle(&BundleProvider::local()?, &mut session)
                 .expect("Failed to deploy checker contract");
-            checker.call_mut().set_flag("42".into()).submit_tx(&mut session)?;
+            checker
+                .call_mut()
+                .set_flag("42".into())
+                .submit_tx(&mut session)?;
             let flag = checker.call().flag().query(&mut session)?;
             assert_eq!(flag, "42");
+
+            // Can eval js via pink extension
+            let js_code = r#"
+                async function main() {
+                    const response = await fetch("https://httpbin.org/get");
+                    const json = await response.json();
+                    Sidevm.inspect(json);
+                    return json.url;
+                }
+                main()
+                    .then((v) => scriptOutput = v)
+                    .catch(console.error)
+                    .finally(() => process.exit(0))
+            "#;
+            let url = checker
+                .call()
+                .pink_eval_js(js_code.into(), vec![])
+                .query(&mut session)?;
+            assert_eq!(url, JsValue::String("https://httpbin.org/get".into()));
             Ok(())
         }
     }
