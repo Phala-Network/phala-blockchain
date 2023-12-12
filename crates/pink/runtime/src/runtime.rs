@@ -53,6 +53,7 @@ parameter_types! {
 }
 
 impl pallet_pink::Config for PinkRuntime {
+    type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
 }
 

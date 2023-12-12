@@ -162,6 +162,19 @@ pub mod messaging {
             cluster_id: ContractClusterId,
             worker: WorkerPublicKey,
         },
+        UpdateConfig {
+            cluster_id: ContractClusterId,
+            config: ClusterConfigUpdates,
+        },
+    }
+    #[derive(Encode, Decode, Clone, Debug, TypeInfo)]
+    pub enum ClusterConfigUpdates {
+        V0 {
+            /// The gas price for the cluster
+            gas_price: Option<u128>,
+            /// The gas price for the cluster
+            gas_price_denominator: Option<u128>,
+        },
     }
 
     impl<AccountId> ClusterOperation<AccountId> {

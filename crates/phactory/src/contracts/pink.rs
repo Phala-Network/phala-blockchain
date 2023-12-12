@@ -10,7 +10,10 @@ use anyhow::{Context, Result};
 use parity_scale_codec::Encode;
 use phala_crypto::sr25519::Persistence;
 use phala_mq::{ContractClusterId, MessageOrigin};
-use phala_types::{contract::messaging::ResourceType, SignedContentType};
+use phala_types::{
+    contract::messaging::{ClusterConfigUpdates, ResourceType},
+    SignedContentType,
+};
 use pink::{
     capi::v1::{
         ecall::{ECalls, ECallsRo},
@@ -1059,6 +1062,22 @@ impl Cluster {
     pub(crate) fn on_idle(&mut self, block_number: BlockNumber) {
         if pink::types::ECallsAvailable::on_idle(self.config.runtime_version) {
             self.default_runtime_mut().on_idle(block_number);
+        }
+    }
+
+    pub(crate) fn update_config(&mut self, config: ClusterConfigUpdates) {
+        let ClusterConfigUpdates::V0 {
+            gas_price,
+            gas_price_denominator,
+        } = config;
+        if pink::types::ECallsAvailable::update_config_v0(self.config.runtime_version) {
+            self.default_runtime_mut()
+                .update_config_v0(gas_price, gas_price_denominator);
+        } else {
+            error!(
+                "update_config_v0 not available on runtime version {:?}",
+                self.config.runtime_version
+            );
         }
     }
 }

@@ -1209,6 +1209,16 @@ impl<Platform: pal::Platform> System<Platform> {
                 warn!("If you want to keep providing computation power to some cluster, please create a new worker.");
                 std::process::exit(0);
             }
+            ClusterOperation::UpdateConfig { cluster_id, config } => {
+                if !sender.is_pallet() {
+                    anyhow::bail!("Invalid origin");
+                }
+                let cluster = self
+                    .contract_cluster
+                    .get_cluster_mut(&cluster_id)
+                    .ok_or_else(|| anyhow!("Cluster {} not found", hex_fmt::HexFmt(&cluster_id)))?;
+                cluster.update_config(config);
+            }
         }
         Ok(())
     }

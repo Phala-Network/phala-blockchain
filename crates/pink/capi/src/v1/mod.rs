@@ -180,6 +180,14 @@ pub mod ecall {
         /// Would be called once per block.
         #[xcall(id = 24, since = "1.2")]
         fn on_idle(&mut self, block_number: BlockNumber);
+
+        /// Update cluster config
+        #[xcall(id = 25, since = "1.2")]
+        fn update_config_v0(
+            &mut self,
+            gas_price: Option<u128>,
+            gas_price_denominator: Option<u128>,
+        );
     }
 }
 

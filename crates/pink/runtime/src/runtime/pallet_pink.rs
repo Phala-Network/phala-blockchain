@@ -13,7 +13,7 @@ pub mod pallet {
     use scale_info::TypeInfo;
     use sp_core::crypto::UncheckedFrom;
     use sp_runtime::{
-        traits::{Convert, Hash as _},
+        traits::{CheckedDiv, Convert, Hash as _, Zero},
         SaturatedConversion, Saturating,
     };
 
@@ -40,6 +40,15 @@ pub mod pallet {
         SystemContractMissing,
     }
 
+    #[pallet::event]
+    #[pallet::generate_deposit(pub(super) fn deposit_event)]
+    pub enum Event<T: Config> {
+        /// The gas price is updated.
+        GasPriceUpdated { price: BalanceOf<T> },
+        /// The gas price denominator is updated.
+        GasPriceDenominatorUpdated { price: BalanceOf<T> },
+    }
+
     #[derive(Clone, Eq, PartialEq, Encode, Decode, TypeInfo)]
     pub struct WasmCode<AccountId> {
         pub owner: AccountId,
@@ -48,6 +57,7 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
+        type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
         type Currency: Currency<Self::AccountId>;
     }
 
@@ -58,6 +68,10 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn gas_price)]
     pub(crate) type GasPrice<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn gas_price_denominator)]
+    pub(crate) type GasPriceDenominator<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
     #[pallet::storage]
     #[pallet::getter(fn deposit_per_byte)]
@@ -176,6 +190,12 @@ pub mod pallet {
 
         pub fn set_gas_price(price: BalanceOf<T>) {
             <GasPrice<T>>::put(price);
+            Self::deposit_event(Event::GasPriceUpdated { price });
+        }
+
+        pub fn set_gas_price_denominator(price: BalanceOf<T>) {
+            <GasPriceDenominator<T>>::put(price);
+            Self::deposit_event(Event::GasPriceDenominatorUpdated { price });
         }
 
         pub fn set_deposit_per_item(value: BalanceOf<T>) {
@@ -206,7 +226,14 @@ pub mod pallet {
     impl<T: Config> Convert<Weight, BalanceOf<T>> for Pallet<T> {
         fn convert(w: Weight) -> BalanceOf<T> {
             let weight = BalanceOf::<T>::saturated_from(w.ref_time());
-            weight.saturating_mul(GasPrice::<T>::get())
+            let denom = GasPriceDenominator::<T>::get().max(1_u32.into());
+            let amount = weight
+                .saturating_mul(GasPrice::<T>::get())
+                .checked_div(&denom);
+            match amount {
+                Some(amount) => amount,
+                None => Zero::zero(),
+            }
         }
     }
 }

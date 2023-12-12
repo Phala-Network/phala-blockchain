@@ -290,6 +290,15 @@ impl ecall::ECalls for ECallImpl {
     fn on_idle(&mut self, block_number: BlockNumber) {
         on_idle(block_number);
     }
+
+    fn update_config_v0(&mut self, gas_price: Option<u128>, gas_price_denominator: Option<u128>) {
+        if let Some(gas_price) = gas_price {
+            PalletPink::set_gas_price(gas_price);
+        }
+        if let Some(gas_price_denominator) = gas_price_denominator {
+            PalletPink::set_gas_price_denominator(gas_price_denominator);
+        }
+    }
 }
 
 /// Clip gas limit to 0.5 second for tx, 10 seconds for query
