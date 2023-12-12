@@ -1,0 +1,7 @@
+[package]
+name = "type-info-stringify"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+scale-info = { version = "2.10.0", features = ["serde"] }

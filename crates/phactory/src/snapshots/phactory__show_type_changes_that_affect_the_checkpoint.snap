@@ -1,4066 +1,553 @@
 ---
 source: crates/phactory/src/lib.rs
-assertion_line: 372
+assertion_line: 368
 expression: "travel_types::<Phactory<()>>()"
 ---
-[
-  {
-    "id": 0,
-    "type": {
-      "def": {
-        "tuple": []
-      }
-    }
-  },
-  {
-    "id": 1,
-    "type": {
-      "def": {
-        "primitive": "bool"
-      }
-    }
-  },
-  {
-    "id": 2,
-    "type": {
-      "path": [
-        "Option"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 3
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "None",
-              "index": 0
-            },
-            {
-              "name": "Some",
-              "fields": [
-                {
-                  "type": 3
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 3,
-    "type": {
-      "path": [
-        "phala_types",
-        "AttestationProvider"
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "Root",
-              "index": 0
-            },
-            {
-              "name": "Ias",
-              "index": 1
-            },
-            {
-              "name": "Dcap",
-              "index": 2
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 4,
-    "type": {
-      "def": {
-        "sequence": {
-          "type": 5
-        }
-      }
-    }
-  },
-  {
-    "id": 5,
-    "type": {
-      "def": {
-        "primitive": "u8"
-      }
-    }
-  },
-  {
-    "id": 6,
-    "type": {
-      "path": [
-        "Option"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 7
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "None",
-              "index": 0
-            },
-            {
-              "name": "Some",
-              "fields": [
-                {
-                  "type": 7
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 7,
-    "type": {
-      "path": [
-        "phactory_api",
-        "proto_generated",
-        "pruntime_rpc",
-        "InitRuntimeResponse"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "encoded_runtime_info",
-              "type": 4,
-              "typeName": "::prost::alloc::vec::Vec<u8>"
-            },
-            {
-              "name": "encoded_genesis_block_hash",
-              "type": 4,
-              "typeName": "::prost::alloc::vec::Vec<u8>"
-            },
-            {
-              "name": "encoded_public_key",
-              "type": 4,
-              "typeName": "::prost::alloc::vec::Vec<u8>"
-            },
-            {
-              "name": "encoded_ecdh_public_key",
-              "type": 4,
-              "typeName": "::prost::alloc::vec::Vec<u8>"
-            },
-            {
-              "name": "attestation",
-              "type": 8,
-              "typeName": "::core::option::Option<Attestation>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 8,
-    "type": {
-      "path": [
-        "Option"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 9
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "None",
-              "index": 0
-            },
-            {
-              "name": "Some",
-              "fields": [
-                {
-                  "type": 9
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 9,
-    "type": {
-      "path": [
-        "phactory_api",
-        "proto_generated",
-        "pruntime_rpc",
-        "Attestation"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "version",
-              "type": 10,
-              "typeName": "i32"
-            },
-            {
-              "name": "provider",
-              "type": 11,
-              "typeName": "::prost::alloc::string::String"
-            },
-            {
-              "name": "payload",
-              "type": 12,
-              "typeName": "::core::option::Option<AttestationReport>"
-            },
-            {
-              "name": "encoded_report",
-              "type": 4,
-              "typeName": "::prost::alloc::vec::Vec<u8>"
-            },
-            {
-              "name": "timestamp",
-              "type": 14,
-              "typeName": "u64"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 10,
-    "type": {
-      "def": {
-        "primitive": "i32"
-      }
-    }
-  },
-  {
-    "id": 11,
-    "type": {
-      "def": {
-        "primitive": "str"
-      }
-    }
-  },
-  {
-    "id": 12,
-    "type": {
-      "path": [
-        "Option"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 13
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "None",
-              "index": 0
-            },
-            {
-              "name": "Some",
-              "fields": [
-                {
-                  "type": 13
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 13,
-    "type": {
-      "path": [
-        "phactory_api",
-        "proto_generated",
-        "pruntime_rpc",
-        "AttestationReport"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "report",
-              "type": 11,
-              "typeName": "::prost::alloc::string::String"
-            },
-            {
-              "name": "signature",
-              "type": 4,
-              "typeName": "::prost::alloc::vec::Vec<u8>"
-            },
-            {
-              "name": "signing_cert",
-              "type": 4,
-              "typeName": "::prost::alloc::vec::Vec<u8>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 14,
-    "type": {
-      "def": {
-        "primitive": "u64"
-      }
-    }
-  },
-  {
-    "id": 15,
-    "type": {
-      "path": [
-        "Option"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 16
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "None",
-              "index": 0
-            },
-            {
-              "name": "Some",
-              "fields": [
-                {
-                  "type": 16
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 16,
-    "type": {
-      "path": [
-        "phactory",
-        "RuntimeState"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "storage_synchronizer",
-              "type": 17,
-              "typeName": "Synchronizer<LightValidation<chain::Runtime>>"
-            },
-            {
-              "name": "genesis_block_hash",
-              "type": 24,
-              "typeName": "H256"
-            },
-            {
-              "name": "para_id",
-              "type": 23,
-              "typeName": "u32"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 17,
-    "type": {
-      "path": [
-        "phactory_api",
-        "storage_sync",
-        "Synchronizer"
-      ],
-      "params": [
-        {
-          "name": "Validator",
-          "type": 18
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "Solo",
-              "fields": [
-                {
-                  "type": 38,
-                  "typeName": "SolochainSynchronizer<Validator>"
-                }
-              ],
-              "index": 0
-            },
-            {
-              "name": "Para",
-              "fields": [
-                {
-                  "type": 40,
-                  "typeName": "ParachainSynchronizer<Validator>"
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 18,
-    "type": {
-      "path": [
-        "phactory",
-        "light_validation",
-        "LightValidation"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 19
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "num_bridges",
-              "type": 14,
-              "typeName": "BridgeId"
-            },
-            {
-              "name": "tracked_bridges",
-              "type": 20,
-              "typeName": "BTreeMap<BridgeId, BridgeInfo<T>>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 19,
-    "type": {
-      "path": [
-        "phala_node_runtime",
-        "Runtime"
-      ],
-      "def": {
-        "composite": {}
-      }
-    }
-  },
-  {
-    "id": 20,
-    "type": {
-      "path": [
-        "BTreeMap"
-      ],
-      "params": [
-        {
-          "name": "K",
-          "type": 14
-        },
-        {
-          "name": "V",
-          "type": 21
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "type": 36
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 21,
-    "type": {
-      "path": [
-        "phactory",
-        "light_validation",
-        "BridgeInfo"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 19
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "last_finalized_block_header",
-              "type": 22,
-              "typeName": "BlockHeader"
-            },
-            {
-              "name": "current_set",
-              "type": 31,
-              "typeName": "AuthoritySet"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 22,
-    "type": {
-      "path": [
-        "sp_runtime",
-        "generic",
-        "header",
-        "Header"
-      ],
-      "params": [
-        {
-          "name": "Number",
-          "type": 23
-        },
-        {
-          "name": "Hash",
-          "type": null
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "parent_hash",
-              "type": 24,
-              "typeName": "Hash::Output"
-            },
-            {
-              "name": "number",
-              "type": 26,
-              "typeName": "Number"
-            },
-            {
-              "name": "state_root",
-              "type": 24,
-              "typeName": "Hash::Output"
-            },
-            {
-              "name": "extrinsics_root",
-              "type": 24,
-              "typeName": "Hash::Output"
-            },
-            {
-              "name": "digest",
-              "type": 27,
-              "typeName": "Digest"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 23,
-    "type": {
-      "def": {
-        "primitive": "u32"
-      }
-    }
-  },
-  {
-    "id": 24,
-    "type": {
-      "path": [
-        "primitive_types",
-        "H256"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "type": 25,
-              "typeName": "[u8; 32]"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 25,
-    "type": {
-      "def": {
-        "array": {
-          "len": 32,
-          "type": 5
-        }
-      }
-    }
-  },
-  {
-    "id": 26,
-    "type": {
-      "def": {
-        "compact": {
-          "type": 23
-        }
-      }
-    }
-  },
-  {
-    "id": 27,
-    "type": {
-      "path": [
-        "sp_runtime",
-        "generic",
-        "digest",
-        "Digest"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "logs",
-              "type": 28,
-              "typeName": "Vec<DigestItem>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 28,
-    "type": {
-      "def": {
-        "sequence": {
-          "type": 29
-        }
-      }
-    }
-  },
-  {
-    "id": 29,
-    "type": {
-      "path": [
-        "sp_runtime",
-        "generic",
-        "digest",
-        "DigestItem"
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "PreRuntime",
-              "fields": [
-                {
-                  "type": 30,
-                  "typeName": "ConsensusEngineId"
-                },
-                {
-                  "type": 4,
-                  "typeName": "Vec<u8>"
-                }
-              ],
-              "index": 6
-            },
-            {
-              "name": "Consensus",
-              "fields": [
-                {
-                  "type": 30,
-                  "typeName": "ConsensusEngineId"
-                },
-                {
-                  "type": 4,
-                  "typeName": "Vec<u8>"
-                }
-              ],
-              "index": 4
-            },
-            {
-              "name": "Seal",
-              "fields": [
-                {
-                  "type": 30,
-                  "typeName": "ConsensusEngineId"
-                },
-                {
-                  "type": 4,
-                  "typeName": "Vec<u8>"
-                }
-              ],
-              "index": 5
-            },
-            {
-              "name": "Other",
-              "fields": [
-                {
-                  "type": 4,
-                  "typeName": "Vec<u8>"
-                }
-              ],
-              "index": 0
-            },
-            {
-              "name": "RuntimeEnvironmentUpdated",
-              "index": 8
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 30,
-    "type": {
-      "def": {
-        "array": {
-          "len": 4,
-          "type": 5
-        }
-      }
-    }
-  },
-  {
-    "id": 31,
-    "type": {
-      "path": [
-        "phactory_api",
-        "blocks",
-        "AuthoritySet"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "list",
-              "type": 32,
-              "typeName": "AuthorityList"
-            },
-            {
-              "name": "id",
-              "type": 14,
-              "typeName": "SetId"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 32,
-    "type": {
-      "def": {
-        "sequence": {
-          "type": 33
-        }
-      }
-    }
-  },
-  {
-    "id": 33,
-    "type": {
-      "def": {
-        "tuple": [
-          34,
-          14
-        ]
-      }
-    }
-  },
-  {
-    "id": 34,
-    "type": {
-      "path": [
-        "sp_consensus_grandpa",
-        "app",
-        "Public"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "type": 35,
-              "typeName": "ed25519::Public"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 35,
-    "type": {
-      "path": [
-        "sp_core",
-        "ed25519",
-        "Public"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "type": 25,
-              "typeName": "[u8; 32]"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 36,
-    "type": {
-      "def": {
-        "sequence": {
-          "type": 37
-        }
-      }
-    }
-  },
-  {
-    "id": 37,
-    "type": {
-      "def": {
-        "tuple": [
-          14,
-          21
-        ]
-      }
-    }
-  },
-  {
-    "id": 38,
-    "type": {
-      "path": [
-        "phactory_api",
-        "storage_sync",
-        "SolochainSynchronizer"
-      ],
-      "params": [
-        {
-          "name": "Validator",
-          "type": 18
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "sync_state",
-              "type": 39,
-              "typeName": "BlockSyncState<Validator>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 39,
-    "type": {
-      "path": [
-        "phactory_api",
-        "storage_sync",
-        "BlockSyncState"
-      ],
-      "params": [
-        {
-          "name": "Validator",
-          "type": 18
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "validator",
-              "type": 18,
-              "typeName": "Validator"
-            },
-            {
-              "name": "main_bridge",
-              "type": 14,
-              "typeName": "u64"
-            },
-            {
-              "name": "header_number_next",
-              "type": 23,
-              "typeName": "chain::BlockNumber"
-            },
-            {
-              "name": "block_number_next",
-              "type": 23,
-              "typeName": "chain::BlockNumber"
-            },
-            {
-              "name": "genesis_state_validated",
-              "type": 1,
-              "typeName": "bool"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 40,
-    "type": {
-      "path": [
-        "phactory_api",
-        "storage_sync",
-        "ParachainSynchronizer"
-      ],
-      "params": [
-        {
-          "name": "Validator",
-          "type": 18
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "sync_state",
-              "type": 39,
-              "typeName": "BlockSyncState<Validator>"
-            },
-            {
-              "name": "last_relaychain_state_root",
-              "type": 41,
-              "typeName": "Option<Hash>"
-            },
-            {
-              "name": "para_header_number_next",
-              "type": 23,
-              "typeName": "chain::BlockNumber"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 41,
-    "type": {
-      "path": [
-        "Option"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 24
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "None",
-              "index": 0
-            },
-            {
-              "name": "Some",
-              "fields": [
-                {
-                  "type": 24
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 42,
-    "type": {
-      "path": [
-        "BTreeMap"
-      ],
-      "params": [
-        {
-          "name": "K",
-          "type": 43
-        },
-        {
-          "name": "V",
-          "type": 11
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "type": 44
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 43,
-    "type": {
-      "path": [
-        "phactory_api",
-        "endpoints",
-        "EndpointType"
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "I2p",
-              "index": 0
-            },
-            {
-              "name": "Http",
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 44,
-    "type": {
-      "def": {
-        "sequence": {
-          "type": 45
-        }
-      }
-    }
-  },
-  {
-    "id": 45,
-    "type": {
-      "def": {
-        "tuple": [
-          43,
-          11
-        ]
-      }
-    }
-  },
-  {
-    "id": 46,
-    "type": {
-      "path": [
-        "Option"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 47
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "None",
-              "index": 0
-            },
-            {
-              "name": "Some",
-              "fields": [
-                {
-                  "type": 47
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 47,
-    "type": {
-      "path": [
-        "phactory",
-        "system",
-        "System"
-      ],
-      "params": [
-        {
-          "name": "Platform",
-          "type": 0
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "platform",
-              "type": 0,
-              "typeName": "Platform"
-            },
-            {
-              "name": "dev_mode",
-              "type": 1,
-              "typeName": "bool"
-            },
-            {
-              "name": "sealing_path",
-              "type": 11,
-              "typeName": "String"
-            },
-            {
-              "name": "storage_path",
-              "type": 11,
-              "typeName": "String"
-            },
-            {
-              "name": "egress",
-              "type": 48,
-              "typeName": "SignedMessageChannel"
-            },
-            {
-              "name": "system_events",
-              "type": 52,
-              "typeName": "TypedReceiver<SystemEvent>"
-            },
-            {
-              "name": "gatekeeper_launch_events",
-              "type": 62,
-              "typeName": "TypedReceiver<GatekeeperLaunch>"
-            },
-            {
-              "name": "gatekeeper_change_events",
-              "type": 69,
-              "typeName": "TypedReceiver<GatekeeperChange>"
-            },
-            {
-              "name": "key_distribution_events",
-              "type": 72,
-              "typeName": "TypedReceiver<KeyDistribution<chain::BlockNumber>>"
-            },
-            {
-              "name": "cluster_key_distribution_events",
-              "type": 84,
-              "typeName": "TypedReceiver<ClusterOperation<chain::AccountId>>"
-            },
-            {
-              "name": "contract_operation_events",
-              "type": 89,
-              "typeName": "TypedReceiver<ContractOperation<chain::Hash, chain::AccountId>>"
-            },
-            {
-              "name": "worker_state",
-              "type": 94,
-              "typeName": "WorkerState"
-            },
-            {
-              "name": "gatekeeper",
-              "type": 100,
-              "typeName": "Option<gk::Gatekeeper<SignedMessageChannel>>"
-            },
-            {
-              "name": "contracts",
-              "type": 119,
-              "typeName": "ContractsKeeper"
-            },
-            {
-              "name": "contract_cluster",
-              "type": 129,
-              "typeName": "Option<Cluster>"
-            },
-            {
-              "name": "block_number",
-              "type": 23,
-              "typeName": "BlockNumber"
-            },
-            {
-              "name": "now_ms",
-              "type": 14,
-              "typeName": "u64"
-            },
-            {
-              "name": "genesis_block",
-              "type": 23,
-              "typeName": "BlockNumber"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 48,
-    "type": {
-      "path": [
-        "phala_mq",
-        "send_queue",
-        "msg_channel",
-        "MessageChannel"
-      ],
-      "params": [
-        {
-          "name": "Si",
-          "type": 49
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "sender",
-              "type": 50,
-              "typeName": "SenderId"
-            },
-            {
-              "name": "signer",
-              "type": 49,
-              "typeName": "Si"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 49,
-    "type": {
-      "path": [
-        "phala_mq",
-        "signer",
-        "signers",
-        "Sr25519Signer"
-      ],
-      "def": {
-        "composite": {}
-      }
-    }
-  },
-  {
-    "id": 50,
-    "type": {
-      "path": [
-        "phala_mq",
-        "types",
-        "MessageOrigin"
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "Pallet",
-              "fields": [
-                {
-                  "type": 4,
-                  "typeName": "Vec<u8>"
-                }
-              ],
-              "index": 0
-            },
-            {
-              "name": "Contract",
-              "fields": [
-                {
-                  "type": 24,
-                  "typeName": "ContractId"
-                }
-              ],
-              "index": 1
-            },
-            {
-              "name": "Worker",
-              "fields": [
-                {
-                  "type": 51,
-                  "typeName": "sp_core::sr25519::Public"
-                }
-              ],
-              "index": 2
-            },
-            {
-              "name": "AccountId",
-              "fields": [
-                {
-                  "type": 24,
-                  "typeName": "AccountId"
-                }
-              ],
-              "index": 3
-            },
-            {
-              "name": "MultiLocation",
-              "fields": [
-                {
-                  "type": 4,
-                  "typeName": "Vec<u8>"
-                }
-              ],
-              "index": 4
-            },
-            {
-              "name": "Gatekeeper",
-              "index": 5
-            },
-            {
-              "name": "Cluster",
-              "fields": [
-                {
-                  "type": 24,
-                  "typeName": "ContractClusterId"
-                }
-              ],
-              "index": 6
-            },
-            {
-              "name": "Reserved",
-              "index": 255
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 51,
-    "type": {
-      "path": [
-        "sp_core",
-        "sr25519",
-        "Public"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "type": 25,
-              "typeName": "[u8; 32]"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 52,
-    "type": {
-      "path": [
-        "phala_mq",
-        "dispatcher",
-        "TypedReceiver"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 53
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "queue",
-              "type": 61,
-              "typeName": "Receiver<Message>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 53,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "SystemEvent"
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "WorkerEvent",
-              "fields": [
-                {
-                  "type": 54,
-                  "typeName": "WorkerEventWithKey"
-                }
-              ],
-              "index": 0
-            },
-            {
-              "name": "HeartbeatChallenge",
-              "fields": [
-                {
-                  "type": 58,
-                  "typeName": "HeartbeatChallenge"
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 54,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "WorkerEventWithKey"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "pubkey",
-              "type": 51,
-              "typeName": "WorkerPublicKey"
-            },
-            {
-              "name": "event",
-              "type": 55,
-              "typeName": "WorkerEvent"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 55,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "WorkerEvent"
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "Registered",
-              "fields": [
-                {
-                  "type": 56,
-                  "typeName": "WorkerInfo"
-                }
-              ],
-              "index": 0
-            },
-            {
-              "name": "BenchStart",
-              "fields": [
-                {
-                  "name": "duration",
-                  "type": 23,
-                  "typeName": "u32"
-                }
-              ],
-              "index": 1
-            },
-            {
-              "name": "BenchScore",
-              "fields": [
-                {
-                  "type": 23,
-                  "typeName": "u32"
-                }
-              ],
-              "index": 2
-            },
-            {
-              "name": "Started",
-              "fields": [
-                {
-                  "name": "session_id",
-                  "type": 23,
-                  "typeName": "u32"
-                },
-                {
-                  "name": "init_v",
-                  "type": 57,
-                  "typeName": "U64F64Bits"
-                },
-                {
-                  "name": "init_p",
-                  "type": 23,
-                  "typeName": "u32"
-                }
-              ],
-              "index": 3
-            },
-            {
-              "name": "Stopped",
-              "index": 4
-            },
-            {
-              "name": "EnterUnresponsive",
-              "index": 5
-            },
-            {
-              "name": "ExitUnresponsive",
-              "index": 6
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 56,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "WorkerInfo"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "confidence_level",
-              "type": 5,
-              "typeName": "u8"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 57,
-    "type": {
-      "def": {
-        "primitive": "u128"
-      }
-    }
-  },
-  {
-    "id": 58,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "HeartbeatChallenge"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "seed",
-              "type": 59,
-              "typeName": "U256"
-            },
-            {
-              "name": "online_target",
-              "type": 59,
-              "typeName": "U256"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 59,
-    "type": {
-      "path": [
-        "primitive_types",
-        "U256"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "type": 60,
-              "typeName": "[u64; 4]"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 60,
-    "type": {
-      "def": {
-        "array": {
-          "len": 4,
-          "type": 14
-        }
-      }
-    }
-  },
-  {
-    "id": 61,
-    "type": {
-      "path": [
-        "phala_mq",
-        "dispatcher",
-        "ReceiverTypeInfo"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "inner",
-              "type": 0,
-              "typeName": "()"
-            },
-            {
-              "name": "topic",
-              "type": 4,
-              "typeName": "Vec<u8>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 62,
-    "type": {
-      "path": [
-        "phala_mq",
-        "dispatcher",
-        "TypedReceiver"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 63
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "queue",
-              "type": 61,
-              "typeName": "Receiver<Message>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 63,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "GatekeeperLaunch"
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "FirstGatekeeper",
-              "fields": [
-                {
-                  "type": 64,
-                  "typeName": "NewGatekeeperEvent"
-                }
-              ],
-              "index": 0
-            },
-            {
-              "name": "MasterPubkeyOnChain",
-              "fields": [
-                {
-                  "type": 65,
-                  "typeName": "MasterPubkeyEvent"
-                }
-              ],
-              "index": 1
-            },
-            {
-              "name": "RotateMasterKey",
-              "fields": [
-                {
-                  "type": 66,
-                  "typeName": "RotateMasterKeyEvent"
-                }
-              ],
-              "index": 2
-            },
-            {
-              "name": "MasterPubkeyRotated",
-              "fields": [
-                {
-                  "type": 65,
-                  "typeName": "MasterPubkeyEvent"
-                }
-              ],
-              "index": 3
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 64,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "NewGatekeeperEvent"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "pubkey",
-              "type": 51,
-              "typeName": "WorkerPublicKey"
-            },
-            {
-              "name": "ecdh_pubkey",
-              "type": 51,
-              "typeName": "EcdhPublicKey"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 65,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "MasterPubkeyEvent"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "master_pubkey",
-              "type": 51,
-              "typeName": "MasterPublicKey"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 66,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "RotateMasterKeyEvent"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "rotation_id",
-              "type": 14,
-              "typeName": "u64"
-            },
-            {
-              "name": "gk_identities",
-              "type": 67,
-              "typeName": "Vec<WorkerIdentity>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 67,
-    "type": {
-      "def": {
-        "sequence": {
-          "type": 68
-        }
-      }
-    }
-  },
-  {
-    "id": 68,
-    "type": {
-      "path": [
-        "phala_types",
-        "WorkerIdentity"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "pubkey",
-              "type": 51,
-              "typeName": "WorkerPublicKey"
-            },
-            {
-              "name": "ecdh_pubkey",
-              "type": 51,
-              "typeName": "EcdhPublicKey"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 69,
-    "type": {
-      "path": [
-        "phala_mq",
-        "dispatcher",
-        "TypedReceiver"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 70
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "queue",
-              "type": 61,
-              "typeName": "Receiver<Message>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 70,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "GatekeeperChange"
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "Registered",
-              "fields": [
-                {
-                  "type": 64,
-                  "typeName": "NewGatekeeperEvent"
-                }
-              ],
-              "index": 0
-            },
-            {
-              "name": "Unregistered",
-              "fields": [
-                {
-                  "type": 71,
-                  "typeName": "RemoveGatekeeperEvent"
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 71,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "RemoveGatekeeperEvent"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "pubkey",
-              "type": 51,
-              "typeName": "WorkerPublicKey"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 72,
-    "type": {
-      "path": [
-        "phala_mq",
-        "dispatcher",
-        "TypedReceiver"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 73
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "queue",
-              "type": 61,
-              "typeName": "Receiver<Message>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 73,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "KeyDistribution"
-      ],
-      "params": [
-        {
-          "name": "BlockNumber",
-          "type": 23
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "MasterKeyDistribution",
-              "fields": [
-                {
-                  "type": 74,
-                  "typeName": "DispatchMasterKeyEvent"
-                }
-              ],
-              "index": 0
-            },
-            {
-              "name": "MasterKeyRotation",
-              "fields": [
-                {
-                  "type": 76,
-                  "typeName": "BatchRotateMasterKeyEvent"
-                }
-              ],
-              "index": 1
-            },
-            {
-              "name": "MasterKeyHistory",
-              "fields": [
-                {
-                  "type": 81,
-                  "typeName": "DispatchMasterKeyHistoryEvent<BlockNumber>"
-                }
-              ],
-              "index": 2
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 74,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "DispatchMasterKeyEvent"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "dest",
-              "type": 51,
-              "typeName": "WorkerPublicKey"
-            },
-            {
-              "name": "ecdh_pubkey",
-              "type": 51,
-              "typeName": "EcdhPublicKey"
-            },
-            {
-              "name": "encrypted_master_key",
-              "type": 4,
-              "typeName": "Vec<u8>"
-            },
-            {
-              "name": "iv",
-              "type": 75,
-              "typeName": "AeadIV"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 75,
-    "type": {
-      "def": {
-        "array": {
-          "len": 12,
-          "type": 5
-        }
-      }
-    }
-  },
-  {
-    "id": 76,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "BatchRotateMasterKeyEvent"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "rotation_id",
-              "type": 14,
-              "typeName": "u64"
-            },
-            {
-              "name": "secret_keys",
-              "type": 77,
-              "typeName": "BTreeMap<WorkerPublicKey, EncryptedKey>"
-            },
-            {
-              "name": "sender",
-              "type": 51,
-              "typeName": "WorkerPublicKey"
-            },
-            {
-              "name": "sig",
-              "type": 4,
-              "typeName": "Vec<u8>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 77,
-    "type": {
-      "path": [
-        "BTreeMap"
-      ],
-      "params": [
-        {
-          "name": "K",
-          "type": 51
-        },
-        {
-          "name": "V",
-          "type": 78
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "type": 79
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 78,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "EncryptedKey"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "ecdh_pubkey",
-              "type": 51,
-              "typeName": "EcdhPublicKey"
-            },
-            {
-              "name": "encrypted_key",
-              "type": 4,
-              "typeName": "Vec<u8>"
-            },
-            {
-              "name": "iv",
-              "type": 75,
-              "typeName": "AeadIV"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 79,
-    "type": {
-      "def": {
-        "sequence": {
-          "type": 80
-        }
-      }
-    }
-  },
-  {
-    "id": 80,
-    "type": {
-      "def": {
-        "tuple": [
-          51,
-          78
-        ]
-      }
-    }
-  },
-  {
-    "id": 81,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "DispatchMasterKeyHistoryEvent"
-      ],
-      "params": [
-        {
-          "name": "BlockNumber",
-          "type": 23
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "dest",
-              "type": 51,
-              "typeName": "WorkerPublicKey"
-            },
-            {
-              "name": "encrypted_master_key_history",
-              "type": 82,
-              "typeName": "Vec<(u64, BlockNumber, EncryptedKey)>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 82,
-    "type": {
-      "def": {
-        "sequence": {
-          "type": 83
-        }
-      }
-    }
-  },
-  {
-    "id": 83,
-    "type": {
-      "def": {
-        "tuple": [
-          14,
-          23,
-          78
-        ]
-      }
-    }
-  },
-  {
-    "id": 84,
-    "type": {
-      "path": [
-        "phala_mq",
-        "dispatcher",
-        "TypedReceiver"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 85
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "queue",
-              "type": 61,
-              "typeName": "Receiver<Message>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 85,
-    "type": {
-      "path": [
-        "phala_types",
-        "contract",
-        "messaging",
-        "ClusterOperation"
-      ],
-      "params": [
-        {
-          "name": "AccountId",
-          "type": 86
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "DispatchKeys",
-              "fields": [
-                {
-                  "type": 87,
-                  "typeName": "BatchDispatchClusterKeyEvent"
-                }
-              ],
-              "index": 0
-            },
-            {
-              "name": "DestroyCluster",
-              "fields": [
-                {
-                  "type": 24,
-                  "typeName": "ContractClusterId"
-                }
-              ],
-              "index": 1
-            },
-            {
-              "name": "UploadResource",
-              "fields": [
-                {
-                  "name": "origin",
-                  "type": 86,
-                  "typeName": "AccountId"
-                },
-                {
-                  "name": "cluster_id",
-                  "type": 24,
-                  "typeName": "ContractClusterId"
-                },
-                {
-                  "name": "resource_type",
-                  "type": 88,
-                  "typeName": "ResourceType"
-                },
-                {
-                  "name": "resource_data",
-                  "type": 4,
-                  "typeName": "Vec<u8>"
-                }
-              ],
-              "index": 2
-            },
-            {
-              "name": "Deposit",
-              "fields": [
-                {
-                  "name": "cluster_id",
-                  "type": 24,
-                  "typeName": "ContractClusterId"
-                },
-                {
-                  "name": "account",
-                  "type": 86,
-                  "typeName": "AccountId"
-                },
-                {
-                  "name": "amount",
-                  "type": 57,
-                  "typeName": "u128"
-                }
-              ],
-              "index": 3
-            },
-            {
-              "name": "RemoveWorker",
-              "fields": [
-                {
-                  "name": "cluster_id",
-                  "type": 24,
-                  "typeName": "ContractClusterId"
-                },
-                {
-                  "name": "worker",
-                  "type": 51,
-                  "typeName": "WorkerPublicKey"
-                }
-              ],
-              "index": 4
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 86,
-    "type": {
-      "path": [
-        "sp_core",
-        "crypto",
-        "AccountId32"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "type": 25,
-              "typeName": "[u8; 32]"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 87,
-    "type": {
-      "path": [
-        "phala_types",
-        "contract",
-        "messaging",
-        "BatchDispatchClusterKeyEvent"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "secret_keys",
-              "type": 77,
-              "typeName": "BTreeMap<WorkerPublicKey, EncryptedKey>"
-            },
-            {
-              "name": "cluster",
-              "type": 24,
-              "typeName": "ContractClusterId"
-            },
-            {
-              "name": "owner",
-              "type": 86,
-              "typeName": "AccountId32"
-            },
-            {
-              "name": "deposit",
-              "type": 57,
-              "typeName": "u128"
-            },
-            {
-              "name": "gas_price",
-              "type": 57,
-              "typeName": "u128"
-            },
-            {
-              "name": "deposit_per_item",
-              "type": 57,
-              "typeName": "u128"
-            },
-            {
-              "name": "deposit_per_byte",
-              "type": 57,
-              "typeName": "u128"
-            },
-            {
-              "name": "treasury_account",
-              "type": 86,
-              "typeName": "AccountId32"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 88,
-    "type": {
-      "path": [
-        "phala_types",
-        "contract",
-        "messaging",
-        "ResourceType"
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "InkCode",
-              "index": 0
-            },
-            {
-              "name": "SidevmCode",
-              "index": 1
-            },
-            {
-              "name": "IndeterministicInkCode",
-              "index": 2
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 89,
-    "type": {
-      "path": [
-        "phala_mq",
-        "dispatcher",
-        "TypedReceiver"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 90
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "queue",
-              "type": 61,
-              "typeName": "Receiver<Message>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 90,
-    "type": {
-      "path": [
-        "phala_types",
-        "contract",
-        "messaging",
-        "ContractOperation"
-      ],
-      "params": [
-        {
-          "name": "CodeHash",
-          "type": 24
-        },
-        {
-          "name": "AccountId",
-          "type": 86
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "InstantiateCode",
-              "fields": [
-                {
-                  "name": "contract_info",
-                  "type": 91,
-                  "typeName": "ContractInfo<CodeHash, AccountId>"
-                },
-                {
-                  "name": "transfer",
-                  "type": 57,
-                  "typeName": "u128"
-                },
-                {
-                  "name": "gas_limit",
-                  "type": 14,
-                  "typeName": "u64"
-                },
-                {
-                  "name": "storage_deposit_limit",
-                  "type": 93,
-                  "typeName": "Option<u128>"
-                }
-              ],
-              "index": 0
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 91,
-    "type": {
-      "path": [
-        "phala_types",
-        "contract",
-        "ContractInfo"
-      ],
-      "params": [
-        {
-          "name": "CodeHash",
-          "type": 24
-        },
-        {
-          "name": "AccountId",
-          "type": 86
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "deployer",
-              "type": 86,
-              "typeName": "AccountId"
-            },
-            {
-              "name": "code_index",
-              "type": 92,
-              "typeName": "CodeIndex<CodeHash>"
-            },
-            {
-              "name": "salt",
-              "type": 4,
-              "typeName": "Vec<u8>"
-            },
-            {
-              "name": "cluster_id",
-              "type": 24,
-              "typeName": "ContractClusterId"
-            },
-            {
-              "name": "instantiate_data",
-              "type": 4,
-              "typeName": "Vec<u8>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 92,
-    "type": {
-      "path": [
-        "phala_types",
-        "contract",
-        "CodeIndex"
-      ],
-      "params": [
-        {
-          "name": "CodeHash",
-          "type": 24
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "WasmCode",
-              "fields": [
-                {
-                  "type": 24,
-                  "typeName": "CodeHash"
-                }
-              ],
-              "index": 0
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 93,
-    "type": {
-      "path": [
-        "Option"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 57
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "None",
-              "index": 0
-            },
-            {
-              "name": "Some",
-              "fields": [
-                {
-                  "type": 57
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 94,
-    "type": {
-      "path": [
-        "phactory",
-        "system",
-        "WorkerState"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "hashed_id",
-              "type": 59,
-              "typeName": "U256"
-            },
-            {
-              "name": "registered",
-              "type": 1,
-              "typeName": "bool"
-            },
-            {
-              "name": "bench_state",
-              "type": 95,
-              "typeName": "Option<BenchState>"
-            },
-            {
-              "name": "working_state",
-              "type": 97,
-              "typeName": "Option<WorkingInfo>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 95,
-    "type": {
-      "path": [
-        "Option"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 96
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "None",
-              "index": 0
-            },
-            {
-              "name": "Some",
-              "fields": [
-                {
-                  "type": 96
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 96,
-    "type": {
-      "path": [
-        "phactory",
-        "system",
-        "BenchState"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "start_block",
-              "type": 23,
-              "typeName": "chain::BlockNumber"
-            },
-            {
-              "name": "start_time",
-              "type": 14,
-              "typeName": "u64"
-            },
-            {
-              "name": "start_iter",
-              "type": 14,
-              "typeName": "u64"
-            },
-            {
-              "name": "duration",
-              "type": 23,
-              "typeName": "u32"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 97,
-    "type": {
-      "path": [
-        "Option"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 98
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "None",
-              "index": 0
-            },
-            {
-              "name": "Some",
-              "fields": [
-                {
-                  "type": 98
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 98,
-    "type": {
-      "path": [
-        "phactory",
-        "system",
-        "WorkingInfo"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "session_id",
-              "type": 23,
-              "typeName": "u32"
-            },
-            {
-              "name": "state",
-              "type": 99,
-              "typeName": "WorkingState"
-            },
-            {
-              "name": "start_time",
-              "type": 14,
-              "typeName": "u64"
-            },
-            {
-              "name": "start_iter",
-              "type": 14,
-              "typeName": "u64"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 99,
-    "type": {
-      "path": [
-        "phactory",
-        "system",
-        "WorkingState"
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "Computing",
-              "index": 0
-            },
-            {
-              "name": "Paused",
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 100,
-    "type": {
-      "path": [
-        "Option"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 101
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "None",
-              "index": 0
-            },
-            {
-              "name": "Some",
-              "fields": [
-                {
-                  "type": 101
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 101,
-    "type": {
-      "path": [
-        "phactory",
-        "system",
-        "gk",
-        "Gatekeeper"
-      ],
-      "params": [
-        {
-          "name": "MsgChan",
-          "type": 48
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "master_pubkey_on_chain",
-              "type": 1,
-              "typeName": "bool"
-            },
-            {
-              "name": "registered_on_chain",
-              "type": 1,
-              "typeName": "bool"
-            },
-            {
-              "name": "master_key_history",
-              "type": 102,
-              "typeName": "Vec<RotatedMasterKey>"
-            },
-            {
-              "name": "egress",
-              "type": 48,
-              "typeName": "MsgChan"
-            },
-            {
-              "name": "gatekeeper_events",
-              "type": 105,
-              "typeName": "TypedReceiver<GatekeeperEvent>"
-            },
-            {
-              "name": "cluster_events",
-              "type": 109,
-              "typeName": "TypedReceiver<ClusterEvent>"
-            },
-            {
-              "name": "last_random_number",
-              "type": 25,
-              "typeName": "RandomNumber"
-            },
-            {
-              "name": "iv_seq",
-              "type": 14,
-              "typeName": "u64"
-            },
-            {
-              "name": "computing_economics",
-              "type": 111,
-              "typeName": "ComputingEconomics<MsgChan>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 102,
-    "type": {
-      "def": {
-        "sequence": {
-          "type": 103
-        }
-      }
-    }
-  },
-  {
-    "id": 103,
-    "type": {
-      "path": [
-        "phactory",
-        "system",
-        "master_key",
-        "RotatedMasterKey"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "rotation_id",
-              "type": 14,
-              "typeName": "u64"
-            },
-            {
-              "name": "block_height",
-              "type": 23,
-              "typeName": "chain::BlockNumber"
-            },
-            {
-              "name": "secret",
-              "type": 104,
-              "typeName": "Sr25519SecretKey"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 104,
-    "type": {
-      "def": {
-        "array": {
-          "len": 64,
-          "type": 5
-        }
-      }
-    }
-  },
-  {
-    "id": 105,
-    "type": {
-      "path": [
-        "phala_mq",
-        "dispatcher",
-        "TypedReceiver"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 106
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "queue",
-              "type": 61,
-              "typeName": "Receiver<Message>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 106,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "GatekeeperEvent"
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "NewRandomNumber",
-              "fields": [
-                {
-                  "type": 107,
-                  "typeName": "RandomNumberEvent"
-                }
-              ],
-              "index": 0
-            },
-            {
-              "name": "TokenomicParametersChanged",
-              "fields": [
-                {
-                  "type": 108,
-                  "typeName": "TokenomicParameters"
-                }
-              ],
-              "index": 1
-            },
-            {
-              "name": "_RepairV",
-              "index": 2
-            },
-            {
-              "name": "_PhalaLaunched",
-              "index": 3
-            },
-            {
-              "name": "_UnrespFix",
-              "index": 4
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 107,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "RandomNumberEvent"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "block_number",
-              "type": 23,
-              "typeName": "u32"
-            },
-            {
-              "name": "random_number",
-              "type": 25,
-              "typeName": "RandomNumber"
-            },
-            {
-              "name": "last_random_number",
-              "type": 25,
-              "typeName": "RandomNumber"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 108,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "TokenomicParameters"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "pha_rate",
-              "type": 57,
-              "typeName": "U64F64Bits"
-            },
-            {
-              "name": "rho",
-              "type": 57,
-              "typeName": "U64F64Bits"
-            },
-            {
-              "name": "budget_per_block",
-              "type": 57,
-              "typeName": "U64F64Bits"
-            },
-            {
-              "name": "v_max",
-              "type": 57,
-              "typeName": "U64F64Bits"
-            },
-            {
-              "name": "cost_k",
-              "type": 57,
-              "typeName": "U64F64Bits"
-            },
-            {
-              "name": "cost_b",
-              "type": 57,
-              "typeName": "U64F64Bits"
-            },
-            {
-              "name": "slash_rate",
-              "type": 57,
-              "typeName": "U64F64Bits"
-            },
-            {
-              "name": "treasury_ratio",
-              "type": 57,
-              "typeName": "U64F64Bits"
-            },
-            {
-              "name": "heartbeat_window",
-              "type": 23,
-              "typeName": "u32"
-            },
-            {
-              "name": "rig_k",
-              "type": 57,
-              "typeName": "U64F64Bits"
-            },
-            {
-              "name": "rig_b",
-              "type": 57,
-              "typeName": "U64F64Bits"
-            },
-            {
-              "name": "re",
-              "type": 57,
-              "typeName": "U64F64Bits"
-            },
-            {
-              "name": "k",
-              "type": 57,
-              "typeName": "U64F64Bits"
-            },
-            {
-              "name": "kappa",
-              "type": 57,
-              "typeName": "U64F64Bits"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 109,
-    "type": {
-      "path": [
-        "phala_mq",
-        "dispatcher",
-        "TypedReceiver"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 110
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "queue",
-              "type": 61,
-              "typeName": "Receiver<Message>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 110,
-    "type": {
-      "path": [
-        "phala_types",
-        "contract",
-        "messaging",
-        "ClusterEvent"
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "DeployCluster",
-              "fields": [
-                {
-                  "name": "owner",
-                  "type": 86,
-                  "typeName": "AccountId32"
-                },
-                {
-                  "name": "cluster",
-                  "type": 24,
-                  "typeName": "ContractClusterId"
-                },
-                {
-                  "name": "workers",
-                  "type": 67,
-                  "typeName": "Vec<WorkerIdentity>"
-                },
-                {
-                  "name": "deposit",
-                  "type": 57,
-                  "typeName": "u128"
-                },
-                {
-                  "name": "gas_price",
-                  "type": 57,
-                  "typeName": "u128"
-                },
-                {
-                  "name": "deposit_per_item",
-                  "type": 57,
-                  "typeName": "u128"
-                },
-                {
-                  "name": "deposit_per_byte",
-                  "type": 57,
-                  "typeName": "u128"
-                },
-                {
-                  "name": "treasury_account",
-                  "type": 86,
-                  "typeName": "AccountId32"
-                }
-              ],
-              "index": 0
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 111,
-    "type": {
-      "path": [
-        "phactory",
-        "system",
-        "gk",
-        "ComputingEconomics"
-      ],
-      "params": [
-        {
-          "name": "MsgChan",
-          "type": 48
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "egress",
-              "type": 48,
-              "typeName": "MsgChan"
-            },
-            {
-              "name": "computing_events",
-              "type": 112,
-              "typeName": "TypedReceiver<WorkingReportEvent>"
-            },
-            {
-              "name": "system_events",
-              "type": 52,
-              "typeName": "TypedReceiver<SystemEvent>"
-            },
-            {
-              "name": "gatekeeper_events",
-              "type": 105,
-              "typeName": "TypedReceiver<GatekeeperEvent>"
-            },
-            {
-              "name": "workers",
-              "type": 114,
-              "typeName": "OrdMap<WorkerPublicKey, WorkerInfo>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 112,
-    "type": {
-      "path": [
-        "phala_mq",
-        "dispatcher",
-        "TypedReceiver"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 113
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "queue",
-              "type": 61,
-              "typeName": "Receiver<Message>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 113,
-    "type": {
-      "path": [
-        "phala_types",
-        "messaging",
-        "WorkingReportEvent"
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "Heartbeat",
-              "fields": [
-                {
-                  "name": "session_id",
-                  "type": 23,
-                  "typeName": "u32"
-                },
-                {
-                  "name": "challenge_block",
-                  "type": 23,
-                  "typeName": "u32"
-                },
-                {
-                  "name": "challenge_time",
-                  "type": 14,
-                  "typeName": "u64"
-                },
-                {
-                  "name": "iterations",
-                  "type": 14,
-                  "typeName": "u64"
-                }
-              ],
-              "index": 0
-            },
-            {
-              "name": "HeartbeatV2",
-              "fields": [
-                {
-                  "name": "session_id",
-                  "type": 23,
-                  "typeName": "u32"
-                },
-                {
-                  "name": "challenge_block",
-                  "type": 23,
-                  "typeName": "u32"
-                },
-                {
-                  "name": "challenge_time",
-                  "type": 14,
-                  "typeName": "u64"
-                },
-                {
-                  "name": "iterations",
-                  "type": 14,
-                  "typeName": "u64"
-                },
-                {
-                  "name": "n_clusters",
-                  "type": 23,
-                  "typeName": "u32"
-                },
-                {
-                  "name": "n_contracts",
-                  "type": 23,
-                  "typeName": "u32"
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 114,
-    "type": {
-      "path": [
-        "BTreeMap"
-      ],
-      "params": [
-        {
-          "name": "K",
-          "type": 51
-        },
-        {
-          "name": "V",
-          "type": 115
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "type": 117
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 115,
-    "type": {
-      "path": [
-        "phactory",
-        "system",
-        "gk",
-        "WorkerInfo"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "state",
-              "type": 94,
-              "typeName": "WorkerState"
-            },
-            {
-              "name": "waiting_heartbeats",
-              "type": 116,
-              "typeName": "VecDeque<chain::BlockNumber>"
-            },
-            {
-              "name": "unresponsive",
-              "type": 1,
-              "typeName": "bool"
-            },
-            {
-              "name": "heartbeat_flag",
-              "type": 1,
-              "typeName": "bool"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 116,
-    "type": {
-      "def": {
-        "sequence": {
-          "type": 23
-        }
-      }
-    }
-  },
-  {
-    "id": 117,
-    "type": {
-      "def": {
-        "sequence": {
-          "type": 118
-        }
-      }
-    }
-  },
-  {
-    "id": 118,
-    "type": {
-      "def": {
-        "tuple": [
-          51,
-          115
-        ]
-      }
-    }
-  },
-  {
-    "id": 119,
-    "type": {
-      "path": [
-        "phactory",
-        "contracts",
-        "support",
-        "keeper",
-        "ContractsKeeper"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "contracts",
-              "type": 120,
-              "typeName": "ContractMap"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 120,
-    "type": {
-      "path": [
-        "BTreeMap"
-      ],
-      "params": [
-        {
-          "name": "K",
-          "type": 86
-        },
-        {
-          "name": "V",
-          "type": 121
-        }
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "type": 127
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 121,
-    "type": {
-      "path": [
-        "phactory",
-        "contracts",
-        "support",
-        "Contract"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "send_mq",
-              "type": 48,
-              "typeName": "SignedMessageChannel"
-            },
-            {
-              "name": "cluster_id",
-              "type": 24,
-              "typeName": "phala_mq::ContractClusterId"
-            },
-            {
-              "name": "address",
-              "type": 86,
-              "typeName": "AccountId"
-            },
-            {
-              "name": "sidevm_info",
-              "type": 122,
-              "typeName": "Option<SidevmInfo>"
-            },
-            {
-              "name": "weight",
-              "type": 23,
-              "typeName": "u32"
-            },
-            {
-              "name": "on_block_end",
-              "type": 125,
-              "typeName": "Option<OnBlockEnd>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 122,
-    "type": {
-      "path": [
-        "Option"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 123
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "None",
-              "index": 0
-            },
-            {
-              "name": "Some",
-              "fields": [
-                {
-                  "type": 123
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 123,
-    "type": {
-      "path": [
-        "phactory",
-        "contracts",
-        "support",
-        "SidevmInfo"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "code",
-              "type": 4,
-              "typeName": "Vec<u8>"
-            },
-            {
-              "name": "code_hash",
-              "type": 24,
-              "typeName": "H256"
-            },
-            {
-              "name": "start_time",
-              "type": 11,
-              "typeName": "String"
-            },
-            {
-              "name": "auto_restart",
-              "type": 1,
-              "typeName": "bool"
-            },
-            {
-              "name": "config",
-              "type": 124,
-              "typeName": "SidevmConfig"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 124,
-    "type": {
-      "path": [
-        "pink_extension",
-        "SidevmConfig"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "max_code_size",
-              "type": 23,
-              "typeName": "u32"
-            },
-            {
-              "name": "max_memory_pages",
-              "type": 23,
-              "typeName": "u32"
-            },
-            {
-              "name": "vital_capacity",
-              "type": 14,
-              "typeName": "u64"
-            },
-            {
-              "name": "deadline",
-              "type": 23,
-              "typeName": "u32"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 125,
-    "type": {
-      "path": [
-        "Option"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 126
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "None",
-              "index": 0
-            },
-            {
-              "name": "Some",
-              "fields": [
-                {
-                  "type": 126
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 126,
-    "type": {
-      "path": [
-        "phactory",
-        "contracts",
-        "support",
-        "OnBlockEnd"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "selector",
-              "type": 23,
-              "typeName": "u32"
-            },
-            {
-              "name": "gas_limit",
-              "type": 14,
-              "typeName": "u64"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 127,
-    "type": {
-      "def": {
-        "sequence": {
-          "type": 128
-        }
-      }
-    }
-  },
-  {
-    "id": 128,
-    "type": {
-      "def": {
-        "tuple": [
-          86,
-          121
-        ]
-      }
-    }
-  },
-  {
-    "id": 129,
-    "type": {
-      "path": [
-        "Option"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 130
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "None",
-              "index": 0
-            },
-            {
-              "name": "Some",
-              "fields": [
-                {
-                  "type": 130
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 130,
-    "type": {
-      "path": [
-        "phactory",
-        "contracts",
-        "pink",
-        "Cluster"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "id",
-              "type": 24,
-              "typeName": "ContractClusterId"
-            },
-            {
-              "name": "config",
-              "type": 131,
-              "typeName": "ClusterConfig"
-            },
-            {
-              "name": "storage",
-              "type": 134,
-              "typeName": "pink::storage::ClusterStorage"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 131,
-    "type": {
-      "path": [
-        "phactory",
-        "contracts",
-        "pink",
-        "ClusterConfig"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "log_handler",
-              "type": 132,
-              "typeName": "Option<AccountId>"
-            },
-            {
-              "name": "runtime_version",
-              "type": 133,
-              "typeName": "(u32, u32)"
-            },
-            {
-              "name": "secret_salt",
-              "type": 25,
-              "typeName": "[u8; 32]"
-            },
-            {
-              "name": "js_runtime",
-              "type": 41,
-              "typeName": "Option<Hash>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 132,
-    "type": {
-      "path": [
-        "Option"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 86
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "None",
-              "index": 0
-            },
-            {
-              "name": "Some",
-              "fields": [
-                {
-                  "type": 86
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 133,
-    "type": {
-      "def": {
-        "tuple": [
-          23,
-          23
-        ]
-      }
-    }
-  },
-  {
-    "id": 134,
-    "type": {
-      "path": [
-        "pink_runner",
-        "storage",
-        "ClusterStorage"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "root",
-              "type": 41,
-              "typeName": "Option<Hash>"
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 135,
-    "type": {
-      "path": [
-        "Option"
-      ],
-      "params": [
-        {
-          "name": "T",
-          "type": 136
-        }
-      ],
-      "def": {
-        "variant": {
-          "variants": [
-            {
-              "name": "None",
-              "index": 0
-            },
-            {
-              "name": "Some",
-              "fields": [
-                {
-                  "type": 136
-                }
-              ],
-              "index": 1
-            }
-          ]
-        }
-      }
-    }
-  },
-  {
-    "id": 136,
-    "type": {
-      "path": [
-        "phactory_api",
-        "proto_generated",
-        "pruntime_rpc",
-        "NetworkConfig"
-      ],
-      "def": {
-        "composite": {
-          "fields": [
-            {
-              "name": "all_proxy",
-              "type": 11,
-              "typeName": "::prost::alloc::string::String"
-            },
-            {
-              "name": "i2p_proxy",
-              "type": 11,
-              "typeName": "::prost::alloc::string::String"
-            }
-          ]
-        }
-      }
-    }
-  }
-]
+Option = enum {
+    [0]None,
+    [1]Some(phala_types::AttestationProvider)
+}
+phala_types::AttestationProvider = enum {
+    [0]Root,
+    [1]Ias,
+    [2]Dcap,
+}
+Option = enum {
+    [0]None,
+    [1]Some(phactory_api::proto_generated::pruntime_rpc::InitRuntimeResponse)
+}
+phactory_api::proto_generated::pruntime_rpc::InitRuntimeResponse = struct {
+    encoded_runtime_info: Vec<u8>,
+    encoded_genesis_block_hash: Vec<u8>,
+    encoded_public_key: Vec<u8>,
+    encoded_ecdh_public_key: Vec<u8>,
+    attestation: Option<phactory_api::proto_generated::pruntime_rpc::Attestation>,
+}
+Option = enum {
+    [0]None,
+    [1]Some(phactory_api::proto_generated::pruntime_rpc::Attestation)
+}
+phactory_api::proto_generated::pruntime_rpc::Attestation = struct {
+    version: i32,
+    provider: str,
+    payload: Option<phactory_api::proto_generated::pruntime_rpc::AttestationReport>,
+    encoded_report: Vec<u8>,
+    timestamp: u64,
+}
+Option = enum {
+    [0]None,
+    [1]Some(phactory_api::proto_generated::pruntime_rpc::AttestationReport)
+}
+phactory_api::proto_generated::pruntime_rpc::AttestationReport = struct {
+    report: str,
+    signature: Vec<u8>,
+    signing_cert: Vec<u8>,
+}
+Option = enum {
+    [0]None,
+    [1]Some(phactory::RuntimeState)
+}
+phactory::RuntimeState = struct {
+    storage_synchronizer: phactory_api::storage_sync::Synchronizer<phactory::light_validation::LightValidation<phala_node_runtime::Runtime>>,
+    genesis_block_hash: primitive_types::H256,
+    para_id: u32,
+}
+phactory_api::storage_sync::Synchronizer = enum {
+    [0]Solo(phactory_api::storage_sync::SolochainSynchronizer<phactory::light_validation::LightValidation<phala_node_runtime::Runtime>>)
+    [1]Para(phactory_api::storage_sync::ParachainSynchronizer<phactory::light_validation::LightValidation<phala_node_runtime::Runtime>>)
+}
+phactory::light_validation::LightValidation = struct {
+    num_bridges: u64,
+    tracked_bridges: BTreeMap<u64,phactory::light_validation::BridgeInfo<phala_node_runtime::Runtime>>,
+}
+phala_node_runtime::Runtime = struct {
+}
+BTreeMap = struct {
+    : Vec<(u64, phactory::light_validation::BridgeInfo<phala_node_runtime::Runtime>)>,
+}
+phactory::light_validation::BridgeInfo = struct {
+    last_finalized_block_header: sp_runtime::generic::header::Header<u32,Hash>,
+    current_set: phactory_api::blocks::AuthoritySet,
+}
+sp_runtime::generic::header::Header = struct {
+    parent_hash: primitive_types::H256,
+    number: Compact<u32>,
+    state_root: primitive_types::H256,
+    extrinsics_root: primitive_types::H256,
+    digest: sp_runtime::generic::digest::Digest,
+}
+primitive_types::H256 = struct {
+    : [u8; 32],
+}
+sp_runtime::generic::digest::Digest = struct {
+    logs: Vec<sp_runtime::generic::digest::DigestItem>,
+}
+sp_runtime::generic::digest::DigestItem = enum {
+    [6]PreRuntime([u8; 4], Vec<u8>)
+    [4]Consensus([u8; 4], Vec<u8>)
+    [5]Seal([u8; 4], Vec<u8>)
+    [0]Other(Vec<u8>)
+    [8]RuntimeEnvironmentUpdated,
+}
+phactory_api::blocks::AuthoritySet = struct {
+    list: Vec<(sp_consensus_grandpa::app::Public, u64)>,
+    id: u64,
+}
+sp_consensus_grandpa::app::Public = struct {
+    : sp_core::ed25519::Public,
+}
+sp_core::ed25519::Public = struct {
+    : [u8; 32],
+}
+phactory_api::storage_sync::SolochainSynchronizer = struct {
+    sync_state: phactory_api::storage_sync::BlockSyncState<phactory::light_validation::LightValidation<phala_node_runtime::Runtime>>,
+}
+phactory_api::storage_sync::BlockSyncState = struct {
+    validator: phactory::light_validation::LightValidation<phala_node_runtime::Runtime>,
+    main_bridge: u64,
+    header_number_next: u32,
+    block_number_next: u32,
+    genesis_state_validated: bool,
+}
+phactory_api::storage_sync::ParachainSynchronizer = struct {
+    sync_state: phactory_api::storage_sync::BlockSyncState<phactory::light_validation::LightValidation<phala_node_runtime::Runtime>>,
+    last_relaychain_state_root: Option<primitive_types::H256>,
+    para_header_number_next: u32,
+}
+Option = enum {
+    [0]None,
+    [1]Some(primitive_types::H256)
+}
+BTreeMap = struct {
+    : Vec<(phactory_api::endpoints::EndpointType, str)>,
+}
+phactory_api::endpoints::EndpointType = enum {
+    [0]I2p,
+    [1]Http,
+}
+Option = enum {
+    [0]None,
+    [1]Some(phactory::system::System<()>)
+}
+phactory::system::System = struct {
+    platform: (),
+    dev_mode: bool,
+    sealing_path: str,
+    storage_path: str,
+    egress: phala_mq::send_queue::msg_channel::MessageChannel<phala_mq::signer::signers::Sr25519Signer>,
+    system_events: phala_mq::dispatcher::TypedReceiver<phala_types::messaging::SystemEvent>,
+    gatekeeper_launch_events: phala_mq::dispatcher::TypedReceiver<phala_types::messaging::GatekeeperLaunch>,
+    gatekeeper_change_events: phala_mq::dispatcher::TypedReceiver<phala_types::messaging::GatekeeperChange>,
+    key_distribution_events: phala_mq::dispatcher::TypedReceiver<phala_types::messaging::KeyDistribution<u32>>,
+    cluster_key_distribution_events: phala_mq::dispatcher::TypedReceiver<phala_types::contract::messaging::ClusterOperation<sp_core::crypto::AccountId32>>,
+    contract_operation_events: phala_mq::dispatcher::TypedReceiver<phala_types::contract::messaging::ContractOperation<primitive_types::H256,sp_core::crypto::AccountId32>>,
+    worker_state: phactory::system::WorkerState,
+    gatekeeper: Option<phactory::system::gk::Gatekeeper<phala_mq::send_queue::msg_channel::MessageChannel<phala_mq::signer::signers::Sr25519Signer>>>,
+    contracts: phactory::contracts::support::keeper::ContractsKeeper,
+    contract_cluster: Option<phactory::contracts::pink::Cluster>,
+    block_number: u32,
+    now_ms: u64,
+    genesis_block: u32,
+}
+phala_mq::send_queue::msg_channel::MessageChannel = struct {
+    sender: phala_mq::types::MessageOrigin,
+    signer: phala_mq::signer::signers::Sr25519Signer,
+}
+phala_mq::signer::signers::Sr25519Signer = struct {
+}
+phala_mq::types::MessageOrigin = enum {
+    [0]Pallet(Vec<u8>)
+    [1]Contract(primitive_types::H256)
+    [2]Worker(sp_core::sr25519::Public)
+    [3]AccountId(primitive_types::H256)
+    [4]MultiLocation(Vec<u8>)
+    [5]Gatekeeper,
+    [6]Cluster(primitive_types::H256)
+    [255]Reserved,
+}
+sp_core::sr25519::Public = struct {
+    : [u8; 32],
+}
+phala_mq::dispatcher::TypedReceiver = struct {
+    queue: phala_mq::dispatcher::ReceiverTypeInfo,
+}
+phala_types::messaging::SystemEvent = enum {
+    [0]WorkerEvent(phala_types::messaging::WorkerEventWithKey)
+    [1]HeartbeatChallenge(phala_types::messaging::HeartbeatChallenge)
+}
+phala_types::messaging::WorkerEventWithKey = struct {
+    pubkey: sp_core::sr25519::Public,
+    event: phala_types::messaging::WorkerEvent,
+}
+phala_types::messaging::WorkerEvent = enum {
+    [0]Registered(phala_types::messaging::WorkerInfo)
+    [1]BenchStart {
+        duration: u32,
+    }
+    [2]BenchScore(u32)
+    [3]Started {
+        session_id: u32,
+        init_v: u128,
+        init_p: u32,
+    }
+    [4]Stopped,
+    [5]EnterUnresponsive,
+    [6]ExitUnresponsive,
+}
+phala_types::messaging::WorkerInfo = struct {
+    confidence_level: u8,
+}
+phala_types::messaging::HeartbeatChallenge = struct {
+    seed: primitive_types::U256,
+    online_target: primitive_types::U256,
+}
+primitive_types::U256 = struct {
+    : [u64; 4],
+}
+phala_mq::dispatcher::ReceiverTypeInfo = struct {
+    inner: (),
+    topic: Vec<u8>,
+}
+phala_mq::dispatcher::TypedReceiver = struct {
+    queue: phala_mq::dispatcher::ReceiverTypeInfo,
+}
+phala_types::messaging::GatekeeperLaunch = enum {
+    [0]FirstGatekeeper(phala_types::messaging::NewGatekeeperEvent)
+    [1]MasterPubkeyOnChain(phala_types::messaging::MasterPubkeyEvent)
+    [2]RotateMasterKey(phala_types::messaging::RotateMasterKeyEvent)
+    [3]MasterPubkeyRotated(phala_types::messaging::MasterPubkeyEvent)
+}
+phala_types::messaging::NewGatekeeperEvent = struct {
+    pubkey: sp_core::sr25519::Public,
+    ecdh_pubkey: sp_core::sr25519::Public,
+}
+phala_types::messaging::MasterPubkeyEvent = struct {
+    master_pubkey: sp_core::sr25519::Public,
+}
+phala_types::messaging::RotateMasterKeyEvent = struct {
+    rotation_id: u64,
+    gk_identities: Vec<phala_types::WorkerIdentity>,
+}
+phala_types::WorkerIdentity = struct {
+    pubkey: sp_core::sr25519::Public,
+    ecdh_pubkey: sp_core::sr25519::Public,
+}
+phala_mq::dispatcher::TypedReceiver = struct {
+    queue: phala_mq::dispatcher::ReceiverTypeInfo,
+}
+phala_types::messaging::GatekeeperChange = enum {
+    [0]Registered(phala_types::messaging::NewGatekeeperEvent)
+    [1]Unregistered(phala_types::messaging::RemoveGatekeeperEvent)
+}
+phala_types::messaging::RemoveGatekeeperEvent = struct {
+    pubkey: sp_core::sr25519::Public,
+}
+phala_mq::dispatcher::TypedReceiver = struct {
+    queue: phala_mq::dispatcher::ReceiverTypeInfo,
+}
+phala_types::messaging::KeyDistribution = enum {
+    [0]MasterKeyDistribution(phala_types::messaging::DispatchMasterKeyEvent)
+    [1]MasterKeyRotation(phala_types::messaging::BatchRotateMasterKeyEvent)
+    [2]MasterKeyHistory(phala_types::messaging::DispatchMasterKeyHistoryEvent<u32>)
+}
+phala_types::messaging::DispatchMasterKeyEvent = struct {
+    dest: sp_core::sr25519::Public,
+    ecdh_pubkey: sp_core::sr25519::Public,
+    encrypted_master_key: Vec<u8>,
+    iv: [u8; 12],
+}
+phala_types::messaging::BatchRotateMasterKeyEvent = struct {
+    rotation_id: u64,
+    secret_keys: BTreeMap<sp_core::sr25519::Public,phala_types::messaging::EncryptedKey>,
+    sender: sp_core::sr25519::Public,
+    sig: Vec<u8>,
+}
+BTreeMap = struct {
+    : Vec<(sp_core::sr25519::Public, phala_types::messaging::EncryptedKey)>,
+}
+phala_types::messaging::EncryptedKey = struct {
+    ecdh_pubkey: sp_core::sr25519::Public,
+    encrypted_key: Vec<u8>,
+    iv: [u8; 12],
+}
+phala_types::messaging::DispatchMasterKeyHistoryEvent = struct {
+    dest: sp_core::sr25519::Public,
+    encrypted_master_key_history: Vec<(u64, u32, phala_types::messaging::EncryptedKey)>,
+}
+phala_mq::dispatcher::TypedReceiver = struct {
+    queue: phala_mq::dispatcher::ReceiverTypeInfo,
+}
+phala_types::contract::messaging::ClusterOperation = enum {
+    [0]DispatchKeys(phala_types::contract::messaging::BatchDispatchClusterKeyEvent)
+    [1]DestroyCluster(primitive_types::H256)
+    [2]UploadResource {
+        origin: sp_core::crypto::AccountId32,
+        cluster_id: primitive_types::H256,
+        resource_type: phala_types::contract::messaging::ResourceType,
+        resource_data: Vec<u8>,
+    }
+    [3]Deposit {
+        cluster_id: primitive_types::H256,
+        account: sp_core::crypto::AccountId32,
+        amount: u128,
+    }
+    [4]RemoveWorker {
+        cluster_id: primitive_types::H256,
+        worker: sp_core::sr25519::Public,
+    }
+}
+sp_core::crypto::AccountId32 = struct {
+    : [u8; 32],
+}
+phala_types::contract::messaging::BatchDispatchClusterKeyEvent = struct {
+    secret_keys: BTreeMap<sp_core::sr25519::Public,phala_types::messaging::EncryptedKey>,
+    cluster: primitive_types::H256,
+    owner: sp_core::crypto::AccountId32,
+    deposit: u128,
+    gas_price: u128,
+    deposit_per_item: u128,
+    deposit_per_byte: u128,
+    treasury_account: sp_core::crypto::AccountId32,
+}
+phala_types::contract::messaging::ResourceType = enum {
+    [0]InkCode,
+    [1]SidevmCode,
+    [2]IndeterministicInkCode,
+}
+phala_mq::dispatcher::TypedReceiver = struct {
+    queue: phala_mq::dispatcher::ReceiverTypeInfo,
+}
+phala_types::contract::messaging::ContractOperation = enum {
+    [0]InstantiateCode {
+        contract_info: phala_types::contract::ContractInfo<primitive_types::H256,sp_core::crypto::AccountId32>,
+        transfer: u128,
+        gas_limit: u64,
+        storage_deposit_limit: Option<u128>,
+    }
+}
+phala_types::contract::ContractInfo = struct {
+    deployer: sp_core::crypto::AccountId32,
+    code_index: phala_types::contract::CodeIndex<primitive_types::H256>,
+    salt: Vec<u8>,
+    cluster_id: primitive_types::H256,
+    instantiate_data: Vec<u8>,
+}
+phala_types::contract::CodeIndex = enum {
+    [0]WasmCode(primitive_types::H256)
+}
+Option = enum {
+    [0]None,
+    [1]Some(u128)
+}
+phactory::system::WorkerState = struct {
+    hashed_id: primitive_types::U256,
+    registered: bool,
+    bench_state: Option<phactory::system::BenchState>,
+    working_state: Option<phactory::system::WorkingInfo>,
+}
+Option = enum {
+    [0]None,
+    [1]Some(phactory::system::BenchState)
+}
+phactory::system::BenchState = struct {
+    start_block: u32,
+    start_time: u64,
+    start_iter: u64,
+    duration: u32,
+}
+Option = enum {
+    [0]None,
+    [1]Some(phactory::system::WorkingInfo)
+}
+phactory::system::WorkingInfo = struct {
+    session_id: u32,
+    state: phactory::system::WorkingState,
+    start_time: u64,
+    start_iter: u64,
+}
+phactory::system::WorkingState = enum {
+    [0]Computing,
+    [1]Paused,
+}
+Option = enum {
+    [0]None,
+    [1]Some(phactory::system::gk::Gatekeeper<phala_mq::send_queue::msg_channel::MessageChannel<phala_mq::signer::signers::Sr25519Signer>>)
+}
+phactory::system::gk::Gatekeeper = struct {
+    master_pubkey_on_chain: bool,
+    registered_on_chain: bool,
+    master_key_history: Vec<phactory::system::master_key::RotatedMasterKey>,
+    egress: phala_mq::send_queue::msg_channel::MessageChannel<phala_mq::signer::signers::Sr25519Signer>,
+    gatekeeper_events: phala_mq::dispatcher::TypedReceiver<phala_types::messaging::GatekeeperEvent>,
+    cluster_events: phala_mq::dispatcher::TypedReceiver<phala_types::contract::messaging::ClusterEvent>,
+    last_random_number: [u8; 32],
+    iv_seq: u64,
+    computing_economics: phactory::system::gk::ComputingEconomics<phala_mq::send_queue::msg_channel::MessageChannel<phala_mq::signer::signers::Sr25519Signer>>,
+}
+phactory::system::master_key::RotatedMasterKey = struct {
+    rotation_id: u64,
+    block_height: u32,
+    secret: [u8; 64],
+}
+phala_mq::dispatcher::TypedReceiver = struct {
+    queue: phala_mq::dispatcher::ReceiverTypeInfo,
+}
+phala_types::messaging::GatekeeperEvent = enum {
+    [0]NewRandomNumber(phala_types::messaging::RandomNumberEvent)
+    [1]TokenomicParametersChanged(phala_types::messaging::TokenomicParameters)
+    [2]_RepairV,
+    [3]_PhalaLaunched,
+    [4]_UnrespFix,
+}
+phala_types::messaging::RandomNumberEvent = struct {
+    block_number: u32,
+    random_number: [u8; 32],
+    last_random_number: [u8; 32],
+}
+phala_types::messaging::TokenomicParameters = struct {
+    pha_rate: u128,
+    rho: u128,
+    budget_per_block: u128,
+    v_max: u128,
+    cost_k: u128,
+    cost_b: u128,
+    slash_rate: u128,
+    treasury_ratio: u128,
+    heartbeat_window: u32,
+    rig_k: u128,
+    rig_b: u128,
+    re: u128,
+    k: u128,
+    kappa: u128,
+}
+phala_mq::dispatcher::TypedReceiver = struct {
+    queue: phala_mq::dispatcher::ReceiverTypeInfo,
+}
+phala_types::contract::messaging::ClusterEvent = enum {
+    [0]DeployCluster {
+        owner: sp_core::crypto::AccountId32,
+        cluster: primitive_types::H256,
+        workers: Vec<phala_types::WorkerIdentity>,
+        deposit: u128,
+        gas_price: u128,
+        deposit_per_item: u128,
+        deposit_per_byte: u128,
+        treasury_account: sp_core::crypto::AccountId32,
+    }
+}
+phactory::system::gk::ComputingEconomics = struct {
+    egress: phala_mq::send_queue::msg_channel::MessageChannel<phala_mq::signer::signers::Sr25519Signer>,
+    computing_events: phala_mq::dispatcher::TypedReceiver<phala_types::messaging::WorkingReportEvent>,
+    system_events: phala_mq::dispatcher::TypedReceiver<phala_types::messaging::SystemEvent>,
+    gatekeeper_events: phala_mq::dispatcher::TypedReceiver<phala_types::messaging::GatekeeperEvent>,
+    workers: BTreeMap<sp_core::sr25519::Public,phactory::system::gk::WorkerInfo>,
+}
+phala_mq::dispatcher::TypedReceiver = struct {
+    queue: phala_mq::dispatcher::ReceiverTypeInfo,
+}
+phala_types::messaging::WorkingReportEvent = enum {
+    [0]Heartbeat {
+        session_id: u32,
+        challenge_block: u32,
+        challenge_time: u64,
+        iterations: u64,
+    }
+    [1]HeartbeatV2 {
+        session_id: u32,
+        challenge_block: u32,
+        challenge_time: u64,
+        iterations: u64,
+        n_clusters: u32,
+        n_contracts: u32,
+    }
+}
+BTreeMap = struct {
+    : Vec<(sp_core::sr25519::Public, phactory::system::gk::WorkerInfo)>,
+}
+phactory::system::gk::WorkerInfo = struct {
+    state: phactory::system::WorkerState,
+    waiting_heartbeats: Vec<u32>,
+    unresponsive: bool,
+    heartbeat_flag: bool,
+}
+phactory::contracts::support::keeper::ContractsKeeper = struct {
+    contracts: BTreeMap<sp_core::crypto::AccountId32,phactory::contracts::support::Contract>,
+}
+BTreeMap = struct {
+    : Vec<(sp_core::crypto::AccountId32, phactory::contracts::support::Contract)>,
+}
+phactory::contracts::support::Contract = struct {
+    send_mq: phala_mq::send_queue::msg_channel::MessageChannel<phala_mq::signer::signers::Sr25519Signer>,
+    cluster_id: primitive_types::H256,
+    address: sp_core::crypto::AccountId32,
+    sidevm_info: Option<phactory::contracts::support::SidevmInfo>,
+    weight: u32,
+    on_block_end: Option<phactory::contracts::support::OnBlockEnd>,
+}
+Option = enum {
+    [0]None,
+    [1]Some(phactory::contracts::support::SidevmInfo)
+}
+phactory::contracts::support::SidevmInfo = struct {
+    code: Vec<u8>,
+    code_hash: primitive_types::H256,
+    start_time: str,
+    auto_restart: bool,
+    config: pink_extension::SidevmConfig,
+}
+pink_extension::SidevmConfig = struct {
+    max_code_size: u32,
+    max_memory_pages: u32,
+    vital_capacity: u64,
+    deadline: u32,
+}
+Option = enum {
+    [0]None,
+    [1]Some(phactory::contracts::support::OnBlockEnd)
+}
+phactory::contracts::support::OnBlockEnd = struct {
+    selector: u32,
+    gas_limit: u64,
+}
+Option = enum {
+    [0]None,
+    [1]Some(phactory::contracts::pink::Cluster)
+}
+phactory::contracts::pink::Cluster = struct {
+    id: primitive_types::H256,
+    config: phactory::contracts::pink::ClusterConfig,
+    storage: pink_runner::storage::ClusterStorage,
+}
+phactory::contracts::pink::ClusterConfig = struct {
+    log_handler: Option<sp_core::crypto::AccountId32>,
+    runtime_version: (u32, u32),
+    secret_salt: [u8; 32],
+    js_runtime: Option<primitive_types::H256>,
+}
+Option = enum {
+    [0]None,
+    [1]Some(sp_core::crypto::AccountId32)
+}
+pink_runner::storage::ClusterStorage = struct {
+    root: Option<primitive_types::H256>,
+}
+Option = enum {
+    [0]None,
+    [1]Some(phactory_api::proto_generated::pruntime_rpc::NetworkConfig)
+}
+phactory_api::proto_generated::pruntime_rpc::NetworkConfig = struct {
+    all_proxy: str,
+    i2p_proxy: str,
+}
+phactory::Phactory = struct {
+    platform: (),
+    dev_mode: bool,
+    attestation_provider: Option<phala_types::AttestationProvider>,
+    machine_id: Vec<u8>,
+    runtime_info: Option<phactory_api::proto_generated::pruntime_rpc::InitRuntimeResponse>,
+    runtime_state: Option<phactory::RuntimeState>,
+    endpoints: BTreeMap<phactory_api::endpoints::EndpointType,str>,
+    system: Option<phactory::system::System<()>>,
+    netconfig: Option<phactory_api::proto_generated::pruntime_rpc::NetworkConfig>,
+}
+

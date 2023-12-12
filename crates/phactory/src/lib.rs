@@ -363,13 +363,8 @@ mod sidevm_helper {
 
 #[test]
 fn show_type_changes_that_affect_the_checkpoint() {
-    fn travel_types<T: TypeInfo>() -> String {
-        use scale_info::{IntoPortable, PortableRegistry};
-        let mut registry = Default::default();
-        let _ = T::type_info().into_portable(&mut registry);
-        serde_json::to_string_pretty(&PortableRegistry::from(registry).types).unwrap()
-    }
-    insta::assert_display_snapshot!(travel_types::<Phactory<()>>());
+    use type_info_stringify::type_info_stringify;
+    insta::assert_display_snapshot!(type_info_stringify::<Phactory<()>>());
 }
 
 #[derive(Serialize, Deserialize, Clone)]

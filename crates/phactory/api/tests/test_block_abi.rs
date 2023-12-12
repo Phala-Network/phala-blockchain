@@ -1,16 +1,24 @@
-use phactory_api::blocks;
-use scale_info::{IntoPortable, PortableRegistry, TypeInfo};
+#![allow(non_snake_case)]
 
-fn travel_types<T: TypeInfo>() -> String {
-    let mut registry = Default::default();
-    let _ = T::type_info().into_portable(&mut registry);
-    serde_json::to_string_pretty(&PortableRegistry::from(registry).types).unwrap()
+use phactory_api::blocks;
+use type_info_stringify::type_info_stringify;
+
+#[test]
+fn typeof_SyncHeaderReq_should_not_change() {
+    insta::assert_display_snapshot!(type_info_stringify::<blocks::SyncHeaderReq>());
 }
 
 #[test]
-fn test_sync_blocks_abi_should_not_change() {
-    insta::assert_display_snapshot!(travel_types::<blocks::SyncHeaderReq>());
-    insta::assert_display_snapshot!(travel_types::<blocks::SyncParachainHeaderReq>());
-    insta::assert_display_snapshot!(travel_types::<blocks::SyncCombinedHeadersReq>());
-    insta::assert_display_snapshot!(travel_types::<blocks::DispatchBlockReq>());
+fn typeof_SyncParachainHeaderReq_should_not_change() {
+    insta::assert_display_snapshot!(type_info_stringify::<blocks::SyncParachainHeaderReq>());
+}
+
+#[test]
+fn typeof_SyncCombinedHeadersReq_should_not_change() {
+    insta::assert_display_snapshot!(type_info_stringify::<blocks::SyncCombinedHeadersReq>());
+}
+
+#[test]
+fn typeof_DispatchBlockReq_should_not_change() {
+    insta::assert_display_snapshot!(type_info_stringify::<blocks::DispatchBlockReq>());
 }
