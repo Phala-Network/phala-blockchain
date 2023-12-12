@@ -215,6 +215,7 @@ pub struct ClusterInfo<AccountId> {
     pub permission: ClusterPermission<AccountId>,
     pub system_contract: ContractId,
     pub gas_price: u128,
+    pub gas_price_denominator: u128,
     pub deposit_per_item: u128,
     pub deposit_per_byte: u128,
 }

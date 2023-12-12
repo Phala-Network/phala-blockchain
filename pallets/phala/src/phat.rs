@@ -29,8 +29,8 @@ pub mod pallet {
 		contract::{
 			command_topic,
 			messaging::{
-				ClusterEvent, ClusterOperation, ContractOperation, ResourceType,
-				WorkerClusterReport,
+				ClusterConfigUpdates, ClusterEvent, ClusterOperation, ContractOperation,
+				ResourceType, WorkerClusterReport,
 			},
 			ClusterInfo, ClusterPermission, CodeIndex, ContractClusterId, ContractId, ContractInfo,
 		},
@@ -168,6 +168,11 @@ pub mod pallet {
 			worker: WorkerPublicKey,
 			cluster: ContractClusterId,
 		},
+		GasPriceUpdated {
+			cluster: ContractClusterId,
+			price: u128,
+			denominator: u128,
+		},
 	}
 
 	#[pallet::error]
@@ -278,6 +283,7 @@ pub mod pallet {
 				permission,
 				system_contract,
 				gas_price: gas_price.unique_saturated_into(),
+				gas_price_denominator: 1,
 				deposit_per_item: deposit_per_item.unique_saturated_into(),
 				deposit_per_byte: deposit_per_byte.unique_saturated_into(),
 			};
@@ -572,6 +578,42 @@ pub mod pallet {
 			});
 			Ok(())
 		}
+
+		/// Update the gas price of a cluster
+		#[pallet::call_index(11)]
+		#[pallet::weight({0})]
+		pub fn update_gas_price(
+			origin: OriginFor<T>,
+			cluster_id: ContractClusterId,
+			price: u128,
+			denominator: u128,
+		) -> DispatchResult {
+			let origin = ensure_signed(origin)?;
+			let mut cluster_info =
+				Clusters::<T>::get(cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
+			ensure!(
+				cluster_info.owner == origin,
+				Error::<T>::ClusterPermissionDenied
+			);
+
+			cluster_info.gas_price = price;
+			cluster_info.gas_price_denominator = denominator;
+			Clusters::<T>::insert(cluster_id, cluster_info);
+
+			Self::push_message(ClusterOperation::<T::AccountId>::UpdateConfig {
+				cluster_id,
+				config: ClusterConfigUpdates::V0 {
+					gas_price: Some(price),
+					gas_price_denominator: Some(denominator),
+				},
+			});
+			Self::deposit_event(Event::GasPriceUpdated {
+				cluster: cluster_id,
+				price,
+				denominator,
+			});
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T>
@@ -710,49 +752,39 @@ pub mod pallet {
 
 		impl<T: Config + frame_system::Config> OnRuntimeUpgrade for Migration<T> {
 			fn on_runtime_upgrade() -> Weight {
-				migrate_v7_to_v8::<T>()
+				migrate_v8_to_v9::<T>()
 			}
 		}
 
-		fn migrate_v7_to_v8<T: Config + frame_system::Config>() -> Weight {
+		fn migrate_v8_to_v9<T: Config + frame_system::Config>() -> Weight {
 			let onchain_version = Pallet::<T>::on_chain_storage_version();
 			let mut nreads = 0;
 
-			if onchain_version < 8 {
+			if onchain_version == 8 {
 				#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
-				pub struct ClusterInfoV7<AccountId> {
+				pub struct ClusterInfoV8<AccountId> {
 					pub owner: AccountId,
 					pub permission: ClusterPermission<AccountId>,
-					pub workers: Vec<WorkerPublicKey>,
 					pub system_contract: ContractId,
 					pub gas_price: u128,
 					pub deposit_per_item: u128,
 					pub deposit_per_byte: u128,
 				}
 
-				Clusters::<T>::translate(|id, old: ClusterInfoV7<T::AccountId>| {
-					nreads += 2;
-					let mut workers = ClusterWorkers::<T>::get(id);
-					for worker in old.workers {
-						if !workers.contains(&worker)
-							&& ClusterByWorkers::<T>::get(worker)
-								!= Some(ContractClusterId::from_low_u64_be(0))
-						{
-							workers.push(worker);
-						}
-					}
-					ClusterWorkers::<T>::insert(id, workers);
+				Clusters::<T>::translate(|_id, old: ClusterInfoV8<T::AccountId>| {
+					nreads += 1;
 					Some(ClusterInfo {
 						owner: old.owner,
 						permission: old.permission,
 						system_contract: old.system_contract,
 						gas_price: old.gas_price,
+						gas_price_denominator: 1,
 						deposit_per_item: old.deposit_per_item,
 						deposit_per_byte: old.deposit_per_byte,
 					})
 				});
 
-				StorageVersion::new(8).put::<Pallet<T>>();
+				StorageVersion::new(9).put::<Pallet<T>>();
 			}
 			// Roughly estimate the weight of this migration
 			T::DbWeight::get().reads_writes(nreads, nreads)
