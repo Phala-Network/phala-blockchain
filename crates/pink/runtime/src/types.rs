@@ -28,6 +28,7 @@ pub struct EventsBlockBody {
     pub contract_call_nonce: Option<Vec<u8>>,
     pub entry_contract: Option<AccountId>,
     pub events: SystemEvents,
+    pub origin: Option<AccountId>,
 }
 
 #[derive(Encode, Decode, Clone, Debug)]

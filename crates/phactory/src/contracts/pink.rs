@@ -86,7 +86,7 @@ impl RuntimeHandleMut<'_> {
         mode: ExecutionMode,
         tx_args: TransactionArguments,
     ) -> Vec<u8> {
-        context::using_entry_contract(contract.clone(), move || {
+        context::using_entry(contract.clone(), tx_args.origin.clone(), move || {
             self.contract_call(contract, input_data, mode, tx_args)
         })
     }
@@ -106,7 +106,7 @@ impl RuntimeHandleMut<'_> {
             &salt,
         );
         let entry = AccountId::from(blake2_256(&buf));
-        context::using_entry_contract(entry, move || {
+        context::using_entry(entry, tx_args.origin.clone(), move || {
             self.contract_instantiate(code_hash, instantiate_data, salt, mode, tx_args)
         })
     }
@@ -311,18 +311,28 @@ pub(crate) mod context {
             .expect("sidevm_event_tx called outside of contract execution")
     }
 
-    pub use entry::{get_entry_contract, using_entry_contract};
+    pub use entry::{get_entry_contract, get_origin, using_entry};
     mod entry {
         use super::*;
 
-        environmental::environmental!(entry_contract: AccountId);
-
-        pub fn get_entry_contract() -> Option<AccountId> {
-            entry_contract::with(|a| a.clone())
+        struct EntryInfo {
+            contract: AccountId,
+            origin: AccountId,
         }
 
-        pub fn using_entry_contract<T>(mut contract: AccountId, f: impl FnOnce() -> T) -> T {
-            entry_contract::using(&mut contract, f)
+        environmental::environmental!(entry: EntryInfo);
+
+        pub fn get_entry_contract() -> Option<AccountId> {
+            entry::with(|entry| entry.contract.clone())
+        }
+
+        pub fn get_origin() -> Option<AccountId> {
+            entry::with(|entry| entry.origin.clone())
+        }
+
+        pub fn using_entry<T>(contract: AccountId, origin: AccountId, f: impl FnOnce() -> T) -> T {
+            let mut entry = EntryInfo { contract, origin };
+            entry::using(&mut entry, f)
         }
     }
 
@@ -554,6 +564,10 @@ impl OCalls for RuntimeHandle<'_> {
             }
         }
     }
+
+    fn origin(&self) -> Option<AccountId> {
+        context::get_origin()
+    }
 }
 
 pub fn load_module(code_hash: &Hash, init: impl FnOnce() -> Option<Vec<u8>>) -> Result<WasmModule> {
@@ -681,6 +695,10 @@ impl OCalls for RuntimeHandleMut<'_> {
 
     fn js_eval(&self, caller: AccountId, codes: Vec<JsCode>, args: Vec<String>) -> JsValue {
         self.readonly().js_eval(caller, codes, args)
+    }
+
+    fn origin(&self) -> Option<AccountId> {
+        self.readonly().origin()
     }
 }
 
@@ -852,7 +870,7 @@ impl Cluster {
                 tokio::task::spawn_blocking(move || {
                     let _guard = span.enter();
                     context::using(&mut ctx, move || {
-                        context::using_entry_contract(contract_id.clone(), || {
+                        context::using_entry(contract_id.clone(), origin.clone(), || {
                             let mut runtime = self.runtime_mut(log_handler);
                             let args = TransactionArguments {
                                 origin,
