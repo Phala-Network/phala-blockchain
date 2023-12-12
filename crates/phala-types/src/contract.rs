@@ -174,6 +174,10 @@ pub mod messaging {
             gas_price: Option<u128>,
             /// The gas price for the cluster
             gas_price_denominator: Option<u128>,
+            /// The deposit per item for the cluster
+            deposit_per_item: Option<u128>,
+            /// The deposit per byte for the cluster
+            deposit_per_byte: Option<u128>,
         },
     }
 

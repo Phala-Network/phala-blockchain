@@ -5,7 +5,7 @@ use phala_crypto::sr25519::Sr25519SecretKey;
 use pink_capi::{
     types::{AccountId, Balance, ExecutionMode, Hash, Weight},
     v1::{
-        ecall::{self, ClusterSetupConfig, TransactionArguments},
+        ecall::{self, ClusterConfigUpdatesV0, ClusterSetupConfig, TransactionArguments},
         ocall::OCalls,
         Executing,
     },
@@ -291,12 +291,18 @@ impl ecall::ECalls for ECallImpl {
         on_idle(block_number);
     }
 
-    fn update_config_v0(&mut self, gas_price: Option<u128>, gas_price_denominator: Option<u128>) {
-        if let Some(gas_price) = gas_price {
+    fn update_config_v0(&mut self, config: ClusterConfigUpdatesV0) {
+        if let Some(gas_price) = config.gas_price {
             PalletPink::set_gas_price(gas_price);
         }
-        if let Some(gas_price_denominator) = gas_price_denominator {
+        if let Some(gas_price_denominator) = config.gas_price_denominator {
             PalletPink::set_gas_price_denominator(gas_price_denominator);
+        }
+        if let Some(deposit_per_item) = config.deposit_per_item {
+            PalletPink::set_deposit_per_item(deposit_per_item);
+        }
+        if let Some(deposit_per_byte) = config.deposit_per_byte {
+            PalletPink::set_deposit_per_byte(deposit_per_byte);
         }
     }
 }

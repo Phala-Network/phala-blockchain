@@ -605,6 +605,8 @@ pub mod pallet {
 				config: ClusterConfigUpdates::V0 {
 					gas_price: Some(price),
 					gas_price_denominator: Some(denominator),
+					deposit_per_item: None,
+					deposit_per_byte: None,
 				},
 			});
 			Self::deposit_event(Event::GasPriceUpdated {

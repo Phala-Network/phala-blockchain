@@ -47,6 +47,10 @@ pub mod pallet {
         GasPriceUpdated { price: BalanceOf<T> },
         /// The gas price denominator is updated.
         GasPriceDenominatorUpdated { price: BalanceOf<T> },
+        /// The storage deposit per item is updated.
+        DepositPerItemUpdated { value: BalanceOf<T> },
+        /// The storage deposit per byte is updated.
+        DepositPerByteUpdated { value: BalanceOf<T> },
     }
 
     #[derive(Clone, Eq, PartialEq, Encode, Decode, TypeInfo)]
@@ -200,10 +204,12 @@ pub mod pallet {
 
         pub fn set_deposit_per_item(value: BalanceOf<T>) {
             <DepositPerItem<T>>::put(value);
+            Self::deposit_event(Event::DepositPerItemUpdated { value });
         }
 
         pub fn set_deposit_per_byte(value: BalanceOf<T>) {
             <DepositPerByte<T>>::put(value);
+            Self::deposit_event(Event::DepositPerByteUpdated { value });
         }
 
         pub fn set_treasury_account(account: &T::AccountId) {

@@ -16,7 +16,7 @@ use phala_types::{
 };
 use pink::{
     capi::v1::{
-        ecall::{ECalls, ECallsRo},
+        ecall::{ClusterConfigUpdatesV0, ECalls, ECallsRo},
         ocall::{
             BatchHttpResult, ExecContext, HttpRequest, HttpRequestError, HttpResponse, OCalls,
             StorageChanges,
@@ -1066,18 +1066,28 @@ impl Cluster {
     }
 
     pub(crate) fn update_config(&mut self, config: ClusterConfigUpdates) {
-        let ClusterConfigUpdates::V0 {
-            gas_price,
-            gas_price_denominator,
-        } = config;
-        if pink::types::ECallsAvailable::update_config_v0(self.config.runtime_version) {
-            self.default_runtime_mut()
-                .update_config_v0(gas_price, gas_price_denominator);
-        } else {
-            error!(
-                "update_config_v0 not available on runtime version {:?}",
-                self.config.runtime_version
-            );
+        match config {
+            ClusterConfigUpdates::V0 {
+                gas_price,
+                gas_price_denominator,
+                deposit_per_item,
+                deposit_per_byte,
+            } => {
+                if !pink::types::ECallsAvailable::update_config_v0(self.config.runtime_version) {
+                    error!(
+                        "update_config_v0 is not available on runtime version {:?}",
+                        self.config.runtime_version
+                    );
+                    return;
+                }
+                self.default_runtime_mut()
+                    .update_config_v0(ClusterConfigUpdatesV0 {
+                        gas_price,
+                        gas_price_denominator,
+                        deposit_per_item,
+                        deposit_per_byte,
+                    });
+            }
         }
     }
 }

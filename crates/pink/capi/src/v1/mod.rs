@@ -85,6 +85,18 @@ pub mod ecall {
         pub system_code: Vec<u8>,
     }
 
+    #[derive(Encode, Decode, Clone, Debug)]
+    pub struct ClusterConfigUpdatesV0 {
+        /// The gas price for the cluster
+        pub gas_price: Option<u128>,
+        /// The gas price for the cluster
+        pub gas_price_denominator: Option<u128>,
+        /// The deposit per item for the cluster
+        pub deposit_per_item: Option<u128>,
+        /// The deposit per byte for the cluster
+        pub deposit_per_byte: Option<u128>,
+    }
+
     /// The trait that defines the interface provided by the Pink runtime to the host.
     #[cross_call(ECall)]
     pub trait ECalls {
@@ -183,11 +195,7 @@ pub mod ecall {
 
         /// Update cluster config
         #[xcall(id = 25, since = "1.2")]
-        fn update_config_v0(
-            &mut self,
-            gas_price: Option<u128>,
-            gas_price_denominator: Option<u128>,
-        );
+        fn update_config_v0(&mut self, config: ClusterConfigUpdatesV0);
     }
 }
 
