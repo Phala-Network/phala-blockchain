@@ -1,4 +1,6 @@
-use scale_info::{form::PortableForm, IntoPortable, PortableRegistry, TypeDef, TypeInfo};
+use scale_info::{
+    form::PortableForm, IntoPortable, PortableRegistry, TypeDef, TypeDefPrimitive, TypeInfo,
+};
 
 pub fn type_info_stringify<T: TypeInfo>() -> String {
     let mut registry = Default::default();
@@ -48,7 +50,7 @@ fn resolve_type(registry: &PortableRegistry, id: u32) -> String {
         name.push('<');
         for (i, param) in t.ty.type_params.iter().enumerate() {
             if i > 0 {
-                name.push_str(",");
+                name.push(',');
             }
             match param.ty {
                 Some(t) => name.push_str(&resolve_type(registry, t.id)),
@@ -73,7 +75,7 @@ fn type_def_of(registry: &PortableRegistry, type_def: &TypeDef<PortableForm>) ->
                     type_of(field.ty.id),
                 ));
             }
-            s.push_str("}");
+            s.push('}');
         }
         TypeDef::Variant(def) => {
             s.push_str("enum {\n");
@@ -82,12 +84,12 @@ fn type_def_of(registry: &PortableRegistry, type_def: &TypeDef<PortableForm>) ->
                 if variant.fields.is_empty() {
                     s.push_str(",\n");
                 } else if variant.fields[0].name.is_none() {
-                    s.push_str("(");
+                    s.push('(');
                     for (i, field) in variant.fields.iter().enumerate() {
                         if i > 0 {
                             s.push_str(", ");
                         }
-                        s.push_str(&format!("{}", type_of(field.ty.id)));
+                        s.push_str(&type_of(field.ty.id));
                     }
                     s.push_str(")\n");
                 } else {
@@ -102,7 +104,7 @@ fn type_def_of(registry: &PortableRegistry, type_def: &TypeDef<PortableForm>) ->
                     s.push_str("    }\n");
                 }
             }
-            s.push_str("}");
+            s.push('}');
         }
         TypeDef::Sequence(def) => {
             s.push_str(format!("Vec<{}>", type_of(def.type_param.id)).as_str());
@@ -111,17 +113,21 @@ fn type_def_of(registry: &PortableRegistry, type_def: &TypeDef<PortableForm>) ->
             s.push_str(&format!("[{}; {}]", type_of(def.type_param.id), def.len));
         }
         TypeDef::Tuple(def) => {
-            s.push_str("(");
+            s.push('(');
             for (i, field) in def.fields.iter().enumerate() {
                 if i > 0 {
                     s.push_str(", ");
                 }
-                s.push_str(&format!("{}", type_of(field.id)));
+                s.push_str(&type_of(field.id));
             }
-            s.push_str(")");
+            s.push(')');
         }
         TypeDef::Primitive(def) => {
-            s.push_str(&format!("{:?}", def).to_lowercase());
+            if let TypeDefPrimitive::Str = def {
+                s.push_str("String");
+            } else {
+                s.push_str(&format!("{:?}", def).to_lowercase());
+            }
         }
         TypeDef::Compact(def) => {
             s.push_str(&format!("Compact<{}>", type_of(def.type_param.id)));
