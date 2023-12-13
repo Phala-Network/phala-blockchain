@@ -295,6 +295,10 @@ phala_types::contract::messaging::ClusterOperation = enum {
         cluster_id: primitive_types::H256,
         worker: sp_core::sr25519::Public,
     }
+    [5]UpdateConfig {
+        cluster_id: primitive_types::H256,
+        config: phala_types::contract::messaging::ClusterConfigUpdates,
+    }
 }
 sp_core::crypto::AccountId32 = struct {
     : [u8; 32],
@@ -313,6 +317,18 @@ phala_types::contract::messaging::ResourceType = enum {
     [0]InkCode,
     [1]SidevmCode,
     [2]IndeterministicInkCode,
+}
+phala_types::contract::messaging::ClusterConfigUpdates = enum {
+    [0]V0 {
+        gas_price: Option<u128>,
+        gas_price_denominator: Option<u128>,
+        deposit_per_item: Option<u128>,
+        deposit_per_byte: Option<u128>,
+    }
+}
+Option = enum {
+    [0]None,
+    [1]Some(u128)
 }
 phala_mq::dispatcher::TypedReceiver = struct {
     queue: phala_mq::dispatcher::ReceiverTypeInfo,
@@ -334,10 +350,6 @@ phala_types::contract::ContractInfo = struct {
 }
 phala_types::contract::CodeIndex = enum {
     [0]WasmCode(primitive_types::H256)
-}
-Option = enum {
-    [0]None,
-    [1]Some(u128)
 }
 phactory::system::WorkerState = struct {
     hashed_id: primitive_types::U256,
