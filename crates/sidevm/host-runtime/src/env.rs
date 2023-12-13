@@ -791,30 +791,31 @@ async fn tcp_connect(host: &str, port: u16) -> io::Result<TcpStream> {
 
     if let Some(proxy_url) = proxy_url.or_else(|| get_proxy("all_proxy")) {
         phala_tokio_proxy::connect((host, port), proxy_url).await
+    } else if is_ip(host) {
+        TcpStream::connect((host, port)).await
     } else {
-        if is_ip(host) {
-            return TcpStream::connect((host, port)).await;
-        } else {
-            // By default, tokio uses the blocking DNS resovler from libc and run them in a thread pool.
-            // That would cause problem such as run out of thread-pool in some poor network situation.
-            // So, we use trust-dns async resolver here.
-            let resolver = trust_dns_resolver::TokioAsyncResolver::tokio_from_system_conf()
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-            let ips = resolver
-                .lookup_ip(host)
-                .await
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-            let mut last_err = None;
-            for ip in ips {
-                match TcpStream::connect((ip, port)).await {
-                    Ok(stream) => return Ok(stream),
-                    Err(e) => last_err = Some(e),
-                }
+        // By default, tokio uses the blocking DNS resovler from libc and run them in a thread pool.
+        // That would cause problem such as run out of thread-pool in some poor network situation.
+        // So, we use trust-dns async resolver here.
+        let resolver = trust_dns_resolver::TokioAsyncResolver::tokio_from_system_conf()
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let ips = resolver
+            .lookup_ip(host)
+            .await
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let mut last_err = None;
+        for ip in ips {
+            match TcpStream::connect((ip, port)).await {
+                Ok(stream) => return Ok(stream),
+                Err(e) => last_err = Some(e),
             }
-            match last_err {
-                Some(e) => Err(e),
-                None => Err(io::Error::new(io::ErrorKind::Other, "DNS: No address found")),
-            }
+        }
+        match last_err {
+            Some(e) => Err(e),
+            None => Err(io::Error::new(
+                io::ErrorKind::Other,
+                "DNS: No address found",
+            )),
         }
     }
 }
