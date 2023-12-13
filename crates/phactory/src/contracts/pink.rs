@@ -45,6 +45,27 @@ use super::ContractsKeeper;
 
 pub(crate) mod http_counters;
 
+struct Encoded<'a>(&'a [u8]);
+impl Encode for Encoded<'_> {
+    fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
+        dest.write(self.0)
+    }
+}
+
+#[derive(Encode)]
+enum PinkMessageOutput<'a> {
+    _V0Ok,
+    _V0Err,
+    V1CallResult {
+        selector: [u8; 4],
+        result: Encoded<'a>,
+    },
+    V1InstantiateResult {
+        selector: [u8; 4],
+        result: Encoded<'a>,
+    },
+}
+
 #[derive(Serialize, Deserialize, Default, Clone, ::scale_info::TypeInfo)]
 pub struct ClusterConfig {
     pub log_handler: Option<AccountId>,
@@ -105,10 +126,42 @@ impl RuntimeHandleMut<'_> {
             self.readonly().cluster_id().as_ref(),
             &salt,
         );
-        let entry = AccountId::from(blake2_256(&buf));
-        context::using_entry_contract(entry, move || {
-            self.contract_instantiate(code_hash, instantiate_data, salt, mode, tx_args)
-        })
+        let address = AccountId::from(blake2_256(&buf));
+
+        // To avoid cloning large data. Backup them for later use.
+        let selector = get_selector(&instantiate_data);
+        let origin = tx_args.origin.clone().into();
+        let nonce = salt.clone();
+        let contract = address.clone().into();
+
+        let runtime = &mut *self; // To avoid moving self to the closure
+        let result = context::using_entry_contract(address, move || {
+            runtime.contract_instantiate(code_hash, instantiate_data, salt, mode, tx_args)
+        });
+
+        if mode.is_transaction() {
+            if let Some(log_handler) = &self.logger {
+                let output = PinkMessageOutput::V1InstantiateResult {
+                    selector,
+                    result: Encoded(&result),
+                }
+                .encode();
+                let msg = SystemMessage::PinkMessageOutput {
+                    origin,
+                    contract,
+                    block_number: context::get().block_number,
+                    nonce,
+                    output,
+                };
+                if log_handler
+                    .try_send(SidevmCommand::PushSystemMessage(msg))
+                    .is_err()
+                {
+                    error!("Pink emit instantiate result to log handler failed");
+                }
+            }
+        }
+        result
     }
 }
 
@@ -992,6 +1045,7 @@ impl Cluster {
                     deposit: 0,
                 };
 
+                let selector = get_selector(&message);
                 let mut runtime = self.runtime_mut(context.log_handler.clone());
                 let output = context::using_call_nonce(nonce.clone().into(), || {
                     runtime.call(
@@ -1003,6 +1057,11 @@ impl Cluster {
                 });
 
                 if let Some(log_handler) = &context.log_handler {
+                    let output = PinkMessageOutput::V1CallResult {
+                        selector,
+                        result: Encoded(&output),
+                    }
+                    .encode();
                     let msg = SidevmCommand::PushSystemMessage(SystemMessage::PinkMessageOutput {
                         origin: origin.into(),
                         contract: *contract_id.as_ref(),
@@ -1061,6 +1120,14 @@ impl Cluster {
             self.default_runtime_mut().on_idle(block_number);
         }
     }
+}
+
+fn get_selector(data: &[u8]) -> [u8; 4] {
+    let mut selector = [0u8; 4];
+    if data.len() >= 4 {
+        selector.copy_from_slice(&data[..4]);
+    }
+    selector
 }
 
 pub trait ClusterContainer {
