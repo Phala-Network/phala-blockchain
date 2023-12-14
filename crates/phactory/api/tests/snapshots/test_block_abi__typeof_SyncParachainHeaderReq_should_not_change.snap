@@ -1,0 +1,30 @@
+---
+source: crates/phactory/api/tests/test_block_abi.rs
+assertion_line: 11
+expression: "type_info_stringify::<blocks::SyncParachainHeaderReq>()"
+---
+sp_runtime::generic::header::Header = struct {
+    parent_hash: primitive_types::H256,
+    number: Compact<u32>,
+    state_root: primitive_types::H256,
+    extrinsics_root: primitive_types::H256,
+    digest: sp_runtime::generic::digest::Digest,
+}
+primitive_types::H256 = struct {
+    : [u8; 32],
+}
+sp_runtime::generic::digest::Digest = struct {
+    logs: Vec<sp_runtime::generic::digest::DigestItem>,
+}
+sp_runtime::generic::digest::DigestItem = enum {
+    [6]PreRuntime([u8; 4], Vec<u8>)
+    [4]Consensus([u8; 4], Vec<u8>)
+    [5]Seal([u8; 4], Vec<u8>)
+    [0]Other(Vec<u8>)
+    [8]RuntimeEnvironmentUpdated,
+}
+phactory_api::blocks::SyncParachainHeaderReq = struct {
+    headers: Vec<sp_runtime::generic::header::Header<u32,Hash>>,
+    proof: Vec<Vec<u8>>,
+}
+

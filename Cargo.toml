@@ -90,6 +90,7 @@ members = [
 	"crates/phala-scheduler",
 	"crates/this-crate",
 	"crates/sgx-attestation",
+	"crates/type-info-stringify",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
 	"pallets/offchain-rollup",

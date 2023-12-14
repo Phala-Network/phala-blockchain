@@ -9318,6 +9318,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "type-info-stringify",
 ]
 
 [[package]]
@@ -9352,6 +9353,7 @@ dependencies = [
  "sp-runtime",
  "tempdir",
  "tera",
+ "type-info-stringify",
 ]
 
 [[package]]
@@ -16163,6 +16165,13 @@ dependencies = [
  "digest 0.10.7",
  "rand 0.4.6",
  "static_assertions",
+]
+
+[[package]]
+name = "type-info-stringify"
+version = "0.1.0"
+dependencies = [
+ "scale-info",
 ]
 
 [[package]]
