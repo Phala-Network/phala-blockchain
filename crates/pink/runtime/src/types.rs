@@ -48,8 +48,9 @@ fn test_decode_and_verify_event_chain() {
     fn extract_payload(log_line: &str) -> Option<&str> {
         let payload_marker = "payload=";
         log_line
-            .find(payload_marker)
-            .and_then(|index| log_line[index..].strip_prefix(payload_marker))
+            .split_whitespace()
+            .find(|segment| segment.starts_with(payload_marker))
+            .and_then(|segment| segment.strip_prefix(payload_marker))
     }
 
     for line in blocks_file.lines() {
