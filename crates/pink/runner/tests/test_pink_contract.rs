@@ -513,6 +513,10 @@ mod test_cluster {
         ) -> JsValue {
             JsValue::Exception("Not implemented".to_string())
         }
+
+        fn origin(&self) -> Option<AccountId> {
+            None
+        }
     }
 
     impl CrossCall for TestCluster {

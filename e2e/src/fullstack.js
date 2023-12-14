@@ -27,12 +27,22 @@ const pRuntimeDir = path.resolve(`../standalone/pruntime/bin`);
 const pathPRuntime = path.resolve(`${pRuntimeDir}/${pRuntimeBin}`);
 const inSgx = process.env.E2E_IN_SGX == '1';
 const sgxLoader = "gramine-sgx";
+const quickMode = process.env.QUICK == '1';
 
 let keyring;
 
 const CENTS = 10_000_000_000;
+const blockInterval = quickMode ? 100 : 1000;
 
 console.log(`Testing in ${inSgx ? "SGX Hardware" : "Software"} mode`);
+
+const propertyOptional = {
+    get() {
+        return quickMode ? this.skip : this;
+    }
+};
+Object.defineProperty(describe, 'optional', propertyOptional);
+Object.defineProperty(it, 'optional', propertyOptional);
 
 // TODO: Switch to [instant-seal-consensus](https://substrate.dev/recipes/kitchen-node.html) for faster test
 
@@ -169,7 +179,7 @@ describe('A full stack', function () {
         });
     });
 
-    describe('Gatekeeper2', () => {
+    describe.optional('Gatekeeper2', () => {
         it('can be registered', async function () {
             // Register worker1 as Gatekeeper
             const info = await pruntime[1].getInfo();
@@ -270,7 +280,7 @@ describe('A full stack', function () {
         });
     });
 
-    describe('Master Key Rotation', () => {
+    describe.optional('Master Key Rotation', () => {
         it('can register and un-reg gatekeeper4', async function () {
             // Register worker4 as Gatekeeper
             const info = await pruntime[3].getInfo();
@@ -404,7 +414,7 @@ describe('A full stack', function () {
         });
     });
 
-    describe('Gatekeeper3 after rotation', () => {
+    describe.optional('Gatekeeper3 after rotation', () => {
         it('can be registered after rotation', async function () {
             // Register worker3 as Gatekeeper
             const info = await pruntime[2].getInfo();
@@ -700,7 +710,7 @@ describe('A full stack', function () {
             }
         });
 
-        it('can not set hook without admin permission', async function () {
+        it.optional('can not set hook without admin permission', async function () {
             // Give some money to the ContractSystemChecker to run the on_block_end
             await assert.txAccepted(
                 api.tx.utility.batchAll([
@@ -716,7 +726,7 @@ describe('A full stack', function () {
             assert.isFalse(output.asOk.valueOf(), 'Set hook should not success without granting admin first');
         });
 
-        it('can set hook with admin permission', async function () {
+        it.optional('can set hook with admin permission', async function () {
             await assert.txAccepted(
                 ContractSystem.tx['system::grantAdmin'](txConfig, ContractSystemChecker.address),
                 alice,
@@ -731,7 +741,7 @@ describe('A full stack', function () {
             }, 2 * 6000), 'Set hook should success after granted admin');
         });
 
-        it('can eval JavaScript in contract delegate call', async function () {
+        it.optional('can eval JavaScript in contract delegate call', async function () {
             const code = quickjsMetadata.source.wasm;
             const codeHash = quickjsMetadata.source.hash;
             await assert.txAccepted(
@@ -767,7 +777,7 @@ describe('A full stack', function () {
             }
         });
 
-        it('can eval JavaScript with JsRuntime running in SideVM', async function () {
+        it.optional('can eval JavaScript with JsRuntime running in SideVM', async function () {
             await assert.txAccepted(
                 api.tx.phalaPhatContracts.clusterUploadResource(clusterId, 'SidevmCode', jsRuntimeCode),
                 alice,
@@ -790,7 +800,7 @@ describe('A full stack', function () {
             assertTrue(output?.eq({ Ok: { String: arg0 } }));
         });
 
-        it('can parse json in contract delegate call', async function () {
+        it.optional('can parse json in contract delegate call', async function () {
             const code = indeterminMetadata.source.wasm;
             const codeHash = indeterminMetadata.source.hash;
             await assert.txAccepted(
@@ -805,7 +815,7 @@ describe('A full stack', function () {
             assertTrue(output?.asOk.unwrap()?.usd.eq(123));
         });
 
-        it('tokenomic driver works', async function () {
+        it.optional('tokenomic driver works', async function () {
             {
                 // Should be unable to use local cache before staking
                 const { output } = await ContractSystemChecker.query.cacheSet(alice.address, { cert: certAlice }, "0xdead", "0xbeef");
@@ -838,7 +848,7 @@ describe('A full stack', function () {
             }
         });
 
-        it('can set the sidevm as pending state without code uploaded', async function () {
+        it.optional('can set the sidevm as pending state without code uploaded', async function () {
             const { output } = await ContractSystemChecker.query.startSidevm(alice.address, { cert: certAlice });
             assertTrue(output.asOk.valueOf());
             assertTrue(await checkUntil(async () => {
@@ -847,25 +857,25 @@ describe('A full stack', function () {
             }, 1000), "The sidevm instance wasn't created");
         });
 
-        it('can upload sidevm code via pRPC', async function () {
+        it.optional('can upload sidevm code via pRPC', async function () {
             await pruntime[0].uploadSidevmCode(ContractSystemChecker.address, sidevmCode);
             await sleep(200);
             const info = await pruntime[0].getContractInfo(ContractSystemChecker.address.toHex());
             assert.equal(info?.sidevm?.state, 'running');
         });
 
-        it('can invoke query between sidevm and pink', async function () {
+        it.optional('can invoke query between sidevm and pink', async function () {
             {
                 const { output } = await ContractSystemChecker.query['querySidevm'](alice.address, { cert: certAlice }, 'ping');
-                assertTrue(output.eq({ Ok: { Ok: 'pong'} }));
+                assertTrue(output.eq({ Ok: { Ok: 'pong' } }));
             }
             {
                 const { output } = await ContractSystemChecker.query['querySidevm'](alice.address, { cert: certAlice }, 'callback');
-                assertTrue(output.eq({ Ok: { Ok: [0, 42]} }));
+                assertTrue(output.eq({ Ok: { Ok: [0, 42] } }));
             }
         });
 
-        it('can send batch http request', async function () {
+        it.optional('can send batch http request', async function () {
             const info = await pruntime[0].getInfo();
             const url = `${pruntime[0].uri}/info`;
             const urls = [url, url];
@@ -878,7 +888,7 @@ describe('A full stack', function () {
             });
         });
 
-        it('cannot dup-instantiate', async function () {
+        it.optional('cannot dup-instantiate', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
             await assert.txFailed(
                 api.tx.phalaPhatContracts.instantiateContract(codeIndex, selectorDefault, 0, clusterId, 0, "10000000000000", null, 0),
@@ -898,7 +908,7 @@ describe('A full stack', function () {
             }, 4 * 6000), 'upload system code failed');
         });
 
-        it('can deploy paid sidevm checkers', async function () {
+        it.optional('can deploy paid sidevm checkers', async function () {
             for (let i = 0; i < 3; i++) {
                 paidSidevmCheckers.push(await deployContract(checkerMetadata));
             }
@@ -912,7 +922,7 @@ describe('A full stack', function () {
             await syncBarrier();
         });
 
-        it('can deploy paid sidevm', async function () {
+        it.optional('can deploy paid sidevm', async function () {
             const workers = pruntime.slice(0, 2);
             const keys = [];
             for (let worker of workers) {
@@ -1019,7 +1029,7 @@ describe('A full stack', function () {
             }
         })
 
-        it('can upgrade system contract', async function () {
+        it.optional('can upgrade system contract', async function () {
             await assert.txAccepted(
                 ContractSystem.tx['system::upgradeSystemContract'](txConfig),
                 alice,
@@ -1030,7 +1040,7 @@ describe('A full stack', function () {
             }, 4 * 6000), 'Upgrade system failed');
         });
 
-        it('can add worker to cluster', async function () {
+        it.optional('can add worker to cluster', async function () {
             const info = await pruntime[4].getInfo();
             const { events } = await assert.txAccepted(
                 api.tx.phalaPhatContracts.addWorkerToCluster(hex(info.system?.publicKey), hex(clusterId)),
@@ -1090,7 +1100,7 @@ describe('A full stack', function () {
 
     });
 
-    describe('Workerkey handover', () => {
+    describe.optional('Workerkey handover', () => {
         it('can handover worker key', async function () {
             await cluster.launchKeyHandoverAndWait();
 
@@ -1164,7 +1174,7 @@ describe('A full stack', function () {
 });
 
 function testPruntimeManagement(workDir) {
-    describe("PRuntime management", function () {
+    describe.optional("PRuntime management", function () {
         this.timeout(120000);
 
         let cluster;
@@ -1528,7 +1538,7 @@ function newNode(rpcPort, tmpPath, name = 'node') {
     const cli = [
         pathNode, [
             '--dev',
-            '--block-millisecs=1000',
+            `--block-millisecs=${blockInterval}`,
             '--base-path=' + path.resolve(tmpPath, 'phala-node'),
             `--rpc-port=${rpcPort}`,
             '--rpc-methods=Unsafe',
@@ -1585,7 +1595,7 @@ function newRelayer(wsPort, teePort, tmpPath, gasAccountKey, key = '', name = 'r
         `--mnemonic=${gasAccountKey}`,
         `--substrate-ws-endpoint=ws://127.0.0.1:${wsPort}`,
         `--pruntime-endpoint=http://127.0.0.1:${teePort}`,
-        '--dev-wait-block-ms=1000',
+        `--dev-wait-block-ms=${blockInterval}`,
         '--attestation-provider', 'none',
     ];
 
