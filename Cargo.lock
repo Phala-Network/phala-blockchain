@@ -13602,7 +13602,7 @@ checksum = "43b2853a4d09f215c24cc5489c992ce46052d359b5109343cbafbf26bc62f8a3"
 
 [[package]]
 name = "sidevm"
-version = "0.2.0-alpha.5"
+version = "0.2.0-alpha.7"
 dependencies = [
  "derive_more",
  "futures",
@@ -13612,14 +13612,13 @@ dependencies = [
  "parity-scale-codec",
  "pin-project",
  "sidevm-env",
- "sidevm-logger",
  "sidevm-macro",
  "tokio",
 ]
 
 [[package]]
 name = "sidevm-env"
-version = "0.2.0-alpha.4"
+version = "0.2.0-alpha.7"
 dependencies = [
  "cfg-if",
  "derive_more",
@@ -13670,19 +13669,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "sidevm-logger"
-version = "0.2.0-alpha.3"
-dependencies = [
- "log",
- "sidevm-env",
-]
-
-[[package]]
 name = "sidevm-macro"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.7"
 dependencies = [
  "heck 0.4.1",
  "insta",
+ "proc-macro-crate",
  "proc-macro2",
  "rustfmt-snippet 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn 1.0.109",

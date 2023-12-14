@@ -87,7 +87,10 @@ async fn query_serve(app: AppState) {
 
 #[sidevm::main]
 async fn main() {
-    sidevm::logger::Logger::with_max_level(log::LevelFilter::Info).init();
+    use sidevm::logger::Logger;
+    static LOGGER: Logger = Logger::with_max_level(log::LevelFilter::Info);
+    LOGGER.init();
+
     info!("Starting log server");
 
     let app = AppState::new(log_buffer_size() as _);

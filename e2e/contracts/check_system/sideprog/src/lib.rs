@@ -25,7 +25,8 @@ pub enum Query {
 
 #[sidevm::main]
 async fn main() {
-    Logger::with_max_level(LevelFilter::Debug).init();
+    static LOGGER: Logger = Logger::with_max_level(LevelFilter::Debug);
+    LOGGER.init();
     let vmid = ocall::vmid().expect("failed to get vmid");
 
     info!("Test program started! vmid={}", HexFmt(&vmid));

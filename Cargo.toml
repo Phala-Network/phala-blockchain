@@ -83,7 +83,6 @@ members = [
 	"crates/sidevm/host-runtime",
 	"crates/sidevm/env",
 	"crates/sidevm/macro",
-	"crates/sidevm/logger",
 	"crates/sidevm/sidevm",
 	"crates/phala-serde-more",
 	"crates/rustfmt-snippet",
