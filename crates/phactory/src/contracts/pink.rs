@@ -865,29 +865,27 @@ impl Cluster {
                     context.sidevm_event_tx.clone(),
                 );
                 let log_handler = context.log_handler.clone();
-                let span = tracing::Span::current();
                 let contract_id = contract_id.clone();
+                let span = tracing::trace_span!("blocking");
                 tokio::task::spawn_blocking(move || {
                     let _guard = span.enter();
                     context::using(&mut ctx, move || {
-                        context::using_entry(contract_id.clone(), origin.clone(), || {
-                            let mut runtime = self.runtime_mut(log_handler);
-                            let args = TransactionArguments {
-                                origin,
-                                transfer,
-                                gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
-                                gas_free: true,
-                                storage_deposit_limit: None,
-                                deposit,
-                            };
-                            let ink_result = runtime.call(contract_id, input_data, mode, args);
-                            let effects = if mode.is_estimating() {
-                                None
-                            } else {
-                                runtime.effects.take().map(|e| e.into_query_only_effects())
-                            };
-                            Ok((Response::Payload(ink_result), effects))
-                        })
+                        let mut runtime = self.runtime_mut(log_handler);
+                        let args = TransactionArguments {
+                            origin,
+                            transfer,
+                            gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
+                            gas_free: true,
+                            storage_deposit_limit: None,
+                            deposit,
+                        };
+                        let ink_result = runtime.call(contract_id, input_data, mode, args);
+                        let effects = if mode.is_estimating() {
+                            None
+                        } else {
+                            runtime.effects.take().map(|e| e.into_query_only_effects())
+                        };
+                        Ok((Response::Payload(ink_result), effects))
                     })
                 })
                 .await
