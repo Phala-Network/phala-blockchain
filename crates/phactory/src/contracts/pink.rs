@@ -1008,6 +1008,7 @@ impl Cluster {
                     deposit: 0,
                 };
 
+                let selector = head4(&message);
                 let mut runtime = self.runtime_mut(context.log_handler.clone());
                 let output = context::using_call_nonce(nonce.clone().into(), || {
                     runtime.call(
@@ -1019,6 +1020,8 @@ impl Cluster {
                 });
 
                 if let Some(log_handler) = &context.log_handler {
+                    let mut output = output;
+                    output.extend_from_slice(&selector);
                     let msg = SidevmCommand::PushSystemMessage(SystemMessage::PinkMessageOutput {
                         origin: origin.into(),
                         contract: *contract_id.as_ref(),
@@ -1077,6 +1080,14 @@ impl Cluster {
             self.default_runtime_mut().on_idle(block_number);
         }
     }
+}
+
+fn head4(bytes: &[u8]) -> [u8; 4] {
+    let mut buf = [0u8; 4];
+    if buf.len() >= 4 {
+        buf.copy_from_slice(&bytes[..4]);
+    }
+    buf
 }
 
 pub trait ClusterContainer {
