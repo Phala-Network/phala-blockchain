@@ -64,7 +64,7 @@ members = [
 	"crates/phala-sanitized-logger",
 	"crates/phala-wasm-checker",
 	"crates/phala-clap-parsers",
-	"crates/wasmer-tunables",
+	"crates/phala-wasmer-tunables",
 	"crates/phala-rocket-middleware",
 	"crates/pink/runner",
 	"crates/pink/runtime",

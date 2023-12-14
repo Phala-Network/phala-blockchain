@@ -9,7 +9,7 @@ use wasmer_compiler_cranelift::Cranelift;
 #[cfg(feature = "wasmer-compiler-llvm")]
 use wasmer_compiler_llvm::LLVM;
 use wasmer_compiler_singlepass::Singlepass;
-use wasmer_tunables::LimitingTunables;
+use phala_wasmer_tunables::LimitingTunables;
 
 use crate::env::{DynCacheOps, LogHandler};
 use crate::{async_context, env, metering::metering, VmId};

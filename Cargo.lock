@@ -9698,6 +9698,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-tokio-proxy"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "007c3048b0f80ee979a909bf22066aaed2ad99d88cb2e7dce1a6fe90ebd3057c"
+dependencies = [
+ "bytes",
+ "log",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "phala-trie-storage"
 version = "0.1.0"
 dependencies = [
@@ -9739,6 +9751,13 @@ name = "phala-wasm-checker"
 version = "0.1.0"
 dependencies = [
  "wasmparser 0.102.0",
+]
+
+[[package]]
+name = "phala-wasmer-tunables"
+version = "0.1.0"
+dependencies = [
+ "wasmer",
 ]
 
 [[package]]
@@ -13648,6 +13667,8 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm",
  "phala-scheduler",
+ "phala-tokio-proxy",
+ "phala-wasmer-tunables",
  "rand 0.8.5",
  "rocket",
  "rustls-pemfile",
@@ -13656,7 +13677,6 @@ dependencies = [
  "thiserror",
  "thread_local",
  "tokio",
- "tokio-proxy",
  "tokio-rustls 0.23.4",
  "tracing",
  "wasm-instrument 0.3.0",
@@ -13665,7 +13685,6 @@ dependencies = [
  "wasmer-compiler-llvm",
  "wasmer-compiler-singlepass",
  "wasmer-middlewares",
- "wasmer-tunables",
  "wasmer-wasix-types",
  "webpki-roots 0.22.4",
 ]
@@ -15648,17 +15667,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokio-proxy"
-version = "0.1.0"
-source = "git+https://github.com/Phala-Network/tokio-proxy#e98d21a0ff7bf7a3bea413b2ee336b0d4da1e213"
-dependencies = [
- "bytes",
- "log",
- "tokio",
- "url",
-]
-
-[[package]]
 name = "tokio-retry"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16906,13 +16914,6 @@ dependencies = [
  "wasmer",
  "wasmer-types",
  "wasmer-vm",
-]
-
-[[package]]
-name = "wasmer-tunables"
-version = "0.1.0"
-dependencies = [
- "wasmer",
 ]
 
 [[package]]
