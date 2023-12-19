@@ -726,11 +726,15 @@ describe('A full stack', function () {
             assert.isFalse(output.asOk.valueOf(), 'Set hook should not success without granting admin first');
         });
 
-        it.optional('can set hook with admin permission', async function () {
+        it('grant admin permission to checker', async function () {
             await assert.txAccepted(
                 ContractSystem.tx['system::grantAdmin'](txConfig, ContractSystemChecker.address),
                 alice,
             );
+            await syncBarrier();
+        });
+
+        it.optional('can set hook with admin permission', async function () {
             await assert.txAccepted(
                 ContractSystemChecker.tx.setHook(txConfig, "1000000000000"),
                 alice,
@@ -830,10 +834,9 @@ describe('A full stack', function () {
                 api.tx.phalaPhatTokenomic.adjustStake(ContractSystemChecker.address, weight * CENTS),
                 alice,
             );
-            assertTrue(await checkUntil(async () => {
-                const info = await pruntime[0].getContractInfo(ContractSystemChecker.address.toHex());
-                return info?.weight == weight;
-            }, 4 * 6000), 'Failed to apply deposit to contract weight');
+            await syncBarrier([pruntime[0]]);
+            const info = await pruntime[0].getContractInfo(ContractSystemChecker.address.toHex());
+            assert.equal(info?.weight, weight);
             {
                 // Should be able to use local cache after staking
                 {
