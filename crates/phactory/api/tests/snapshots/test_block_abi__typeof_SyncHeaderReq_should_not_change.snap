@@ -1,0 +1,58 @@
+---
+source: crates/phactory/api/tests/test_block_abi.rs
+assertion_line: 6
+expression: "type_info_stringify::<blocks::SyncHeaderReq>()"
+---
+phactory_api::blocks::GenericHeaderToSync = struct {
+    header: sp_runtime::generic::header::Header<u32,Hash>,
+    justification: Option<Vec<u8>>,
+}
+sp_runtime::traits::BlakeTwo256 = struct {
+}
+sp_runtime::generic::header::Header = struct {
+    parent_hash: primitive_types::H256,
+    number: Compact<u32>,
+    state_root: primitive_types::H256,
+    extrinsics_root: primitive_types::H256,
+    digest: sp_runtime::generic::digest::Digest,
+}
+primitive_types::H256 = struct {
+    : [u8; 32],
+}
+sp_runtime::generic::digest::Digest = struct {
+    logs: Vec<sp_runtime::generic::digest::DigestItem>,
+}
+sp_runtime::generic::digest::DigestItem = enum {
+    [6]PreRuntime([u8; 4], Vec<u8>)
+    [4]Consensus([u8; 4], Vec<u8>)
+    [5]Seal([u8; 4], Vec<u8>)
+    [0]Other(Vec<u8>)
+    [8]RuntimeEnvironmentUpdated,
+}
+Option = enum {
+    [0]None,
+    [1]Some(Vec<u8>)
+}
+Option = enum {
+    [0]None,
+    [1]Some(phactory_api::blocks::AuthoritySetChange)
+}
+phactory_api::blocks::AuthoritySetChange = struct {
+    authority_set: phactory_api::blocks::AuthoritySet,
+    authority_proof: Vec<Vec<u8>>,
+}
+phactory_api::blocks::AuthoritySet = struct {
+    list: Vec<(sp_consensus_grandpa::app::Public, u64)>,
+    id: u64,
+}
+sp_consensus_grandpa::app::Public = struct {
+    : sp_core::ed25519::Public,
+}
+sp_core::ed25519::Public = struct {
+    : [u8; 32],
+}
+phactory_api::blocks::SyncHeaderReq = struct {
+    headers: Vec<phactory_api::blocks::GenericHeaderToSync<u32,sp_runtime::traits::BlakeTwo256>>,
+    authority_set_change: Option<phactory_api::blocks::AuthoritySetChange>,
+}
+

@@ -318,5 +318,9 @@ pub mod ocall {
         /// Returns the output of the evaluation.
         #[xcall(id = 19)]
         fn js_eval(&self, contract: AccountId, codes: Vec<JsCode>, args: Vec<String>) -> JsValue;
+
+        /// Get the origin of the transaction (if available).
+        #[xcall(id = 20)]
+        fn origin(&self) -> Option<AccountId>;
     }
 }

@@ -168,8 +168,7 @@ where
     f.poll(&mut context)
 }
 
-#[no_mangle]
-extern "C" fn sidevm_poll() -> i32 {
+pub fn sidevm_poll() -> i32 {
     use task::Poll::*;
 
     fn poll() -> task::Poll<()> {

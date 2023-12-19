@@ -4,6 +4,7 @@ use std::{
     collections::VecDeque,
     fmt,
     future::Future,
+    io,
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex},
     task::Poll::{Pending, Ready},
@@ -13,7 +14,7 @@ use std::{
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use tokio::{
-    net::TcpListener,
+    net::{TcpListener, TcpStream},
     sync::{
         mpsc::{error::TrySendError, Sender},
         oneshot,
@@ -767,7 +768,11 @@ impl EnvInner {
     }
 }
 
-async fn tcp_connect(host: &str, port: u16) -> std::io::Result<tokio::net::TcpStream> {
+fn is_ip(host: &str) -> bool {
+    host.parse::<std::net::IpAddr>().is_ok()
+}
+
+async fn tcp_connect(host: &str, port: u16) -> io::Result<TcpStream> {
     fn get_proxy(key: &str) -> Option<String> {
         std::env::var(key).ok().and_then(|uri| {
             if uri.trim().is_empty() {
@@ -785,9 +790,33 @@ async fn tcp_connect(host: &str, port: u16) -> std::io::Result<tokio::net::TcpSt
     };
 
     if let Some(proxy_url) = proxy_url.or_else(|| get_proxy("all_proxy")) {
-        tokio_proxy::connect((host, port), proxy_url).await
+        phala_tokio_proxy::connect((host, port), proxy_url).await
+    } else if is_ip(host) {
+        TcpStream::connect((host, port)).await
     } else {
-        tokio::net::TcpStream::connect((host, port)).await
+        // By default, tokio uses the blocking DNS resovler from libc and run them in a thread pool.
+        // That would cause problem such as run out of thread-pool in some poor network situation.
+        // So, we use trust-dns async resolver here.
+        let resolver = trust_dns_resolver::TokioAsyncResolver::tokio_from_system_conf()
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let ips = resolver
+            .lookup_ip(host)
+            .await
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let mut last_err = None;
+        for ip in ips {
+            match TcpStream::connect((ip, port)).await {
+                Ok(stream) => return Ok(stream),
+                Err(e) => last_err = Some(e),
+            }
+        }
+        match last_err {
+            Some(e) => Err(e),
+            None => Err(io::Error::new(
+                io::ErrorKind::Other,
+                "DNS: No address found",
+            )),
+        }
     }
 }
 

@@ -11,14 +11,14 @@ pub struct Logger {
 
 impl Logger {
     /// Create a new logger with the given maximum level.
-    pub fn with_max_level(max_level: LevelFilter) -> Self {
+    pub const fn with_max_level(max_level: LevelFilter) -> Self {
         Self { max_level }
     }
 
     /// Install the logger as the global logger.
-    pub fn init(self) {
+    pub fn init(&'static self) {
         log::set_max_level(self.max_level);
-        log::set_boxed_logger(Box::new(self)).unwrap();
+        log::set_logger(self).unwrap();
     }
 }
 
