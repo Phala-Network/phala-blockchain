@@ -93,10 +93,7 @@ impl ReplayFactory {
         event_tx: &Option<RecordSender>,
     ) -> Result<(), &'static str> {
         // Dispatch events
-        let messages = self
-            .storage
-            .mq_messages()
-            .or(Err("Can not get mq messages from storage"))?;
+        let messages = self.storage.mq_messages();
 
         let now_ms = self.storage.timestamp_now();
 

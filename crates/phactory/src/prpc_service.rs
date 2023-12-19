@@ -693,10 +693,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .ok_or_else(|| from_display("Runtime not initialized"))?;
 
         // Dispatch events
-        let messages = state
-            .chain_storage
-            .mq_messages()
-            .map_err(|_| from_display("Can not get mq messages from storage"))?;
+        let messages = state.chain_storage.mq_messages();
 
         state.recv_mq.reset_local_index();
 

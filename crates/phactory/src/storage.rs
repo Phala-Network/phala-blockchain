@@ -35,10 +35,8 @@ impl BlockValidator for LightValidation<chain::Runtime> {
 }
 
 mod storage_ext {
-    use crate::{chain, light_validation::utils::storage_prefix};
+    use crate::chain;
     use chain::{pallet_computation, pallet_mq, pallet_phat, pallet_registry};
-    use log::error;
-    use parity_scale_codec::{Decode, Error};
     use phala_mq::{ContractClusterId, Message, MessageOrigin};
     use phala_trie_storage::TrieStorage;
     use phala_types::messaging::TokenomicParameters;
@@ -63,23 +61,6 @@ mod storage_ext {
             Self {
                 trie_storage: value,
             }
-        }
-    }
-
-    impl ChainStorage {
-        fn get_raw(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>> {
-            self.trie_storage.get(key)
-        }
-        fn get_decoded_result<T: Decode>(&self, key: impl AsRef<[u8]>) -> Result<Option<T>, Error> {
-            self.get_raw(key)
-                .map(|v| match Decode::decode(&mut &v[..]) {
-                    Ok(decoded) => Ok(decoded),
-                    Err(e) => {
-                        error!("Decode storage value failed: {}", e);
-                        Err(e)
-                    }
-                })
-                .transpose()
         }
     }
 
@@ -125,17 +106,8 @@ mod storage_ext {
             self.execute_with(chain::ParachainInfo::parachain_id).0
         }
 
-        pub fn mq_messages(&self) -> Result<Vec<Message>, Error> {
-            for key in ["OutboundMessagesV2", "OutboundMessages"] {
-                let messages: Vec<Message> = self
-                    .get_decoded_result(storage_prefix("PhalaMq", key))
-                    .map(|v| v.unwrap_or_default())?;
-                if !messages.is_empty() {
-                    info!("Got {} messages from {key}", messages.len());
-                    return Ok(messages);
-                }
-            }
-            Ok(vec![])
+        pub fn mq_messages(&self) -> Vec<Message> {
+            self.execute_with(chain::PhalaMq::messages)
         }
 
         pub fn timestamp_now(&self) -> chain::Moment {
