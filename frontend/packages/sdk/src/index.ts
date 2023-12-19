@@ -17,6 +17,7 @@ export { ackFirst } from './ha/ack-first'
 export * from './ha/periodicity-checker'
 export * from './ha/fixture'
 export * from './factory_functions'
+export * from './utils/fetchMetadata'
 
 export const pruntimeRpc = pruntime_rpc
 export type PhactoryAPI = pruntime_rpc.PhactoryAPI
