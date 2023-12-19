@@ -23,7 +23,7 @@ mod system {
         #[ink(topic)]
         name: String,
         previous: Option<AccountId>,
-        current: AccountId,
+        current: Option<AccountId>,
     }
 
     /// A new administrator is added.
@@ -109,6 +109,49 @@ mod system {
         fn version(&self) -> VersionTuple {
             version_tuple!()
         }
+
+        fn set_driver_optional(
+            &mut self,
+            name: String,
+            contract_id: Option<AccountId>,
+        ) -> Result<()> {
+            use ink::codegen::EmitEvent;
+            use pink_extension::system::System;
+
+            self.ensure_owner_or_admin()?;
+            match name.as_str() {
+                "PinkLogger" => {
+                    pink::set_log_handler(contract_id);
+                }
+                "JsRuntime" => {
+                    pink::set_js_runtime(contract_id.map(|id| *id.as_ref()));
+                }
+                _ => {}
+            }
+
+            let previous = self.get_driver2(name.clone());
+            if previous.map(|x| x.1) == contract_id {
+                return Ok(());
+            }
+            if let Some((block, previous)) = previous {
+                let mut history = self.drivers_history.get(&name).unwrap_or_default();
+                history.push((block, previous));
+                self.drivers_history.insert(&name, &history);
+            }
+            self.drivers.take(&name);
+            if let Some(contract_id) = contract_id {
+                self.drivers2
+                    .insert(&name, &(self.env().block_number(), contract_id));
+            } else {
+                self.drivers2.take(&name);
+            }
+            self.env().emit_event(DriverChanged {
+                name,
+                previous: previous.map(|(_, id)| id),
+                current: contract_id,
+            });
+            Ok(())
+        }
     }
 
     impl pink::system::System for System {
@@ -128,35 +171,12 @@ mod system {
 
         #[ink(message)]
         fn set_driver(&mut self, name: String, contract_id: AccountId) -> Result<()> {
-            self.ensure_owner_or_admin()?;
-            #[allow(clippy::single_match)]
-            match name.as_str() {
-                "PinkLogger" => {
-                    pink::set_log_handler(contract_id);
-                }
-                "JsRuntime" => {
-                    pink::set_js_runtime(*contract_id.as_ref());
-                }
-                _ => {}
-            }
+            self.set_driver_optional(name, Some(contract_id))
+        }
 
-            let previous = self.get_driver2(name.clone());
-            if let Some((block, previous)) = previous {
-                if previous == contract_id {
-                    return Ok(());
-                }
-                let mut history = self.drivers_history.get(&name).unwrap_or_default();
-                history.push((block, previous));
-                self.drivers_history.insert(&name, &history);
-            }
-            self.drivers2
-                .insert(&name, &(self.env().block_number(), contract_id));
-            self.env().emit_event(DriverChanged {
-                name,
-                previous: previous.map(|(_, id)| id),
-                current: contract_id,
-            });
-            Ok(())
+        #[ink(message)]
+        fn remove_driver(&mut self, name: String) -> Result<()> {
+            self.set_driver_optional(name, None)
         }
 
         #[ink(message)]

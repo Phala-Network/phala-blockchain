@@ -1830,6 +1830,11 @@ pub(crate) fn apply_pink_events(
                 info!("Set logger to {handler:?}");
                 cluster.config.log_handler = Some(handler.convert_to());
             }
+            PinkEvent::SetLogHandlerOption(handler) => {
+                ensure_system!();
+                info!("Set logger to {handler:?}");
+                cluster.config.log_handler = handler.map(|x| x.convert_to())
+            }
             PinkEvent::SetContractWeight { contract, weight } => {
                 ensure_system!();
                 info!("Set contract weight for {contract:?} to {weight:?}");
@@ -1887,8 +1892,8 @@ pub(crate) fn apply_pink_events(
             }
             PinkEvent::SetJsRuntime(code_hash) => {
                 ensure_system!();
-                info!("Set JsRuntime to 0x{}", hex_fmt::HexFmt(&code_hash));
-                cluster.config.js_runtime = Some(code_hash.into());
+                info!("Set JsRuntime to {:?}", code_hash.map(hex_fmt::HexFmt));
+                cluster.config.js_runtime = code_hash.map(Into::into)
             }
         }
     }

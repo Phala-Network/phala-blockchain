@@ -179,7 +179,15 @@ pub enum PinkEvent {
     /// # Availability
     /// System contract
     #[codec(index = 12)]
-    SetJsRuntime(Hash),
+    SetJsRuntime(Option<Hash>),
+    /// Set the log handler contract for current cluster.
+    ///
+    /// Please do not use this event directly, use [`set_log_handler()`] instead.
+    ///
+    /// # Availability
+    /// System contract
+    #[codec(index = 13)]
+    SetLogHandlerOption(Option<AccountId>),
 }
 
 #[derive(Encode, Decode, Debug, Clone)]
@@ -245,6 +253,7 @@ impl PinkEvent {
             PinkEvent::StopSidevm => true,
             PinkEvent::ForceStopSidevm { .. } => true,
             PinkEvent::SetLogHandler(_) => false,
+            PinkEvent::SetLogHandlerOption(_) => false,
             PinkEvent::SetContractWeight { .. } => false,
             PinkEvent::UpgradeRuntimeTo { .. } => false,
             PinkEvent::SidevmOperation(_) => true,
@@ -261,6 +270,7 @@ impl PinkEvent {
             PinkEvent::StopSidevm => "StopSidevm",
             PinkEvent::ForceStopSidevm { .. } => "ForceStopSidevm",
             PinkEvent::SetLogHandler(_) => "SetLogHandler",
+            PinkEvent::SetLogHandlerOption(_) => "SetLogHandlerOption",
             PinkEvent::SetContractWeight { .. } => "SetContractWeight",
             PinkEvent::UpgradeRuntimeTo { .. } => "UpgradeRuntimeTo",
             PinkEvent::SidevmOperation(_) => "SidevmOperation",
@@ -277,6 +287,7 @@ impl PinkEvent {
             PinkEvent::StopSidevm => false,
             PinkEvent::ForceStopSidevm { .. } => false,
             PinkEvent::SetLogHandler(_) => false,
+            PinkEvent::SetLogHandlerOption(_) => false,
             PinkEvent::SetContractWeight { .. } => false,
             PinkEvent::UpgradeRuntimeTo { .. } => false,
             PinkEvent::SidevmOperation(_) => false,
@@ -412,12 +423,12 @@ pub fn push_sidevm_message(message: Vec<u8>) {
 }
 
 /// Set the log handler contract of current cluster. (system only)
-pub fn set_log_handler(contract: AccountId) {
-    emit_event::<PinkEnvironment, _>(PinkEvent::SetLogHandler(contract))
+pub fn set_log_handler(contract: Option<AccountId>) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::SetLogHandlerOption(contract))
 }
 
 /// Set the SideVM program that used by js_eval code. (system only)
-pub fn set_js_runtime(code_hash: Hash) {
+pub fn set_js_runtime(code_hash: Option<Hash>) {
     emit_event::<PinkEnvironment, _>(PinkEvent::SetJsRuntime(code_hash))
 }
 

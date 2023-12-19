@@ -82,6 +82,10 @@ pub trait System {
     #[ink(message)]
     fn set_driver(&mut self, name: String, contract_id: AccountId) -> Result<()>;
 
+    /// Removes a driver for a given name. The caller must be the cluster owner or an administrator.
+    #[ink(message)]
+    fn remove_driver(&mut self, name: String) -> Result<()>;
+
     /// Retrieves the driver contract id for a given name.
     #[ink(message)]
     fn get_driver(&self, name: String) -> Option<AccountId>;
