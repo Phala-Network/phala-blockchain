@@ -441,6 +441,7 @@ pub async fn get_authority_with_proof_at(
     let alt_authorities_key = phaxt::dynamic::storage_key("Grandpa", "Authorities");
     let old_authorities_key: &[u8] = b":grandpa_authorities";
 
+    // Try the old grandpa storage key first if true. Otherwise try the new key first.
     static OLD_AUTH_KEY_PRIOR: AtomicBool = AtomicBool::new(true);
     let old_prior = OLD_AUTH_KEY_PRIOR.load(Ordering::Relaxed);
     let authorities_key_candidates = if old_prior {
