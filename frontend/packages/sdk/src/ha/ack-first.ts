@@ -41,7 +41,7 @@ export function ackFirst() {
     try {
       return await Promise.any(pairs.map(([workerId, endpoint]) => ack(workerId, endpoint)))
     } catch (_err) {
-      throw new Error('No worker available.')
+      throw new Error(`No worker available: ${_err}`)
     }
   }
 }
