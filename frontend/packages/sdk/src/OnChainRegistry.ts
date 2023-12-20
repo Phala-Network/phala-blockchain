@@ -138,6 +138,11 @@ export class OnChainRegistry {
           pruntimeURL: options.pruntimeURL,
         }
         await instance.connect(workerInfo)
+      } else if (options.clusterId && !options.strategy) {
+        await instance.connect({
+          clusterId: options.clusterId,
+          strategy: 'ack-first',
+        } as StrategicWorkerInfo)
       } else if (options.strategy) {
         await instance.connect({
           clusterId: options.clusterId,
