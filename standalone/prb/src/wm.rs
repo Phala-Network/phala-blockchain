@@ -3,13 +3,16 @@ use crate::cli::WorkerManagerCliArgs;
 use crate::datasource::{setup_data_source_manager, WrappedDataSourceManager};
 use crate::db::{setup_inventory_db, WrappedDb};
 use crate::lifecycle::{WorkerContextMap, WorkerLifecycleManager, WrappedWorkerLifecycleManager};
+use crate::pruntime::{PRuntimeClient, PRuntimeClientWithSemaphore};
 use crate::tx::TxManager;
-use crate::use_parachain_api;
+use crate::{use_parachain_api, worker};
 use crate::wm::WorkerManagerMessage::*;
-use crate::worker::{WorkerLifecycleState, WrappedWorkerContext};
+use crate::worker::{WorkerContext, WorkerLifecycleState, WrappedWorkerContext};
 use anyhow::{anyhow, Result};
 use futures::future::{try_join, try_join3, try_join_all};
 use log::{debug, info};
+use phactory_api::blocks::HeaderToSync;
+use phactory_api::prpc::{self, PhactoryInfo, SyncedTo};
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
@@ -193,6 +196,95 @@ pub async fn set_lifecycle_manager(
     )
     .await?;
     Ok(())
+}
+
+pub enum MasterEvent {
+    Init,
+    RelayHeadersReceived(Vec<HeaderToSync>),
+    RelayHeadersDispatched((usize, Result<SyncedTo, prpc::client::Error>)),
+    RelayToParaInfoReceived,
+    ParaHeadersReceived(),
+    ParaBlocksReceived(),
+    WorkerInfoReceived((usize, Result<PhactoryInfo>)),
+    Terminate,
+}
+
+pub type MasterEventRx = mpsc::UnboundedReceiver<MasterEvent>;
+pub type MasterEventTx = Arc<TokioMutex<mpsc::UnboundedSender<MasterEvent>>>;
+
+pub async fn master_loop(
+    wm_context: WrappedWorkerManagerContext,
+) -> Result<()>{
+    let (tx, rx) = mpsc::unbounded_channel::<MasterEvent>();
+
+    let relay_chaintip_number: u32 = 0;
+    let para_chaintip_number: u32 = 0;
+
+    let workers: Vec<WorkerContext> = Vec::new();
+
+    //tx.send(MasterEvent::Init);
+    //tx.
+
+    loop {
+        let event = rx.recv().await;
+        if event.is_none() {
+            break;
+        }
+
+        match event.unwrap() {
+            MasterEvent::Init => todo!(),
+            MasterEvent::RelayHeadersReceived(headers) => {
+                let from = headers.first().expect("has blocks").header.number;
+                let to = headers.last().expect("").header.number;
+                for (idx, worker) in workers.iter().enumerate() {
+                    if let Some(info) = &worker.info {
+                        if from <= info.headernum && info.headernum <= to {
+                            let pr = &worker.pr;
+                            let headers: Vec<HeaderToSync> = Vec::from_iter(headers[(info.headernum - from)..].iter().cloned());
+                            let headers = HeadersToSync::new(headers, None);
+                        }
+                    }
+                }
+            },
+            MasterEvent::RelayHeadersDispatched => todo!(),
+            MasterEvent::RelayToParaInfoReceived => todo!(),
+            MasterEvent::ParaHeadersReceived() => todo!(),
+            MasterEvent::ParaBlocksReceived() => todo!(),
+            MasterEvent::WorkerInfoReceived(_) => todo!(),
+            MasterEvent::Terminate => todo!(),
+        }
+
+        let worker_contexts = wm_context.workers.lock().await;
+        for worker_context in worker_contexts.iter() {
+            let worker_context = worker_context.read().await;
+            let worker = worker_context.worker.clone();
+            let info = worker_context.info.expect("should have value").clone();
+            drop(worker_context);
+
+            if info.blocknum < info.para_headernum {
+
+            } else if info.waiting_for_paraheaders { // && get_parachain_header_from_relaychain_at
+
+            } else if info.headernum < relay_chaintip_number {
+
+            } else {
+                // chaintip
+            }
+        }
+        drop(worker_contexts);
+    }
+
+    Ok(());
+}
+
+async fn dispatch_relay_headers(
+    tx: MasterEventTx,
+    worker_idx: usize,
+    pr: Arc<PRuntimeClient>,
+    headers: HeadersToSync,
+) {
+    let result = pr.with_lock(pr.sync_header(headers)).await?; // should be handle
+    let a = tx.lock().await.send(MasterEvent::RelayHeadersDispatched);
 }
 
 #[allow(clippy::await_holding_lock)]
