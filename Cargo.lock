@@ -9354,6 +9354,7 @@ dependencies = [
  "ethers",
  "frame-system",
  "hex",
+ "hex-literal",
  "im",
  "insta",
  "log",

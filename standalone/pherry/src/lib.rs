@@ -7,6 +7,7 @@ use sp_core::{crypto::AccountId32, H256};
 use std::cmp;
 use std::convert::TryFrom;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -19,7 +20,7 @@ use phaxt::{
     subxt::{self, tx::TxPayload},
     RpcClient,
 };
-use sp_consensus_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
+use sp_consensus_grandpa::{AuthorityList, SetId, VersionedAuthorityList};
 use subxt::config::{substrate::Era, Header as _};
 
 mod endpoint;
@@ -437,22 +438,40 @@ pub async fn get_authority_with_proof_at(
 ) -> Result<AuthoritySetChange> {
     // Storage
     let id_key = phaxt::dynamic::storage_key("Grandpa", "CurrentSetId");
-    // Authority set
-    let value = api
-        .rpc()
-        .storage(GRANDPA_AUTHORITIES_KEY, Some(hash))
-        .await?
-        .expect("No authority key found")
-        .0;
-    let list: AuthorityList = VersionedAuthorityList::decode(&mut value.as_slice())
-        .expect("Failed to decode VersionedAuthorityList")
-        .into();
+    let alt_authorities_key = phaxt::dynamic::storage_key("Grandpa", "Authorities");
+    let old_authorities_key: &[u8] = b":grandpa_authorities";
+
+    // Try the old grandpa storage key first if true. Otherwise try the new key first.
+    static OLD_AUTH_KEY_PRIOR: AtomicBool = AtomicBool::new(true);
+    let old_prior = OLD_AUTH_KEY_PRIOR.load(Ordering::Relaxed);
+    let authorities_key_candidates = if old_prior {
+        [old_authorities_key, &alt_authorities_key]
+    } else {
+        [&alt_authorities_key, old_authorities_key]
+    };
+    let mut authorities_key: &[u8] = &[];
+    let mut value = None;
+    for key in authorities_key_candidates {
+        if let Some(data) = api.rpc().storage(key, Some(hash)).await? {
+            authorities_key = key;
+            value = Some(data.0);
+            break;
+        }
+        OLD_AUTH_KEY_PRIOR.store(!old_prior, Ordering::Relaxed);
+    }
+    let value = value.ok_or_else(|| anyhow!("No grandpa authorities found"))?;
+    let list: AuthorityList = if authorities_key == old_authorities_key {
+        VersionedAuthorityList::decode(&mut value.as_slice())
+            .expect("Failed to decode VersionedAuthorityList")
+            .into()
+    } else {
+        AuthorityList::decode(&mut value.as_slice()).expect("Failed to decode AuthorityList")
+    };
 
     // Set id
     let id = api.current_set_id(Some(hash)).await?;
     // Proof
-    let proof =
-        chain_client::read_proofs(api, Some(hash), vec![GRANDPA_AUTHORITIES_KEY, &id_key]).await?;
+    let proof = chain_client::read_proofs(api, Some(hash), vec![authorities_key, &id_key]).await?;
     Ok(AuthoritySetChange {
         authority_set: AuthoritySet { list, id },
         authority_proof: proof,
