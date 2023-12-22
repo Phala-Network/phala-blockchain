@@ -288,22 +288,21 @@ where
 
         // By encoding the given set we should have an easy way to compare
         // with the stuff we get out of storage via `read_value`
-        let mut encoded_validator_set = validator_set.encode();
-        encoded_validator_set.insert(0, 1); // Add AUTHORITIES_VERISON == 1
-        let actual_validator_set =
-            if let Some(authorities) = checker.read_value(b":grandpa_authorities")? {
-                authorities
-            } else {
-                let key = utils::storage_prefix("Grandpa", "Authorities");
-                checker
-                    .read_value(&key)?
-                    .ok_or_else(|| anyhow::Error::msg(Error::StorageValueUnavailable))?
-            };
+        let encoded_validator_set = validator_set.encode();
+        let matches = if let Some(authorities) = checker.read_value(b":grandpa_authorities")? {
+            encoded_validator_set.get(..) == authorities.get(1..)
+        } else {
+            let key = utils::storage_prefix("Grandpa", "Authorities");
+            let authorities = checker
+                .read_value(&key)?
+                .ok_or_else(|| anyhow::Error::msg(Error::StorageValueUnavailable))?;
+            encoded_validator_set == authorities
+        };
 
         // TODO: check set_id
         // checker.read_value(grandpa::CurrentSetId.key())
 
-        if encoded_validator_set == actual_validator_set {
+        if matches {
             Ok(())
         } else {
             Err(anyhow::Error::msg(Error::ValidatorSetMismatch))

@@ -460,9 +460,13 @@ pub async fn get_authority_with_proof_at(
         OLD_AUTH_KEY_PRIOR.store(!old_prior, Ordering::Relaxed);
     }
     let value = value.ok_or_else(|| anyhow!("No grandpa authorities found"))?;
-    let list: AuthorityList = VersionedAuthorityList::decode(&mut value.as_slice())
-        .expect("Failed to decode VersionedAuthorityList")
-        .into();
+    let list: AuthorityList = if authorities_key == old_authorities_key {
+        VersionedAuthorityList::decode(&mut value.as_slice())
+            .expect("Failed to decode VersionedAuthorityList")
+            .into()
+    } else {
+        AuthorityList::decode(&mut value.as_slice()).expect("Failed to decode AuthorityList")
+    };
 
     // Set id
     let id = api.current_set_id(Some(hash)).await?;
