@@ -15,10 +15,12 @@ const columns = [
   StringColumn({
     title: 'Name',
     mapDataToValue: (data) => data.worker.name,
+    minWidth: 150,
   }),
   CategoricalColumn({
     title: 'PID',
     mapDataToValue: (data) => data.worker.pid.toString(),
+    maxWidth: 60,
   }),
   CategoricalColumn({
     title: 'Status',
@@ -321,6 +323,8 @@ export default function WorkerStatusPage() {
         </div>
         <div className={css({height: '100%', margin: '0 20px 20px'})}>
           <StatefulDataTable
+            initialSortIndex={0}
+            initialSortDirection="ASC"
             resizableColumnWidths
             columns={columns}
             rows={data || []}
