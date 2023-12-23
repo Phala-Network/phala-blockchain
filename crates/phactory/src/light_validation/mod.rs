@@ -173,7 +173,6 @@ where
 
         match self.tracked_bridges.get_mut(&bridge_id) {
             Some(bridge_info) => {
-                bridge_info.last_finalized_block_header = header;
                 if let Some(change) = auhtority_set_change {
                     // Check the validator set increment
                     if change.authority_set.id != voter_set_id + 1 {
@@ -193,6 +192,7 @@ where
                         id: change.authority_set.id,
                     }
                 }
+                bridge_info.last_finalized_block_header = header;
             }
             _ => panic!("We succesfully got this bridge earlier, therefore it exists; qed"),
         };
