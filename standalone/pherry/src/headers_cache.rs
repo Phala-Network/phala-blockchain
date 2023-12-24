@@ -2,10 +2,7 @@ use crate::types::ConvertTo;
 use crate::{types::Header, GRANDPA_ENGINE_ID};
 use anyhow::{anyhow, Result};
 use codec::{Decode, Encode};
-use phaxt::{
-    subxt::{self, rpc::types::NumberOrHex},
-    BlockNumber, ParachainApi, RelaychainApi,
-};
+use phaxt::{BlockNumber, ParachainApi, RelaychainApi};
 use reqwest::Response;
 use std::borrow::Cow;
 use std::io::{self, Read, Write};
@@ -322,12 +319,15 @@ pub async fn grab_headers(
                     .ok_or_else(|| anyhow!("No justification for block changing set_id"))?;
                 justifications = Some(just_data.convert_to());
             }
-            Some(crate::get_authority_with_proof_at(api, hash).await?)
+            Some(crate::get_authority_with_proof_at(api, &header).await?)
         } else {
             None
         };
 
         let justification = justifications.and_then(|v| v.into_justification(GRANDPA_ENGINE_ID));
+        if let Some(just) = &justification {
+            crate::authority::verify(api, &header, just).await?;
+        }
 
         skip_justitication = skip_justitication.saturating_sub(1);
         last_set = set_id;
@@ -422,14 +422,7 @@ pub async fn fetch_genesis_info(
         .await?
         .0
         .block;
-    let hash = api
-        .rpc()
-        .block_hash(Some(subxt::rpc::types::BlockNumber::from(
-            NumberOrHex::Number(genesis_block_number as _),
-        )))
-        .await?
-        .expect("No genesis block?");
-    let set_proof = crate::get_authority_with_proof_at(api, hash).await?;
+    let set_proof = crate::get_authority_with_proof_at(api, &genesis_block.header).await?;
     Ok(GenesisBlockInfo {
         block_header: genesis_block.header,
         authority_set: set_proof.authority_set,

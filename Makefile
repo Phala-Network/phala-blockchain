@@ -1,9 +1,11 @@
-.PHONY: all node pruntime e2e test clippy dist
+.PHONY: all node pruntime e2e test clippy dist pherry
 
 all: node pruntime e2e
 
 node:
 	cargo build --release
+pherry:
+	cargo build --release -p pherry
 pruntime:
 	make -C standalone/pruntime
 e2e:

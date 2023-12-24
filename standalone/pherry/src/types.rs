@@ -24,6 +24,7 @@ pub type BlockNumber = u32;
 pub type Hash = sp_core::H256;
 pub type Header = sp_runtime::generic::Header<BlockNumber, sp_runtime::traits::BlakeTwo256>;
 pub type Block = SignedBlock<Header, OpaqueExtrinsic>;
+pub type UnsigedBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
 // API: notify
 
 #[derive(Serialize, Deserialize, Debug)]
