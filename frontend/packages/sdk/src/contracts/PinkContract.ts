@@ -308,7 +308,7 @@ export class PinkContractPromise<
             throw new Error('Method not found')
           }
           return withMeta(meta[0], (options: PinkContractSendOptions, ...arags: unknown[]) => {
-            return this.#send(prop as string, options, ...arags)
+            return this._send(prop as string, options, ...arags)
           })
         },
       }
@@ -453,7 +453,7 @@ export class PinkContractPromise<
       })
   }
 
-  async #send(messageOrId: string, options: PinkContractSendOptions, ...args: unknown[]) {
+  private async _send(messageOrId: string, options: PinkContractSendOptions, ...args: unknown[]) {
     const { cert: userCert, ...rest } = options
     const txOptions: PinkContractOptions = {
       gasLimit: options.gasLimit,

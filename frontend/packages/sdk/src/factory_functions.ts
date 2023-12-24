@@ -1,5 +1,6 @@
 import { ApiPromise, Keyring, WsProvider } from '@polkadot/api'
 import type { AccountId } from '@polkadot/types/interfaces'
+import type { HexString } from '@polkadot/util/types'
 import { cryptoWaitReady } from '@polkadot/util-crypto'
 import { PinkContractPromise } from './contracts/PinkContract'
 import { PinkLoggerContractPromise } from './contracts/PinkLoggerContract'
@@ -7,15 +8,27 @@ import { type CreateOptions, OnChainRegistry } from './OnChainRegistry'
 import { options } from './options'
 import createPruntimeClient from './pruntime/createPruntimeClient'
 import type { AbiLike } from './types'
+import { type LiteralRpc, fetchMetadata } from './utils/fetchMetadata'
 
 export type GetClientOptions = {
-  transport: string | WsProvider
+  transport: LiteralRpc | WsProvider
+
+  // Provides metadata instead loading via RPC when initializing the client.
+  // It's optional since if the RPC under the phala.network domain, we will
+  // try to preload the metadata via HTTP unless the `noPreloadMetadata` is
+  // set to true.
+  metadata?: Record<string, HexString>
+  noPreloadMetadata?: boolean
 } & CreateOptions
 
 export async function getClient(opts: GetClientOptions): Promise<OnChainRegistry> {
-  const { transport, ...rest } = opts
+  const { transport, metadata: _metadata, noPreloadMetadata, ...rest } = opts
   const provider = typeof transport === 'string' ? new WsProvider(transport) : transport
-  const api = await ApiPromise.create(options({ provider, noInitWarn: true }))
+  let metadata = _metadata
+  if (typeof transport === 'string' && !metadata && transport.indexOf('phala.network/') !== -1 && !noPreloadMetadata) {
+    metadata = await fetchMetadata(transport)
+  }
+  const api = await ApiPromise.create(options({ provider, noInitWarn: true, metadata }))
   return await OnChainRegistry.create(api, rest)
 }
 

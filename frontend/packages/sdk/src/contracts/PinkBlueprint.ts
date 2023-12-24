@@ -251,7 +251,7 @@ export class PinkBlueprintPromise {
             throw new Error('Method not found')
           }
           return withMeta(meta[0], (options: PinkBlueprintSendOptions, ...arags: unknown[]) => {
-            return this.#send(prop as string, options, ...arags)
+            return this._send(prop as string, options, ...arags)
           })
         },
       }
@@ -356,7 +356,7 @@ export class PinkBlueprintPromise {
     }
   }
 
-  async #send(constructorOrId: string, options: PinkBlueprintSendOptions, ...args: unknown[]) {
+  private async _send(constructorOrId: string, options: PinkBlueprintSendOptions, ...args: unknown[]) {
     const { cert: userCert, ...rest } = options
     const txOptions: PinkBlueprintOptions = {
       gasLimit: options.gasLimit,
