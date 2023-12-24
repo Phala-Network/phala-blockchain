@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use log::{debug, error, info, warn};
 use phala_node_rpc_ext::MakeInto;
 use phala_trie_storage::ser::StorageChanges;
@@ -7,7 +7,6 @@ use sp_core::{crypto::AccountId32, H256};
 use std::cmp;
 use std::convert::TryFrom;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -20,11 +19,12 @@ use phaxt::{
     subxt::{self, tx::TxPayload},
     RpcClient,
 };
-use sp_consensus_grandpa::{AuthorityList, SetId};
+use sp_consensus_grandpa::SetId;
 use subxt::config::{substrate::Era, Header as _};
 
-type VersionedAuthorityList = (u8, AuthorityList);
+pub use authority::get_authority_with_proof_at;
 
+mod authority;
 mod endpoint;
 mod error;
 mod msg_sync;
@@ -41,14 +41,13 @@ use crate::types::{
     RelaychainApi, SrSigner,
 };
 use phactory_api::blocks::{
-    self, AuthoritySet, AuthoritySetChange, BlockHeader, BlockHeaderWithChanges, HeaderToSync,
-    StorageProof,
+    self, AuthoritySetChange, BlockHeader, BlockHeaderWithChanges, HeaderToSync, StorageProof,
 };
 use phactory_api::prpc::{self, InitRuntimeResponse, PhactoryInfo};
 use phactory_api::pruntime_client;
 
 use clap::Parser;
-use headers_cache::Client as CacheClient;
+use headers_cache::{fetch_genesis_info, Client as CacheClient};
 use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use notify_client::NotifyClient;
 use phala_types::{AttestationProvider, AttestationReport, Collateral};
@@ -434,57 +433,6 @@ pub async fn batch_sync_storage_changes(
     Ok(())
 }
 
-pub async fn get_authority_with_proof_at(
-    api: &RelaychainApi,
-    hash: Hash,
-) -> Result<AuthoritySetChange> {
-    // Storage
-    let id_key = phaxt::dynamic::storage_key("Grandpa", "CurrentSetId");
-    let alt_authorities_key = phaxt::dynamic::storage_key("Grandpa", "Authorities");
-    let old_authorities_key: &[u8] = b":grandpa_authorities";
-
-    // Try the old grandpa storage key first if true. Otherwise try the new key first.
-    static OLD_AUTH_KEY_PRIOR: AtomicBool = AtomicBool::new(true);
-    let old_prior = OLD_AUTH_KEY_PRIOR.load(Ordering::Relaxed);
-    let authorities_key_candidates = if old_prior {
-        [old_authorities_key, &alt_authorities_key]
-    } else {
-        [&alt_authorities_key, old_authorities_key]
-    };
-    let mut authorities_key: &[u8] = &[];
-    let mut value = None;
-    for key in authorities_key_candidates {
-        if let Some(data) = api.rpc().storage(key, Some(hash)).await? {
-            authorities_key = key;
-            value = Some(data.0);
-            break;
-        }
-        OLD_AUTH_KEY_PRIOR.store(!old_prior, Ordering::Relaxed);
-    }
-    let value = value.ok_or_else(|| anyhow!("No grandpa authorities found"))?;
-    let list: AuthorityList = if authorities_key == old_authorities_key {
-        VersionedAuthorityList::decode(&mut value.as_slice())
-            .expect("Failed to decode VersionedAuthorityList")
-            .1
-    } else {
-        AuthorityList::decode(&mut value.as_slice()).expect("Failed to decode AuthorityList")
-    };
-
-    // Set id
-    let id = api.current_set_id(Some(hash)).await?;
-    // Proof
-    let proof = chain_client::read_proofs(
-        api,
-        Some(hash),
-        vec![old_authorities_key, &alt_authorities_key, &id_key],
-    )
-    .await?;
-    Ok(AuthoritySetChange {
-        authority_set: AuthoritySet { list, id },
-        authority_proof: proof,
-    })
-}
-
 async fn try_load_handover_proof(pr: &PrClient, api: &ParachainApi) -> Result<()> {
     let info = pr.get_info(()).await?;
     if info.safe_mode_level < 2 {
@@ -716,7 +664,8 @@ async fn batch_sync_block(
         let mut authrotiy_change: Option<AuthoritySetChange> = None;
         if let Some(change_at) = set_id_change_at {
             if change_at == last_header_number {
-                authrotiy_change = Some(get_authority_with_proof_at(api, last_header_hash).await?);
+                authrotiy_change =
+                    Some(get_authority_with_proof_at(api, &last_header.header).await?);
             }
         }
 
@@ -737,6 +686,15 @@ async fn batch_sync_block(
             for header in rest_headers {
                 header.justification = None;
             }
+        }
+        if let Some(last_header) = header_batch.last() {
+            let Some(justification) = &last_header.justification else {
+                bail!(
+                    "No justification found for header {}",
+                    last_header.header.number
+                );
+            };
+            authority::verify(api, &last_header.header, justification).await?;
         }
         let r = req_sync_header(pr, header_batch, authrotiy_change).await?;
         info!("  ..sync_header: {:?}", r);
@@ -982,22 +940,7 @@ async fn init_runtime(
     };
     let genesis_info = match genesis_info {
         Some(genesis_info) => genesis_info,
-        None => {
-            let genesis_block = get_block_at(api, Some(start_header)).await?.0.block;
-            let hash = api
-                .rpc()
-                .block_hash(Some(subxt::rpc::types::BlockNumber::from(
-                    NumberOrHex::Number(start_header as _),
-                )))
-                .await?
-                .expect("No genesis block?");
-            let set_proof = get_authority_with_proof_at(api, hash).await?;
-            blocks::GenesisBlockInfo {
-                block_header: genesis_block.header.clone(),
-                authority_set: set_proof.authority_set,
-                proof: set_proof.authority_proof,
-            }
-        }
+        None => fetch_genesis_info(api, start_header).await?,
     };
     let genesis_state = chain_client::fetch_genesis_storage(para_api).await?;
     let mut debug_set_key = None;
@@ -1032,7 +975,10 @@ pub async fn attestation_to_report(
     pccs_url: &str,
     pccs_timeout_secs: u64,
 ) -> Result<Vec<u8>> {
-    info!("Processing attestation report provider={}", attestation.provider);
+    info!(
+        "Processing attestation report, provider={}",
+        attestation.provider
+    );
     let report = match attestation.payload {
         Some(payload) => Attestation::SgxIas {
             ra_report: payload.report.as_bytes().to_vec(),

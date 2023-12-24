@@ -10197,6 +10197,7 @@ dependencies = [
  "clap 4.4.12",
  "env_logger 0.9.0",
  "futures",
+ "hash-db",
  "hex",
  "log",
  "parity-scale-codec",
@@ -10207,12 +10208,14 @@ dependencies = [
  "phala-types",
  "phaxt",
  "reqwest",
+ "sc-consensus-grandpa",
  "serde",
  "serde_json",
  "sgx-attestation",
  "sp-consensus-grandpa",
  "sp-core",
  "sp-runtime",
+ "sp-trie",
  "tokio",
 ]
 

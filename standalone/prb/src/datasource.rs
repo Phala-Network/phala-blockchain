@@ -691,14 +691,7 @@ impl DataSourceManager {
                 .await?
                 .0
                 .block;
-            let genesis_hash = relay_api
-                .rpc()
-                .block_hash(Some(subxt_types::BlockNumber::from(
-                    subxt_types::NumberOrHex::Number(relaychain_start_block as u64),
-                )))
-                .await?
-                .unwrap();
-            let set_proof = get_authority_with_proof_at(&relay_api, genesis_hash).await?;
+            let set_proof = get_authority_with_proof_at(&relay_api, &genesis_block.header).await?;
             genesis_info = Some(GenesisBlockInfo {
                 block_header: genesis_block.header.clone(),
                 authority_set: set_proof.authority_set,
@@ -1055,7 +1048,12 @@ impl DataSourceManager {
         hash: Hash,
     ) -> Result<Arc<DataSourceCacheItem>> {
         let relay_api = use_relaychain_api!(self, false).ok_or(NoValidDataSource)?;
-        let auth_set = get_authority_with_proof_at(&relay_api, hash).await?;
+        let header = relay_api
+            .rpc()
+            .header(Some(hash))
+            .await?
+            .ok_or_else(|| anyhow!("Failed to get header at hash={hash:?} from relaychain"))?;
+        let auth_set = get_authority_with_proof_at(&relay_api, &header.convert_to()).await?;
         Ok(Arc::new(DataSourceCacheItem::AuthoritySetChange(auth_set)))
     }
     pub async fn get_authority_with_proof_at(
