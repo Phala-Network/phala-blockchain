@@ -1025,6 +1025,7 @@ pub async fn attestation_to_report(
     pccs_url: &str,
     pccs_timeout_secs: u64,
 ) -> Result<Vec<u8>> {
+    info!("Processing attestation report provider={}", attestation.provider);
     let report = match attestation.payload {
         Some(payload) => Attestation::SgxIas {
             ra_report: payload.report.as_bytes().to_vec(),
@@ -1033,24 +1034,19 @@ pub async fn attestation_to_report(
         }
         .encode(),
         None => {
-            if attestation.provider.as_str() == "dcap" {
-                let report =
-                    Option::<AttestationReport>::decode(&mut &attestation.encoded_report[..]);
-                if let Ok(Some(AttestationReport::SgxDcap {
-                    quote,
-                    collateral: None,
-                })) = report
-                {
-                    if pccs_url.is_empty() {
-                        anyhow::bail!("pccs_url is required when using dcap");
-                    }
-                    let timeout = Duration::from_secs(pccs_timeout_secs);
-                    let collateral = get_collateral(pccs_url, &quote, timeout).await?;
-                    let collateral = Some(Collateral::SgxV30(collateral));
-                    Some(AttestationReport::SgxDcap { quote, collateral }).encode()
-                } else {
-                    attestation.encoded_report
+            let report = Option::<AttestationReport>::decode(&mut &attestation.encoded_report[..]);
+            if let Ok(Some(AttestationReport::SgxDcap {
+                quote,
+                collateral: None,
+            })) = report
+            {
+                if pccs_url.is_empty() {
+                    anyhow::bail!("pccs_url is required when using dcap");
                 }
+                let timeout = Duration::from_secs(pccs_timeout_secs);
+                let collateral = get_collateral(pccs_url, &quote, timeout).await?;
+                let collateral = Some(Collateral::SgxV30(collateral));
+                Some(AttestationReport::SgxDcap { quote, collateral }).encode()
             } else {
                 attestation.encoded_report
             }
