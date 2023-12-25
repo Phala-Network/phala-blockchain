@@ -151,7 +151,7 @@ export async function signCertificate(params: CertificateParams): Promise<Certif
   return { address, certificate, pubkey, secret }
 }
 
-export async function unstable_signEip712Certificate({
+export async function signEip712Certificate({
   client,
   account,
   compressedPubkey,

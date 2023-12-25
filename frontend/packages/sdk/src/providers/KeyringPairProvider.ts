@@ -15,9 +15,9 @@ export interface KeyringPairCreate {
 }
 
 /**
- * @class unstable_KeyringPairProvider
+ * @class KeyringPairProvider
  */
-export class unstable_KeyringPairProvider implements Provider {
+export class KeyringPairProvider implements Provider {
   static readonly identity = 'keyring'
 
   readonly #apiPromise: ApiPromise
@@ -32,7 +32,7 @@ export class unstable_KeyringPairProvider implements Provider {
   }
 
   static async create(api: ApiPromise, pair: KeyringPair) {
-    return new unstable_KeyringPairProvider(api, pair)
+    return new KeyringPairProvider(api, pair)
   }
 
   static async createFromSURI(api: ApiPromise, suri: string, options?: KeyringPairCreate) {
@@ -40,7 +40,7 @@ export class unstable_KeyringPairProvider implements Provider {
     const { ss58Format, meta, type } = options || {}
     const keyring = new Keyring({ type, ss58Format })
     const pair = keyring.addFromUri(suri, meta, type)
-    return new unstable_KeyringPairProvider(api, pair)
+    return new KeyringPairProvider(api, pair)
   }
 
   get address() {
@@ -48,7 +48,7 @@ export class unstable_KeyringPairProvider implements Provider {
   }
 
   get name(): 'keyring' {
-    return unstable_KeyringPairProvider.identity
+    return KeyringPairProvider.identity
   }
 
   /**
