@@ -8,6 +8,10 @@ import { type CertificateData, type InjectedAccount, signCertificate } from '../
 import signAndSend from '../utils/signAndSend'
 import { Provider } from './types'
 
+//
+// Pre-defined browser-wallet extensions.
+//
+
 interface WalletConstant {
   key: string
   icon: string
@@ -61,6 +65,10 @@ async function getInstalledWalletExtensions(): Promise<Readonly<WalletExtensionN
   return installedWalletExtensions
 }
 
+//
+// A simple singleton implementation for UIKeyring class
+//
+
 let keyringInstance: Keyring | undefined
 
 async function getKeyring() {
@@ -73,7 +81,10 @@ async function getKeyring() {
   return keyring
 }
 
-export class unstable_UIKeyringProvider implements Provider {
+/**
+ * @class UIKeyringProvider
+ */
+export class UIKeyringProvider implements Provider {
   static readonly identity = 'uiKeyring'
   //
   // Resources
@@ -97,7 +108,7 @@ export class unstable_UIKeyringProvider implements Provider {
       throw new Error(`Injected Window Provider not found: ${providerName}`)
     }
     const gateway = await provider.enable(appName)
-    return new unstable_UIKeyringProvider(api, gateway.signer, account)
+    return new UIKeyringProvider(api, gateway.signer, account)
   }
 
   get address(): string {
@@ -105,7 +116,7 @@ export class unstable_UIKeyringProvider implements Provider {
   }
 
   get name(): 'uiKeyring' {
-    return unstable_UIKeyringProvider.identity
+    return UIKeyringProvider.identity
   }
 
   /**
@@ -136,7 +147,7 @@ export class unstable_UIKeyringProvider implements Provider {
   }
 
   //
-  //
+  // Extra methods specified for Web UI.
   //
 
   static async getSupportedWallets(): Promise<Readonly<WalletConstant[]>> {

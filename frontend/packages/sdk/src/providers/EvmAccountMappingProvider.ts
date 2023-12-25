@@ -4,7 +4,7 @@ import type { ISubmittableResult } from '@polkadot/types/types'
 import { hexToU8a } from '@polkadot/util'
 import { blake2AsU8a, encodeAddress } from '@polkadot/util-crypto'
 import type { Account, Address, WalletClient } from 'viem'
-import { type CertificateData, unstable_signEip712Certificate } from '../pruntime/certificate'
+import { type CertificateData, signEip712Certificate } from '../pruntime/certificate'
 import {
   type Eip712Domain,
   type EtherAddressToSubstrateAddressOptions,
@@ -23,7 +23,10 @@ export interface EvmCaller {
   address: Address
 }
 
-export class unstable_EvmAccountMappingProvider implements Provider {
+/**
+ * @class EvmAccountMappingProvider
+ */
+export class EvmAccountMappingProvider implements Provider {
   static readonly identity = 'evmAccountMapping'
 
   //
@@ -58,7 +61,7 @@ export class unstable_EvmAccountMappingProvider implements Provider {
   }
 
   get name(): 'evmAccountMapping' {
-    return unstable_EvmAccountMappingProvider.identity
+    return EvmAccountMappingProvider.identity
   }
 
   async ready(msg?: string): Promise<void> {
@@ -72,7 +75,7 @@ export class unstable_EvmAccountMappingProvider implements Provider {
     account: AccountLike,
     options?: EtherAddressToSubstrateAddressOptions
   ) {
-    const signer = new unstable_EvmAccountMappingProvider(api, client, account, options)
+    const signer = new EvmAccountMappingProvider(api, client, account, options)
     await signer.ready(options?.msg)
     return signer
   }
@@ -161,7 +164,7 @@ export class unstable_EvmAccountMappingProvider implements Provider {
     if (this.#cachedCert && !isExpired) {
       return this.#cachedCert
     }
-    this.#cachedCert = await unstable_signEip712Certificate({
+    this.#cachedCert = await signEip712Certificate({
       client: this.#client,
       account: this.#account as Account,
       compressedPubkey: this.#compressedPubkey,

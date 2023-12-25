@@ -72,7 +72,7 @@ interface SendOptions {
 export type PinkBlueprintSendOptions =
   | (PinkBlueprintOptions & SendOptions & { address: string | AccountId; signer: InjectedSigner })
   | (PinkBlueprintOptions & SendOptions & { pair: IKeyringPair })
-  | (PinkBlueprintOptions & SendOptions & { unstable_provider: Provider })
+  | (PinkBlueprintOptions & SendOptions & { provider: Provider })
 
 export interface PinkBlueprintSend<TParams extends Array<any> = any[]> extends MessageMeta {
   (options: PinkBlueprintSendOptions, ...params: TParams): Promise<PinkBlueprintSubmittableResult>
@@ -371,8 +371,7 @@ export class PinkBlueprintPromise {
       throw new Error(`Constructor not found: ${constructorOrId}`)
     }
 
-    const address =
-      'unstable_provider' in rest ? rest.unstable_provider.address : 'signer' in rest ? rest.address : rest.pair.address
+    const address = 'provider' in rest ? rest.provider.address : 'signer' in rest ? rest.address : rest.pair.address
     const cert = userCert || (await this.phatRegistry.getAnonymousCert())
     const estimate = this.#query[constructorOrId]
     if (!estimate) {
@@ -410,8 +409,8 @@ export class PinkBlueprintPromise {
       txOptions.gasLimit = gasLimit
     }
 
-    if ('unstable_provider' in rest) {
-      return await rest.unstable_provider.send(tx(txOptions, ...args), (result: ISubmittableResult) => {
+    if ('provider' in rest) {
+      return await rest.provider.send(tx(txOptions, ...args), (result: ISubmittableResult) => {
         let maybeContactId: string | undefined
         const instantiateEvent = result.events.filter((i) => i.event.method === 'Instantiating')[0]
         if (instantiateEvent) {
