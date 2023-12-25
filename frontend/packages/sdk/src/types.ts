@@ -1,6 +1,9 @@
 import type { Abi } from '@polkadot/api-contract/Abi'
 import type { Result, Struct, Vec, u128, u32, u8 } from '@polkadot/types-codec'
 import type { IEnum, IMap } from '@polkadot/types-codec/types'
+import { type EvmAccountMappingProvider } from './providers/EvmAccountMappingProvider'
+import { type KeyringPairProvider } from './providers/KeyringPairProvider'
+import { type UIKeyringProvider } from './providers/UIKeyringProvider'
 
 export interface InkQueryOk extends IEnum {
   asInkMessageReturn: Vec<u8>
@@ -31,3 +34,5 @@ interface PalletBalancesAccountData extends Struct {
   readonly frozen: u128
   readonly flags: u128
 }
+
+export type AnyProvider = EvmAccountMappingProvider | UIKeyringProvider | KeyringPairProvider
