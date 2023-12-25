@@ -1,7 +1,4 @@
 import system from './abis/system.json'
-import { type EvmAccountMappingProvider } from './providers/EvmAccountMappingProvider'
-import { type KeyringPairProvider } from './providers/KeyringPairProvider'
-import { type UIKeyringProvider } from './providers/UIKeyringProvider'
 import { pruntime_rpc } from './pruntime/proto'
 
 export * from './utils/hex'
@@ -25,9 +22,9 @@ export * from './ha/periodicity-checker'
 export * from './ha/fixture'
 export * from './factory_functions'
 export * from './utils/fetchMetadata'
+export * from './types'
 
 export const pruntimeRpc = pruntime_rpc
 export type PhactoryAPI = pruntime_rpc.PhactoryAPI
 export const PhactoryAPI = pruntime_rpc.PhactoryAPI
 export const abis = { system }
-export type AnyProvider = EvmAccountMappingProvider | UIKeyringProvider | KeyringPairProvider
