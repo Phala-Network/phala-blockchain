@@ -20,7 +20,7 @@ import { type Provider } from '../providers/types'
 import type { CertificateData } from '../pruntime/certificate'
 import { EncryptedInkCommand, InkQueryMessage, PlainInkCommand } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
-import type { AbiLike, FrameSystemAccountInfo } from '../types'
+import type { AbiLike, AnyProvider, FrameSystemAccountInfo } from '../types'
 import assert from '../utils/assert'
 import { BN_MAX_SUPPLY } from '../utils/constants'
 import { randomHex } from '../utils/hex'
@@ -245,12 +245,15 @@ export class PinkContractPromise<
   readonly #query: MapMessageInkQuery = {}
   readonly #tx: MapMessageTx = {}
 
+  protected _provider: AnyProvider | undefined = undefined
+
   constructor(
     api: ApiBase<'promise'>,
     phatRegistry: OnChainRegistry,
     abi: AbiLike,
     address: string | AccountId,
-    contractKey: string
+    contractKey: string,
+    provider?: AnyProvider
   ) {
     if (!api || !api.isConnected || !api.tx) {
       throw new Error('Your API has not been initialized correctly and is not connected to a chain')
@@ -266,6 +269,8 @@ export class PinkContractPromise<
 
     this.address = this.registry.createType('AccountId', address)
     this.contractKey = contractKey
+
+    this._provider = provider
 
     this.abi.messages.forEach((meta): void => {
       if (meta.isMutating) {
@@ -298,6 +303,22 @@ export class PinkContractPromise<
         )
       }
     })
+  }
+
+  get provider(): AnyProvider | undefined {
+    return this._provider
+  }
+
+  set provider(provider: AnyProvider) {
+    if (!provider || typeof provider.send !== 'function' || typeof provider.signCertificate !== 'function') {
+      throw new Error('The provider implementation is not valid')
+    }
+    this._provider = provider
+  }
+
+  public withProvider(provider: AnyProvider): PinkContractPromise<TQueries, TTransactions> {
+    this.provider = provider
+    return this
   }
 
   public get send() {
