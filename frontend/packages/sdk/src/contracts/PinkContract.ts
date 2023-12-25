@@ -71,7 +71,7 @@ interface SendOptions {
 export type PinkContractSendOptions =
   | (PinkContractOptions & SendOptions & { address: string | AccountId; signer: InjectedSigner })
   | (PinkContractOptions & SendOptions & { pair: IKeyringPair })
-  | (PinkContractOptions & SendOptions & { unstable_provider: Provider })
+  | (PinkContractOptions & SendOptions & { provider: Provider })
 
 export interface PinkContractTx<TParams extends Array<any> = any[]> extends MessageMeta {
   (options: PinkContractOptions, ...params: TParams): SubmittableExtrinsic<'promise'>
@@ -470,8 +470,7 @@ export class PinkContractPromise<
       throw new Error(`Message not found: ${messageOrId}`)
     }
 
-    const address =
-      'unstable_provider' in rest ? rest.unstable_provider.address : 'signer' in rest ? rest.address : rest.pair.address
+    const address = 'provider' in rest ? rest.provider.address : 'signer' in rest ? rest.address : rest.pair.address
     const cert = userCert || (await this.phatRegistry.getAnonymousCert())
 
     const estimate = this.#query[messageOrId]
@@ -509,10 +508,10 @@ export class PinkContractPromise<
       txOptions.gasLimit = gasRequired.refTime.toBn()
     }
 
-    if ('unstable_provider' in rest) {
+    if ('provider' in rest) {
       options.nonce && assert(isHex(options.nonce) && options.nonce.length === 66, 'Invalid nonce provided')
       const nonce = options.nonce || hexAddPrefix(randomHex(32))
-      return await rest.unstable_provider.send(tx(txOptions, ...args), (result: ISubmittableResult) => {
+      return await rest.provider.send(tx(txOptions, ...args), (result: ISubmittableResult) => {
         return new PinkContractSubmittableResult(
           this.phatRegistry,
           this,

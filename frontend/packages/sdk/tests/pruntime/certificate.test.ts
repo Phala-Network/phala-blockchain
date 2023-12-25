@@ -15,7 +15,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { mainnet } from 'viem/chains'
 import { describe, it } from 'vitest'
 import { types } from '../../src/options'
-import { signCertificate, unstable_signEip712Certificate } from '../../src/pruntime/certificate'
+import { signCertificate, signEip712Certificate } from '../../src/pruntime/certificate'
 import { etherAddressToCompressedPubkey } from '../../src/pruntime/eip712'
 
 let id = 0
@@ -84,6 +84,6 @@ describe('sign certificate', async function () {
     const account = privateKeyToAccount('0x415ac5b1b9c3742f85f2536b1eb60a03bf64a590ea896b087182f9c92f41ea12')
     const client = createTestClient({ account, chain: mainnet, mode: 'anvil', transport: http() })
     const compressedPubkey = await etherAddressToCompressedPubkey(client, account)
-    await unstable_signEip712Certificate({ client, account, compressedPubkey })
+    await signEip712Certificate({ client, account, compressedPubkey })
   })
 })

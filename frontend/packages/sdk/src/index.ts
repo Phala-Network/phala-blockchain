@@ -1,6 +1,7 @@
 import system from './abis/system.json'
-import { type unstable_EvmAccountMappingProvider } from './providers/EvmAccountMappingProvider'
-import { type unstable_UIKeyringProvider } from './providers/UIKeyringProvider'
+import { type EvmAccountMappingProvider } from './providers/EvmAccountMappingProvider'
+import { type KeyringPairProvider } from './providers/KeyringPairProvider'
+import { type UIKeyringProvider } from './providers/UIKeyringProvider'
 import { pruntime_rpc } from './pruntime/proto'
 
 export * from './utils/hex'
@@ -16,6 +17,7 @@ export * from './pruntime/eip712'
 export * from './providers/types'
 export * from './providers/EvmAccountMappingProvider'
 export * from './providers/UIKeyringProvider'
+export * from './providers/KeyringPairProvider'
 export { default as createPruntimeClient } from './pruntime/createPruntimeClient'
 export { default as signAndSend, SignAndSendError } from './utils/signAndSend'
 export { ackFirst } from './ha/ack-first'
@@ -28,4 +30,4 @@ export const pruntimeRpc = pruntime_rpc
 export type PhactoryAPI = pruntime_rpc.PhactoryAPI
 export const PhactoryAPI = pruntime_rpc.PhactoryAPI
 export const abis = { system }
-export type AnyProvider = unstable_EvmAccountMappingProvider | unstable_UIKeyringProvider
+export type AnyProvider = EvmAccountMappingProvider | UIKeyringProvider | KeyringPairProvider
