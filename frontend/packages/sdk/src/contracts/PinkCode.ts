@@ -15,7 +15,7 @@ import type { AbiLike } from '../types'
 import { PinkBlueprintPromise } from './PinkBlueprint'
 
 export interface PinkCodeSendOptions {
-  unstable_provider: Provider
+  provider: Provider
 }
 
 export class InkCodeSubmittableResult extends SubmittableResult {
@@ -171,8 +171,8 @@ export class PinkCodePromise {
     return this.#instantiate(0, [])
   }
 
-  public async send({ unstable_provider }: PinkCodeSendOptions) {
-    return await unstable_provider.send(
+  public async send({ provider }: PinkCodeSendOptions) {
+    return await provider.send(
       this.api.tx.phalaPhatContracts.clusterUploadResource(this.phatRegistry.clusterId, 'InkCode', u8aToHex(this.code)),
       (result) => new InkCodeSubmittableResult(result, this.abi, this.phatRegistry)
     )
