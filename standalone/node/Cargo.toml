@@ -101,6 +101,20 @@ frame-benchmarking-cli = { git = "https://github.com/paritytech/polkadot-sdk.git
 node-inspect = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0", package = "staging-node-inspect", optional = true }
 try-runtime-cli = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0", optional = true }
 
+# Frontier
+fc-api = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.2.0" }
+fc-cli = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.2.0" }
+fc-consensus = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.2.0" }
+fc-db = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.2.0" }
+fc-mapping-sync = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.2.0", features = ["sql"] }
+fc-rpc = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.2.0" }
+fc-rpc-core = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.2.0" }
+fc-storage = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.2.0" }
+fp-account = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.2.0" }
+fp-dynamic-fee = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.2.0", features = ["default"] }
+fp-evm = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.2.0", features = ["default"] }
+fp-rpc = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.2.0", features = ["default"] }
+
 [dev-dependencies]
 sc-keystore = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0" }
 sc-client-db = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0" }

@@ -97,6 +97,41 @@ members = [
 	"scripts/debug-cli"
 ]
 
+[workspace.dependencies]
+# Frontier Client
+fc-api = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0" }
+fc-cli = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+fc-consensus = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0" }
+fc-db = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+fc-mapping-sync = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+fc-rpc = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+fc-rpc-core = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0" }
+fc-storage = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0" }
+# Frontier Primitive
+fp-account = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+fp-consensus = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+fp-dynamic-fee = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+fp-ethereum = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+fp-evm = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+fp-rpc = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+fp-self-contained = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+fp-storage = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+# Frontier FRAME
+pallet-base-fee = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+pallet-dynamic-fee = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+pallet-ethereum = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+pallet-evm = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+pallet-evm-chain-id = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+pallet-evm-precompile-modexp = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+pallet-evm-precompile-sha3fips = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+pallet-evm-precompile-simple = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+pallet-evm-test-vector-support = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0" }
+pallet-hotfix-sufficients = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+# Frontier Template
+frontier-template-runtime = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+# Frontier Utility
+precompile-utils = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+
 [patch.crates-io]
 # TODO.kevin: Move back to crates.io once it released 1.0
 derive_more = { version = "0.99.17", git = "https://github.com/JelteF/derive_more" }

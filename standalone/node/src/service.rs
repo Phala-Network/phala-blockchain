@@ -58,7 +58,7 @@ pub type RuntimeExecutor = sc_executor::WasmExecutor<HostFunctions>;
 
 /// The full client type definition.
 pub type FullClient = sc_service::TFullClient<Block, RuntimeApi, RuntimeExecutor>;
-type FullBackend = sc_service::TFullBackend<Block>;
+pub type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 type FullGrandpaBlockImport =
     grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;

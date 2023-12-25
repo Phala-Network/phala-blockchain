@@ -38,6 +38,11 @@ mod benchmarking;
 mod cli;
 #[cfg(feature = "cli")]
 mod command;
+#[cfg(feature = "cli")]
+mod eth;
+mod hi {
+    use crate::eth::EthConfiguration;
+}
 
 #[cfg(feature = "cli")]
 pub use cli::*;
