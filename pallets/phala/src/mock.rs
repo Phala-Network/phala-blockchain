@@ -112,8 +112,10 @@ impl pallet_scheduler::Config for Test {
 
 impl pallet_balances::Config for Test {
 	type Balance = Balance;
-	type DustRemoval = ();
 	type RuntimeEvent = RuntimeEvent;
+	type RuntimeHoldReason = RuntimeHoldReason;
+	type RuntimeFreezeReason = RuntimeFreezeReason;
+	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
@@ -123,7 +125,6 @@ impl pallet_balances::Config for Test {
 	type FreezeIdentifier = ();
 	type MaxHolds = ConstU32<1>;
 	type MaxFreezes = ConstU32<1>;
-	type RuntimeHoldReason = ();
 }
 
 impl pallet_timestamp::Config for Test {

@@ -23,15 +23,12 @@
 use codec::Encode;
 use frame_system_rpc_runtime_api::AccountNonceApi;
 use futures::prelude::*;
-use node_executor::ExecutorDispatch;
 use node_primitives::Block;
 use node_runtime::RuntimeApi;
 use sc_client_api::{Backend, BlockBackend};
 use sc_consensus_babe::{self, SlotProportion};
-use sc_executor::NativeElseWasmExecutor;
 use sc_network::{event::Event, NetworkEventStream, NetworkService};
-use sc_network_sync::warp::WarpSyncParams;
-use sc_network_sync::SyncingService;
+use sc_network_sync::{warp::WarpSyncParams, SyncingService};
 use sc_service::{
     config::Configuration, error::Error as ServiceError, PruningMode, RpcHandlers, TaskManager,
 };
@@ -42,9 +39,25 @@ use sp_core::crypto::Pair;
 use sp_runtime::{generic, traits::Block as BlockT, SaturatedConversion};
 use std::sync::Arc;
 
+/// Host functions required for kitchensink runtime and Substrate node.
+#[cfg(not(feature = "runtime-benchmarks"))]
+pub type HostFunctions = (
+    sp_io::SubstrateHostFunctions,
+);
+
+/// Host functions required for kitchensink runtime and Substrate node.
+#[cfg(feature = "runtime-benchmarks")]
+pub type HostFunctions = (
+    sp_io::SubstrateHostFunctions,
+    frame_benchmarking::benchmarking::HostFunctions,
+);
+
+/// A specialized `WasmExecutor` intended to use across substrate node. It provides all required
+/// HostFunctions.
+pub type RuntimeExecutor = sc_executor::WasmExecutor<HostFunctions>;
+
 /// The full client type definition.
-pub type FullClient =
-    sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
+pub type FullClient = sc_service::TFullClient<Block, RuntimeApi, RuntimeExecutor>;
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 type FullGrandpaBlockImport =
@@ -173,7 +186,7 @@ pub fn new_partial(
         })
         .transpose()?;
 
-    let executor = sc_service::new_native_or_wasm_executor(config);
+    let executor = sc_service::new_wasm_executor(&config);
 
     let (client, backend, keystore_container, task_manager) =
         sc_service::new_full_parts::<Block, RuntimeApi, _>(
@@ -372,9 +385,9 @@ pub fn new_full_base(
             .expect("Genesis block exists; qed"),
         &config.chain_spec,
     );
-    net_config.add_notification_protocol(grandpa::grandpa_peers_set_config(
-        grandpa_protocol_name.clone(),
-    ));
+    let (grandpa_protocol_config, grandpa_notification_service) =
+        grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone());
+    net_config.add_notification_protocol(grandpa_protocol_config);
 
     let warp_sync = Arc::new(grandpa::warp_proof::NetworkProvider::new(
         backend.clone(),
@@ -556,6 +569,7 @@ pub fn new_full_base(
             link: grandpa_link,
             network: network.clone(),
             sync: Arc::new(sync_service.clone()),
+            notification_service: grandpa_notification_service,
             telemetry: telemetry.as_ref().map(|x| x.handle()),
             voting_rule: grandpa::VotingRulesBuilder::default().build(),
             prometheus_registry: prometheus_registry.clone(),

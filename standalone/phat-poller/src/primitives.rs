@@ -1,4 +1,4 @@
-use pallet_contracts_primitives::{ExecReturnValue, StorageDeposit};
+use pallet_contracts::{ExecReturnValue, StorageDeposit};
 use scale::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_runtime::{DispatchError, RuntimeDebug};
