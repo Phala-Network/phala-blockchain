@@ -280,16 +280,21 @@ where
 
         // By encoding the given set we should have an easy way to compare
         // with the stuff we get out of storage via `read_value`
-        let mut encoded_validator_set = validator_set.encode();
-        encoded_validator_set.insert(0, 1); // Add AUTHORITIES_VERISON == 1
-        let actual_validator_set = checker
-            .read_value(b":grandpa_authorities")?
-            .ok_or_else(|| anyhow::Error::msg(Error::StorageValueUnavailable))?;
+        let encoded_validator_set = validator_set.encode();
+        let matches = if let Some(authorities) = checker.read_value(b":grandpa_authorities")? {
+            encoded_validator_set.get(..) == authorities.get(1..)
+        } else {
+            let key = utils::storage_prefix("Grandpa", "Authorities");
+            let authorities = checker
+                .read_value(&key)?
+                .ok_or_else(|| anyhow::Error::msg(Error::StorageValueUnavailable))?;
+            encoded_validator_set == authorities
+        };
 
         // TODO: check set_id
         // checker.read_value(grandpa::CurrentSetId.key())
 
-        if encoded_validator_set == actual_validator_set {
+        if matches {
             Ok(())
         } else {
             Err(anyhow::Error::msg(Error::ValidatorSetMismatch))
@@ -388,11 +393,34 @@ impl<T: Config> fmt::Debug for BridgeInfo<T> {
 pub mod utils {
     use parity_scale_codec::Encode;
 
-    /// Gets the prefix of a storage item
-    pub fn storage_prefix(module: &str, storage: &str) -> Vec<u8> {
-        let mut bytes = sp_core::twox_128(module.as_bytes()).to_vec();
-        bytes.extend(&sp_core::twox_128(storage.as_bytes())[..]);
-        bytes
+    fn calc_storage_prefix(module: &str, storage_item: &str) -> [u8; 32] {
+        let module_hash = sp_core::twox_128(module.as_bytes());
+        let storage_hash = sp_core::twox_128(storage_item.as_bytes());
+        let mut final_key = [0u8; 32];
+        final_key[..16].copy_from_slice(&module_hash);
+        final_key[16..].copy_from_slice(&storage_hash);
+        final_key
+    }
+
+    #[inline(always)]
+    pub fn storage_prefix(module: &str, storage_item: &str) -> [u8; 32] {
+        use hex_literal::hex;
+        match (module, storage_item) {
+            // Speed up well-known storage items
+            // This let the compiler to optimize `storage_prefix("Grandpa", "Authorities")` to a constant.
+            ("Grandpa", "Authorities") => {
+                hex!("5f9cc45b7a00c5899361e1c6099678dc5e0621c4869aa60c02be9adcc98a0d1d")
+            }
+            _ => calc_storage_prefix(module, storage_item),
+        }
+    }
+
+    #[test]
+    fn well_known_storage_prefix_works() {
+        assert_eq!(
+            storage_prefix("Grandpa", "Authorities"),
+            calc_storage_prefix("Grandpa", "Authorities")
+        );
     }
 
     /// Calculates the Substrate storage key prefix for a StorageMap
