@@ -7,7 +7,7 @@ export class SignAndSendError extends Error {
   readonly isCancelled: boolean = false
 }
 
-function callback<TSubmittableResult>(
+export function callback<TSubmittableResult>(
   resolve: (value: TSubmittableResult) => void,
   reject: (reason?: any) => void,
   result: SubmittableResult,
@@ -24,7 +24,9 @@ function callback<TSubmittableResult>(
       }
     }
 
-    ;(unsub as any)()
+    if (unsub) {
+      ;(unsub as any)()
+    }
     if (error) {
       reject(error)
     } else {
@@ -55,11 +57,11 @@ function signAndSend<TSubmittableResult extends SubmittableResult = SubmittableR
     try {
       if (signer) {
         const unsub = await target.signAndSend(address, { signer }, (result) => {
-          callback(resolve, reject, result, unsub)
+          callback<TSubmittableResult>(resolve, reject, result, unsub)
         })
       } else {
         const unsub = await target.signAndSend(address, (result) => {
-          callback(resolve, reject, result, unsub)
+          callback<TSubmittableResult>(resolve, reject, result, unsub)
         })
       }
     } catch (error) {

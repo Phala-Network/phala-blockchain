@@ -1,6 +1,6 @@
 import { ApiPromise, Keyring, WsProvider } from '@polkadot/api'
+import type { ApiOptions } from '@polkadot/api/types'
 import type { AccountId } from '@polkadot/types/interfaces'
-import type { HexString } from '@polkadot/util/types'
 import { cryptoWaitReady } from '@polkadot/util-crypto'
 import { PinkContractPromise } from './contracts/PinkContract'
 import { PinkLoggerContractPromise } from './contracts/PinkLoggerContract'
@@ -17,7 +17,7 @@ export type GetClientOptions = {
   // It's optional since if the RPC under the phala.network domain, we will
   // try to preload the metadata via HTTP unless the `noPreloadMetadata` is
   // set to true.
-  metadata?: Record<string, HexString>
+  metadata?: ApiOptions['metadata']
   noPreloadMetadata?: boolean
 } & CreateOptions
 
@@ -38,10 +38,12 @@ export type GetContractOptions = {
   abi: AbiLike
 }
 
-export async function getContract(options: GetContractOptions): Promise<PinkContractPromise> {
+export async function getContract<T extends PinkContractPromise>(
+  options: GetContractOptions
+): Promise<PinkContractPromise> {
   const { client, contractId, abi } = options
   const contractKey = await client.getContractKeyOrFail(contractId)
-  return new PinkContractPromise(client.api, client, abi, contractId, contractKey)
+  return new PinkContractPromise(client.api, client, abi, contractId, contractKey) as T
 }
 
 export type GetLoggerOptions =

@@ -16,6 +16,7 @@ import { BN, BN_ZERO, hexAddPrefix, hexToU8a, isHex } from '@polkadot/util'
 import { sr25519Agreement, sr25519PairFromSeed } from '@polkadot/util-crypto'
 import { from } from 'rxjs'
 import type { OnChainRegistry } from '../OnChainRegistry'
+import { type Provider } from '../providers/types'
 import type { CertificateData } from '../pruntime/certificate'
 import { EncryptedInkCommand, InkQueryMessage, PlainInkCommand } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
@@ -70,6 +71,7 @@ interface SendOptions {
 export type PinkContractSendOptions =
   | (PinkContractOptions & SendOptions & { address: string | AccountId; signer: InjectedSigner })
   | (PinkContractOptions & SendOptions & { pair: IKeyringPair })
+  | (PinkContractOptions & SendOptions & { unstable_provider: Provider })
 
 export interface PinkContractTx<TParams extends Array<any> = any[]> extends MessageMeta {
   (options: PinkContractOptions, ...params: TParams): SubmittableExtrinsic<'promise'>
@@ -468,8 +470,10 @@ export class PinkContractPromise<
       throw new Error(`Message not found: ${messageOrId}`)
     }
 
-    const address = 'signer' in rest ? rest.address : rest.pair.address
+    const address =
+      'unstable_provider' in rest ? rest.unstable_provider.address : 'signer' in rest ? rest.address : rest.pair.address
     const cert = userCert || (await this.phatRegistry.getAnonymousCert())
+
     const estimate = this.#query[messageOrId]
     if (!estimate) {
       throw new Error(`Message not found: ${messageOrId}`)
@@ -505,7 +509,37 @@ export class PinkContractPromise<
       txOptions.gasLimit = gasRequired.refTime.toBn()
     }
 
-    if ('signer' in rest) {
+    if ('unstable_provider' in rest) {
+      options.nonce && assert(isHex(options.nonce) && options.nonce.length === 66, 'Invalid nonce provided')
+      const nonce = options.nonce || hexAddPrefix(randomHex(32))
+      return await rest.unstable_provider.send(tx(txOptions, ...args), (result: ISubmittableResult) => {
+        return new PinkContractSubmittableResult(
+          this.phatRegistry,
+          this,
+          nonce,
+          this.abi.findMessage(messageOrId),
+          result,
+          applyOnEvent(result, ['ContractEmitted', 'ContractExecution'], (records: EventRecord[]) => {
+            return records
+              .map(
+                ({
+                  event: {
+                    data: [, data],
+                  },
+                }): DecodedEvent | null => {
+                  try {
+                    return this.abi.decodeEvent(data as Bytes)
+                  } catch (error) {
+                    console.error(`Unable to decode contract event: ${(error as Error).message}`)
+                    return null
+                  }
+                }
+              )
+              .filter((decoded): decoded is DecodedEvent => !!decoded)
+          })
+        )
+      })
+    } else if ('signer' in rest) {
       return await signAndSend(tx(txOptions, ...args), rest.address, rest.signer)
     } else {
       return await signAndSend(tx(txOptions, ...args), rest.pair)

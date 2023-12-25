@@ -9,9 +9,14 @@ import type { Result, bool } from '@polkadot/types'
 import type { ISubmittableResult } from '@polkadot/types/types'
 import { hexToU8a, isU8a, isWasm, u8aToHex } from '@polkadot/util'
 import type { OnChainRegistry } from '../OnChainRegistry'
+import type { Provider } from '../providers/types'
 import type { CertificateData } from '../pruntime/certificate'
 import type { AbiLike } from '../types'
 import { PinkBlueprintPromise } from './PinkBlueprint'
+
+export interface PinkCodeSendOptions {
+  unstable_provider: Provider
+}
 
 export class InkCodeSubmittableResult extends SubmittableResult {
   readonly registry: OnChainRegistry
@@ -29,16 +34,56 @@ export class InkCodeSubmittableResult extends SubmittableResult {
     this.blueprint = new PinkBlueprintPromise(this.registry.api, this.registry, this.abi, this.abi.info.source.wasmHash)
   }
 
-  async waitFinalized(pair: KeyringPair, cert: CertificateData, timeout: number = 10_000) {
+  async waitFinalized(): Promise<void>
+  async waitFinalized(timeout: number): Promise<void>
+  async waitFinalized(cert: CertificateData): Promise<void>
+  async waitFinalized(cert: CertificateData, timeout: number): Promise<void>
+  async waitFinalized(pair: KeyringPair, cert: CertificateData, timeout: number): Promise<void>
+  async waitFinalized(...args: unknown[]): Promise<void> {
     if (this.#isFinalized) {
       return
     }
+    let timeout = 10_000
+    let cert, address
+    switch (args.length) {
+      case 0:
+        cert = await this.registry.getAnonymousCert()
+        address = cert.address
+        break
+
+      case 1:
+        if (typeof args[0] === 'number') {
+          timeout = args[0] as number
+          cert = await this.registry.getAnonymousCert()
+          address = cert.address
+        } else {
+          cert = args[0] as CertificateData
+          address = cert.address
+        }
+        break
+
+      case 2:
+        cert = args[0] as CertificateData
+        address = cert.address
+        timeout = args[1] as number
+        break
+
+      case 3:
+        cert = args[1] as CertificateData
+        address = cert.address
+        timeout = args[2] as number
+        break
+
+      default:
+        throw new Error('Invalid arguments')
+    }
+
     if (this.isInBlock || this.isFinalized) {
       const system = this.registry.systemContract!
       const codeHash = this.abi.info.source.wasmHash.toString()
       const t0 = new Date().getTime()
       while (true) {
-        const { output } = await system.query['system::codeExists'](pair.address, { cert }, codeHash, 'Ink')
+        const { output } = await system.query['system::codeExists'](address, { cert }, codeHash, 'Ink')
         if (output && (output as Result<bool, any>).asOk.toPrimitive()) {
           this.#isFinalized = true
           return
@@ -124,6 +169,13 @@ export class PinkCodePromise {
 
   public upload() {
     return this.#instantiate(0, [])
+  }
+
+  public async send({ unstable_provider }: PinkCodeSendOptions) {
+    return await unstable_provider.send(
+      this.api.tx.phalaPhatContracts.clusterUploadResource(this.phatRegistry.clusterId, 'InkCode', u8aToHex(this.code)),
+      (result) => new InkCodeSubmittableResult(result, this.abi, this.phatRegistry)
+    )
   }
 
   #instantiate = (_constructorOrId: AbiConstructor | string | number, _params: unknown[]) => {
