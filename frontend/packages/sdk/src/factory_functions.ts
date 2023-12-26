@@ -7,7 +7,7 @@ import { PinkLoggerContractPromise } from './contracts/PinkLoggerContract'
 import { type CreateOptions, OnChainRegistry } from './OnChainRegistry'
 import { options } from './options'
 import createPruntimeClient from './pruntime/createPruntimeClient'
-import type { AbiLike } from './types'
+import type { AbiLike, AnyProvider } from './types'
 import { type LiteralRpc, fetchMetadata } from './utils/fetchMetadata'
 
 export type GetClientOptions = {
@@ -36,6 +36,7 @@ export type GetContractOptions = {
   client: OnChainRegistry
   contractId: string
   abi: AbiLike
+  provider?: AnyProvider
 }
 
 export async function getContract<T extends PinkContractPromise>(
@@ -43,7 +44,7 @@ export async function getContract<T extends PinkContractPromise>(
 ): Promise<PinkContractPromise> {
   const { client, contractId, abi } = options
   const contractKey = await client.getContractKeyOrFail(contractId)
-  return new PinkContractPromise(client.api, client, abi, contractId, contractKey) as T
+  return new PinkContractPromise(client.api, client, abi, contractId, contractKey, options.provider) as T
 }
 
 export type GetLoggerOptions =
