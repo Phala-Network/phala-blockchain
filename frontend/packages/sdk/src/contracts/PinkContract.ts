@@ -230,6 +230,9 @@ interface InkResponse extends Struct {
   result: Result<InkQueryOk, InkQueryError>
 }
 
+//
+//
+
 interface ProxyCallbackOptions {
   path: string[]
   args: unknown[]
@@ -240,13 +243,13 @@ const noop = () => {
   /* noop */
 }
 
-function createInnerProxy(callback: ProxyCallback, path: string[]) {
-  const proxy: unknown = new Proxy(noop, {
+function createInnerProxy<TProxied = unknown>(callback: ProxyCallback, path: string[]): TProxied {
+  const proxy = new Proxy(noop, {
     get(_obj, key) {
       if (typeof key !== 'string' || key === 'then') {
         return undefined
       }
-      return createInnerProxy(callback, [...path, key])
+      return createInnerProxy(callback, [...path, key]) as TProxied
     },
     apply(_target, _thisArg, args) {
       const isApply = path[path.length - 1] === 'apply'
@@ -256,12 +259,36 @@ function createInnerProxy(callback: ProxyCallback, path: string[]) {
       })
     },
   })
-  return proxy
+  return proxy as TProxied
 }
 
+//
+//
+
+type QueryProxy<T, TParams extends Array<any> = any[], ResultType = Codec, ErrType extends Codec = Codec> = {
+  [k in keyof T]: <TOverrideResultType = ResultType>(
+    ...params: TParams
+  ) => ContractCallResult<'promise', PinkContractCallOutcome<ILooseResult<TOverrideResultType, ErrType>>>
+}
+
+type TxProxy<T, TParams extends Array<any> = any[]> = {
+  [k in keyof T]: (...params: TParams) => Promise<PinkContractSubmittableResult>
+}
+
+type PinkQueryMapInner = Record<string, PinkContractQuery>
+
+type PinkQueryMap = Record<string, PinkQueryMapInner | PinkContractQuery>
+
+type PinkCommandMappInner = Record<string, PinkContractTx>
+
+type PinkCommandMap = Record<string, PinkCommandMappInner | PinkContractTx>
+
+//
+//
+//
 export class PinkContractPromise<
-  TQueries extends Record<string, PinkContractQuery> = Record<string, PinkContractQuery>,
-  TTransactions extends Record<string, PinkContractTx> = Record<string, PinkContractTx>,
+  TQueries extends PinkQueryMap = PinkQueryMap,
+  TTransactions extends PinkCommandMap = PinkCommandMap,
 > {
   readonly abi: Abi
   readonly api: ApiBase<'promise'>
@@ -352,17 +379,18 @@ export class PinkContractPromise<
 
   private qProxyInstance: unknown = undefined
 
-  public get q(): {
-    [k in keyof TQueries]: <ResultType = Codec, TParams extends Array<any> = any[], ErrType extends Codec = Codec>(
-      ...params: TParams
-    ) => ContractCallResult<'promise', PinkContractCallOutcome<ILooseResult<ResultType, ErrType>>>
-  } & {
-    [k in keyof TTransactions]: <ResultType = Codec, TParams extends Array<any> = any[], ErrType extends Codec = Codec>(
-      ...params: TParams
-    ) => ContractCallResult<'promise', PinkContractCallOutcome<ILooseResult<ResultType, ErrType>>>
-  } {
+  public get q() {
+    type TMethods = TQueries & TTransactions
+    type TReMap = {
+      [k in keyof TMethods]: TMethods[k] extends PinkContractQuery
+        ? <ResultType extends Codec = Codec, TParams extends Array<any> = any[], ErrType extends Codec = Codec>(
+            ...params: TParams
+          ) => ContractCallResult<'promise', PinkContractCallOutcome<ILooseResult<ResultType, ErrType>>>
+        : QueryProxy<TMethods[k]>
+    } & unknown
+
     if (!this.qProxyInstance) {
-      this.qProxyInstance = createInnerProxy(async ({ path, args }) => {
+      this.qProxyInstance = createInnerProxy<TReMap>(async ({ path, args }) => {
         const key = path.join('::')
         if (!this.provider) {
           throw new Error('The provider is not set')
@@ -371,30 +399,20 @@ export class PinkContractPromise<
         return await this.query[key](this.provider?.address, { cert }, ...args)
       }, [])
     }
-    return this.qProxyInstance as {
-      [k in keyof TQueries]: <ResultType = Codec, TParams extends Array<any> = any[], ErrType extends Codec = Codec>(
-        ...params: TParams
-      ) => ContractCallResult<'promise', PinkContractCallOutcome<ILooseResult<ResultType, ErrType>>>
-    } & {
-      [k in keyof TTransactions]: <
-        ResultType = Codec,
-        TParams extends Array<any> = any[],
-        ErrType extends Codec = Codec,
-      >(
-        ...params: TParams
-      ) => ContractCallResult<'promise', PinkContractCallOutcome<ILooseResult<ResultType, ErrType>>>
-    }
+    return this.qProxyInstance as TReMap
   }
 
   private execProxyInstance: unknown = undefined
 
-  public get exec(): {
-    [k in keyof TTransactions]: <TParams extends Array<any> = any[]>(
-      ...params: TParams
-    ) => Promise<PinkContractSubmittableResult>
-  } {
+  public get exec() {
+    type TReMap = {
+      [k in keyof TTransactions]: TTransactions[k] extends PinkContractTx
+        ? <TParams extends Array<any> = any[]>(...params: TParams) => Promise<PinkContractSubmittableResult>
+        : TxProxy<TTransactions[k]>
+    } & unknown
+
     if (!this.execProxyInstance) {
-      this.execProxyInstance = createInnerProxy(async ({ path, args }) => {
+      this.execProxyInstance = createInnerProxy<TReMap>(async ({ path, args }) => {
         const key = path.join('::')
         if (!this.provider) {
           throw new Error('The provider is not set')
@@ -411,11 +429,7 @@ export class PinkContractPromise<
         return this._send(key, options, ...args)
       }, [])
     }
-    return this.execProxyInstance as {
-      [k in keyof TTransactions]: <TParams extends Array<any> = any[]>(
-        ...params: TParams
-      ) => Promise<PinkContractSubmittableResult>
-    }
+    return this.execProxyInstance as TReMap
   }
 
   public get send() {
