@@ -265,23 +265,30 @@ function createInnerProxy<TProxied = unknown>(callback: ProxyCallback, path: str
 //
 //
 
+type QueryProxyArgs<TParams extends Array<any> = any[]> = {
+  args: TParams
+  origin?: string | AccountId | Uint8Array
+} & Partial<PinkContractQueryOptions> &
+  unknown
+
 type QueryProxy<T, TParams extends Array<any> = any[], ResultType = Codec, ErrType extends Codec = Codec> = {
   [k in keyof T]: <TOverrideResultType = ResultType>(
-    ...params: TParams
+    args?: QueryProxyArgs<TParams>
   ) => ContractCallResult<'promise', PinkContractCallOutcome<ILooseResult<TOverrideResultType, ErrType>>>
 }
 
+type TxProxyArgs<TParams extends Array<any> = any[]> = {
+  args: TParams
+} & Partial<PinkContractSendOptions> &
+  unknown
+
 type TxProxy<T, TParams extends Array<any> = any[]> = {
-  [k in keyof T]: (...params: TParams) => Promise<PinkContractSubmittableResult>
+  [k in keyof T]: (args?: TxProxyArgs<TParams>) => Promise<PinkContractSubmittableResult>
 }
 
-type PinkQueryMapInner = Record<string, PinkContractQuery>
+type PinkQueryMap = Record<string, PinkContractQuery | Record<string, PinkContractQuery>>
 
-type PinkQueryMap = Record<string, PinkQueryMapInner | PinkContractQuery>
-
-type PinkCommandMappInner = Record<string, PinkContractTx>
-
-type PinkCommandMap = Record<string, PinkCommandMappInner | PinkContractTx>
+type PinkCommandMap = Record<string, PinkContractTx | Record<string, PinkContractTx>>
 
 //
 //
@@ -384,19 +391,23 @@ export class PinkContractPromise<
     type TReMap = {
       [k in keyof TMethods]: TMethods[k] extends PinkContractQuery
         ? <ResultType extends Codec = Codec, TParams extends Array<any> = any[], ErrType extends Codec = Codec>(
-            ...params: TParams
+            args?: QueryProxyArgs<TParams>
           ) => ContractCallResult<'promise', PinkContractCallOutcome<ILooseResult<ResultType, ErrType>>>
         : QueryProxy<TMethods[k]>
     } & unknown
 
     if (!this.qProxyInstance) {
-      this.qProxyInstance = createInnerProxy<TReMap>(async ({ path, args }) => {
+      this.qProxyInstance = createInnerProxy<TReMap>(async ({ path, args: [arg] }) => {
+        const { args = [], origin, ...options } = (arg || {}) as QueryProxyArgs
         const key = path.join('::')
         if (!this.provider) {
           throw new Error('The provider is not set')
         }
-        const cert = await this.provider.signCertificate()
-        return await this.query[key](this.provider?.address, { cert }, ...args)
+        const _origin = origin || this.provider.address
+        if (!options.cert) {
+          options.cert = await this.provider.signCertificate()
+        }
+        return await this.query[key](_origin, options as PinkContractQueryOptions, ...args)
       }, [])
     }
     return this.qProxyInstance as TReMap
@@ -407,12 +418,13 @@ export class PinkContractPromise<
   public get exec() {
     type TReMap = {
       [k in keyof TTransactions]: TTransactions[k] extends PinkContractTx
-        ? <TParams extends Array<any> = any[]>(...params: TParams) => Promise<PinkContractSubmittableResult>
+        ? <TParams extends Array<any> = any[]>(args?: TxProxyArgs<TParams>) => Promise<PinkContractSubmittableResult>
         : TxProxy<TTransactions[k]>
     } & unknown
 
     if (!this.execProxyInstance) {
-      this.execProxyInstance = createInnerProxy<TReMap>(async ({ path, args }) => {
+      this.execProxyInstance = createInnerProxy<TReMap>(async ({ path, args: [arg] }) => {
+        const { args = [], ..._options } = (arg || {}) as TxProxyArgs
         const key = path.join('::')
         if (!this.provider) {
           throw new Error('The provider is not set')
@@ -425,6 +437,7 @@ export class PinkContractPromise<
           cert: await this.provider.signCertificate(),
           address: this.provider.address,
           provider: this.provider,
+          ..._options,
         }
         return this._send(key, options, ...args)
       }, [])
