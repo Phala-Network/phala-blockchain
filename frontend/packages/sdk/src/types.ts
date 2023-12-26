@@ -1,6 +1,8 @@
 import type { Abi } from '@polkadot/api-contract/Abi'
+import type { AccountId, Balance } from '@polkadot/types/interfaces'
 import type { Result, Struct, Vec, u128, u32, u8 } from '@polkadot/types-codec'
 import type { IEnum, IMap } from '@polkadot/types-codec/types'
+import type { PinkContractPromise, PinkContractQuery, PinkContractTx } from './contracts/PinkContract'
 import { type EvmAccountMappingProvider } from './providers/EvmAccountMappingProvider'
 import { type KeyringPairProvider } from './providers/KeyringPairProvider'
 import { type UIKeyringProvider } from './providers/UIKeyringProvider'
@@ -36,3 +38,13 @@ interface PalletBalancesAccountData extends Struct {
 }
 
 export type AnyProvider = EvmAccountMappingProvider | UIKeyringProvider | KeyringPairProvider
+
+//
+// Typing for the SystemContract
+//
+
+export type SystemContract = PinkContractPromise<{
+  owner: PinkContractQuery<[], [AccountId]>
+  ['system::totalBalanceOf']: PinkContractQuery<[string | AccountId], Balance>
+  ['system::freeBalanceOf']: PinkContractQuery<[string | AccountId], Balance>
+}>

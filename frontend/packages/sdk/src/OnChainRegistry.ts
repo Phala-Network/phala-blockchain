@@ -13,6 +13,7 @@ import { KeyringPairProvider } from './providers/KeyringPairProvider'
 import { type CertificateData, signCertificate } from './pruntime/certificate'
 import createPruntimeClient from './pruntime/createPruntimeClient'
 import { pruntime_rpc } from './pruntime/proto'
+import type { SystemContract } from './types'
 
 export class UnexpectedEndpointError extends Error {}
 
@@ -79,7 +80,7 @@ export class OnChainRegistry {
   #alice: KeyringPair | undefined
   #cert: CertificateData | undefined
 
-  #systemContract: PinkContractPromise | undefined
+  #systemContract: SystemContract | undefined
   #loggerContract: PinkLoggerContractPromise | undefined
 
   constructor(api: ApiPromise) {
@@ -566,8 +567,8 @@ export class OnChainRegistry {
       system.query['system::freeBalanceOf'](cert.address, { cert }, address),
     ])
     return {
-      total: (totalBalanceOf as Result<U64, any>).asOk.toBn(),
-      free: (freeBalanceOf as Result<U64, any>).asOk.toBn(),
+      total: totalBalanceOf.asOk,
+      free: freeBalanceOf.asOk,
     }
   }
 
