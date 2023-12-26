@@ -352,7 +352,15 @@ export class PinkContractPromise<
 
   private qProxyInstance: unknown = undefined
 
-  public get q() {
+  public get q(): {
+    [k in keyof TQueries]: <ResultType = Codec, TParams extends Array<any> = any[], ErrType extends Codec = Codec>(
+      ...params: TParams
+    ) => ContractCallResult<'promise', PinkContractCallOutcome<ILooseResult<ResultType, ErrType>>>
+  } & {
+    [k in keyof TTransactions]: <ResultType = Codec, TParams extends Array<any> = any[], ErrType extends Codec = Codec>(
+      ...params: TParams
+    ) => ContractCallResult<'promise', PinkContractCallOutcome<ILooseResult<ResultType, ErrType>>>
+  } {
     if (!this.qProxyInstance) {
       this.qProxyInstance = createInnerProxy(async ({ path, args }) => {
         const key = path.join('::')
@@ -363,12 +371,28 @@ export class PinkContractPromise<
         return await this.query[key](this.provider?.address, { cert }, ...args)
       }, [])
     }
-    return this.qProxyInstance
+    return this.qProxyInstance as {
+      [k in keyof TQueries]: <ResultType = Codec, TParams extends Array<any> = any[], ErrType extends Codec = Codec>(
+        ...params: TParams
+      ) => ContractCallResult<'promise', PinkContractCallOutcome<ILooseResult<ResultType, ErrType>>>
+    } & {
+      [k in keyof TTransactions]: <
+        ResultType = Codec,
+        TParams extends Array<any> = any[],
+        ErrType extends Codec = Codec,
+      >(
+        ...params: TParams
+      ) => ContractCallResult<'promise', PinkContractCallOutcome<ILooseResult<ResultType, ErrType>>>
+    }
   }
 
   private execProxyInstance: unknown = undefined
 
-  public get exec() {
+  public get exec(): {
+    [k in keyof TTransactions]: <TParams extends Array<any> = any[]>(
+      ...params: TParams
+    ) => Promise<PinkContractSubmittableResult>
+  } {
     if (!this.execProxyInstance) {
       this.execProxyInstance = createInnerProxy(async ({ path, args }) => {
         const key = path.join('::')
@@ -387,7 +411,11 @@ export class PinkContractPromise<
         return this._send(key, options, ...args)
       }, [])
     }
-    return this.execProxyInstance
+    return this.execProxyInstance as {
+      [k in keyof TTransactions]: <TParams extends Array<any> = any[]>(
+        ...params: TParams
+      ) => Promise<PinkContractSubmittableResult>
+    }
   }
 
   public get send() {
