@@ -179,6 +179,7 @@ pub fn development_config() -> ChainSpec {
         None,
         None,
         Default::default(),
+        wasm_binary_unwrap()
     )
 }
 
@@ -198,6 +199,7 @@ pub fn development_config_custom_block_duration(bd: u64) -> ChainSpec {
         None,
         None,
         Default::default(),
+        wasm_binary_unwrap()
     )
 }
 
@@ -225,6 +227,7 @@ pub fn local_config() -> ChainSpec {
         None,
         Some(properties),
         Default::default(),
+        wasm_binary_unwrap()
     )
 }
 
@@ -272,6 +275,7 @@ pub fn testnet_local_config() -> ChainSpec {
         None,
         Some(properties),
         Default::default(),
+        wasm_binary_unwrap()
     )
 }
 
@@ -427,7 +431,6 @@ pub fn testnet_genesis(
 
 	RuntimeGenesisConfig {
         system: SystemConfig {
-            code: wasm_binary_unwrap().to_vec(),
             ..Default::default()
         },
         balances: BalancesConfig {
@@ -539,6 +542,7 @@ pub(crate) mod tests {
             None,
             None,
             Default::default(),
+            wasm_binary_unwrap()
         )
     }
 
@@ -558,6 +562,7 @@ pub(crate) mod tests {
             None,
             None,
             Default::default(),
+            wasm_binary_unwrap()
         )
     }
 

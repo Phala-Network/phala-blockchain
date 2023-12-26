@@ -1,6 +1,6 @@
 use frame_support::weights::Weight;
 use pallet_contracts::Determinism;
-use pallet_contracts_primitives::StorageDeposit;
+use pallet_contracts::StorageDeposit;
 use pink_capi::{types::ExecutionMode, v1::ecall::TransactionArguments};
 use sp_runtime::DispatchError;
 
@@ -15,11 +15,11 @@ type EventRecord = frame_system::EventRecord<
     <PinkRuntime as frame_system::Config>::Hash,
 >;
 
-pub type ContractExecResult = pallet_contracts_primitives::ContractExecResult<Balance, EventRecord>;
+pub type ContractExecResult = pallet_contracts::ContractExecResult<Balance, EventRecord>;
 pub type ContractInstantiateResult =
-    pallet_contracts_primitives::ContractInstantiateResult<AccountId, Balance, EventRecord>;
+    pallet_contracts::ContractInstantiateResult<AccountId, Balance, EventRecord>;
 pub type ContractResult<T> =
-    pallet_contracts_primitives::ContractResult<Result<T, DispatchError>, Balance, EventRecord>;
+    pallet_contracts::ContractResult<Result<T, DispatchError>, Balance, EventRecord>;
 
 macro_rules! define_mask_fn {
     ($name: ident, $bits: expr, $typ: ty) => {
@@ -168,7 +168,7 @@ pub fn instantiate(
             transfer,
             gas_limit,
             storage_deposit_limit,
-            pallet_contracts_primitives::Code::Existing(code_hash),
+            pallet_contracts::Code::Existing(code_hash),
             input_data,
             salt,
             pallet_contracts::DebugInfo::UnsafeDebug,

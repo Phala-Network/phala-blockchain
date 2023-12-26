@@ -66,10 +66,11 @@ impl pallet_balances::Config for PinkRuntime {
     type MaxLocks = MaxLocks;
     type MaxReserves = MaxReserves;
     type ReserveIdentifier = [u8; 8];
-    type FreezeIdentifier = ();
+    type FreezeIdentifier = RuntimeFreezeReason;
     type MaxHolds = MaxHolds;
     type MaxFreezes = ();
     type RuntimeHoldReason = RuntimeHoldReason;
+    type RuntimeFreezeReason = RuntimeFreezeReason;
 }
 
 impl frame_system::Config for PinkRuntime {
@@ -169,6 +170,7 @@ impl Config for PinkRuntime {
     type RuntimeHoldReason = RuntimeHoldReason;
     type Debug = ();
     type Environment = ();
+    type Xcm = ();
 }
 
 #[test]

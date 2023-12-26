@@ -6,14 +6,14 @@ use jsonrpsee::{
 };
 use log::{debug, error, info, warn};
 use paste::paste;
-use phactory_api::blocks::{AuthorityList, AuthoritySet, AuthoritySetChange, HeaderToSync};
+use phactory_api::blocks::{AuthoritySetChange, HeaderToSync};
 use phactory_api::prpc::{HeadersToSync, ParaHeadersToSync};
 use phactory_api::{
     blocks::GenesisBlockInfo,
     prpc::{Blocks, InitRuntimeRequest, Message},
 };
 use phala_types::AttestationProvider;
-use phaxt::sp_core::{Decode, Encode, H256};
+use phaxt::sp_core::{Encode, H256};
 use phaxt::subxt::rpc::types as subxt_types;
 use phaxt::{ChainApi, RpcClient};
 
@@ -26,7 +26,6 @@ use pherry::{
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
-use sp_consensus_grandpa::{VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 use std::collections::HashMap;
 use std::mem::size_of_val;
 use std::sync::Arc;
@@ -176,7 +175,7 @@ impl DataSourceCacheItem {
                     let bytes_len = e.iter().flatten().collect::<Vec<_>>().len();
                     ((e.len() + 1) * size_of_val(e)) + bytes_len
                 }
-            }
+            },
             DataSourceCacheItem::CurrentSetId(_) => 12,
         };
         ret
@@ -1056,30 +1055,8 @@ impl DataSourceManager {
         hash: Hash,
     ) -> Result<Arc<DataSourceCacheItem>> {
         let relay_api = use_relaychain_api!(self, false).ok_or(NoValidDataSource)?;
-        let id_key = phaxt::dynamic::storage_key("Grandpa", "CurrentSetId");
-        let value = relay_api
-            .rpc()
-            .storage(GRANDPA_AUTHORITIES_KEY, Some(hash))
-            .await?
-            .ok_or(NoAuthorityKeyFound)?
-            .0;
-        let list: AuthorityList = VersionedAuthorityList::decode(&mut value.as_slice())
-            .expect("Failed to decode VersionedAuthorityList")
-            .into();
-        let id = relay_api.current_set_id(Some(hash)).await?;
-        // Proof
-        let proof = chain_client::read_proofs(
-            &relay_api,
-            Some(hash),
-            vec![GRANDPA_AUTHORITIES_KEY, &id_key],
-        )
-        .await?;
-        Ok(Arc::new(DataSourceCacheItem::AuthoritySetChange(
-            AuthoritySetChange {
-                authority_set: AuthoritySet { list, id },
-                authority_proof: proof,
-            },
-        )))
+        let auth_set = get_authority_with_proof_at(&relay_api, hash).await?;
+        Ok(Arc::new(DataSourceCacheItem::AuthoritySetChange(auth_set)))
     }
     pub async fn get_authority_with_proof_at(
         self: Arc<Self>,
@@ -1104,11 +1081,11 @@ impl DataSourceManager {
     ) -> Result<Arc<DataSourceCacheItem>> {
         let relay_api = use_relaychain_api!(self, false).ok_or(NoValidDataSource)?;
         let block = get_block_at(&relay_api, None).await?.0.block;
-        Ok(Arc::new(DataSourceCacheItem::LatestRelayBlockNumber(block.header.number)))
+        Ok(Arc::new(DataSourceCacheItem::LatestRelayBlockNumber(
+            block.header.number,
+        )))
     }
-    pub async fn get_latest_relay_block_num(
-        self: Arc<Self>,
-    ) -> Result<u32> {
+    pub async fn get_latest_relay_block_num(self: Arc<Self>) -> Result<u32> {
         let key = "lrbn".to_string();
         let cache = self.cache.clone();
         match cache
@@ -1129,8 +1106,11 @@ impl DataSourceManager {
     ) -> Result<Arc<DataSourceCacheItem>> {
         let relay_api = use_relaychain_api!(self, true).ok_or(NoValidDataSource)?;
         let para_api = use_parachain_api!(self, true).ok_or(NoValidDataSource)?;
-        let finalized_header = get_finalized_header(&relay_api, &para_api, last_header_hash).await?;
-        Ok(Arc::new(DataSourceCacheItem::FinalizedHeader(finalized_header)))
+        let finalized_header =
+            get_finalized_header(&relay_api, &para_api, last_header_hash).await?;
+        Ok(Arc::new(DataSourceCacheItem::FinalizedHeader(
+            finalized_header,
+        )))
     }
     pub async fn get_finalized_header(
         self: Arc<Self>,
@@ -1158,10 +1138,7 @@ impl DataSourceManager {
         let current_set_id = relay_api.current_set_id(hash).await?;
         Ok(Arc::new(DataSourceCacheItem::CurrentSetId(current_set_id)))
     }
-    pub async fn get_current_set_id(
-        self: Arc<Self>,
-        hash: Option<Hash>,
-    ) -> Result<u64> {
+    pub async fn get_current_set_id(self: Arc<Self>, hash: Option<Hash>) -> Result<u64> {
         let key = format!("rcsi:{hash:?}");
         let cache = self.cache.clone();
         match cache

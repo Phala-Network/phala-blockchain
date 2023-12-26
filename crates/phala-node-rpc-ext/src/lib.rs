@@ -9,10 +9,12 @@ use jsonrpsee::{
     RpcModule,
 };
 use pallet_mq_runtime_api::MqApi;
-use sc_client_api::blockchain::{HeaderBackend, HeaderMetadata};
-use sc_client_api::{Backend, BlockBackend, StorageProvider};
+use sc_client_api::{
+    blockchain::{HeaderBackend, HeaderMetadata},
+    Backend, BlockBackend, StateBackend, StorageProvider,
+};
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
-use sp_api::{ApiExt, Core, ProvideRuntimeApi, StateBackend};
+use sp_api::{ApiExt, Core, ProvideRuntimeApi};
 use sp_runtime::traits::Header;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::fmt::Display;

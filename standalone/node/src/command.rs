@@ -23,7 +23,6 @@ use crate::{
     Cli, Subcommand,
 };
 use frame_benchmarking_cli::*;
-use node_executor::ExecutorDispatch;
 use node_runtime::{Block, ExistentialDeposit, RuntimeApi};
 use sc_cli::SubstrateCli;
 use sc_service::PartialComponents;
@@ -102,7 +101,7 @@ pub fn run() -> sc_cli::Result<()> {
         Some(Subcommand::Inspect(cmd)) => {
             let runner = cli.create_runner(cmd)?;
 
-            runner.sync_run(|config| cmd.run::<Block, RuntimeApi, ExecutorDispatch>(config))
+            runner.sync_run(|config| cmd.run::<Block, RuntimeApi>(config))
         }
         Some(Subcommand::Benchmark(cmd)) => {
             let runner = cli.create_runner(cmd)?;
@@ -255,34 +254,6 @@ pub fn run() -> sc_cli::Result<()> {
                 Ok((cmd.run(client, backend, Some(aux_revert)), task_manager))
             })
         }
-        #[cfg(feature = "try-runtime")]
-        Some(Subcommand::TryRuntime(cmd)) => {
-            use sc_executor::{sp_wasm_interface::ExtendedHostFunctions, NativeExecutionDispatch};
-
-            let runner = cli.create_runner(cmd)?;
-            runner.async_run(|config| {
-                // we don't need any of the components of new_partial, just a runtime, or a task
-                // manager to do `async_run`.
-                let registry = config.prometheus_config.as_ref().map(|cfg| &cfg.registry);
-                let task_manager =
-                    sc_service::TaskManager::new(config.tokio_handle.clone(), registry)
-                        .map_err(|e| sc_cli::Error::Service(sc_service::Error::Prometheus(e)))?;
-
-                let info_provider = substrate_info(SLOT_DURATION);
-
-                Ok((
-                    cmd.run::<Block, ExtendedHostFunctions<
-                        sp_io::SubstrateHostFunctions,
-                        <ExecutorDispatch as NativeExecutionDispatch>::ExtendHostFunctions,
-                    >, _>(Some(info_provider)),
-                    task_manager,
-                ))
-            })
-        }
-        #[cfg(not(feature = "try-runtime"))]
-        Some(Subcommand::TryRuntime) => Err("TryRuntime wasn't enabled when building the node. \
-                You can enable it with `--features try-runtime`."
-            .into()),
         Some(Subcommand::ChainInfo(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.sync_run(|config| cmd.run::<Block>(&config))
