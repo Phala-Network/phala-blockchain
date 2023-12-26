@@ -230,6 +230,35 @@ interface InkResponse extends Struct {
   result: Result<InkQueryOk, InkQueryError>
 }
 
+interface ProxyCallbackOptions {
+  path: string[]
+  args: unknown[]
+}
+type ProxyCallback = (opts: ProxyCallbackOptions) => unknown
+
+const noop = () => {
+  /* noop */
+}
+
+function createInnerProxy(callback: ProxyCallback, path: string[]) {
+  const proxy: unknown = new Proxy(noop, {
+    get(_obj, key) {
+      if (typeof key !== 'string' || key === 'then') {
+        return undefined
+      }
+      return createInnerProxy(callback, [...path, key])
+    },
+    apply(_target, _thisArg, args) {
+      const isApply = path[path.length - 1] === 'apply'
+      return callback({
+        path: isApply ? path.slice(0, -1) : path,
+        args: isApply ? args[1] : args,
+      })
+    },
+  })
+  return proxy
+}
+
 export class PinkContractPromise<
   TQueries extends Record<string, PinkContractQuery> = Record<string, PinkContractQuery>,
   TTransactions extends Record<string, PinkContractTx> = Record<string, PinkContractTx>,
@@ -319,6 +348,36 @@ export class PinkContractPromise<
   public withProvider(provider: AnyProvider): PinkContractPromise<TQueries, TTransactions> {
     this.provider = provider
     return this
+  }
+
+  public get q() {
+    return createInnerProxy(async ({ path, args }) => {
+      const key = path.join('::')
+      if (!this.provider) {
+        throw new Error('The provider is not set')
+      }
+      const cert = await this.provider.signCertificate()
+      return await this.query[key](this.provider?.address, { cert }, ...args)
+    }, [])
+  }
+
+  public get exec() {
+    return createInnerProxy(async ({ path, args }) => {
+      const key = path.join('::')
+      if (!this.provider) {
+        throw new Error('The provider is not set')
+      }
+      const meta = this.abi.messages.filter((i) => i.method === key)
+      if (!meta || !meta.length) {
+        throw new Error('Method not found')
+      }
+      const options: PinkContractSendOptions = {
+        cert: await this.provider.signCertificate(),
+        address: this.provider.address,
+        provider: this.provider,
+      }
+      return this._send(key, options, ...args)
+    }, [])
   }
 
   public get send() {
