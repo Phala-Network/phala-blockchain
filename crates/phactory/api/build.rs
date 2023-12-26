@@ -41,6 +41,13 @@ fn main() {
     ] {
         builder = builder.field_attribute(field, "#[serde(default)]");
     }
+    for field in [
+        "AllowHandoverToRequest.measurement",
+        "SigInfo.pubkey",
+        "SigInfo.signature",
+    ] {
+        builder = builder.field_attribute(field, "#[serde(with=\"hex::serde\")]");
+    }
     builder
         .compile(&["pruntime_rpc.proto"], &[render_dir])
         .unwrap();
