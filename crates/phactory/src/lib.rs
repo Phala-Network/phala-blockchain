@@ -270,6 +270,10 @@ pub struct Phactory<Platform> {
 
     #[serde(skip)]
     pub(crate) cluster_state_to_apply: Option<ClusterState<'static>>,
+
+    /// The pRuntime measurement that allowed by the Council.
+    #[serde(skip)]
+    allow_handover_to: Option<Vec<u8>>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -310,6 +314,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             pending_effects: Vec::new(),
             started_at: Instant::now(),
             cluster_state_to_apply: None,
+            allow_handover_to: None,
         }
     }
 
