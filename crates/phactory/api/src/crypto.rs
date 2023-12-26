@@ -61,8 +61,10 @@ impl From<CodecError> for SignatureVerifyError {
     }
 }
 
+#[derive(Default, Clone, Encode, Decode, Debug)]
 pub enum MessageType {
     Certificate { ttl: u32 },
+    #[default]
     ContractQuery,
 }
 
@@ -216,38 +218,39 @@ impl CertificateBody {
         sig_type: SignatureType,
         signature: &[u8],
     ) -> Result<AccountId32, SignatureVerifyError> {
-        let signer = match sig_type {
-            SignatureType::Ed25519 => {
-                recover::<sp_core::ed25519::Pair>(&self.pubkey, signature, msg)?.into()
-            }
-            SignatureType::Sr25519 => {
-                recover::<sp_core::sr25519::Pair>(&self.pubkey, signature, msg)?.into()
-            }
-            SignatureType::Ecdsa => account_id_from_evm_pubkey(recover::<sp_core::ecdsa::Pair>(
-                &self.pubkey,
-                signature,
-                msg,
-            )?),
-            SignatureType::Ed25519WrapBytes => {
-                let wrapped = wrap_bytes(msg);
-                recover::<sp_core::ed25519::Pair>(&self.pubkey, signature, &wrapped)?.into()
-            }
-            SignatureType::Sr25519WrapBytes => {
-                let wrapped = wrap_bytes(msg);
-                recover::<sp_core::sr25519::Pair>(&self.pubkey, signature, &wrapped)?.into()
-            }
-            SignatureType::EcdsaWrapBytes => {
-                let wrapped = wrap_bytes(msg);
-                account_id_from_evm_pubkey(recover::<sp_core::ecdsa::Pair>(
-                    &self.pubkey,
-                    signature,
-                    &wrapped,
-                )?)
-            }
-            SignatureType::Eip712 => {
-                account_id_from_evm_pubkey(eip712::recover(&self.pubkey, signature, msg, msg_type)?)
-            }
-        };
-        Ok(signer)
+        recover_signer_account(&self.pubkey, msg, msg_type, sig_type, signature)
     }
+}
+
+pub fn recover_signer_account(
+    pubkey: &[u8],
+    msg: &[u8],
+    msg_type: MessageType,
+    sig_type: SignatureType,
+    signature: &[u8],
+) -> Result<AccountId32, SignatureVerifyError> {
+    use account_id_from_evm_pubkey as evm_account;
+    let signer = match sig_type {
+        SignatureType::Ed25519 => recover::<sp_core::ed25519::Pair>(pubkey, signature, msg)?.into(),
+        SignatureType::Sr25519 => recover::<sp_core::sr25519::Pair>(pubkey, signature, msg)?.into(),
+        SignatureType::Ecdsa => {
+            evm_account(recover::<sp_core::ecdsa::Pair>(pubkey, signature, msg)?)
+        }
+        SignatureType::Ed25519WrapBytes => {
+            let wrapped = wrap_bytes(msg);
+            recover::<sp_core::ed25519::Pair>(pubkey, signature, &wrapped)?.into()
+        }
+        SignatureType::Sr25519WrapBytes => {
+            let wrapped = wrap_bytes(msg);
+            recover::<sp_core::sr25519::Pair>(pubkey, signature, &wrapped)?.into()
+        }
+        SignatureType::EcdsaWrapBytes => {
+            let wrapped = wrap_bytes(msg);
+            evm_account(recover::<sp_core::ecdsa::Pair>(
+                pubkey, signature, &wrapped,
+            )?)
+        }
+        SignatureType::Eip712 => evm_account(eip712::recover(pubkey, signature, msg, msg_type)?),
+    };
+    Ok(signer)
 }
