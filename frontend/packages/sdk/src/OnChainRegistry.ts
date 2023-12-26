@@ -1,6 +1,5 @@
 import { type ApiPromise, Keyring } from '@polkadot/api'
 import { type KeyringPair } from '@polkadot/keyring/types'
-import type { Result, U64 } from '@polkadot/types'
 import { Enum, Map, Option, Text, U8aFixed, Vec } from '@polkadot/types'
 import { AccountId } from '@polkadot/types/interfaces'
 import { BN } from '@polkadot/util'
