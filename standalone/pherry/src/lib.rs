@@ -20,8 +20,10 @@ use phaxt::{
     subxt::{self, tx::TxPayload},
     RpcClient,
 };
-use sp_consensus_grandpa::{AuthorityList, SetId, VersionedAuthorityList};
+use sp_consensus_grandpa::{AuthorityList, SetId};
 use subxt::config::{substrate::Era, Header as _};
+
+type VersionedAuthorityList = (u8, AuthorityList);
 
 mod endpoint;
 mod error;
@@ -463,7 +465,7 @@ pub async fn get_authority_with_proof_at(
     let list: AuthorityList = if authorities_key == old_authorities_key {
         VersionedAuthorityList::decode(&mut value.as_slice())
             .expect("Failed to decode VersionedAuthorityList")
-            .into()
+            .1
     } else {
         AuthorityList::decode(&mut value.as_slice()).expect("Failed to decode AuthorityList")
     };

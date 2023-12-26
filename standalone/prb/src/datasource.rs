@@ -26,7 +26,6 @@ use pherry::{
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
-use sp_consensus_grandpa::{VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 use std::collections::HashMap;
 use std::mem::size_of_val;
 use std::sync::Arc;
@@ -35,6 +34,9 @@ use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use uuid::Uuid;
+
+type VersionedAuthorityList = (u8, AuthorityList);
+const GRANDPA_AUTHORITIES_KEY: &[u8] = b":grandpa_authorities";
 
 static CACHE_SIZE_EXPANSION: f64 = 1.25;
 
@@ -176,7 +178,7 @@ impl DataSourceCacheItem {
                     let bytes_len = e.iter().flatten().collect::<Vec<_>>().len();
                     ((e.len() + 1) * size_of_val(e)) + bytes_len
                 }
-            }
+            },
             DataSourceCacheItem::CurrentSetId(_) => 12,
         };
         ret
@@ -1065,7 +1067,7 @@ impl DataSourceManager {
             .0;
         let list: AuthorityList = VersionedAuthorityList::decode(&mut value.as_slice())
             .expect("Failed to decode VersionedAuthorityList")
-            .into();
+            .1;
         let id = relay_api.current_set_id(Some(hash)).await?;
         // Proof
         let proof = chain_client::read_proofs(
