@@ -8990,6 +8990,7 @@ dependencies = [
  "ethers",
  "frame-system",
  "hex",
+ "hex-literal",
  "im",
  "insta",
  "log",
@@ -9006,6 +9007,7 @@ dependencies = [
  "prpc-build",
  "reqwest",
  "scale-info",
+ "secp256k1 0.28.0",
  "serde",
  "serde_json",
  "sp-application-crypto",
@@ -12984,6 +12986,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "secp256k1"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2acea373acb8c21ecb5a23741452acd2593ed44ee3d343e72baaa143bc89d0d5"
+dependencies = [
+ "secp256k1-sys 0.9.1",
+]
+
+[[package]]
 name = "secp256k1-sys"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12997,6 +13008,15 @@ name = "secp256k1-sys"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70a129b9e9efbfb223753b9163c4ab3b13cff7fd9c7f010fbac25ab4099fa07e"
+dependencies = [
+ "cc",
+]
+
+[[package]]
+name = "secp256k1-sys"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4dd97a086ec737e30053fd5c46f097465d25bb81dd3608825f65298c4c98be83"
 dependencies = [
  "cc",
 ]
