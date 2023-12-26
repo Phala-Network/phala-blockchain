@@ -473,7 +473,12 @@ pub async fn get_authority_with_proof_at(
     // Set id
     let id = api.current_set_id(Some(hash)).await?;
     // Proof
-    let proof = chain_client::read_proofs(api, Some(hash), vec![authorities_key, &id_key]).await?;
+    let proof = chain_client::read_proofs(
+        api,
+        Some(hash),
+        vec![old_authorities_key, &alt_authorities_key, &id_key],
+    )
+    .await?;
     Ok(AuthoritySetChange {
         authority_set: AuthoritySet { list, id },
         authority_proof: proof,
