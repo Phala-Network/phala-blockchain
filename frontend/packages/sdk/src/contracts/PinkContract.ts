@@ -350,34 +350,44 @@ export class PinkContractPromise<
     return this
   }
 
+  private qProxyInstance: unknown = undefined
+
   public get q() {
-    return createInnerProxy(async ({ path, args }) => {
-      const key = path.join('::')
-      if (!this.provider) {
-        throw new Error('The provider is not set')
-      }
-      const cert = await this.provider.signCertificate()
-      return await this.query[key](this.provider?.address, { cert }, ...args)
-    }, [])
+    if (!this.qProxyInstance) {
+      this.qProxyInstance = createInnerProxy(async ({ path, args }) => {
+        const key = path.join('::')
+        if (!this.provider) {
+          throw new Error('The provider is not set')
+        }
+        const cert = await this.provider.signCertificate()
+        return await this.query[key](this.provider?.address, { cert }, ...args)
+      }, [])
+    }
+    return this.qProxyInstance
   }
 
+  private execProxyInstance: unknown = undefined
+
   public get exec() {
-    return createInnerProxy(async ({ path, args }) => {
-      const key = path.join('::')
-      if (!this.provider) {
-        throw new Error('The provider is not set')
-      }
-      const meta = this.abi.messages.filter((i) => i.method === key)
-      if (!meta || !meta.length) {
-        throw new Error('Method not found')
-      }
-      const options: PinkContractSendOptions = {
-        cert: await this.provider.signCertificate(),
-        address: this.provider.address,
-        provider: this.provider,
-      }
-      return this._send(key, options, ...args)
-    }, [])
+    if (!this.execProxyInstance) {
+      this.execProxyInstance = createInnerProxy(async ({ path, args }) => {
+        const key = path.join('::')
+        if (!this.provider) {
+          throw new Error('The provider is not set')
+        }
+        const meta = this.abi.messages.filter((i) => i.method === key)
+        if (!meta || !meta.length) {
+          throw new Error('Method not found')
+        }
+        const options: PinkContractSendOptions = {
+          cert: await this.provider.signCertificate(),
+          address: this.provider.address,
+          provider: this.provider,
+        }
+        return this._send(key, options, ...args)
+      }, [])
+    }
+    return this.execProxyInstance
   }
 
   public get send() {
