@@ -42,7 +42,7 @@ mod types;
 use im::OrdMap as BTreeMap;
 use std::fmt;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use error::JustificationError;
 use justification::GrandpaJustification;
 use log::{error, info};
@@ -281,14 +281,21 @@ where
         // By encoding the given set we should have an easy way to compare
         // with the stuff we get out of storage via `read_value`
         let encoded_validator_set = validator_set.encode();
-        let matches = if let Some(authorities) = checker.read_value(b":grandpa_authorities")? {
-            encoded_validator_set.get(..) == authorities.get(1..)
-        } else {
-            let key = utils::storage_prefix("Grandpa", "Authorities");
-            let authorities = checker
-                .read_value(&key)?
-                .ok_or_else(|| anyhow::Error::msg(Error::StorageValueUnavailable))?;
+
+        let alt_key = utils::storage_prefix("Grandpa", "Authorities");
+        let old_key = b":grandpa_authorities";
+
+        let matches = if let Some(authorities) = checker
+            .read_value(&alt_key)
+            .context("Faield to read Grandpa::Authorities")?
+        {
             encoded_validator_set == authorities
+        } else {
+            let authorities = checker
+                .read_value(old_key)
+                .context("Faield to read :grandpa_authorities")?
+                .ok_or_else(|| anyhow::anyhow!("Missing grandpa authorities"))?;
+            encoded_validator_set.get(..) == authorities.get(1..)
         };
 
         // TODO: check set_id
