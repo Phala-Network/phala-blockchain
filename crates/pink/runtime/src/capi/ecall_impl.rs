@@ -294,9 +294,10 @@ impl ecall::ECalls for ECallImpl {
 
 /// Clip gas limit to 0.5 second for tx, 10 seconds for query
 fn sanitize_args(mut args: TransactionArguments, mode: ExecutionMode) -> TransactionArguments {
+    const GAS_PER_SECOND: u64 = WEIGHT_REF_TIME_PER_SECOND * 5;
     let gas_limit = match mode {
-        ExecutionMode::Transaction | ExecutionMode::Estimating => WEIGHT_REF_TIME_PER_SECOND / 2,
-        ExecutionMode::Query => WEIGHT_REF_TIME_PER_SECOND * 10,
+        ExecutionMode::Transaction | ExecutionMode::Estimating => GAS_PER_SECOND / 2,
+        ExecutionMode::Query => GAS_PER_SECOND * 10,
     };
     args.gas_limit = args.gas_limit.min(gas_limit);
     args
