@@ -42,6 +42,11 @@ const SupportedWallets: WalletConstant[] = [
   },
 ]
 
+export type SupportedWallet = WalletConstant & {
+  installed: boolean
+  version: string | undefined
+} & unknown
+
 type WalletExtensionNameVersionPair = [string, string]
 
 let checkInstalledWalletExtensions = false
