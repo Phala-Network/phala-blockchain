@@ -4,9 +4,9 @@ Suppose we have two version of pRuntime A and B, where A is stucked, and we want
 
 SGX MR of A: 0x10c24c0e6bf8a86634417fcd8f934e62439c62907a6f1bc726906a50b054ddf10000000083d719e77deaca1470f6baf62a4d774303c899db69020f9c70ee1dfc08c7ce9e
 SGX MR of B: 0xf42f7e095735702d1d3c6ac5fa3b4581d3c3673d3c5ce261a43fe782ccb3e1dc0000000083d719e77deaca1470f6baf62a4d774303c899db69020f9c70ee1dfc08c7ce9e
-Genisis block hash: 0x0a15d23307d533d581291ff6dedca9ca10927c7dff6f4df9e8c3bf00bc5a6ded (This can be get in the log of pruntime)
+Genisis block hash: 0x0a15d23307d533d581291ff6dedca9ca10927c7dff6f4df9e8c3bf00bc5a6ded (Can be found in prpc::get_info)
 
-Then the workflow would be:
+Then the steps would be:
 
 1. Ask at least half of the council members to sign a message as below:
 ```
