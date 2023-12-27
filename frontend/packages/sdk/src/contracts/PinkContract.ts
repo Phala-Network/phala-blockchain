@@ -470,8 +470,8 @@ export class PinkContractPromise<
     return this.#query as TQueries & { [k in keyof TTransactions]: PinkContractQuery }
   }
 
-  public get tx(): TTransactions {
-    return this.#tx as TTransactions
+  public get tx(): MapMessageTx {
+    return this.#tx as MapMessageTx
   }
 
   #inkQuery = (
