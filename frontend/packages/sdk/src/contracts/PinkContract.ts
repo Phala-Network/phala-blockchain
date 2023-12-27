@@ -403,9 +403,10 @@ export class PinkContractPromise<
         if (!this.provider) {
           throw new Error('The provider is not set')
         }
-        const _origin = origin || this.provider.address
+        let _origin = origin || this.provider.address
         if (!options.cert) {
           options.cert = await this.provider.signCertificate()
+          _origin = options.cert.address
         }
         return await this.query[key](_origin, options as PinkContractQueryOptions, ...args)
       }, [])
