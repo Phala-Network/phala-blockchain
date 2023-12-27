@@ -2039,12 +2039,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let mut phactory = self.lock_phactory(false, true)?;
         let runtime_state = phactory.runtime_state()?;
         let council_members = runtime_state.chain_storage.council_members();
+        if request.signatures.len() > council_members.len() {
+            return Err(from_display("Too many signatures"));
+        }
         let genesis_hash = hex::encode(runtime_state.genesis_block_hash);
         let mr_to = hex::encode(&request.measurement);
         let mr_from = hex::encode(my_measurement()?);
         let signed_message = format!("Allow pRuntime to handover from 0x{mr_from} to 0x{mr_to} on chain of genesis 0x{genesis_hash}").into_bytes();
-        debug!("Signed message : {:?}", hex::encode(&signed_message));
-        let mut indivaduals = std::collections::BTreeSet::new();
+        debug!("Signed message: {:?}", hex::encode(&signed_message));
+        let mut signers = std::collections::BTreeSet::new();
         for sig in &request.signatures {
             let sig_type = pb::SignatureType::from_i32(sig.signature_type)
                 .ok_or_else(|| from_display("Invalid signature type"))?;
@@ -2055,13 +2058,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                 sig_type,
                 &sig.signature,
             )
-            .map_err(|_| from_display(format!("Invalid signature of {:?}", &sig.pubkey)))?;
+            .map_err(|_| from_display("Invalid signature"))?;
             if !council_members.contains(&signer) {
                 return Err(from_display("Not a council member"));
             }
-            indivaduals.insert(signer);
+            debug!("Signed by {signer:?}");
+            signers.insert(signer);
         }
-        let percent = indivaduals.len() * 100 / council_members.len();
+        let percent = signers.len() * 100 / council_members.len();
         if percent < 50 {
             return Err(from_display("Not enough signatures"));
         }
