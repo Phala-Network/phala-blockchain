@@ -389,7 +389,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let chain_storage = ChainStorage::from_pairs(genesis_state.into_iter());
         let para_id = chain_storage.para_id();
         info!(
-            "Genesis state loaded: root={:?}, para_id={para_id}",
+            "Genesis state loaded: root={:?}, para_id={para_id}, genesis_hash={genesis_block_hash:?}",
             chain_storage.root()
         );
 
@@ -2043,6 +2043,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let mr_to = hex::encode(&request.measurement);
         let mr_from = hex::encode(my_measurement()?);
         let signed_message = format!("Allow pRuntime to handover from 0x{mr_from} to 0x{mr_to} on chain of genesis 0x{genesis_hash}").into_bytes();
+        debug!("Signed message : {:?}", hex::encode(&signed_message));
         for sig in &request.signatures {
             let sig_type = pb::SignatureType::from_i32(sig.signature_type)
                 .ok_or_else(|| from_display("Invalid signature type"))?;
@@ -2053,7 +2054,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                 sig_type,
                 &sig.signature,
             )
-            .map_err(|_| from_display("Invalid signature"))?;
+            .map_err(|_| from_display(format!("Invalid signature of {:?}", &sig.pubkey)))?;
             if !council_members.contains(&signer) {
                 return Err(from_display("Not a council member"));
             }
