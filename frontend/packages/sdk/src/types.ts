@@ -1,21 +1,20 @@
 import type { Abi } from '@polkadot/api-contract/Abi'
+import type { Bool, Enum, Map, Option, Result, Struct, Vec, u128, u16, u32, u64, u8 } from '@polkadot/types'
 import type { VecFixed } from '@polkadot/types/codec'
 import type { AccountId, Balance } from '@polkadot/types/interfaces'
 import type { ITuple } from '@polkadot/types/types'
-import type { Bool, Enum, Option, Result, Struct, Vec, u128, u16, u32, u64, u8 } from '@polkadot/types-codec'
-import type { IEnum, IMap } from '@polkadot/types-codec/types'
 import type { PinkContractPromise, PinkContractQuery, PinkContractTx } from './contracts/PinkContract'
 import { type EvmAccountMappingProvider } from './providers/EvmAccountMappingProvider'
 import { type KeyringPairProvider } from './providers/KeyringPairProvider'
 import { type UIKeyringProvider } from './providers/UIKeyringProvider'
 
-export interface InkQueryOk extends IEnum {
+export interface InkQueryOk extends Enum {
   asInkMessageReturn: Vec<u8>
 }
 
-export interface InkQueryError extends IEnum {}
+export interface InkQueryError extends Enum {}
 
-export interface InkResponse extends IMap {
+export interface InkResponse extends Map {
   nonce: Vec<u8>
   result: Result<InkQueryOk, InkQueryError>
 }
