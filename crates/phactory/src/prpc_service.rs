@@ -2045,7 +2045,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let genesis_hash = hex::encode(runtime_state.genesis_block_hash);
         let mr_to = hex::encode(&request.measurement);
         let mr_from = hex::encode(my_measurement()?);
-        let signed_message = format!("Allow pRuntime to handover from 0x{mr_from} to 0x{mr_to} on chain of genesis 0x{genesis_hash}").into_bytes();
+        let signed_message = format!("Allow pRuntime to handover\n from: 0x{mr_from}\n to: 0x{mr_to}\n genesis: 0x{genesis_hash}").into_bytes();
         debug!("Signed message: {:?}", hex::encode(&signed_message));
         let mut signers = std::collections::BTreeSet::new();
         for sig in &request.signatures {
