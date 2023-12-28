@@ -10,10 +10,8 @@ use std::{
 use futures::{future, prelude::*};
 // Substrate
 use sc_client_api::BlockchainEvents;
-use sc_executor::NativeExecutionDispatch;
 use sc_network_sync::SyncingService;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
-use sp_api::ConstructRuntimeApi;
 // Frontier
 pub use fc_consensus::FrontierBlockImport;
 use fc_rpc::{EthTask, OverrideHandle};
@@ -121,6 +119,7 @@ impl<Api> EthCompatRuntimeApiCollection for Api where
 {
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn spawn_frontier_tasks(
     task_manager: &TaskManager,
     client: Arc<FullClient>,

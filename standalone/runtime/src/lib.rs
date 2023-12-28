@@ -1829,13 +1829,8 @@ pub type SignedExtra = (
     pallet_mq::CheckMqSequence<Runtime>,
     pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
-/// Unchecked extrinsic type as expected by this runtime.
-pub type UncheckedExtrinsic =
-    generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
-/// Extrinsic type that has already been checked.
-pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, RuntimeCall, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
     Runtime,
@@ -1845,6 +1840,13 @@ pub type Executive = frame_executive::Executive<
     AllPalletsWithSystem,
     Migrations,
 >;
+
+/// Unchecked extrinsic type as expected by this runtime.
+pub type UncheckedExtrinsic =
+    fp_self_contained::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
+/// Extrinsic type that has already been checked.
+pub type CheckedExtrinsic =
+    fp_self_contained::CheckedExtrinsic<AccountId, RuntimeCall, SignedExtra, H160>;
 
 impl fp_self_contained::SelfContainedCall for RuntimeCall {
     type SignedInfo = H160;
@@ -2326,7 +2328,7 @@ impl_runtime_apis! {
         fn extrinsic_filter(
             xts: Vec<<Block as BlockT>::Extrinsic>,
         ) -> Vec<EthereumTransaction> {
-            xts.into_iter().filter_map(|xt| match xt.function {
+            xts.into_iter().filter_map(|xt| match xt.0.function {
                 RuntimeCall::Ethereum(transact { transaction }) => Some(transaction),
                 _ => None
             }).collect::<Vec<EthereumTransaction>>()

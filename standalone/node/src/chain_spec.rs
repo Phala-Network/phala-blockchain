@@ -23,10 +23,10 @@ use hex_literal::hex;
 use node_runtime::constants::{currency::*, time::*};
 use node_runtime::Block;
 use node_runtime::{
-    wasm_binary_unwrap, AssetsConfig, BabeConfig, BalancesConfig,
-    CouncilConfig, DemocracyConfig, ElectionsConfig, ImOnlineConfig, IndicesConfig,
-    NominationPoolsConfig, PhalaRegistryConfig, SessionConfig, SessionKeys, SocietyConfig,
-    StakerStatus, StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig,
+    wasm_binary_unwrap, AssetsConfig, BabeConfig, BalancesConfig, BaseFeeConfig, CouncilConfig,
+    DemocracyConfig, DynamicFeeConfig, EVMChainIdConfig, ElectionsConfig, ImOnlineConfig,
+    IndicesConfig, NominationPoolsConfig, PhalaRegistryConfig, SessionConfig, SessionKeys,
+    SocietyConfig, StakerStatus, StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::{ChainSpecExtension, Properties};
@@ -36,6 +36,7 @@ use serde::{Deserialize, Serialize};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
+use sp_runtime::Permill;
 use sp_runtime::{
     traits::{IdentifyAccount, Verify},
     Perbill,
@@ -179,7 +180,7 @@ pub fn development_config() -> ChainSpec {
         None,
         None,
         Default::default(),
-        wasm_binary_unwrap()
+        wasm_binary_unwrap(),
     )
 }
 
@@ -199,7 +200,7 @@ pub fn development_config_custom_block_duration(bd: u64) -> ChainSpec {
         None,
         None,
         Default::default(),
-        wasm_binary_unwrap()
+        wasm_binary_unwrap(),
     )
 }
 
@@ -227,7 +228,7 @@ pub fn local_config() -> ChainSpec {
         None,
         Some(properties),
         Default::default(),
-        wasm_binary_unwrap()
+        wasm_binary_unwrap(),
     )
 }
 
@@ -275,7 +276,7 @@ pub fn testnet_local_config() -> ChainSpec {
         None,
         Some(properties),
         Default::default(),
-        wasm_binary_unwrap()
+        wasm_binary_unwrap(),
     )
 }
 
@@ -429,7 +430,7 @@ pub fn testnet_genesis(
         },
     };
 
-	RuntimeGenesisConfig {
+    RuntimeGenesisConfig {
         system: SystemConfig {
             ..Default::default()
         },
@@ -496,7 +497,7 @@ pub fn testnet_genesis(
         authority_discovery: Default::default(),
         grandpa: Default::default(),
         treasury: Default::default(),
-		society: SocietyConfig { pot: 0 },
+        society: SocietyConfig { pot: 0 },
         vesting: Default::default(),
         phala_registry,
         phala_computation: Default::default(),
@@ -505,6 +506,17 @@ pub fn testnet_genesis(
             min_create_bond: 10 * DOLLARS,
             #[allow(clippy::identity_op)]
             min_join_bond: DOLLARS,
+            ..Default::default()
+        },
+        base_fee: {
+            let todo = "fill values";
+            BaseFeeConfig::new(0x666666.into(), Permill::from_percent(10))
+        },
+        dynamic_fee: DynamicFeeConfig::default(),
+        ethereum: Default::default(),
+        evm: Default::default(),
+        evm_chain_id: EVMChainIdConfig {
+            chain_id: 0x66666666,
             ..Default::default()
         },
     }
@@ -542,7 +554,7 @@ pub(crate) mod tests {
             None,
             None,
             Default::default(),
-            wasm_binary_unwrap()
+            wasm_binary_unwrap(),
         )
     }
 
@@ -562,7 +574,7 @@ pub(crate) mod tests {
             None,
             None,
             Default::default(),
-            wasm_binary_unwrap()
+            wasm_binary_unwrap(),
         )
     }
 

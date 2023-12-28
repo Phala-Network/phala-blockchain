@@ -40,10 +40,6 @@ mod cli;
 mod command;
 #[cfg(feature = "cli")]
 mod eth;
-mod hi {
-    use crate::eth::EthConfiguration;
-}
-
 #[cfg(feature = "cli")]
 pub use cli::*;
 #[cfg(feature = "cli")]
