@@ -81,7 +81,11 @@ async function getKeyring() {
     return keyringInstance
   }
   const keyring = new Keyring()
-  keyring.loadAll({ isDevelopment: process.env.NODE_ENV !== 'production' })
+  try {
+    keyring.loadAll({ isDevelopment: process.env.NODE_ENV !== 'production' })
+  } catch (err) {
+    console.info('keyring already inited.', err)
+  }
   keyringInstance = keyring
   return keyring
 }
@@ -122,6 +126,10 @@ export class UIKeyringProvider implements Provider {
 
   get name(): 'uiKeyring' {
     return UIKeyringProvider.identity
+  }
+
+  get account(): InjectedAccount {
+    return this.#account
   }
 
   /**
@@ -185,6 +193,7 @@ export class UIKeyringProvider implements Provider {
         )
       } catch (_err) {
         // do nothing
+        console.log('GetAllAccountsFromProvider Error:', _err)
       }
     }
     return []
