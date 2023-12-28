@@ -9,7 +9,7 @@
   "homepage": "https://github.com/Phala-Network/phala-blockchain/tree/master/frontend/packages/sdk#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Phala-Network/phala-blockchain.git",
+    "url": "git+https://github.com/Phala-Network/phala-blockchain.git",
     "directory": "frontend/packages/sdk"
   },
   "bugs": {
@@ -58,6 +58,7 @@
     "@polkadot/api": "~10.11.1",
     "@polkadot/api-contract": "~10.11.1",
     "@polkadot/types": "~10.11.1",
+    "@polkadot/types-codec": "~10.11.1",
     "@polkadot/types-augment": "~10.11.1",
     "@polkadot/networks": "~12.6.1",
     "@polkadot/keyring": "~12.6.1",
