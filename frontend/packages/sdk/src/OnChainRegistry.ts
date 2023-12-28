@@ -589,4 +589,8 @@ export class OnChainRegistry {
   get pruntimeURL() {
     return this.workerInfo?.endpoints.default
   }
+
+  get isEvmAccountMappingSupported() {
+    return !!this.api.consts?.evmAccountMapping?.eip712Name
+  }
 }
