@@ -155,6 +155,24 @@ export class UIKeyringProvider implements Provider {
     return this.#cachedCert
   }
 
+  get isCertificateExpired(): boolean {
+    if (!this.#cachedCert) {
+      return true
+    }
+    const now = Date.now()
+    return !!(this.#certExpiredAt && this.#certExpiredAt < now)
+  }
+
+  get hasCertificate(): boolean {
+    const now = Date.now()
+    return !!(this.#cachedCert && !(this.#certExpiredAt && this.#certExpiredAt < now))
+  }
+
+  revokeCertificate(): void {
+    this.#cachedCert = undefined
+    this.#certExpiredAt = undefined
+  }
+
   async adjustStake(contractId: string, amount: number): Promise<void> {
     await this.send(this.#apiPromise.tx.phalaPhatTokenomic.adjustStake(contractId, amount))
   }
