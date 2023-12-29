@@ -87,12 +87,13 @@ export class PinkBlueprintSubmittableResult extends SubmittableResult {
   readonly abi: Abi
 
   #contractId?: string
-  #isFinalized: boolean = false
+  #isFinalized: boolean
   #contract?: PinkContractPromise
 
   constructor(result: ISubmittableResult, abi: Abi, registry: OnChainRegistry, contractId?: string) {
     super(result)
 
+    this.#isFinalized = false
     this.registry = registry
     this.abi = abi
     this.#contractId = contractId
