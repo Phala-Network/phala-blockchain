@@ -14,7 +14,7 @@ import { type CertificateData, generatePair, signCertificate } from '../pruntime
 import { InkQuerySidevmMessage } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
 import { type pruntime_rpc } from '../pruntime/proto'
-import type { AbiLike, InkResponse } from '../types'
+import type { AbiLike, InkResponse, SystemContract } from '../types'
 import { isPascalCase, snakeToPascalCase } from '../utils/snakeToPascalCase'
 import { ContractInitialError } from './Errors'
 import { type PinkContractPromise } from './PinkContract'
@@ -327,7 +327,7 @@ export class PinkLoggerContractPromise {
   static async create(
     _api: ApiPromise,
     registry: OnChainRegistry,
-    systemContract: PinkContractPromise,
+    systemContract: SystemContract,
     pair?: KeyringPair
   ): Promise<PinkLoggerContractPromise> {
     let _pair: KeyringPair | undefined = pair
@@ -337,7 +337,7 @@ export class PinkLoggerContractPromise {
     }
     const cert = await signCertificate({ pair: _pair })
     const { output } = await systemContract.query['system::getDriver'](_pair.address, { cert }, 'PinkLogger')
-    const contractId = (output as Result<Text, any>).asOk.toHex()
+    const contractId = output.asOk.toHex()
     if (!contractId) {
       throw new ContractInitialError('No PinkLogger contract registered in the cluster.')
     }
