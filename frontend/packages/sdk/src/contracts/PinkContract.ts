@@ -89,17 +89,19 @@ export interface PinkContractQueryOptions {
   transfer?: number | bigint | BN | string
 }
 
-class PinkContractSubmittableResult extends ContractSubmittableResult {
+class PinkContractSubmittableResult<
+  TPinkContractPromise extends PinkContractPromise = PinkContractPromise,
+> extends ContractSubmittableResult {
   readonly #registry: OnChainRegistry
 
   #isFinalized: boolean = false
-  #contract: PinkContractPromise
+  #contract: TPinkContractPromise
   #message: AbiMessage
   #nonce: string
 
   constructor(
     registry: OnChainRegistry,
-    contract: PinkContractPromise,
+    contract: TPinkContractPromise,
     nonce: string,
     message: AbiMessage,
     result: ISubmittableResult,
@@ -294,8 +296,8 @@ type PinkCommandMap = Record<string, PinkContractTx | Record<string, PinkContrac
 //
 //
 export class PinkContractPromise<
-  TQueries extends PinkQueryMap = PinkQueryMap,
-  TTransactions extends PinkCommandMap = PinkCommandMap,
+  TQueries extends PinkQueryMap = Record<string, PinkContractQuery>,
+  TTransactions extends PinkCommandMap = Record<string, PinkContractTx>,
 > {
   readonly abi: Abi
   readonly api: ApiBase<'promise'>
@@ -574,7 +576,7 @@ export class PinkContractPromise<
       .withResultTransform((result: ISubmittableResult) => {
         return new PinkContractSubmittableResult(
           this.phatRegistry,
-          this,
+          this as PinkContractPromise,
           nonce,
           message,
           result,
@@ -659,7 +661,7 @@ export class PinkContractPromise<
       return await rest.provider.send(tx(txOptions, ...args), (result: ISubmittableResult) => {
         return new PinkContractSubmittableResult(
           this.phatRegistry,
-          this,
+          this as PinkContractPromise,
           nonce,
           this.abi.findMessage(messageOrId),
           result,
