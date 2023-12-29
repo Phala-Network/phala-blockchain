@@ -56,7 +56,7 @@ use phala_types::{AttestationProvider, AttestationReport, Collateral};
 pub use phaxt::connect as subxt_connect;
 
 #[derive(Parser, Debug)]
-#[clap(
+#[command(
     about = "Sync messages between pruntime and the blockchain.",
     version,
     author

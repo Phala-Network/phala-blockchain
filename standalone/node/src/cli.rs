@@ -53,7 +53,7 @@ pub struct Cli {
 #[derive(Debug, clap::Subcommand)]
 pub enum Subcommand {
     /// The custom inspect subcommmand for decoding blocks and extrinsics.
-    #[clap(
+    #[command(
         name = "inspect",
         about = "Decode given block or extrinsic using current native runtime."
     )]

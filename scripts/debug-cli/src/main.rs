@@ -10,7 +10,7 @@ use std::fmt::Debug;
 // use phala_types;
 
 #[derive(Debug, Parser)]
-#[clap(name = "Phala Debug Utility CLI")]
+#[command(name = "Phala Debug Utility CLI")]
 enum Cli {
     DecodeWorkerRegistrationInfo {
         #[arg(short)]

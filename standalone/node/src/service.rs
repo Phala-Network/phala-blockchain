@@ -68,7 +68,6 @@ type FullGrandpaBlockImport =
 type BasicImportQueue = sc_consensus::DefaultImportQueue<Block>;
 type GrandpaBlockImport<Client> =
     grandpa::GrandpaBlockImport<FullBackend, Block, Client, FullSelectChain>;
-type GrandpaLinkHalf<Client> = grandpa::LinkHalf<Block, Client, FullSelectChain>;
 type BoxBlockImport = sc_consensus::BoxBlockImport<Block>;
 
 /// The minimum period of blocks on which justifications will be

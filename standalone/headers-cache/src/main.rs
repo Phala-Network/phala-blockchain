@@ -15,7 +15,7 @@ mod web_api;
 type BlockNumber = u32;
 
 #[derive(Parser)]
-#[clap(about = "Cache server for relaychain headers", version, author)]
+#[command(about = "Cache server for relaychain headers", version, author)]
 pub struct AppArgs {
     #[command(subcommand)]
     action: Action,
@@ -123,33 +123,32 @@ struct Serve {
     #[arg(long, default_value = "cache.db")]
     db: String,
     /// If set, it will sync headers from the given mirror cache
-    #[clap(long)]
+    #[arg(long)]
     mirror: Option<String>,
     /// The genesis block bo be synced
-    #[clap(long, default_value_t = 8325311)]
+    #[arg(long, default_value_t = 8325311)]
     genesis_block: BlockNumber,
     /// Auto grab new headers from the node
-    #[clap(long)]
+    #[arg(long)]
     #[arg(visible_alias = "grab")]
     grab_headers: bool,
     /// Auto grab new parachain headers from the node
-    #[clap(long)]
+    #[arg(long)]
     grab_para_headers: bool,
     /// Auto grab new storage changes from the node
-    #[clap(long)]
+    #[arg(long)]
     grab_storage_changes: bool,
     /// Batch size for grabing storage changes
-    #[clap(long)]
-    #[clap(default_value_t = 1)]
+    #[arg(long, default_value_t = 1)]
     grab_storage_changes_batch: BlockNumber,
     /// The relaychain RPC endpoint
-    #[clap(long, default_value = "ws://localhost:9945")]
+    #[arg(long, default_value = "ws://localhost:9945")]
     node_uri: String,
     /// The parachain RPC endpoint
-    #[clap(long, default_value = "ws://localhost:9944")]
+    #[arg(long, default_value = "ws://localhost:9944")]
     para_node_uri: String,
     /// Interval that start a batch of grab
-    #[clap(long, default_value_t = 30)]
+    #[arg(long, default_value_t = 30)]
     interval: u64,
     /// Prefered minimum number of blocks between justification
     #[arg(long, default_value_t = 1000)]
@@ -158,13 +157,13 @@ struct Serve {
     #[arg(long)]
     token: Option<String>,
     /// The max batch size to check headers
-    #[clap(long, default_value_t = 100000)]
+    #[arg(long, default_value_t = 100000)]
     check_batch: BlockNumber,
     /// Don't check state root for each storage changes
-    #[clap(long)]
+    #[arg(long)]
     no_state_root: bool,
     /// Skip blocks with empty state root while checking storage changes
-    #[clap(long)]
+    #[arg(long)]
     allow_empty_state_root: bool,
 }
 
