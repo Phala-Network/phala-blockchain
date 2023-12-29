@@ -115,6 +115,8 @@ pub use phala_pallets::{
 };
 use phat_offchain_rollup::{anchor as pallet_anchor, oracle as pallet_oracle};
 
+use frame_support::genesis_builder_helper::{build_config, create_default_config};
+
 // Make the WASM binary available.
 #[cfg(all(feature = "std", feature = "include-wasm"))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
@@ -1945,6 +1947,16 @@ impl_runtime_apis! {
             // NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
             // have a backtrace here.
             Executive::try_execute_block(block, state_root_check, signature_check, select).unwrap()
+        }
+    }
+
+    impl sp_genesis_builder::GenesisBuilder<Block> for Runtime {
+        fn create_default_config() -> Vec<u8> {
+            create_default_config::<RuntimeGenesisConfig>()
+        }
+
+        fn build_config(config: Vec<u8>) -> sp_genesis_builder::Result {
+            build_config::<RuntimeGenesisConfig>(config)
         }
     }
 }
