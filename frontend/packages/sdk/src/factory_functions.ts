@@ -39,9 +39,7 @@ export type GetContractOptions = {
   provider?: AnyProvider
 }
 
-export async function getContract<T extends PinkContractPromise>(
-  options: GetContractOptions
-): Promise<PinkContractPromise> {
+export async function getContract<T extends PinkContractPromise>(options: GetContractOptions): Promise<T> {
   const { client, contractId, abi } = options
   const contractKey = await client.getContractKeyOrFail(contractId)
   return new PinkContractPromise(client.api, client, abi, contractId, contractKey, options.provider) as T
