@@ -380,8 +380,14 @@ export class PinkContractPromise<
   }
 
   public withProvider(provider: AnyProvider): PinkContractPromise<TQueries, TTransactions> {
-    this.provider = provider
-    return this
+    return new PinkContractPromise(
+      this.api,
+      this.phatRegistry,
+      this.abi,
+      this.address,
+      this.contractKey,
+      provider,
+    )
   }
 
   private qProxyInstance: unknown = undefined
