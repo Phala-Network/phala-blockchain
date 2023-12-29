@@ -33,6 +33,7 @@ use sc_chain_spec::{ChainSpecExtension, Properties};
 use sc_service::ChainType;
 use sc_telemetry::TelemetryEndpoints;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
@@ -165,42 +166,28 @@ fn development_config_genesis() -> RuntimeGenesisConfig {
 
 /// Development config (single validator Alice)
 pub fn development_config() -> ChainSpec {
-    ChainSpec::from_genesis(
-        "Phala Development",
-        "phala_dev",
-        ChainType::Development,
-        move || GenesisExt {
+    ChainSpec::builder(wasm_binary_unwrap(), Default::default())
+        .with_name("Phala Development")
+        .with_id("phala_dev")
+        .with_chain_type(ChainType::Development)
+        .with_genesis_config_patch(json!(GenesisExt {
             runtime_genesis_config: development_config_genesis(),
             block_milliseconds: Some(MILLISECS_PER_BLOCK),
-        },
-        vec![],
-        None,
-        None,
-        None,
-        None,
-        Default::default(),
-        wasm_binary_unwrap()
-    )
+        }))
+        .build()
 }
 
 /// Development config (single validator Alice, custom block duration)
 pub fn development_config_custom_block_duration(bd: u64) -> ChainSpec {
-    ChainSpec::from_genesis(
-        "Phala Development",
-        "phala_dev",
-        ChainType::Development,
-        move || GenesisExt {
+    ChainSpec::builder(wasm_binary_unwrap(), Default::default())
+        .with_name("Phala Development")
+        .with_id("phala_dev")
+        .with_chain_type(ChainType::Development)
+        .with_genesis_config_patch(json!(GenesisExt {
             runtime_genesis_config: development_config_genesis(),
             block_milliseconds: Some(bd),
-        },
-        vec![],
-        None,
-        None,
-        None,
-        None,
-        Default::default(),
-        wasm_binary_unwrap()
-    )
+        }))
+        .build()
 }
 
 /// Local testnet config (multivalidator Alice + Bob)
@@ -213,22 +200,16 @@ pub fn local_config() -> ChainSpec {
         p
     };
 
-    ChainSpec::from_genesis(
-        "Phala Local Testnet",
-        "local_testnet",
-        ChainType::Local,
-        move || GenesisExt {
+    ChainSpec::builder(wasm_binary_unwrap(), Default::default())
+        .with_name("Phala Local Testnet")
+        .with_id("local_testnet")
+        .with_chain_type(ChainType::Local)
+        .with_genesis_config_patch(json!(GenesisExt {
             runtime_genesis_config: local_genesis(),
             block_milliseconds: Some(MILLISECS_PER_BLOCK),
-        },
-        vec![],
-        None,
-        None,
-        None,
-        Some(properties),
-        Default::default(),
-        wasm_binary_unwrap()
-    )
+        }))
+        .with_properties(properties)
+        .build()
 }
 
 fn local_genesis() -> RuntimeGenesisConfig {
@@ -258,25 +239,22 @@ pub fn testnet_local_config() -> ChainSpec {
         p
     };
 
-    ChainSpec::from_genesis(
-        "Phala PoC-6",
-        "phala_poc_6",
-        ChainType::Local,
-        move || GenesisExt {
+    ChainSpec::builder(wasm_binary_unwrap(), Default::default())
+        .with_name("Phala PoC-6")
+        .with_id("phala_poc_6")
+        .with_chain_type(ChainType::Local)
+        .with_genesis_config_patch(json!(GenesisExt {
             runtime_genesis_config: testnet_local_config_genesis(),
             block_milliseconds: Some(MILLISECS_PER_BLOCK),
-        },
-        boot_nodes,
-        Some(
+        }))
+        .with_boot_nodes(boot_nodes)
+        .with_protocol_id(protocol_id)
+        .with_properties(properties)
+        .with_telemetry_endpoints(
             TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
                 .expect("Staging telemetry url is valid; qed"),
-        ),
-        Some(protocol_id),
-        None,
-        Some(properties),
-        Default::default(),
-        wasm_binary_unwrap()
-    )
+        )
+        .build()
 }
 
 fn testnet_local_config_genesis() -> RuntimeGenesisConfig {
