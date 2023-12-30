@@ -281,7 +281,7 @@ type QueryProxy<T, TParams extends Array<any> = any[], ResultType = Codec, ErrTy
 
 type TxProxyArgs<TParams extends Array<any> = any[]> = {
   args?: TParams
-  waitUntil?: () => Promise<boolean>
+  waitFinalized?: (() => Promise<boolean>) | true
 } & Partial<PinkContractSendOptions> &
   unknown
 
@@ -427,7 +427,7 @@ export class PinkContractPromise<
 
     if (!this.execProxyInstance) {
       this.execProxyInstance = createInnerProxy<TReMap>(async ({ path, args: [payload] }) => {
-        const { args = [], waitUntil, ..._options } = (payload || {}) as TxProxyArgs
+        const { args = [], waitFinalized, ..._options } = (payload || {}) as TxProxyArgs
         const key = path.join('::')
         if (!this.provider) {
           throw new Error('The provider is not set')
@@ -443,8 +443,12 @@ export class PinkContractPromise<
           ..._options,
         }
         const submittableResult = (await this._send(key, options, ...args)) as PinkContractSubmittableResult
-        if (waitUntil) {
-          await submittableResult.waitFinalized(waitUntil)
+        if (waitFinalized) {
+          if (typeof waitFinalized === 'function') {
+            await submittableResult.waitFinalized(waitFinalized)
+          } else {
+            await submittableResult.waitFinalized()
+          }
         }
         return submittableResult
       }, [])
