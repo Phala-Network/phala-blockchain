@@ -32,7 +32,8 @@ const quickMode = process.env.QUICK == '1';
 let keyring;
 
 const CENTS = 10_000_000_000;
-const blockInterval = quickMode ? 100 : 1000;
+const blockInterval = quickMode ? 100 : 300; // ms
+const gossipDuration = 20; // ms
 
 console.log(`Testing in ${inSgx ? "SGX Hardware" : "Software"} mode`);
 
@@ -1369,8 +1370,6 @@ class Cluster {
         await this._reservePorts();
         this._createProcesses();
         await this._launchAndWait();
-        await this._createApi();
-        await this._transferPherryGasFree();
     }
 
     async kill() {
@@ -1498,6 +1497,8 @@ class Cluster {
             waitNodeOutput(this.processNode),
             ...this.workers.map(w => waitPRuntimeOutput(w.processPRuntime)),
         ]);
+        await this._createApi();
+        await this._transferPherryGasFree();
         // Launch relayers
         await Promise.all(this.workers.map(w => waitRelayerOutput(w.processRelayer)));
     }
@@ -1542,6 +1543,7 @@ function newNode(rpcPort, tmpPath, name = 'node') {
         pathNode, [
             '--dev',
             `--block-millisecs=${blockInterval}`,
+            `--gossip-duration-millisecs=${gossipDuration}`,
             '--base-path=' + path.resolve(tmpPath, 'phala-node'),
             `--rpc-port=${rpcPort}`,
             '--rpc-methods=Unsafe',

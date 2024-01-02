@@ -579,7 +579,7 @@ pub(crate) mod tests {
                 sync,
                 transaction_pool,
                 ..
-            } = new_full_base(config, false, |_, _| ())?;
+            } = new_full_base(config, false, |_, _| (), None)?;
             Ok(sc_service_test::TestNetComponents::new(
                 task_manager,
                 client,

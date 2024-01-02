@@ -40,6 +40,10 @@ pub struct Cli {
     /// Custom block duration in milliseconds (only useful with --dev)
     #[arg(long)]
     pub block_millisecs: Option<u64>,
+
+    /// Custom gossip duration in milliseconds.
+    #[arg(long)]
+    pub gossip_duration_millisecs: Option<u64>,
 }
 
 /// Possible subcommands of the main binary.
