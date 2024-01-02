@@ -44,3 +44,4 @@ mod eth;
 pub use cli::*;
 #[cfg(feature = "cli")]
 pub use command::*;
+mod rpc;

@@ -1,5 +1,3 @@
-pub mod rpc;
-
 use std::{
     collections::BTreeMap,
     path::PathBuf,
@@ -48,6 +46,9 @@ pub struct EthConfiguration {
     /// Maximum fee history cache size.
     #[arg(long, default_value = "2048")]
     pub fee_history_limit: u64,
+
+	#[arg(long)]
+	pub enable_dev_signer: bool,
 
     /// The dynamic-fee pallet target gas price set by block author
     #[arg(long, default_value = "1")]
