@@ -1553,7 +1553,7 @@ impl OnUnbalanced<NegativeImbalance> for DealWithServiceFee {
 
 parameter_types! {
     pub EIP712Name: Vec<u8> = b"PhalaNetwork".to_vec();
-    pub EIP712Version: Vec<u8> = b"1".to_vec();
+    pub EIP712Version: Vec<u8> = b"2".to_vec();
     pub EIP712ChainID: pallet_evm_account_mapping::EIP712ChainID = sp_core::U256::from(0);
     pub EIP712VerifyingContractAddress: pallet_evm_account_mapping::EIP712VerifyingContractAddress = sp_core::H160::from([0u8; 20]);
 }
@@ -1562,6 +1562,7 @@ impl pallet_evm_account_mapping::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
     type Currency = Balances;
+    type AddressConverter = pallet_evm_account_mapping::EvmTransparentConverter;
     type ServiceFee = ConstU128<10000000000>; // 0.01 PHA
     type OnUnbalancedForServiceFee = DealWithServiceFee;
     type CallFilter = frame_support::traits::Everything;
