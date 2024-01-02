@@ -353,6 +353,7 @@ pub fn new_full_base(
         &sc_consensus_babe::BabeBlockImport<Block, FullClient, FullGrandpaBlockImport>,
         &sc_consensus_babe::BabeLink<Block>,
     ),
+    gossip_duration_millis: Option<u64>,
 ) -> Result<NewFullBase, ServiceError> {
     let hwbench = if !disable_hardware_benchmarks {
         config.database.path().map(|database_path| {
@@ -547,7 +548,7 @@ pub fn new_full_base(
 
     let grandpa_config = grandpa::Config {
         // FIXME #1578 make this available through chainspec
-        gossip_duration: std::time::Duration::from_millis(333),
+        gossip_duration: std::time::Duration::from_millis(gossip_duration_millis.unwrap_or(333)),
         justification_generation_period: 1, // https://github.com/paritytech/substrate/pull/14423#issuecomment-1633837906
         name: Some(name),
         observer_enabled: false,
@@ -624,9 +625,15 @@ pub fn new_full_base(
 pub fn new_full(
     config: Configuration,
     disable_hardware_benchmarks: bool,
+    gossip_duration_millis: Option<u64>,
 ) -> Result<TaskManager, ServiceError> {
-    new_full_base(config, disable_hardware_benchmarks, |_, _| ())
-        .map(|NewFullBase { task_manager, .. }| task_manager)
+    new_full_base(
+        config,
+        disable_hardware_benchmarks,
+        |_, _| (),
+        gossip_duration_millis,
+    )
+    .map(|NewFullBase { task_manager, .. }| task_manager)
 }
 
 #[cfg(test)]
@@ -705,6 +712,7 @@ mod tests {
                      babe_link: &sc_consensus_babe::BabeLink<Block>| {
                         setup_handles = Some((block_import.clone(), babe_link.clone()));
                     },
+                    None,
                 )?;
 
                 let node = sc_service_test::TestNetComponents::new(
@@ -900,7 +908,7 @@ mod tests {
                     sync,
                     transaction_pool,
                     ..
-                } = new_full_base(config, false, |_, _| ())?;
+                } = new_full_base(config, false, |_, _| (), None)?;
                 Ok(sc_service_test::TestNetComponents::new(
                     task_manager,
                     client,
