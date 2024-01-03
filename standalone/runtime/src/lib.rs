@@ -82,7 +82,7 @@ use sp_runtime::{
     AccountId32, ApplyExtrinsicResult, FixedPointNumber, FixedU128, Perbill, Percent, Permill,
     Perquintill, RuntimeDebug,
 };
-use sp_std::{marker::PhantomData, prelude::*};
+use sp_std::prelude::*;
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
@@ -99,13 +99,15 @@ pub use pallet_sudo::Call as SudoCall;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
+use evm_currency::{EvmCurrency, EvmDealWithFees};
+
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub mod impls;
 use impls::Author;
 
-mod evm_currency;
 /// Constant values used within the runtime.
 pub mod constants;
+mod evm_currency;
 use constants::{currency::*, time::*};
 use sp_runtime::generic::Era;
 
@@ -1593,18 +1595,15 @@ impl pallet_evm_account_mapping::Config for Runtime {
 
 impl pallet_evm_chain_id::Config for Runtime {}
 
-pub struct FindAuthorTruncated<F>(PhantomData<F>);
-impl<F: FindAuthor<u32>> FindAuthor<H160> for FindAuthorTruncated<F> {
-    fn find_author<'a, I>(digests: I) -> Option<H160>
+pub struct TruncatedTreasuryAsAuthor;
+impl FindAuthor<H160> for TruncatedTreasuryAsAuthor {
+    fn find_author<'a, I>(_digests: I) -> Option<H160>
     where
         I: 'a + IntoIterator<Item = (ConsensusEngineId, &'a [u8])>,
     {
-        if let Some(author_index) = F::find_author(digests) {
-            let authority_id = Babe::authorities()[author_index as usize].clone();
-            let raw_auth_id: &[u8] = authority_id.0.as_ref();
-            return Some(H160::from_slice(&raw_auth_id[4..24]));
-        }
-        None
+        let treasury = Treasury::account_id();
+        let raw_auth_id: &[u8] = treasury.as_ref();
+        return Some(H160::from_slice(&raw_auth_id[..20]));
     }
 }
 
@@ -1670,7 +1669,7 @@ impl pallet_evm::Config for Runtime {
     type Runner = pallet_evm::runner::stack::Runner<Self>;
     type OnChargeTransaction = EVMCurrencyAdapter<EvmCurrency, EvmDealWithFees>;
     type OnCreate = ();
-    type FindAuthor = FindAuthorTruncated<Babe>;
+    type FindAuthor = TruncatedTreasuryAsAuthor;
     type GasLimitPovSizeRatio = GasLimitPovSizeRatio;
     type SuicideQuickClearLimit = SuicideQuickClearLimit;
     type Timestamp = Timestamp;
