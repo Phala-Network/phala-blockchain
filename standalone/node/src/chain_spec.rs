@@ -166,6 +166,13 @@ fn development_config_genesis() -> RuntimeGenesisConfig {
 
 /// Development config (single validator Alice)
 pub fn development_config() -> ChainSpec {
+    let properties = {
+        let mut p = Properties::new();
+        p.insert("tokenSymbol".into(), "PHA".into());
+        p.insert("tokenDecimals".into(), 12u32.into());
+        p.insert("ss58Format".into(), 30u32.into());
+        p
+    };
     ChainSpec::from_genesis(
         "Phala Development",
         "phala_dev",
@@ -178,7 +185,7 @@ pub fn development_config() -> ChainSpec {
         None,
         None,
         None,
-        None,
+        Some(properties),
         Default::default(),
         wasm_binary_unwrap(),
     )
@@ -186,6 +193,13 @@ pub fn development_config() -> ChainSpec {
 
 /// Development config (single validator Alice, custom block duration)
 pub fn development_config_custom_block_duration(bd: u64) -> ChainSpec {
+    let properties = {
+        let mut p = Properties::new();
+        p.insert("tokenSymbol".into(), "PHA".into());
+        p.insert("tokenDecimals".into(), 12u32.into());
+        p.insert("ss58Format".into(), 30u32.into());
+        p
+    };
     ChainSpec::from_genesis(
         "Phala Development",
         "phala_dev",
@@ -198,7 +212,7 @@ pub fn development_config_custom_block_duration(bd: u64) -> ChainSpec {
         None,
         None,
         None,
-        None,
+        Some(properties),
         Default::default(),
         wasm_binary_unwrap(),
     )
@@ -509,14 +523,14 @@ pub fn testnet_genesis(
             ..Default::default()
         },
         base_fee: {
-            let todo = "fill values";
-            BaseFeeConfig::new(0x666666.into(), Permill::from_percent(10))
+            let todo = "tune the values";
+            BaseFeeConfig::new(0x666666.into(), Permill::from_percent(0))
         },
         dynamic_fee: DynamicFeeConfig::default(),
         ethereum: Default::default(),
         evm: Default::default(),
         evm_chain_id: EVMChainIdConfig {
-            chain_id: 1234567,
+            chain_id: 1234567, // TODO: We need to register a chain id
             ..Default::default()
         },
     }

@@ -103,6 +103,7 @@ pub use sp_runtime::BuildStorage;
 pub mod impls;
 use impls::Author;
 
+mod evm_currency;
 /// Constant values used within the runtime.
 pub mod constants;
 use constants::{currency::*, time::*};
@@ -1660,7 +1661,7 @@ impl pallet_evm::Config for Runtime {
     type CallOrigin = EnsureOrigin;
     type WithdrawOrigin = EnsureOrigin;
     type AddressMapping = PostfixAddressMapping;
-    type Currency = Balances;
+    type Currency = evm_currency::EvmCurrency;
     type RuntimeEvent = RuntimeEvent;
     type PrecompilesType = FrontierPrecompiles<Self>;
     type PrecompilesValue = PrecompilesValue;
