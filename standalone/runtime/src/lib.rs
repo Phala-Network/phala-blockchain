@@ -127,7 +127,7 @@ use pallet_ethereum::{
     Call::transact, PostLogContent, Transaction as EthereumTransaction, TransactionAction,
     TransactionData,
 };
-use pallet_evm::{Account as EVMAccount, EVMCurrencyAdapter, FeeCalculator, Runner};
+use pallet_evm::{Account as EVMAccount, FeeCalculator, Runner};
 use precompiles::FrontierPrecompiles;
 mod precompiles;
 
@@ -1667,7 +1667,7 @@ impl pallet_evm::Config for Runtime {
     type ChainId = EVMChainId;
     type BlockGasLimit = BlockGasLimit;
     type Runner = pallet_evm::runner::stack::Runner<Self>;
-    type OnChargeTransaction = EVMCurrencyAdapter<EvmCurrency, EvmDealWithFees>;
+    type OnChargeTransaction = EvmDealWithFees;
     type OnCreate = ();
     type FindAuthor = TruncatedTreasuryAsAuthor;
     type GasLimitPovSizeRatio = GasLimitPovSizeRatio;

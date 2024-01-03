@@ -1,7 +1,8 @@
-use super::{Balances, Runtime, Treasury};
+use super::{Authorship, Balances, Runtime, Treasury};
 use frame_support::traits::{fungible::Inspect, Currency, Imbalance, OnUnbalanced};
 use node_primitives::{AccountId, Balance};
 use pallet_balances::{NegativeImbalance, PositiveImbalance};
+use pallet_evm::{EVMCurrencyAdapter, OnChargeEVMTransaction};
 
 pub struct EvmCurrency;
 
@@ -48,6 +49,44 @@ impl OnUnbalanced<NegativeImbalance<Runtime>> for EvmDealWithFees {
     fn on_nonzero_unbalanced(fee: NegativeImbalance<Runtime>) {
         // tip is already transfered to the author in pallet evm
         Treasury::on_unbalanced(fee.into_sub())
+    }
+}
+
+impl OnChargeEVMTransaction<Runtime> for EvmDealWithFees {
+    type LiquidityInfo = Option<NegativeImbalance<Runtime>>;
+
+    fn withdraw_fee(
+        who: &sp_core::H160,
+        fee: sp_core::U256,
+    ) -> Result<Self::LiquidityInfo, pallet_evm::Error<Runtime>> {
+        <EVMCurrencyAdapter<EvmCurrency, Self> as OnChargeEVMTransaction<Runtime>>::withdraw_fee(
+            who, fee,
+        )
+    }
+
+    fn correct_and_deposit_fee(
+        who: &sp_core::H160,
+        corrected_fee: sp_core::U256,
+        base_fee: sp_core::U256,
+        already_withdrawn: Self::LiquidityInfo,
+    ) -> Self::LiquidityInfo {
+        <EVMCurrencyAdapter<EvmCurrency, Self> as OnChargeEVMTransaction<Runtime>>::correct_and_deposit_fee(
+            who,
+            corrected_fee,
+            base_fee,
+            already_withdrawn,
+        )
+    }
+
+    fn pay_priority_fee(tip: Self::LiquidityInfo) {
+        if let Some(tip) = tip {
+            match Authorship::author() {
+                Some(author) => {
+                    let _ = EvmCurrency::deposit_creating(&author, tip.peek());
+                }
+                None => Self::on_unbalanced(tip),
+            }
+        }
     }
 }
 
