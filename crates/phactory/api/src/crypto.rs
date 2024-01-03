@@ -3,6 +3,8 @@ use std::convert::TryFrom;
 use alloc::vec;
 use alloc::vec::Vec;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
+use sp_core::{H160, H256};
+use sp_runtime::AccountId32;
 
 use crate::prpc::{Signature, SignatureType};
 pub use phala_crypto::{aead, ecdh, CryptoError};
@@ -72,7 +74,7 @@ impl Signature {
         msg_type: MessageType,
         current_block: u32,
         max_depth: u32,
-    ) -> Result<Vec<Vec<u8>>, SignatureVerifyError> {
+    ) -> Result<Vec<AccountId32>, SignatureVerifyError> {
         if max_depth == 0 {
             return Err(SignatureVerifyError::TooLongCertificateChain);
         }
@@ -92,21 +94,21 @@ impl Signature {
                     return Err(SignatureVerifyError::CertificateExpired);
                 }
 
-                let pubkey = body.recover(msg, msg_type, sig_type, &self.signature)?;
+                let body_signer = body.recover(msg, msg_type, sig_type, &self.signature)?;
 
-                let key_chain = if let Some(cert_sig) = &cert.signature {
-                    let mut key_chain = cert_sig.verify(
+                let signers = if let Some(cert_sig) = &cert.signature {
+                    let mut signers = cert_sig.verify(
                         &body.encode(),
                         MessageType::Certificate { ttl: body.ttl },
                         current_block,
                         max_depth - 1,
                     )?;
-                    key_chain.push(pubkey);
-                    key_chain
+                    signers.push(body_signer);
+                    signers
                 } else {
-                    vec![pubkey]
+                    vec![body_signer]
                 };
-                Ok(key_chain)
+                Ok(signers)
             }
             None => Err(SignatureVerifyError::CertificateMissing),
         }
@@ -129,14 +131,17 @@ where
 }
 
 /// Dummy "recover" function to verify the Substrate signatures and return the public key
-fn recover<T>(pubkey: &[u8], sig: &[u8], msg: &[u8]) -> Result<Vec<u8>, SignatureVerifyError>
+fn recover<T>(pubkey: &[u8], sig: &[u8], msg: &[u8]) -> Result<T::Public, SignatureVerifyError>
 where
     T: sp_core::crypto::Pair,
     T::Public: for<'a> TryFrom<&'a [u8]>,
     T::Signature: for<'a> TryFrom<&'a [u8]>,
 {
+    let Ok(public) = T::Public::try_from(pubkey) else {
+        return Err(SignatureVerifyError::InvalidPublicKey);
+    };
     verify::<T>(pubkey, sig, msg)
-        .then_some(pubkey.to_vec())
+        .then_some(public)
         .ok_or(SignatureVerifyError::InvalidSignature)
 }
 
@@ -153,7 +158,7 @@ fn wrap_bytes(msg: &[u8]) -> Vec<u8> {
 fn evm_ecdsa_recover(
     mut signature: [u8; 65],
     message_hash: [u8; 32],
-) -> Result<Vec<u8>, SignatureVerifyError> {
+) -> Result<sp_core::ecdsa::Public, SignatureVerifyError> {
     if signature[64] >= 27 {
         signature[64] -= 27;
     }
@@ -161,7 +166,39 @@ fn evm_ecdsa_recover(
     let recovered_pubkey = signature
         .recover_prehashed(&message_hash)
         .ok_or(SignatureVerifyError::InvalidSignature)?;
-    Ok(recovered_pubkey.as_ref().to_vec())
+    Ok(recovered_pubkey)
+}
+
+/// Convert EVM public key to Substrate account ID.
+///
+/// account_id = keccak256(pubkey)[12..] + b"@evm_address"
+fn account_id_from_evm_pubkey(pubkey: sp_core::ecdsa::Public) -> AccountId32 {
+    let pubkey =
+        secp256k1::PublicKey::from_slice(pubkey.as_ref()).expect("Should always be a valid pubkey");
+    let h32 = H256(sp_core::hashing::keccak_256(
+        &pubkey.serialize_uncompressed()[1..],
+    ));
+    let h20 = H160::from(h32);
+    let mut raw_account: [u8; 32] = [0; 32];
+    let postfix = b"@evm_address";
+    raw_account[..20].copy_from_slice(h20.as_bytes());
+    raw_account[20..].copy_from_slice(postfix);
+    AccountId32::from(raw_account)
+}
+
+#[test]
+fn test_account_id_from_evm_pubkey() {
+    let pubkey = sp_core::ecdsa::Public(hex_literal::hex!(
+        "029df1e69b8b7c2da2efe0069dc141c2cec0317bf3fd135abaeb69ee33801f5970"
+    ));
+    let account_id = account_id_from_evm_pubkey(pubkey);
+    assert_eq!(
+        hex::encode(account_id),
+        format!(
+            "77bb3d64ea13e4f0beafdd5d92508d4643bb09cb{}",
+            hex::encode(b"@evm_address")
+        )
+    );
 }
 
 #[derive(Clone, Encode, Decode, Debug)]
@@ -178,28 +215,39 @@ impl CertificateBody {
         msg_type: MessageType,
         sig_type: SignatureType,
         signature: &[u8],
-    ) -> Result<Vec<u8>, SignatureVerifyError> {
-        match sig_type {
+    ) -> Result<AccountId32, SignatureVerifyError> {
+        let signer = match sig_type {
             SignatureType::Ed25519 => {
-                recover::<sp_core::ed25519::Pair>(&self.pubkey, signature, msg)
+                recover::<sp_core::ed25519::Pair>(&self.pubkey, signature, msg)?.into()
             }
             SignatureType::Sr25519 => {
-                recover::<sp_core::sr25519::Pair>(&self.pubkey, signature, msg)
+                recover::<sp_core::sr25519::Pair>(&self.pubkey, signature, msg)?.into()
             }
-            SignatureType::Ecdsa => recover::<sp_core::ecdsa::Pair>(&self.pubkey, signature, msg),
+            SignatureType::Ecdsa => account_id_from_evm_pubkey(recover::<sp_core::ecdsa::Pair>(
+                &self.pubkey,
+                signature,
+                msg,
+            )?),
             SignatureType::Ed25519WrapBytes => {
                 let wrapped = wrap_bytes(msg);
-                recover::<sp_core::ed25519::Pair>(&self.pubkey, signature, &wrapped)
+                recover::<sp_core::ed25519::Pair>(&self.pubkey, signature, &wrapped)?.into()
             }
             SignatureType::Sr25519WrapBytes => {
                 let wrapped = wrap_bytes(msg);
-                recover::<sp_core::sr25519::Pair>(&self.pubkey, signature, &wrapped)
+                recover::<sp_core::sr25519::Pair>(&self.pubkey, signature, &wrapped)?.into()
             }
             SignatureType::EcdsaWrapBytes => {
                 let wrapped = wrap_bytes(msg);
-                recover::<sp_core::ecdsa::Pair>(&self.pubkey, signature, &wrapped)
+                account_id_from_evm_pubkey(recover::<sp_core::ecdsa::Pair>(
+                    &self.pubkey,
+                    signature,
+                    &wrapped,
+                )?)
             }
-            SignatureType::Eip712 => eip712::recover(&self.pubkey, signature, msg, msg_type),
-        }
+            SignatureType::Eip712 => {
+                account_id_from_evm_pubkey(eip712::recover(&self.pubkey, signature, msg, msg_type)?)
+            }
+        };
+        Ok(signer)
     }
 }

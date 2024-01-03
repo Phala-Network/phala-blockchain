@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::convert::TryFrom;
 use std::future::Future;
 use std::io::Read;
 use std::str::FromStr;
@@ -631,16 +630,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let head = contract::ContractQueryHead::decode(&mut data_cursor)?;
         let rest = data_cursor.len();
 
-        // Origin
-        let accid_origin = match origin {
-            Some(origin) => {
-                let accid = chain::AccountId::try_from(origin.as_slice())
-                    .map_err(|_| from_display("Bad account id"))?;
-                Some(accid)
-            }
-            None => None,
-        };
-
         let query_scheduler = self.query_scheduler.clone();
         // Dispatch
         let query_future = self
@@ -650,7 +639,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .make_query(
                 req_id,
                 &AccountId::unchecked_from(head.id),
-                accid_origin.as_ref(),
+                origin.as_ref(),
                 data[data.len() - rest..].to_vec(),
                 query_scheduler,
                 &self
