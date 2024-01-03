@@ -522,10 +522,7 @@ pub fn testnet_genesis(
             min_join_bond: DOLLARS,
             ..Default::default()
         },
-        base_fee: {
-            let todo = "tune the values";
-            BaseFeeConfig::new(0x666666.into(), Permill::from_percent(0))
-        },
+        base_fee: BaseFeeConfig::new(100_000_000_000_u64.into(), Permill::zero()),
         dynamic_fee: DynamicFeeConfig::default(),
         ethereum: Default::default(),
         evm: Default::default(),
