@@ -2302,6 +2302,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethereum"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e04d24d20b8ff2235cffbf242d5092de3aa45f77c5270ddbfadd2778ca13fea"
+dependencies = [
+ "bytes",
+ "ethereum-types",
+ "hash-db",
+ "hash256-std-hasher",
+ "parity-scale-codec",
+ "rlp",
+ "scale-info",
+ "serde",
+ "sha3",
+ "trie-root",
+]
+
+[[package]]
 name = "ethereum-types"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2564,6 +2582,64 @@ dependencies = [
 ]
 
 [[package]]
+name = "evm"
+version = "0.41.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "767f43e9630cc36cf8ff2777cbb0121b055f0d1fd6eaaa13b46a1808f0d0e7e9"
+dependencies = [
+ "auto_impl",
+ "environmental",
+ "ethereum",
+ "evm-core",
+ "evm-gasometer",
+ "evm-runtime",
+ "log",
+ "parity-scale-codec",
+ "primitive-types",
+ "rlp",
+ "scale-info",
+ "serde",
+ "sha3",
+]
+
+[[package]]
+name = "evm-core"
+version = "0.41.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1da6cedc5cedb4208e59467106db0d1f50db01b920920589f8e672c02fdc04f"
+dependencies = [
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "serde",
+]
+
+[[package]]
+name = "evm-gasometer"
+version = "0.41.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1dc0eb591abc5cd7b05bef6a036c2bb6c66ab6c5e0c5ce94bfe377ab670b1fd7"
+dependencies = [
+ "environmental",
+ "evm-core",
+ "evm-runtime",
+ "primitive-types",
+]
+
+[[package]]
+name = "evm-runtime"
+version = "0.41.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "84bbe09b64ae13a29514048c1bb6fda6374ac0b4f6a1f15a443348ab88ef42cd"
+dependencies = [
+ "auto_impl",
+ "environmental",
+ "evm-core",
+ "primitive-types",
+ "sha3",
+]
+
+[[package]]
 name = "expander"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2771,6 +2847,114 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e13624c2627564efccf4934284bdd98cbaa14e79b0b5a141218e507b3a823456"
 dependencies = [
  "percent-encoding",
+]
+
+[[package]]
+name = "fp-account"
+version = "1.0.0-dev"
+source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
+dependencies = [
+ "hex",
+ "impl-serde",
+ "libsecp256k1",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-runtime-interface 17.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
+]
+
+[[package]]
+name = "fp-consensus"
+version = "2.0.0-dev"
+source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
+dependencies = [
+ "ethereum",
+ "parity-scale-codec",
+ "sp-core",
+ "sp-runtime",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
+]
+
+[[package]]
+name = "fp-dynamic-fee"
+version = "1.0.0"
+source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
+dependencies = [
+ "async-trait",
+ "sp-core",
+ "sp-inherents",
+]
+
+[[package]]
+name = "fp-ethereum"
+version = "1.0.0-dev"
+source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
+dependencies = [
+ "ethereum",
+ "ethereum-types",
+ "fp-evm",
+ "frame-support",
+ "parity-scale-codec",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
+]
+
+[[package]]
+name = "fp-evm"
+version = "3.0.0-dev"
+source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
+dependencies = [
+ "evm",
+ "frame-support",
+ "num_enum 0.7.1",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-runtime",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
+]
+
+[[package]]
+name = "fp-rpc"
+version = "3.0.0-dev"
+source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
+dependencies = [
+ "ethereum",
+ "ethereum-types",
+ "fp-evm",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
+]
+
+[[package]]
+name = "fp-self-contained"
+version = "1.0.0-dev"
+source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
+dependencies = [
+ "frame-support",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-runtime",
+]
+
+[[package]]
+name = "fp-storage"
+version = "2.0.0"
+source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
+dependencies = [
+ "parity-scale-codec",
+ "serde",
 ]
 
 [[package]]
@@ -4557,6 +4741,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "num"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43db66d1170d347f9a065114077f7dccb00c1b9478c89384490a3425279a4606"
+dependencies = [
+ "num-bigint",
+ "num-complex",
+ "num-integer",
+ "num-iter",
+ "num-rational",
+ "num-traits",
+]
+
+[[package]]
 name = "num-bigint"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4597,12 +4795,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-iter"
+version = "0.1.43"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d03e6c028c5dc5cac6e2dec0efda81fc887605bb3d884578bb6d6bf7514e252"
+dependencies = [
+ "autocfg",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
 name = "num-rational"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0638a1c9d0a3c0914158145bc76cff373a75a627e6ecbfb71cbe6f453a5a19b0"
 dependencies = [
  "autocfg",
+ "num-bigint",
  "num-integer",
  "num-traits",
 ]
@@ -4645,6 +4855,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "num_enum"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "683751d591e6d81200c39fb0d1032608b77724f34114db54f571ff1317b337c0"
+dependencies = [
+ "num_enum_derive 0.7.1",
+]
+
+[[package]]
 name = "num_enum_derive"
 version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4661,6 +4880,18 @@ name = "num_enum_derive"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96667db765a921f7b295ffee8b60472b686a51d4f21c2ee4ffdb94c7013b65a6"
+dependencies = [
+ "proc-macro-crate 1.2.1",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.43",
+]
+
+[[package]]
+name = "num_enum_derive"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c11e44798ad209ccdd91fc192f0526a369a01234f7373e1b141c96d7cee4f0e"
 dependencies = [
  "proc-macro-crate 1.2.1",
  "proc-macro2",
@@ -4850,6 +5081,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-base-fee"
+version = "1.0.0"
+source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
+dependencies = [
+ "fp-evm",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-runtime",
+]
+
+[[package]]
 name = "pallet-bounties"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0#789ffb66dcfcf3b54a1e6786e928ac91c4fdb465"
@@ -4974,6 +5219,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-dynamic-fee"
+version = "4.0.0-dev"
+source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
+dependencies = [
+ "fp-dynamic-fee",
+ "fp-evm",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
+]
+
+[[package]]
 name = "pallet-election-provider-multi-phase"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0#789ffb66dcfcf3b54a1e6786e928ac91c4fdb465"
@@ -5027,6 +5289,95 @@ dependencies = [
  "sp-runtime",
  "sp-staking",
  "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
+]
+
+[[package]]
+name = "pallet-ethereum"
+version = "4.0.0-dev"
+source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
+dependencies = [
+ "ethereum",
+ "ethereum-types",
+ "evm",
+ "fp-consensus",
+ "fp-ethereum",
+ "fp-evm",
+ "fp-rpc",
+ "fp-storage",
+ "frame-support",
+ "frame-system",
+ "pallet-evm",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-io",
+ "sp-runtime",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
+]
+
+[[package]]
+name = "pallet-evm"
+version = "6.0.0-dev"
+source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
+dependencies = [
+ "environmental",
+ "evm",
+ "fp-account",
+ "fp-evm",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "hash-db",
+ "hex",
+ "hex-literal",
+ "impl-trait-for-tuples",
+ "log",
+ "parity-scale-codec",
+ "rlp",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
+]
+
+[[package]]
+name = "pallet-evm-chain-id"
+version = "1.0.0-dev"
+source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-runtime",
+]
+
+[[package]]
+name = "pallet-evm-precompile-modexp"
+version = "2.0.0-dev"
+source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
+dependencies = [
+ "fp-evm",
+ "num",
+]
+
+[[package]]
+name = "pallet-evm-precompile-sha3fips"
+version = "2.0.0-dev"
+source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
+dependencies = [
+ "fp-evm",
+ "tiny-keccak",
+]
+
+[[package]]
+name = "pallet-evm-precompile-simple"
+version = "2.0.0-dev"
+source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
+dependencies = [
+ "fp-evm",
+ "ripemd",
+ "sp-io",
 ]
 
 [[package]]
@@ -5087,6 +5438,22 @@ dependencies = [
  "sp-runtime",
  "sp-session",
  "sp-staking",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
+]
+
+[[package]]
+name = "pallet-hotfix-sufficients"
+version = "1.0.0"
+source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-evm",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-runtime",
  "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
 ]
 
@@ -5996,6 +6363,10 @@ dependencies = [
 name = "phala-node-runtime"
 version = "2.0.0"
 dependencies = [
+ "fp-account",
+ "fp-evm",
+ "fp-rpc",
+ "fp-self-contained",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
@@ -6013,15 +6384,24 @@ dependencies = [
  "pallet-babe",
  "pallet-bags-list",
  "pallet-balances",
+ "pallet-base-fee",
  "pallet-bounties",
  "pallet-child-bounties",
  "pallet-collective",
  "pallet-democracy",
+ "pallet-dynamic-fee",
  "pallet-election-provider-multi-phase",
  "pallet-elections-phragmen",
+ "pallet-ethereum",
+ "pallet-evm",
+ "pallet-evm-chain-id",
+ "pallet-evm-precompile-modexp",
+ "pallet-evm-precompile-sha3fips",
+ "pallet-evm-precompile-simple",
  "pallet-evm_account_mapping",
  "pallet-fast-unstake",
  "pallet-grandpa",
+ "pallet-hotfix-sufficients",
  "pallet-identity",
  "pallet-im-online",
  "pallet-indices",
