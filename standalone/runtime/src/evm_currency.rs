@@ -1,5 +1,5 @@
-use super::{Balances, Runtime};
-use frame_support::traits::{fungible::Inspect, Currency, Imbalance};
+use super::{Balances, Runtime, Treasury};
+use frame_support::traits::{fungible::Inspect, Currency, Imbalance, OnUnbalanced};
 use node_primitives::{AccountId, Balance};
 use pallet_balances::{NegativeImbalance, PositiveImbalance};
 
@@ -43,6 +43,14 @@ impl BalanceExt for NegativeImbalance<Runtime> {
     }
 }
 
+pub struct EvmDealWithFees;
+impl OnUnbalanced<NegativeImbalance<Runtime>> for EvmDealWithFees {
+    fn on_nonzero_unbalanced(fee: NegativeImbalance<Runtime>) {
+        // tip is already transfered to the author in pallet evm
+        Treasury::on_unbalanced(fee.into_sub())
+    }
+}
+
 impl Currency<AccountId> for EvmCurrency {
     type Balance = Balance;
 
@@ -66,11 +74,11 @@ impl Currency<AccountId> for EvmCurrency {
         <Balances as Currency<AccountId>>::minimum_balance().into_eth()
     }
 
-    fn burn(amount: Self::Balance) -> Self::PositiveImbalance {
+    fn burn(_amount: Self::Balance) -> Self::PositiveImbalance {
         unimplemented!()
     }
 
-    fn issue(amount: Self::Balance) -> Self::NegativeImbalance {
+    fn issue(_amount: Self::Balance) -> Self::NegativeImbalance {
         unimplemented!()
     }
 
