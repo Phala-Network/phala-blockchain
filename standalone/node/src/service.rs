@@ -62,8 +62,6 @@ pub type RuntimeExecutor = sc_executor::WasmExecutor<HostFunctions>;
 pub type FullClient = sc_service::TFullClient<Block, RuntimeApi, RuntimeExecutor>;
 pub type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
-type FullGrandpaBlockImport =
-    grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
 
 type BasicImportQueue = sc_consensus::DefaultImportQueue<Block>;
 type GrandpaBlockImport<Client> =
@@ -301,7 +299,6 @@ where
         }
     };
 
-    let todo = "should returns babe_block_import or frontier_block_import?";
     Ok(sc_service::PartialComponents {
         client,
         backend,

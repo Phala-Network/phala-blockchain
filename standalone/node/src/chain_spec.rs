@@ -516,7 +516,7 @@ pub fn testnet_genesis(
         ethereum: Default::default(),
         evm: Default::default(),
         evm_chain_id: EVMChainIdConfig {
-            chain_id: 0x66666666,
+            chain_id: 1234567,
             ..Default::default()
         },
     }
@@ -591,7 +591,7 @@ pub(crate) mod tests {
                 sync,
                 transaction_pool,
                 ..
-            } = new_full_base(config, false)?;
+            } = new_full_base(config, Default::default(), false)?;
             Ok(sc_service_test::TestNetComponents::new(
                 task_manager,
                 client,

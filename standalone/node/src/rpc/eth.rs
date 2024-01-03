@@ -143,7 +143,7 @@ where
             execute_gas_limit_multiplier,
             forced_parent_hashes,
             pending_create_inherent_data_providers,
-            Some(Box::new(BabeConsensusDataProvider::new(client.clone()))),
+            None,
         )
         .replace_config::<EC>()
         .into_rpc(),
@@ -192,63 +192,4 @@ where
     io.merge(TxPool::new(client, graph).into_rpc())?;
 
     Ok(io)
-}
-
-use self::babe_consensus_data_provider::BabeConsensusDataProvider;
-mod babe_consensus_data_provider {
-    use std::marker::PhantomData;
-
-    use super::*;
-    use fc_rpc::pending::ConsensusDataProvider;
-    use sp_consensus_babe::{
-        digests::{CompatibleDigestItem, PreDigest, PrimaryPreDigest},
-        BabeApi, Slot, SlotDuration,
-    };
-    use sp_inherents::InherentData;
-    use sp_runtime::{Digest, DigestItem};
-    use sp_timestamp::TimestampInherentData;
-
-    /// Consensus data provider for Babe.
-    pub struct BabeConsensusDataProvider<B, C> {
-        // slot duration
-        slot_duration: SlotDuration,
-        // phantom data for required generics
-        _phantom: PhantomData<(B, C)>,
-    }
-
-    impl<B, C> BabeConsensusDataProvider<B, C>
-    where
-        B: BlockT,
-        C: AuxStore + ProvideRuntimeApi<B> + UsageProvider<B>,
-        C::Api: BabeApi<B>,
-    {
-        pub fn new(client: Arc<C>) -> Self {
-            let slot_duration = sc_consensus_babe::configuration(&*client)
-                .expect("slot_duration is always present; qed.")
-                .slot_duration;
-            Self {
-                slot_duration: SlotDuration::from_millis(slot_duration),
-                _phantom: PhantomData,
-            }
-        }
-    }
-
-    impl<B: BlockT, C: Send + Sync> ConsensusDataProvider<B> for BabeConsensusDataProvider<B, C> {
-        fn create_digest(
-            &self,
-            _parent: &B::Header,
-            data: &InherentData,
-        ) -> Result<Digest, sp_inherents::Error> {
-            let timestamp = data
-                .timestamp_inherent_data()?
-                .expect("Timestamp is always present; qed");
-
-            let todo = "TODO: Implement this";
-            // let pre_digest = PreDigest::Primary(PrimaryPreDigest::new());
-            // let digest_item = <DigestItem as CompatibleDigestItem>::babe_pre_digest(pre_digest);
-            println!("TODO: implement create digest!!!!!!!!!!!!!!!!!!");
-
-            Ok(Digest { logs: vec![] })
-        }
-    }
 }
