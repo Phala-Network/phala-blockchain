@@ -223,11 +223,10 @@ impl CertificateBody {
             SignatureType::Sr25519 => {
                 recover::<sp_core::sr25519::Pair>(&self.pubkey, signature, msg)?.into()
             }
-            SignatureType::Ecdsa => account_id_from_evm_pubkey(recover::<sp_core::ecdsa::Pair>(
-                &self.pubkey,
-                signature,
-                msg,
-            )?),
+            SignatureType::Ecdsa => sp_core::blake2_256(
+                recover::<sp_core::ecdsa::Pair>(&self.pubkey, signature, msg)?.as_ref(),
+            )
+            .into(),
             SignatureType::Ed25519WrapBytes => {
                 let wrapped = wrap_bytes(msg);
                 recover::<sp_core::ed25519::Pair>(&self.pubkey, signature, &wrapped)?.into()
@@ -238,14 +237,26 @@ impl CertificateBody {
             }
             SignatureType::EcdsaWrapBytes => {
                 let wrapped = wrap_bytes(msg);
+                sp_core::blake2_256(
+                    recover::<sp_core::ecdsa::Pair>(&self.pubkey, signature, &wrapped)?.as_ref(),
+                )
+                .into()
+            }
+            SignatureType::Eip712 => {
+                account_id_from_evm_pubkey(eip712::recover(&self.pubkey, signature, msg, msg_type)?)
+            }
+            SignatureType::EvmEcdsa => account_id_from_evm_pubkey(recover::<sp_core::ecdsa::Pair>(
+                &self.pubkey,
+                signature,
+                msg,
+            )?),
+            SignatureType::EvmEcdsaWrapBytes => {
+                let wrapped = wrap_bytes(msg);
                 account_id_from_evm_pubkey(recover::<sp_core::ecdsa::Pair>(
                     &self.pubkey,
                     signature,
                     &wrapped,
                 )?)
-            }
-            SignatureType::Eip712 => {
-                account_id_from_evm_pubkey(eip712::recover(&self.pubkey, signature, msg, msg_type)?)
             }
         };
         Ok(signer)
