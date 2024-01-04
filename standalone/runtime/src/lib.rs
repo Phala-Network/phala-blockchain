@@ -1593,8 +1593,6 @@ impl pallet_evm_account_mapping::Config for Runtime {
     type WeightInfo = pallet_evm_account_mapping::weights::SubstrateWeight<Runtime>;
 }
 
-impl pallet_evm_chain_id::Config for Runtime {}
-
 pub struct FindAuthorTruncated;
 impl FindAuthor<H160> for FindAuthorTruncated {
     fn find_author<'a, I>(_digests: I) -> Option<H160>
@@ -1650,6 +1648,10 @@ impl pallet_evm::AddressMapping<AccountId> for PostfixAddressMapping {
     fn into_account_id(address: H160) -> AccountId {
         Self::map(address)
     }
+}
+
+parameter_types! {
+    pub const EVMChainId: u64 = 2035;
 }
 
 impl pallet_evm::Config for Runtime {
@@ -1796,7 +1798,6 @@ construct_runtime!(
         // Frontier
         Ethereum: pallet_ethereum,
         EVM: pallet_evm,
-        EVMChainId: pallet_evm_chain_id,
         DynamicFee: pallet_dynamic_fee,
         BaseFee: pallet_base_fee,
         HotfixSufficients: pallet_hotfix_sufficients,

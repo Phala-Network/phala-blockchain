@@ -24,9 +24,9 @@ use node_runtime::constants::{currency::*, time::*};
 use node_runtime::Block;
 use node_runtime::{
     wasm_binary_unwrap, AssetsConfig, BabeConfig, BalancesConfig, BaseFeeConfig, CouncilConfig,
-    DemocracyConfig, DynamicFeeConfig, EVMChainIdConfig, ElectionsConfig, ImOnlineConfig,
-    IndicesConfig, NominationPoolsConfig, PhalaRegistryConfig, SessionConfig, SessionKeys,
-    SocietyConfig, StakerStatus, StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig,
+    DemocracyConfig, DynamicFeeConfig, ElectionsConfig, ImOnlineConfig, IndicesConfig,
+    NominationPoolsConfig, PhalaRegistryConfig, SessionConfig, SessionKeys, SocietyConfig,
+    StakerStatus, StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::{ChainSpecExtension, Properties};
@@ -526,10 +526,6 @@ pub fn testnet_genesis(
         dynamic_fee: DynamicFeeConfig::default(),
         ethereum: Default::default(),
         evm: Default::default(),
-        evm_chain_id: EVMChainIdConfig {
-            chain_id: 1234567, // TODO: We need to register a chain id
-            ..Default::default()
-        },
     }
 }
 
