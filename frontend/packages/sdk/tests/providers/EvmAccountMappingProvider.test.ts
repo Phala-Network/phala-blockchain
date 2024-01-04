@@ -1,4 +1,8 @@
 import { ApiPromise, WsProvider } from '@polkadot/api'
+import type { ApiTypes } from '@polkadot/api/types'
+import type { QueryableConsts } from '@polkadot/api/types/consts'
+import type { Bytes, U256 } from '@polkadot/types'
+import { H160 } from '@polkadot/types/interfaces'
 import { hexToU8a, u8aToHex } from '@polkadot/util'
 import { encodeAddress, secp256k1Compress } from '@polkadot/util-crypto'
 import { createWalletClient, http } from 'viem'
@@ -8,6 +12,20 @@ import { describe, expect, it, vi } from 'vitest'
 import { options } from '../../src/options'
 import { EvmAccountMappingProvider } from '../../src/providers/EvmAccountMappingProvider'
 import { evmPublicKeyToSubstratePubkey } from '../../src/pruntime/eip712'
+
+declare module '@polkadot/api/types/consts' {
+  //@ts-ignore typescript-eslint/no-unused-vars
+  interface AugmentedConsts<ApiType extends ApiTypes> {
+    evmAccountMapping: {
+      eip712Name: Bytes
+      eip712Version: Bytes
+      eip712ChainID: U256
+      eip712VerifyingContractAddress: H160
+    }
+  }
+
+  export interface QueryableConsts<ApiType extends ApiTypes> extends AugmentedConsts<ApiType> {}
+}
 
 describe.skipIf(!process.env.TEST_RPC_ENDPOINT)('EvmAccountMappingProvider', () => {
   const account = privateKeyToAccount(generatePrivateKey())
@@ -26,7 +44,7 @@ describe.skipIf(!process.env.TEST_RPC_ENDPOINT)('EvmAccountMappingProvider', () 
           noInitWarn: true,
         })
       )
-      vi.spyOn(api, 'consts', 'get').mockReturnValue({})
+      vi.spyOn(api, 'consts', 'get').mockReturnValue({} as QueryableConsts<'promise'>)
       await EvmAccountMappingProvider.create(api, walletClient, account)
     }).rejects.toThrowError()
   })
