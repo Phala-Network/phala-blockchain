@@ -14,7 +14,6 @@ import { EvmAccountMappingProvider } from '../../src/providers/EvmAccountMapping
 import { evmPublicKeyToSubstratePubkey } from '../../src/pruntime/eip712'
 
 declare module '@polkadot/api/types/consts' {
-  //@ts-ignore typescript-eslint/no-unused-vars
   interface AugmentedConsts<ApiType extends ApiTypes> {
     evmAccountMapping: {
       eip712Name: Bytes
