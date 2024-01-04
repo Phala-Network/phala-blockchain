@@ -1,7 +1,7 @@
 import { keccak256AsU8a, encodeAddress } from '@polkadot/util-crypto'
-import { hexToU8a, stringToU8a, } from '@polkadot/util'
+import { hexToU8a, stringToU8a, u8aToHex, } from '@polkadot/util'
 import { describe, expect, it } from 'vitest'
-import { evmPublicKeyToSubstratePubkey } from '../../src/pruntime/eip712'
+import { evmPublicKeyToSubstratePubkey, substrateAddressToEvmAddress } from '../../src/pruntime/eip712'
 
 describe('eip712', () => {
   it('can satisfy formula `origin = keccak256(pubkey)[12..] + b"@evm_address"`', () => {
@@ -24,5 +24,13 @@ describe('eip712', () => {
     const hex = '027cf2fa7bfe66adad4149481ff86794ce7e1ab2f7ed615ad3918f91581d2c00f1'
     const result = evmPublicKeyToSubstratePubkey(hex)
     expect('5DT96geTS2iLpkH8fAhYAAphNpxddKCV36s5ShVFavf1xQiF').toEqual(encodeAddress(result))
+  })
+
+  it('can convert substrate address into evm address', () => {
+    const evmAddress = '0x77bb3d64ea13e4f0beafdd5d92508d4643bb09cb'
+    const substrateAddress = '5EmhBEe8vsSfqYseKctWsaQqNKCF9FFao6Mqa9hNfcdF25oE'
+
+    const result = substrateAddressToEvmAddress(substrateAddress)
+    expect(evmAddress).toEqual(result)
   })
 })

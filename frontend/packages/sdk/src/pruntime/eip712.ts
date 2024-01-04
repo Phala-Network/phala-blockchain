@@ -2,7 +2,7 @@ import { type ApiPromise } from '@polkadot/api'
 import { ApiTypes, type SubmittableExtrinsic } from '@polkadot/api/types'
 import { type U256, type U64 } from '@polkadot/types-codec'
 import { hexToString, hexToU8a, u8aToHex, stringToU8a } from '@polkadot/util'
-import { blake2AsU8a, keccak256AsU8a, encodeAddress, secp256k1Compress } from '@polkadot/util-crypto'
+import { blake2AsU8a, keccak256AsU8a, encodeAddress, decodeAddress, secp256k1Compress } from '@polkadot/util-crypto'
 import type { Account, Address, TestClient, WalletClient, Hex } from 'viem'
 import { hashMessage, recoverPublicKey } from 'viem'
 import { type signTypedData } from 'viem/wallet'
@@ -62,6 +62,18 @@ export function evmPublicKeyToSubstratePubkey(hex: string) {
   } else {
     throw new Error('Invalid public key length.')
   }
+}
+
+export function substrateAddressToEvmAddress(address: string) {
+  const substratePubkey = decodeAddress(address)
+  if (substratePubkey.length !== 32) {
+    throw new Error('Invalid public key length.')
+  }
+  if (substratePubkey.subarray(20).toString() !== EVM_ADDRESS_SUFFIX.toString()) {
+    throw new Error('This Substrate Address is not mapped from an EVM Address.')
+  }
+  const h20 = substratePubkey.subarray(0, 20)
+  return u8aToHex(h20)
 }
 
 export function createEip712StructedDataSignCertificate(
