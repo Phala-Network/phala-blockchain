@@ -72,7 +72,6 @@ export class EvmAccountMappingProvider implements Provider {
 
   async ready(msg?: string): Promise<void> {
     const version = this.#apiPromise.consts.evmAccountMapping.eip712Version.toString()
-    console.log('compressedPubkey', version)
     if (version === '0x31') {
       this.#recoveredPubkey = await recoverEvmPubkey(this.#client, this.#account as Account, msg)
       this.#address = encodeAddress(evmPublicKeyToSubstratePubkey(this.#recoveredPubkey.compressed), this.#SS58Prefix)
