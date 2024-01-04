@@ -1693,10 +1693,6 @@ parameter_types! {
     pub BoundDivision: U256 = U256::from(1024);
 }
 
-impl pallet_dynamic_fee::Config for Runtime {
-    type MinGasPriceBoundDivisor = BoundDivision;
-}
-
 parameter_types! {
     pub DefaultBaseFeePerGas: U256 = 100_000_000_000_u64.into();
     pub DefaultElasticity: Permill = Permill::zero();
@@ -1798,7 +1794,6 @@ construct_runtime!(
         // Frontier
         Ethereum: pallet_ethereum,
         EVM: pallet_evm,
-        DynamicFee: pallet_dynamic_fee,
         BaseFee: pallet_base_fee,
         HotfixSufficients: pallet_hotfix_sufficients,
     }
