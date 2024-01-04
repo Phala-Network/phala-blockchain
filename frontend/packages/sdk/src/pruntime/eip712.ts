@@ -1,15 +1,15 @@
 import { type ApiPromise } from '@polkadot/api'
 import { ApiTypes, type SubmittableExtrinsic } from '@polkadot/api/types'
 import { type U256, type U64 } from '@polkadot/types-codec'
-import { hexToString, hexToU8a, u8aToHex } from '@polkadot/util'
-import { blake2AsU8a, encodeAddress, secp256k1Compress } from '@polkadot/util-crypto'
-import type { Account, Address, TestClient, WalletClient } from 'viem'
+import { hexToString, hexToU8a, u8aToHex, stringToU8a } from '@polkadot/util'
+import { blake2AsU8a, keccak256AsU8a, encodeAddress, secp256k1Compress } from '@polkadot/util-crypto'
+import type { Account, Address, TestClient, WalletClient, Hex } from 'viem'
 import { hashMessage, recoverPublicKey } from 'viem'
 import { type signTypedData } from 'viem/wallet'
 import { signMessage } from 'viem/wallet'
 
 // keccak256(b"phala/phat-contract")
-const SALT = '0x0ea813d1592526d672ea2576d7a07914cef2ca301b35c5eed941f7c897512a00'
+const SALT: Readonly<Hex> = '0x0ea813d1592526d672ea2576d7a07914cef2ca301b35c5eed941f7c897512a00'
 
 type SignTypedDataInput = Parameters<typeof signTypedData>[1]
 
@@ -44,6 +44,24 @@ export async function etherAddressToSubstrateAddress(
   const compressedPubkey = await etherAddressToCompressedPubkey(client, account, msg)
   const substratePubkey = encodeAddress(blake2AsU8a(hexToU8a(compressedPubkey)), SS58Prefix)
   return substratePubkey as Address
+}
+
+const EVM_ADDRESS_SUFFIX = stringToU8a('@evm_address')
+
+/**
+ * Convert an EVM public key (both compressed & uncompressed are supported) to a Substrate pubkey.
+ */
+export function evmPublicKeyToSubstratePubkey(hex: string) {
+  const pubkey = hexToU8a(hex)
+  if (pubkey.length === 65) {
+    const h32 = keccak256AsU8a(pubkey.subarray(1))
+    const h20 = h32.subarray(12)
+    return new Uint8Array([...h20, ...EVM_ADDRESS_SUFFIX])
+  } else if (pubkey.length === 33) {
+    return blake2AsU8a(pubkey)
+  } else {
+    throw new Error('Invalid public key length.')
+  }
 }
 
 export function createEip712StructedDataSignCertificate(
