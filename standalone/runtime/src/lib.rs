@@ -1595,15 +1595,15 @@ impl pallet_evm_account_mapping::Config for Runtime {
 
 impl pallet_evm_chain_id::Config for Runtime {}
 
-pub struct TruncatedTreasuryAsAuthor;
-impl FindAuthor<H160> for TruncatedTreasuryAsAuthor {
+pub struct FindAuthorTruncated;
+impl FindAuthor<H160> for FindAuthorTruncated {
     fn find_author<'a, I>(_digests: I) -> Option<H160>
     where
         I: 'a + IntoIterator<Item = (ConsensusEngineId, &'a [u8])>,
     {
-        let treasury = Treasury::account_id();
-        let raw_auth_id: &[u8] = treasury.as_ref();
-        return Some(H160::from_slice(&raw_auth_id[..20]));
+        let author = Authorship::author()?;
+        let raw_auth_id: &[u8] = author.as_ref();
+        Some(H160::from_slice(&raw_auth_id[..20]))
     }
 }
 
@@ -1669,7 +1669,7 @@ impl pallet_evm::Config for Runtime {
     type Runner = pallet_evm::runner::stack::Runner<Self>;
     type OnChargeTransaction = EvmDealWithFees;
     type OnCreate = ();
-    type FindAuthor = TruncatedTreasuryAsAuthor;
+    type FindAuthor = FindAuthorTruncated;
     type GasLimitPovSizeRatio = GasLimitPovSizeRatio;
     type SuicideQuickClearLimit = SuicideQuickClearLimit;
     type Timestamp = Timestamp;
