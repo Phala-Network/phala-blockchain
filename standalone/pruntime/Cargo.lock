@@ -2881,16 +2881,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fp-dynamic-fee"
-version = "1.0.0"
-source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
-dependencies = [
- "async-trait",
- "sp-core",
- "sp-inherents",
-]
-
-[[package]]
 name = "fp-ethereum"
 version = "1.0.0-dev"
 source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
@@ -5219,23 +5209,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-dynamic-fee"
-version = "4.0.0-dev"
-source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
-dependencies = [
- "fp-dynamic-fee",
- "fp-evm",
- "frame-support",
- "frame-system",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-inherents",
- "sp-runtime",
- "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
-]
-
-[[package]]
 name = "pallet-election-provider-multi-phase"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0#789ffb66dcfcf3b54a1e6786e928ac91c4fdb465"
@@ -5341,18 +5314,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-evm-chain-id"
-version = "1.0.0-dev"
-source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
-dependencies = [
- "frame-support",
- "frame-system",
- "parity-scale-codec",
- "scale-info",
- "sp-runtime",
-]
-
-[[package]]
 name = "pallet-evm-precompile-modexp"
 version = "2.0.0-dev"
 source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
@@ -5383,7 +5344,7 @@ dependencies = [
 [[package]]
 name = "pallet-evm_account_mapping"
 version = "0.0.1"
-source = "git+https://github.com/Phala-Network/substrate-evm_account_mapping?branch=release-polkadot-v1.5.0#712a3bed7e4e8431b00256cb4cbc5c3f177f9a66"
+source = "git+https://github.com/Phala-Network/substrate-evm_account_mapping?branch=release-polkadot-v1.5.0#9963def5b42dcb41625605f39c5c2b5a6fabdc0a"
 dependencies = [
  "ethabi",
  "frame-support",
@@ -6389,12 +6350,10 @@ dependencies = [
  "pallet-child-bounties",
  "pallet-collective",
  "pallet-democracy",
- "pallet-dynamic-fee",
  "pallet-election-provider-multi-phase",
  "pallet-elections-phragmen",
  "pallet-ethereum",
  "pallet-evm",
- "pallet-evm-chain-id",
  "pallet-evm-precompile-modexp",
  "pallet-evm-precompile-sha3fips",
  "pallet-evm-precompile-simple",

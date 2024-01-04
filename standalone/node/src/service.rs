@@ -341,6 +341,7 @@ pub async fn new_full_base(
     config: Configuration,
     eth_config: &EthConfiguration,
     disable_hardware_benchmarks: bool,
+    gossip_duration_millis: Option<u64>,
 ) -> Result<NewFullBase, ServiceError> {
     let hwbench = if !disable_hardware_benchmarks {
         config.database.path().map(|database_path| {
@@ -660,7 +661,7 @@ pub async fn new_full_base(
 
     let grandpa_config = grandpa::Config {
         // FIXME #1578 make this available through chainspec
-        gossip_duration: std::time::Duration::from_millis(333),
+        gossip_duration: std::time::Duration::from_millis(gossip_duration_millis.unwrap_or(333)),
         justification_generation_period: 1, // https://github.com/paritytech/substrate/pull/14423#issuecomment-1633837906
         name: Some(name),
         observer_enabled: false,
@@ -736,10 +737,16 @@ pub async fn new_full(
     config: Configuration,
     eth_config: &EthConfiguration,
     disable_hardware_benchmarks: bool,
+    gossip_duration_millis: Option<u64>,
 ) -> Result<TaskManager, ServiceError> {
-    new_full_base(config, eth_config, disable_hardware_benchmarks)
-        .await
-        .map(|NewFullBase { task_manager, .. }| task_manager)
+    new_full_base(
+        config,
+        eth_config,
+        disable_hardware_benchmarks,
+        gossip_duration_millis,
+    )
+    .await
+    .map(|NewFullBase { task_manager, .. }| task_manager)
 }
 
 /// Build the import queue for the runtime (babe + grandpa).
