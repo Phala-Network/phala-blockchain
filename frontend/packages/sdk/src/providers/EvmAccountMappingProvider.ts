@@ -1,17 +1,16 @@
 import type { ApiPromise, SubmittableResult } from '@polkadot/api'
 import type { SubmittableExtrinsic } from '@polkadot/api/types'
 import type { ISubmittableResult } from '@polkadot/types/types'
-import { hexToU8a } from '@polkadot/util'
-import { blake2AsU8a, encodeAddress } from '@polkadot/util-crypto'
-import type { Account, Address, WalletClient } from 'viem'
+import { encodeAddress } from '@polkadot/util-crypto'
+import type { Account, Address, Hex, WalletClient } from 'viem'
 import { type CertificateData, signEip712Certificate } from '../pruntime/certificate'
 import {
   type Eip712Domain,
-  type EtherAddressToSubstrateAddressOptions,
   createEip712Domain,
   createEip712StructedDataSubstrateCall,
   createSubstrateCall,
-  etherAddressToCompressedPubkey,
+  evmPublicKeyToSubstratePubkey,
+  recoverEvmPubkey,
 } from '../pruntime/eip712'
 import { callback } from '../utils/signAndSend'
 import { Provider } from './types'
@@ -46,8 +45,15 @@ export class EvmAccountMappingProvider implements Provider {
   //
   #domain: Eip712Domain
 
-  #compressedPubkey: Address | undefined
-  #address: Address | undefined
+  // The Substrate Address
+  #address: string | undefined
+
+  #recoveredPubkey:
+    | {
+        compressed: Hex
+        uncompressed: Hex
+      }
+    | undefined
 
   #cachedCert: CertificateData | undefined
   #certExpiredAt: number | undefined
@@ -65,15 +71,26 @@ export class EvmAccountMappingProvider implements Provider {
   }
 
   async ready(msg?: string): Promise<void> {
-    this.#compressedPubkey = await etherAddressToCompressedPubkey(this.#client, this.#account as Account, msg)
-    this.#address = encodeAddress(blake2AsU8a(hexToU8a(this.#compressedPubkey)), this.#SS58Prefix) as Address
+    const version = this.#apiPromise.consts.evmAccountMapping.eip712Version.toString()
+    console.log('compressedPubkey', version)
+    if (version === '0x31') {
+      this.#recoveredPubkey = await recoverEvmPubkey(this.#client, this.#account as Account, msg)
+      this.#address = encodeAddress(evmPublicKeyToSubstratePubkey(this.#recoveredPubkey.compressed), this.#SS58Prefix)
+    } else if (version === '0x32') {
+      this.#recoveredPubkey = await recoverEvmPubkey(this.#client, this.#account as Account, msg)
+      this.#address = encodeAddress(evmPublicKeyToSubstratePubkey(this.#recoveredPubkey.uncompressed), this.#SS58Prefix)
+    } else {
+      throw new Error(
+        `Unsupported evm_account_mapping pallet version: const evmAccountMapping.eip712Version = ${version}`
+      )
+    }
   }
 
   static async create(
     api: ApiPromise,
     client: WalletClient,
     account: AccountLike,
-    options?: EtherAddressToSubstrateAddressOptions
+    options?: { msg?: string; SS58Prefix?: number }
   ) {
     const signer = new EvmAccountMappingProvider(api, client, account, options)
     await signer.ready(options?.msg)
@@ -83,7 +100,7 @@ export class EvmAccountMappingProvider implements Provider {
   /**
    * SS58 format address derived from the Ethereum EOA.
    */
-  get address(): Address {
+  get address(): string {
     if (!this.#address) {
       throw new Error('WalletClientSigner is not ready.')
     }
@@ -98,18 +115,18 @@ export class EvmAccountMappingProvider implements Provider {
   }
 
   get compressedPubkey(): Address {
-    if (!this.#compressedPubkey) {
+    if (!this.#recoveredPubkey) {
       throw new Error('WalletClientSigner is not ready.')
     }
-    return this.#compressedPubkey
+    return this.#recoveredPubkey.compressed
   }
 
   get evmCaller(): EvmCaller {
-    if (!this.#compressedPubkey) {
+    if (!this.#recoveredPubkey) {
       throw new Error('WalletClientSigner is not ready.')
     }
     return {
-      compressedPubkey: this.#compressedPubkey,
+      compressedPubkey: this.#recoveredPubkey.compressed,
       address: this.#account.address,
     }
   }
@@ -156,7 +173,7 @@ export class EvmAccountMappingProvider implements Provider {
    * @param ttl? number
    */
   async signCertificate(ttl: number = 0x7f_fff_fff): Promise<CertificateData> {
-    if (!this.#compressedPubkey) {
+    if (!this.#recoveredPubkey) {
       throw new Error('WalletClientSigner is not ready.')
     }
     const now = Date.now()
@@ -167,7 +184,7 @@ export class EvmAccountMappingProvider implements Provider {
     this.#cachedCert = await signEip712Certificate({
       client: this.#client,
       account: this.#account as Account,
-      compressedPubkey: this.#compressedPubkey,
+      compressedPubkey: this.#recoveredPubkey.compressed,
       ttl,
     })
     this.#certExpiredAt = now + ttl * 1_000
