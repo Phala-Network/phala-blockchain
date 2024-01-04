@@ -23,11 +23,12 @@ export class InkCodeSubmittableResult extends SubmittableResult {
   readonly abi: Abi
   readonly blueprint: PinkBlueprintPromise
 
-  #isFinalized: boolean = false
+  #isFinalized: boolean
 
   constructor(result: ISubmittableResult, abi: Abi, registry: OnChainRegistry) {
     super(result)
 
+    this.#isFinalized = false
     this.registry = registry
     this.abi = abi
 
