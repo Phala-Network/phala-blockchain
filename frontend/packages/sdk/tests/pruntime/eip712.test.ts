@@ -1,4 +1,4 @@
-import { hexToU8a, stringToU8a, u8aToHex } from '@polkadot/util'
+import { hexToU8a, stringToU8a } from '@polkadot/util'
 import { encodeAddress, keccak256AsU8a } from '@polkadot/util-crypto'
 import { describe, expect, it } from 'vitest'
 import { evmPublicKeyToSubstratePubkey, substrateAddressToEvmAddress } from '../../src/pruntime/eip712'

@@ -2,7 +2,7 @@ import { type ApiPromise } from '@polkadot/api'
 import { ApiTypes, type SubmittableExtrinsic } from '@polkadot/api/types'
 import { type U256, type U64 } from '@polkadot/types-codec'
 import { hexToString, hexToU8a, stringToU8a, u8aToHex } from '@polkadot/util'
-import { blake2AsU8a, decodeAddress, encodeAddress, keccak256AsU8a, secp256k1Compress } from '@polkadot/util-crypto'
+import { blake2AsU8a, decodeAddress, keccak256AsU8a, secp256k1Compress } from '@polkadot/util-crypto'
 import type { Account, Address, Hex, TestClient, WalletClient } from 'viem'
 import { hashMessage, recoverPublicKey } from 'viem'
 import { type signTypedData } from 'viem/wallet'
@@ -14,36 +14,22 @@ const SALT: Readonly<Hex> = '0x0ea813d1592526d672ea2576d7a07914cef2ca301b35c5eed
 type SignTypedDataInput = Parameters<typeof signTypedData>[1]
 
 /**
- * Get compressed formatted ether address for a specified account via a Wallet Client.
+ * Recovered pubkey and compressed pubkey.
  */
-export async function etherAddressToCompressedPubkey(
+export async function recoverEvmPubkey(
   client: WalletClient | TestClient,
   account: Account,
   msg = 'Allows to access the pubkey address.'
 ) {
   const sign = await signMessage(client, { account, message: msg })
   const hash = hashMessage(msg)
-  const recovered = await recoverPublicKey({ hash, signature: sign })
-  const compressedPubkey = u8aToHex(secp256k1Compress(hexToU8a(recovered)))
-  return compressedPubkey
-}
-
-export interface EtherAddressToSubstrateAddressOptions {
-  SS58Prefix?: number
-  msg?: string
-}
-
-/**
- * Convert an Ethereum address to a Substrate address.
- */
-export async function etherAddressToSubstrateAddress(
-  client: WalletClient,
-  account: Account,
-  { SS58Prefix = 30, msg }: EtherAddressToSubstrateAddressOptions = {}
-) {
-  const compressedPubkey = await etherAddressToCompressedPubkey(client, account, msg)
-  const substratePubkey = encodeAddress(blake2AsU8a(hexToU8a(compressedPubkey)), SS58Prefix)
-  return substratePubkey as Address
+  const uncompressed = await recoverPublicKey({ hash, signature: sign })
+  const compressed = u8aToHex(secp256k1Compress(hexToU8a(uncompressed)))
+  return {
+    uncompressed,
+    compressed,
+    toString: () => uncompressed,
+  } as const
 }
 
 const EVM_ADDRESS_SUFFIX = stringToU8a('@evm_address')
