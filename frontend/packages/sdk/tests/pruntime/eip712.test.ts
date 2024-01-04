@@ -1,11 +1,12 @@
-import { keccak256AsU8a, encodeAddress } from '@polkadot/util-crypto'
-import { hexToU8a, stringToU8a, u8aToHex, } from '@polkadot/util'
+import { hexToU8a, stringToU8a, u8aToHex } from '@polkadot/util'
+import { encodeAddress, keccak256AsU8a } from '@polkadot/util-crypto'
 import { describe, expect, it } from 'vitest'
 import { evmPublicKeyToSubstratePubkey, substrateAddressToEvmAddress } from '../../src/pruntime/eip712'
 
 describe('eip712', () => {
   it('can satisfy formula `origin = keccak256(pubkey)[12..] + b"@evm_address"`', () => {
-    const hex = '049df1e69b8b7c2da2efe0069dc141c2cec0317bf3fd135abaeb69ee33801f597024dc8558dbe54a0328ceaa081387a5e1c5749247266fe53dde4ba7ddbf43eae6'
+    const hex =
+      '049df1e69b8b7c2da2efe0069dc141c2cec0317bf3fd135abaeb69ee33801f597024dc8558dbe54a0328ceaa081387a5e1c5749247266fe53dde4ba7ddbf43eae6'
 
     const public_key = hexToU8a(hex)
     const h32 = keccak256AsU8a(public_key.subarray(1))
