@@ -1,66 +1,14 @@
-import { type ApiPromise } from '@polkadot/api'
-import { ApiTypes, type SubmittableExtrinsic } from '@polkadot/api/types'
-import { type U256, type U64 } from '@polkadot/types-codec'
-import { hexToString, hexToU8a, stringToU8a, u8aToHex } from '@polkadot/util'
-import { blake2AsU8a, decodeAddress, keccak256AsU8a, secp256k1Compress } from '@polkadot/util-crypto'
-import type { Account, Address, Hex, TestClient, WalletClient } from 'viem'
-import { hashMessage, recoverPublicKey } from 'viem'
+import type { ApiPromise } from '@polkadot/api'
+import type { ApiTypes, SubmittableExtrinsic } from '@polkadot/api/types'
+import type { U256, U64 } from '@polkadot/types-codec'
+import { hexToString } from '@polkadot/util'
+import type { Account, Address, Hex } from 'viem'
 import { type signTypedData } from 'viem/wallet'
-import { signMessage } from 'viem/wallet'
 
 // keccak256(b"phala/phat-contract")
 const SALT: Readonly<Hex> = '0x0ea813d1592526d672ea2576d7a07914cef2ca301b35c5eed941f7c897512a00'
 
 type SignTypedDataInput = Parameters<typeof signTypedData>[1]
-
-/**
- * Recovered pubkey and compressed pubkey.
- */
-export async function recoverEvmPubkey(
-  client: WalletClient | TestClient,
-  account: Account,
-  msg = 'Allows to access the pubkey address.'
-) {
-  const sign = await signMessage(client, { account, message: msg })
-  const hash = hashMessage(msg)
-  const uncompressed = await recoverPublicKey({ hash, signature: sign })
-  const compressed = u8aToHex(secp256k1Compress(hexToU8a(uncompressed)))
-  return {
-    uncompressed,
-    compressed,
-    toString: () => uncompressed,
-  } as const
-}
-
-const EVM_ADDRESS_SUFFIX = stringToU8a('@evm_address')
-
-/**
- * Convert an EVM public key (both compressed & uncompressed are supported) to a Substrate pubkey.
- */
-export function evmPublicKeyToSubstratePubkey(hex: string) {
-  const pubkey = hexToU8a(hex)
-  if (pubkey.length === 65) {
-    const h32 = keccak256AsU8a(pubkey.subarray(1))
-    const h20 = h32.subarray(12)
-    return new Uint8Array([...h20, ...EVM_ADDRESS_SUFFIX])
-  } else if (pubkey.length === 33) {
-    return blake2AsU8a(pubkey)
-  } else {
-    throw new Error('Invalid public key length.')
-  }
-}
-
-export function substrateAddressToEvmAddress(address: string) {
-  const substratePubkey = decodeAddress(address)
-  if (substratePubkey.length !== 32) {
-    throw new Error('Invalid public key length.')
-  }
-  if (substratePubkey.subarray(20).toString() !== EVM_ADDRESS_SUFFIX.toString()) {
-    throw new Error('This Substrate Address is not mapped from an EVM Address.')
-  }
-  const h20 = substratePubkey.subarray(0, 20)
-  return u8aToHex(h20)
-}
 
 export function createEip712StructedDataSignCertificate(
   account: Account,
