@@ -1652,7 +1652,7 @@ impl pallet_evm::AddressMapping<AccountId> for PostfixAddressMapping {
 }
 
 parameter_types! {
-    pub const EVMChainId: u64 = 2035;
+    pub const EVMChainId: u64 = 12035;
 }
 
 impl pallet_evm::Config for Runtime {
