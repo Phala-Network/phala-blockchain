@@ -81,23 +81,17 @@ export class EvmAccountMappingProvider implements Provider {
 
   async ready(msg?: string): Promise<void> {
     const version = this.#apiPromise.consts.evmAccountMapping.eip712Version.toString()
-    if (version === '0x31') {
-      this.#recoveredPubkey = await recoverEvmPubkey(this.#client, this.#account as Account, msg)
-      this.#address = encodeAddress(
-        evmPublicKeyToSubstrateRawAddressU8a(this.#recoveredPubkey.compressed),
-        this.#SS58Prefix
-      )
-    } else if (version === '0x32') {
-      this.#recoveredPubkey = await recoverEvmPubkey(this.#client, this.#account as Account, msg)
-      this.#address = encodeAddress(
-        evmPublicKeyToSubstrateRawAddressU8a(this.#recoveredPubkey.uncompressed),
-        this.#SS58Prefix
-      )
-    } else {
+    if (version !== '0x31' && version !== '0x32') {
       throw new Error(
         `Unsupported evm_account_mapping pallet version: consts.evmAccountMapping.eip712Version = ${version}`
       )
     }
+    this.#recoveredPubkey = await recoverEvmPubkey(this.#client, this.#account as Account, msg)
+    const converter = version === '0x32' ? 'EvmTransparentConverter' : 'SubstrateAddressConverter'
+    this.#address = encodeAddress(
+      evmPublicKeyToSubstrateRawAddressU8a(this.#recoveredPubkey.compressed, converter),
+      this.#SS58Prefix
+    )
   }
 
   static async create(
