@@ -1,6 +1,5 @@
 import { type ApiPromise, Keyring } from '@polkadot/api'
 import { type KeyringPair } from '@polkadot/keyring/types'
-import type { Result, U64 } from '@polkadot/types'
 import { Enum, Map, Option, Text, U8aFixed, Vec } from '@polkadot/types'
 import { AccountId } from '@polkadot/types/interfaces'
 import { BN } from '@polkadot/util'
@@ -9,9 +8,11 @@ import systemAbi from './abis/system.json'
 import { PinkContractPromise } from './contracts/PinkContract'
 import { PinkLoggerContractPromise } from './contracts/PinkLoggerContract'
 import { type PhalaTypesVersionedWorkerEndpoints, ackFirst } from './ha/ack-first'
+import { KeyringPairProvider } from './providers/KeyringPairProvider'
 import { type CertificateData, signCertificate } from './pruntime/certificate'
 import createPruntimeClient from './pruntime/createPruntimeClient'
 import { pruntime_rpc } from './pruntime/proto'
+import type { SystemContract } from './types'
 
 export class UnexpectedEndpointError extends Error {}
 
@@ -78,7 +79,7 @@ export class OnChainRegistry {
   #alice: KeyringPair | undefined
   #cert: CertificateData | undefined
 
-  #systemContract: PinkContractPromise | undefined
+  #systemContract: SystemContract | undefined
   #loggerContract: PinkLoggerContractPromise | undefined
 
   constructor(api: ApiPromise) {
@@ -257,7 +258,15 @@ export class OnChainRegistry {
     if (systemContractId) {
       const systemContractKey = await this.getContractKey(systemContractId)
       if (systemContractKey) {
-        this.#systemContract = new PinkContractPromise(this.api, this, systemAbi, systemContractId, systemContractKey)
+        const provider = await KeyringPairProvider.create(this.api, this.alice)
+        this.#systemContract = new PinkContractPromise(
+          this.api,
+          this,
+          systemAbi,
+          systemContractId,
+          systemContractKey,
+          provider
+        )
         this.#loggerContract = await PinkLoggerContractPromise.create(this.api, this, this.#systemContract)
       } else {
         throw new Error(`System contract not found: ${systemContractId}`)
@@ -502,7 +511,15 @@ export class OnChainRegistry {
     if (systemContractId) {
       const systemContractKey = await this.getContractKey(systemContractId)
       if (systemContractKey) {
-        this.#systemContract = new PinkContractPromise(this.api, this, systemAbi, systemContractId, systemContractKey)
+        const provider = await KeyringPairProvider.create(this.api, this.alice)
+        this.#systemContract = new PinkContractPromise(
+          this.api,
+          this,
+          systemAbi,
+          systemContractId,
+          systemContractKey,
+          provider
+        )
         this.#loggerContract = await PinkLoggerContractPromise.create(this.api, this, this.#systemContract)
       } else {
         throw new Error(`System contract not found: ${systemContractId}`)
@@ -549,8 +566,8 @@ export class OnChainRegistry {
       system.query['system::freeBalanceOf'](cert.address, { cert }, address),
     ])
     return {
-      total: (totalBalanceOf as Result<U64, any>).asOk.toBn(),
-      free: (freeBalanceOf as Result<U64, any>).asOk.toBn(),
+      total: totalBalanceOf.asOk,
+      free: freeBalanceOf.asOk,
     }
   }
 
@@ -571,5 +588,9 @@ export class OnChainRegistry {
 
   get pruntimeURL() {
     return this.workerInfo?.endpoints.default
+  }
+
+  get isEvmAccountMappingSupported() {
+    return !!this.api.consts?.evmAccountMapping?.eip712Name
   }
 }

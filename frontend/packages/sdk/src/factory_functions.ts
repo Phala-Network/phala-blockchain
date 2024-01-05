@@ -7,11 +7,11 @@ import { PinkLoggerContractPromise } from './contracts/PinkLoggerContract'
 import { type CreateOptions, OnChainRegistry } from './OnChainRegistry'
 import { options } from './options'
 import createPruntimeClient from './pruntime/createPruntimeClient'
-import type { AbiLike } from './types'
+import type { AbiLike, AnyProvider } from './types'
 import { type LiteralRpc, fetchMetadata } from './utils/fetchMetadata'
 
 export type GetClientOptions = {
-  transport: LiteralRpc | WsProvider
+  transport: LiteralRpc | WsProvider | string
 
   // Provides metadata instead loading via RPC when initializing the client.
   // It's optional since if the RPC under the phala.network domain, we will
@@ -26,7 +26,7 @@ export async function getClient(opts: GetClientOptions): Promise<OnChainRegistry
   const provider = typeof transport === 'string' ? new WsProvider(transport) : transport
   let metadata = _metadata
   if (typeof transport === 'string' && !metadata && transport.indexOf('phala.network/') !== -1 && !noPreloadMetadata) {
-    metadata = await fetchMetadata(transport)
+    metadata = await fetchMetadata(transport as LiteralRpc)
   }
   const api = await ApiPromise.create(options({ provider, noInitWarn: true, metadata }))
   return await OnChainRegistry.create(api, rest)
@@ -36,14 +36,13 @@ export type GetContractOptions = {
   client: OnChainRegistry
   contractId: string
   abi: AbiLike
+  provider?: AnyProvider
 }
 
-export async function getContract<T extends PinkContractPromise>(
-  options: GetContractOptions
-): Promise<PinkContractPromise> {
+export async function getContract<T extends PinkContractPromise>(options: GetContractOptions): Promise<T> {
   const { client, contractId, abi } = options
   const contractKey = await client.getContractKeyOrFail(contractId)
-  return new PinkContractPromise(client.api, client, abi, contractId, contractKey) as T
+  return new PinkContractPromise(client.api, client, abi, contractId, contractKey, options.provider) as T
 }
 
 export type GetLoggerOptions =

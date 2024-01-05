@@ -20,9 +20,21 @@ export interface Provider {
   ): Promise<TSubmittableResult>
 
   /**
+   * Adjust Contract staking.
+   */
+  adjustStake(contractId: string, amount: number): Promise<void>
+
+  /**
    * Get a signed certificate from the account bind in the provider.
    */
   signCertificate(ttl?: number): Promise<CertificateData>
 
-  adjustStake(contractId: string, amount: number): Promise<void>
+  /**
+   * Check if the certificate is expired.
+   */
+  get isCertificateExpired(): boolean
+
+  get hasCertificate(): boolean
+
+  revokeCertificate(): void
 }
