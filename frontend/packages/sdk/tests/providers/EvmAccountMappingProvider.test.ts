@@ -48,7 +48,7 @@ describe.skipIf(!process.env.TEST_RPC_ENDPOINT)('EvmAccountMappingProvider', () 
     }).rejects.toThrowError()
   })
 
-  it('throws error on unsupport eip712Version', () => {
+  it('throws error on unsupported eip712Version', () => {
     expect(async () => {
       const api = await ApiPromise.create(
         options({
@@ -68,7 +68,7 @@ describe.skipIf(!process.env.TEST_RPC_ENDPOINT)('EvmAccountMappingProvider', () 
     }).rejects.toThrowError()
   })
 
-  it('handle eip712Version 1 that create mapped address from compressed pubkey', async () => {
+  it('handle eip712Version 1 that create mapped address with SubstrateAddressConverter', async () => {
     const api = await ApiPromise.create(
       options({
         provider: new WsProvider(rpc),
@@ -89,7 +89,7 @@ describe.skipIf(!process.env.TEST_RPC_ENDPOINT)('EvmAccountMappingProvider', () 
     expect(encodeAddress(fromCompressed, 30)).toEqual(provider.address)
   })
 
-  it('handle eip712Version 2 that create mapped address from uncompressed pubkey', async () => {
+  it('handle eip712Version 2 that create mapped address with EvmTransparentConverter', async () => {
     const api = await ApiPromise.create(
       options({
         provider: new WsProvider(rpc),
