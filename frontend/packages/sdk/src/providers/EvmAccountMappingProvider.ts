@@ -148,8 +148,8 @@ export class EvmAccountMappingProvider implements Provider {
     transform?: (input: ISubmittableResult) => ISubmittableResult
   ): Promise<TSubmittableResult> {
     const substrateCall = await createSubstrateCall(this.#apiPromise, this.address, extrinsic)
-    const typedData = createEip712StructedDataSubstrateCall(this.#account as Account, this.#domain, substrateCall)
-    const signature = await this.#client.signTypedData(typedData)
+    const typedData = createEip712StructedDataSubstrateCall(this.#domain, substrateCall)
+    const signature = await this.#client.signTypedData({ ...typedData, account: this.#account as Account })
     return await new Promise(async (resolve, reject) => {
       try {
         const _extrinsic = this.#apiPromise.tx.evmAccountMapping.metaCall(
