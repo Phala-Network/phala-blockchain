@@ -26,6 +26,7 @@ describe('AddressConverter', () => {
     expect(raw).toEqual(result)
 
     expect(encodeAddress(raw, 42)).toEqual('5EmhBEe8vsSfqYseKctWsaQqNKCF9FFao6Mqa9hNfcdF25oE')
+    expect(encodeAddress(raw, 30)).toEqual('43Kn5L9JKNwwxr25TELELmDjcVUiV3hLXoiGBwym7MVPeQBM')
   })
 
   it('supports EvmTransparentConverter with compressed pubkey', () => {
@@ -45,6 +46,7 @@ describe('AddressConverter', () => {
     const hex = '027cf2fa7bfe66adad4149481ff86794ce7e1ab2f7ed615ad3918f91581d2c00f1'
     const result = evmPublicKeyToSubstrateRawAddressU8a(hex, 'SubstrateAddressConverter')
     expect('5DT96geTS2iLpkH8fAhYAAphNpxddKCV36s5ShVFavf1xQiF').toEqual(encodeAddress(result, 42))
+    expect('421Dzn9cpYDcx3RZnn9FdMdbd1F6y7eEmpDW4Vme2fXAamph').toEqual(encodeAddress(result, 30))
   })
 
   it('supports SubstrateAddressConverter with uncompressed pubkey', () => {
