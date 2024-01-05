@@ -1,5 +1,6 @@
 import type { ApiPromise, SubmittableResult } from '@polkadot/api'
 import type { SubmittableExtrinsic } from '@polkadot/api/types'
+import type { u16 } from '@polkadot/types/primitive'
 import type { ISubmittableResult } from '@polkadot/types/types'
 import { encodeAddress } from '@polkadot/util-crypto'
 import type { Account, Address, Hex, WalletClient } from 'viem'
@@ -20,6 +21,10 @@ type AccountLike = Account | { address: Address }
 export interface EvmCaller {
   compressedPubkey: `0x${string}`
   address: Address
+}
+
+export interface EvmAccountMappingProviderOptions {
+  SS58Prefix?: number
 }
 
 /**
@@ -58,12 +63,17 @@ export class EvmAccountMappingProvider implements Provider {
   #cachedCert: CertificateData | undefined
   #certExpiredAt: number | undefined
 
-  constructor(api: ApiPromise, client: WalletClient, account: AccountLike, { SS58Prefix = 30 } = {}) {
+  constructor(
+    api: ApiPromise,
+    client: WalletClient,
+    account: AccountLike,
+    { SS58Prefix = undefined }: EvmAccountMappingProviderOptions = {}
+  ) {
     this.#apiPromise = api
     this.#client = client
     this.#account = account
     this.#domain = createEip712Domain(api)
-    this.#SS58Prefix = SS58Prefix
+    this.#SS58Prefix = SS58Prefix || (api.consts.system?.ss58Prefix as u16).toNumber() || 42
   }
 
   get name(): 'evmAccountMapping' {
