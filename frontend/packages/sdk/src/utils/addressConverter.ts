@@ -30,7 +30,9 @@ export async function recoverEvmPubkey(
 }
 
 // equals to `stringToU8a('@evm_address')`
-const EVM_ADDRESS_SUFFIX: Readonly<Uint8Array> = new Uint8Array([64, 101, 118, 109, 95, 97, 100, 100, 114, 101, 115, 115])
+const EVM_ADDRESS_SUFFIX: Readonly<Uint8Array> = new Uint8Array([
+  64, 101, 118, 109, 95, 97, 100, 100, 114, 101, 115, 115,
+])
 
 /**
  * Convert an EVM public key (both compressed & uncompressed are supported) to a Substrate raw address.
