@@ -1,7 +1,14 @@
 import { hexToU8a, stringToU8a } from '@polkadot/util'
 import { encodeAddress, keccak256AsU8a } from '@polkadot/util-crypto'
+import { createWalletClient, http } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+import { mainnet } from 'viem/chains'
 import { describe, expect, it } from 'vitest'
-import { evmPublicKeyToSubstratePubkey, substrateAddressToEvmAddress } from '../../src/pruntime/eip712'
+import {
+  evmPublicKeyToSubstratePubkey,
+  recoverEvmPubkey,
+  substrateAddressToEvmAddress,
+} from '../../src/pruntime/eip712'
 
 describe('eip712', () => {
   it('can satisfy formula `origin = keccak256(pubkey)[12..] + b"@evm_address"`', () => {
@@ -33,5 +40,19 @@ describe('eip712', () => {
 
     const result = substrateAddressToEvmAddress(substrateAddress)
     expect(evmAddress).toEqual(result)
+  })
+
+  it('can recoverEvmPubkey', async () => {
+    const account = privateKeyToAccount('0x415ac5b1b9c3742f85f2536b1eb60a03bf64a590ea896b087182f9c92f41ea12')
+    const walletClient = createWalletClient({
+      account,
+      chain: mainnet,
+      transport: http(),
+    })
+    const recovered = await recoverEvmPubkey(walletClient, account, 'Allows to access the pubkey address.')
+    expect(recovered.uncompressed).toEqual(
+      '0x047cf2fa7bfe66adad4149481ff86794ce7e1ab2f7ed615ad3918f91581d2c00f1b78639ed0e27ac2990496f3459b2c09ea4d5b3322a0ce7da7ec1fd86f069854c'
+    )
+    expect(recovered.compressed).toEqual('0x027cf2fa7bfe66adad4149481ff86794ce7e1ab2f7ed615ad3918f91581d2c00f1')
   })
 })
