@@ -1,50 +1,14 @@
-import { type ApiPromise } from '@polkadot/api'
-import { ApiTypes, type SubmittableExtrinsic } from '@polkadot/api/types'
-import { type U256, type U64 } from '@polkadot/types-codec'
-import { hexToString, hexToU8a, u8aToHex } from '@polkadot/util'
-import { blake2AsU8a, encodeAddress, secp256k1Compress } from '@polkadot/util-crypto'
-import type { Account, Address, TestClient, WalletClient } from 'viem'
-import { hashMessage, recoverPublicKey } from 'viem'
+import type { ApiPromise } from '@polkadot/api'
+import type { ApiTypes, SubmittableExtrinsic } from '@polkadot/api/types'
+import type { U256, U64 } from '@polkadot/types-codec'
+import { hexToString } from '@polkadot/util'
+import type { Account, Address, Hex } from 'viem'
 import { type signTypedData } from 'viem/wallet'
-import { signMessage } from 'viem/wallet'
 
 // keccak256(b"phala/phat-contract")
-const SALT = '0x0ea813d1592526d672ea2576d7a07914cef2ca301b35c5eed941f7c897512a00'
+const SALT: Readonly<Hex> = '0x0ea813d1592526d672ea2576d7a07914cef2ca301b35c5eed941f7c897512a00'
 
 type SignTypedDataInput = Parameters<typeof signTypedData>[1]
-
-/**
- * Get compressed formatted ether address for a specified account via a Wallet Client.
- */
-export async function etherAddressToCompressedPubkey(
-  client: WalletClient | TestClient,
-  account: Account,
-  msg = 'Allows to access the pubkey address.'
-) {
-  const sign = await signMessage(client, { account, message: msg })
-  const hash = hashMessage(msg)
-  const recovered = await recoverPublicKey({ hash, signature: sign })
-  const compressedPubkey = u8aToHex(secp256k1Compress(hexToU8a(recovered)))
-  return compressedPubkey
-}
-
-export interface EtherAddressToSubstrateAddressOptions {
-  SS58Prefix?: number
-  msg?: string
-}
-
-/**
- * Convert an Ethereum address to a Substrate address.
- */
-export async function etherAddressToSubstrateAddress(
-  client: WalletClient,
-  account: Account,
-  { SS58Prefix = 30, msg }: EtherAddressToSubstrateAddressOptions = {}
-) {
-  const compressedPubkey = await etherAddressToCompressedPubkey(client, account, msg)
-  const substratePubkey = encodeAddress(blake2AsU8a(hexToU8a(compressedPubkey)), SS58Prefix)
-  return substratePubkey as Address
-}
 
 export function createEip712StructedDataSignCertificate(
   account: Account,
@@ -159,12 +123,10 @@ export async function createSubstrateCall<T extends ApiTypes>(
  * @params nonce number     The nonce of the account.
  */
 export function createEip712StructedDataSubstrateCall(
-  account: Account,
   domain: Eip712Domain,
   message: SubstrateCall
-): SignTypedDataInput {
+): Omit<SignTypedDataInput, 'account'> {
   return {
-    account,
     types: {
       EIP712Domain: [
         {
