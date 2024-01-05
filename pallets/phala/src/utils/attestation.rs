@@ -185,7 +185,7 @@ pub fn validate_ias_report(
 	}
 
 	// Validate time
-	if (now as i64 - report_timestamp) >= 7200 {
+	if (now as i64 - report_timestamp).abs() >= 7200 {
 		return Err(Error::OutdatedIASReport);
 	}
 

@@ -40,5 +40,6 @@ Allow pRuntime to handover
     ```
     $ curl -d @sigs.json  localhost:8000/prpc/PhactoryAPI.AllowHandoverTo?json
     ```
+    **Note**: Don't sync any chain state to the pruntime A after this step, otherwise the handover will be rejected.
 4. Run a new pruntime B instance to start the handover
     `$ ./gramine-sgx pruntime --request-handover-from http://localhost:8000`

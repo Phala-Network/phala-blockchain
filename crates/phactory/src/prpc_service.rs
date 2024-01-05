@@ -263,6 +263,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             ),
             "dispatch_block",
         );
+
+        self.allow_handover_to = None;
+
         let counters = self.runtime_state()?.storage_synchronizer.counters();
         blocks.retain(|b| b.block_header.number >= counters.next_block_number);
 
@@ -2066,7 +2069,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             signers.insert(signer);
         }
         let percent = signers.len() * 100 / council_members.len();
-        if percent < 50 {
+        // At least 7 of 8 members. 6/8 = 75%, 7/8 = 87.5%.
+        let threshold = 80;
+        if percent < threshold {
             return Err(from_display("Not enough signatures"));
         }
         phactory.allow_handover_to = Some(request.measurement);
