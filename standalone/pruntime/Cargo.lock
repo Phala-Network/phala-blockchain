@@ -5032,7 +5032,7 @@ dependencies = [
 [[package]]
 name = "pallet-evm_account_mapping"
 version = "0.0.1"
-source = "git+https://github.com/Phala-Network/substrate-evm_account_mapping?branch=release-polkadot-v1.5.0#9963def5b42dcb41625605f39c5c2b5a6fabdc0a"
+source = "git+https://github.com/Phala-Network/substrate-evm_account_mapping?branch=release-polkadot-v1.5.0#0fc803b23c1aa93f9da01d71e7a3e5c54c94d97e"
 dependencies = [
  "ethabi",
  "frame-support",
