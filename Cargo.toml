@@ -124,6 +124,7 @@ pallet-evm = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-
 pallet-evm-precompile-modexp = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
 pallet-evm-precompile-sha3fips = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
 pallet-evm-precompile-simple = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
+pallet-evm-precompile-dispatch = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
 pallet-evm-test-vector-support = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0" }
 pallet-hotfix-sufficients = { git = "https://github.com/kvinwang/frontier", branch = "polkadot-v1.5.0", default-features = false }
 # Frontier Template

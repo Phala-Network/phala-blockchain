@@ -1,9 +1,12 @@
+use frame_support::dispatch::{GetDispatchInfo, PostDispatchInfo};
 use pallet_evm::{
     IsPrecompileResult, Precompile, PrecompileHandle, PrecompileResult, PrecompileSet,
 };
 use sp_core::H160;
+use sp_runtime::traits::Dispatchable;
 use sp_std::marker::PhantomData;
 
+use pallet_evm_precompile_dispatch::Dispatch;
 use pallet_evm_precompile_modexp::Modexp;
 use pallet_evm_precompile_sha3fips::Sha3FIPS256;
 use pallet_evm_precompile_simple::{ECRecover, ECRecoverPublicKey, Identity, Ripemd160, Sha256};
@@ -19,7 +22,7 @@ impl<R> FrontierPrecompiles<R>
 where
     R: pallet_evm::Config,
 {
-    pub fn used_addresses() -> [H160; 7] {
+    pub fn used_addresses() -> [H160; 8] {
         [
             hash(1),
             hash(2),
@@ -28,12 +31,15 @@ where
             hash(5),
             hash(1024),
             hash(1025),
+            hash(2048),
         ]
     }
 }
 impl<R> PrecompileSet for FrontierPrecompiles<R>
 where
     R: pallet_evm::Config,
+    R::RuntimeCall: Dispatchable<PostInfo = PostDispatchInfo> + GetDispatchInfo,
+    <R::RuntimeCall as Dispatchable>::RuntimeOrigin: From<Option<R::AccountId>>,
 {
     fn execute(&self, handle: &mut impl PrecompileHandle) -> Option<PrecompileResult> {
         match handle.code_address() {
@@ -46,6 +52,7 @@ where
             // Non-Frontier specific nor Ethereum precompiles :
             a if a == hash(1024) => Some(Sha3FIPS256::execute(handle)),
             a if a == hash(1025) => Some(ECRecoverPublicKey::execute(handle)),
+            a if a == hash(2048) => Some(Dispatch::<R>::execute(handle)),
             _ => None,
         }
     }
