@@ -5,14 +5,13 @@ import type { ISubmittableResult } from '@polkadot/types/types'
 import { encodeAddress } from '@polkadot/util-crypto'
 import type { Account, Address, Hex, WalletClient } from 'viem'
 import { type CertificateData, signEip712Certificate } from '../pruntime/certificate'
+import { evmPublicKeyToSubstrateRawAddressU8a, recoverEvmPubkey } from '../utils/addressConverter'
 import {
   type Eip712Domain,
   createEip712Domain,
   createEip712StructedDataSubstrateCall,
   createSubstrateCall,
-  evmPublicKeyToSubstratePubkey,
-  recoverEvmPubkey,
-} from '../pruntime/eip712'
+} from '../utils/eip712'
 import { callback } from '../utils/signAndSend'
 import { Provider } from './types'
 
@@ -84,13 +83,19 @@ export class EvmAccountMappingProvider implements Provider {
     const version = this.#apiPromise.consts.evmAccountMapping.eip712Version.toString()
     if (version === '0x31') {
       this.#recoveredPubkey = await recoverEvmPubkey(this.#client, this.#account as Account, msg)
-      this.#address = encodeAddress(evmPublicKeyToSubstratePubkey(this.#recoveredPubkey.compressed), this.#SS58Prefix)
+      this.#address = encodeAddress(
+        evmPublicKeyToSubstrateRawAddressU8a(this.#recoveredPubkey.compressed),
+        this.#SS58Prefix
+      )
     } else if (version === '0x32') {
       this.#recoveredPubkey = await recoverEvmPubkey(this.#client, this.#account as Account, msg)
-      this.#address = encodeAddress(evmPublicKeyToSubstratePubkey(this.#recoveredPubkey.uncompressed), this.#SS58Prefix)
+      this.#address = encodeAddress(
+        evmPublicKeyToSubstrateRawAddressU8a(this.#recoveredPubkey.uncompressed),
+        this.#SS58Prefix
+      )
     } else {
       throw new Error(
-        `Unsupported evm_account_mapping pallet version: const evmAccountMapping.eip712Version = ${version}`
+        `Unsupported evm_account_mapping pallet version: consts.evmAccountMapping.eip712Version = ${version}`
       )
     }
   }

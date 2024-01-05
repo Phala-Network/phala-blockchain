@@ -11,7 +11,7 @@ import { mainnet } from 'viem/chains'
 import { describe, expect, it, vi } from 'vitest'
 import { options } from '../../src/options'
 import { EvmAccountMappingProvider } from '../../src/providers/EvmAccountMappingProvider'
-import { evmPublicKeyToSubstratePubkey } from '../../src/pruntime/eip712'
+import { evmPublicKeyToSubstrateRawAddressU8a } from '../../src/utils/addressConverter'
 
 declare module '@polkadot/api/types/consts' {
   interface AugmentedConsts<ApiType extends ApiTypes> {
@@ -81,11 +81,11 @@ describe.skipIf(!process.env.TEST_RPC_ENDPOINT)('EvmAccountMappingProvider', () 
     })
     const provider = await EvmAccountMappingProvider.create(api, walletClient, account)
 
-    const fromUncompressed = evmPublicKeyToSubstratePubkey(account.publicKey)
+    const fromUncompressed = evmPublicKeyToSubstrateRawAddressU8a(account.publicKey)
     expect(encodeAddress(fromUncompressed)).not.toEqual(provider.address)
 
     const compressed = u8aToHex(secp256k1Compress(hexToU8a(account.publicKey)))
-    const fromCompressed = evmPublicKeyToSubstratePubkey(compressed)
+    const fromCompressed = evmPublicKeyToSubstrateRawAddressU8a(compressed)
     expect(encodeAddress(fromCompressed, 30)).toEqual(provider.address)
   })
 
@@ -104,11 +104,11 @@ describe.skipIf(!process.env.TEST_RPC_ENDPOINT)('EvmAccountMappingProvider', () 
     }
     const provider = await EvmAccountMappingProvider.create(api, walletClient, account)
 
-    const fromUncompressed = evmPublicKeyToSubstratePubkey(account.publicKey)
+    const fromUncompressed = evmPublicKeyToSubstrateRawAddressU8a(account.publicKey)
     expect(encodeAddress(fromUncompressed, 30)).toEqual(provider.address)
 
     const compressed = u8aToHex(secp256k1Compress(hexToU8a(account.publicKey)))
-    const fromCompressed = evmPublicKeyToSubstratePubkey(compressed)
+    const fromCompressed = evmPublicKeyToSubstrateRawAddressU8a(compressed)
     expect(encodeAddress(fromCompressed, 30)).not.toEqual(provider.address)
   })
 })
