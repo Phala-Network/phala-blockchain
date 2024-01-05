@@ -14,6 +14,7 @@ import { EvmAccountMappingProvider } from '../../src/providers/EvmAccountMapping
 import { evmPublicKeyToSubstrateRawAddressU8a } from '../../src/utils/addressConverter'
 
 declare module '@polkadot/api/types/consts' {
+  /* eslint-disable @typescript-eslint/no-unused-vars */
   interface AugmentedConsts<ApiType extends ApiTypes> {
     evmAccountMapping: {
       eip712Name: Bytes
