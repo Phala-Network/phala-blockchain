@@ -175,12 +175,10 @@ export async function createSubstrateCall<T extends ApiTypes>(
  * @params nonce number     The nonce of the account.
  */
 export function createEip712StructedDataSubstrateCall(
-  account: Account,
   domain: Eip712Domain,
   message: SubstrateCall
-): SignTypedDataInput {
+): Omit<SignTypedDataInput, 'account'> {
   return {
-    account,
     types: {
       EIP712Domain: [
         {
