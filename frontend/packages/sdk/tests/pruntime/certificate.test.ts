@@ -16,7 +16,7 @@ import { mainnet } from 'viem/chains'
 import { describe, it } from 'vitest'
 import { types } from '../../src/options'
 import { signCertificate, signEip712Certificate } from '../../src/pruntime/certificate'
-import { recoverEvmPubkey } from '../../src/pruntime/eip712'
+import { recoverEvmPubkey } from '../../src/utils/addressConverter'
 
 let id = 0
 

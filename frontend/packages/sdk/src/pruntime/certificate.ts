@@ -9,8 +9,8 @@ import { type Account, type Client } from 'viem'
 import { signTypedData } from 'viem/wallet'
 import { phalaTypes } from '../options'
 import { pruntime_rpc as pruntimeRpc } from '../pruntime/proto'
+import { createEip712StructedDataSignCertificate } from '../utils/eip712'
 import { randomHex } from '../utils/hex'
-import { createEip712StructedDataSignCertificate } from './eip712'
 
 export interface InjectedAccount {
   address: string
