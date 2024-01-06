@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use core::convert::TryFrom;
 use parity_scale_codec::{Decode, Encode, FullCodec};
 use scale_info::TypeInfo;
-pub use sp_consensus_grandpa::{AuthorityList, SetId};
+pub use sp_consensus_grandpa::{AuthorityList, ConsensusLog, GRANDPA_ENGINE_ID, ScheduledChange, SetId};
 
 pub use phala_trie_storage::ser::StorageChanges;
 use sp_core::U256;
@@ -156,4 +156,17 @@ pub mod compat {
             Self { input }
         }
     }
+}
+
+pub fn find_scheduled_change(
+    header: &BlockHeader,
+) -> Option<ScheduledChange<u32>> {
+    let filter_log = |log: ConsensusLog<u32>| match log {
+        ConsensusLog::ScheduledChange(change) => Some(change),
+        _ => None,
+    };
+
+    // find the first consensus digest with the right ID which converts to
+    // the right kind of consensus log.
+    header.digest.convert_first(|l| l.consensus_try_to(&GRANDPA_ENGINE_ID).and_then(filter_log))
 }

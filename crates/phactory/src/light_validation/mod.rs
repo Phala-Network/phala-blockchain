@@ -63,7 +63,7 @@ use sp_core::H256;
 use sp_runtime::traits::{Block as BlockT, Header, NumberFor};
 use sp_runtime::EncodedJustification;
 
-pub use types::{AuthoritySet, AuthoritySetChange, BlockHeader};
+pub use types::{AuthoritySet, BlockHeader, find_scheduled_change};
 
 #[derive(Encode, Decode, Clone, PartialEq, Serialize, Deserialize, ::scale_info::TypeInfo)]
 pub struct BridgeInfo<T: Config> {
@@ -153,7 +153,6 @@ where
         header: BlockHeader,
         ancestry_proof: Vec<BlockHeader>,
         grandpa_proof: EncodedJustification,
-        auhtority_set_change: Option<AuthoritySetChange>,
     ) -> Result<()> {
         let bridge = self
             .tracked_bridges
@@ -181,23 +180,16 @@ where
 
         match self.tracked_bridges.get_mut(&bridge_id) {
             Some(bridge_info) => {
-                if let Some(change) = auhtority_set_change {
-                    // Check the validator set increment
-                    if change.authority_set.id != voter_set_id + 1 {
-                        return Err(anyhow::Error::msg(Error::UnexpectedValidatorSetId));
+                if let Some(scheduled_change) = find_scheduled_change(&header) {
+                    // GRANDPA only includes a `delay` for forced changes, so this isn't valid.
+                    if scheduled_change.delay != 0 {
+                        return Err(anyhow::Error::msg(Error::UnsupportedScheduledChangeDelay));
                     }
-                    // Check validator set change proof
-                    let state_root = bridge_info.last_finalized_block_header.state_root();
-                    Self::check_validator_set_proof(
-                        state_root,
-                        change.authority_proof,
-                        &change.authority_set.list,
-                        change.authority_set.id,
-                    )?;
+
                     // Commit
                     bridge_info.current_set = AuthoritySet {
-                        list: change.authority_set.list,
-                        id: change.authority_set.id,
+                        list: scheduled_change.next_authorities,
+                        id: voter_set_id + 1,
                     }
                 }
                 bridge_info.last_finalized_block_header = header;
@@ -239,8 +231,9 @@ pub enum Error {
     InvalidFinalityProof,
     // UnknownClientError,
     // HeaderAncestryMismatch,
-    UnexpectedValidatorSetId,
+    // UnexpectedValidatorSetId,
     StorageValueMismatch,
+    UnsupportedScheduledChangeDelay,
 }
 
 impl fmt::Display for Error {
@@ -253,8 +246,9 @@ impl fmt::Display for Error {
             Error::NoSuchBridgeExists => write!(f, "no such bridge exists"),
             Error::InvalidFinalityProof => write!(f, "invalid finality proof"),
             // Error::HeaderAncestryMismatch => write!(f, "header ancestry mismatch"),
-            Error::UnexpectedValidatorSetId => write!(f, "unexpected validator set id"),
+            // Error::UnexpectedValidatorSetId => write!(f, "unexpected validator set id"),
             Error::StorageValueMismatch => write!(f, "storage value mismatch"),
+            Error::UnsupportedScheduledChangeDelay => write!(f, "scheduled change should not have delay"),
         }
     }
 }
