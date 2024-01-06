@@ -36,7 +36,7 @@ impl BlockValidator for LightValidation<chain::Runtime> {
 
 mod storage_ext {
     use crate::{chain, light_validation::utils::storage_prefix};
-    use chain::{pallet_computation, pallet_mq, pallet_phat, pallet_registry};
+    use chain::{pallet_computation, pallet_mq, pallet_phat, pallet_registry, AccountId};
     use log::error;
     use parity_scale_codec::{Decode, Error};
     use phala_mq::{ContractClusterId, Message, MessageOrigin};
@@ -206,6 +206,10 @@ mod storage_ext {
             worker: &phala_types::WorkerPublicKey,
         ) -> Option<ContractClusterId> {
             self.execute_with(|| pallet_phat::ClusterByWorkers::<chain::Runtime>::get(worker))
+        }
+
+        pub(crate) fn council_members(&self) -> Vec<AccountId> {
+            self.execute_with(chain::Council::members)
         }
     }
 }
