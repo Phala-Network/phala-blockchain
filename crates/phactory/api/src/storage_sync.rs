@@ -57,7 +57,6 @@ pub trait BlockValidator {
         header: chain::Header,
         ancestry_proof: Vec<chain::Header>,
         grandpa_proof: Vec<u8>,
-        auhtority_set_change: Option<AuthoritySetChange>,
     ) -> Result<()>;
 
     fn validate_storage_proof(
@@ -129,7 +128,7 @@ where
     pub fn sync_header(
         &mut self,
         mut headers: Vec<HeaderToSync>,
-        authority_set_change: Option<AuthoritySetChange>,
+        _authority_set_change: Option<AuthoritySetChange>,
         state_roots: &mut VecDeque<Hash>,
     ) -> Result<chain::BlockNumber> {
         headers.retain(|header| header.header.number >= self.header_number_next);
@@ -172,7 +171,6 @@ where
                 last_header,
                 accenstor_proof,
                 justification,
-                authority_set_change,
             )?;
         }
 
