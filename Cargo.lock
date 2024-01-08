@@ -1413,7 +1413,7 @@ dependencies = [
  "lazy_static",
  "lazycell",
  "peeking_take_while",
- "prettyplease 0.2.9",
+ "prettyplease 0.2.16",
  "proc-macro2",
  "quote",
  "regex",
@@ -4066,7 +4066,7 @@ dependencies = [
  "ethers-etherscan",
  "eyre",
  "hex",
- "prettyplease 0.2.9",
+ "prettyplease 0.2.16",
  "proc-macro2",
  "quote",
  "regex",
@@ -11421,9 +11421,9 @@ dependencies = [
 
 [[package]]
 name = "prettyplease"
-version = "0.2.9"
+version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9825a04601d60621feed79c4e6b56d65db77cdca55cef43b46b0de1096d1c282"
+checksum = "a41cf62165e97c7f814d2221421dbb9afcbcdb0a88068e5ea206e19951c2cbb5"
 dependencies = [
  "proc-macro2",
  "syn 2.0.47",
@@ -15252,7 +15252,7 @@ dependencies = [
 [[package]]
 name = "sp-crypto-ec-utils"
 version = "0.4.1"
-source = "git+https://github.com/paritytech/polkadot-sdk#f82c297728373b9aa09893d15c2c8f9c01ba8cf3"
+source = "git+https://github.com/paritytech/polkadot-sdk#2e4b8996c4924fc39f85198019039cf0987f89ec"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-377-ext",
@@ -15292,7 +15292,7 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "8.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#f82c297728373b9aa09893d15c2c8f9c01ba8cf3"
+source = "git+https://github.com/paritytech/polkadot-sdk#2e4b8996c4924fc39f85198019039cf0987f89ec"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -15313,7 +15313,7 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.19.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#f82c297728373b9aa09893d15c2c8f9c01ba8cf3"
+source = "git+https://github.com/paritytech/polkadot-sdk#2e4b8996c4924fc39f85198019039cf0987f89ec"
 dependencies = [
  "environmental",
  "parity-scale-codec",
@@ -15514,7 +15514,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface"
 version = "17.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#f82c297728373b9aa09893d15c2c8f9c01ba8cf3"
+source = "git+https://github.com/paritytech/polkadot-sdk#2e4b8996c4924fc39f85198019039cf0987f89ec"
 dependencies = [
  "bytes",
  "impl-trait-for-tuples",
@@ -15545,7 +15545,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "11.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#f82c297728373b9aa09893d15c2c8f9c01ba8cf3"
+source = "git+https://github.com/paritytech/polkadot-sdk#2e4b8996c4924fc39f85198019039cf0987f89ec"
 dependencies = [
  "Inflector",
  "expander",
@@ -15637,7 +15637,7 @@ source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polk
 [[package]]
 name = "sp-std"
 version = "8.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#f82c297728373b9aa09893d15c2c8f9c01ba8cf3"
+source = "git+https://github.com/paritytech/polkadot-sdk#2e4b8996c4924fc39f85198019039cf0987f89ec"
 
 [[package]]
 name = "sp-storage"
@@ -15655,7 +15655,7 @@ dependencies = [
 [[package]]
 name = "sp-storage"
 version = "13.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#f82c297728373b9aa09893d15c2c8f9c01ba8cf3"
+source = "git+https://github.com/paritytech/polkadot-sdk#2e4b8996c4924fc39f85198019039cf0987f89ec"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
@@ -15693,7 +15693,7 @@ dependencies = [
 [[package]]
 name = "sp-tracing"
 version = "10.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#f82c297728373b9aa09893d15c2c8f9c01ba8cf3"
+source = "git+https://github.com/paritytech/polkadot-sdk#2e4b8996c4924fc39f85198019039cf0987f89ec"
 dependencies = [
  "parity-scale-codec",
  "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk)",
@@ -15795,7 +15795,7 @@ dependencies = [
 [[package]]
 name = "sp-wasm-interface"
 version = "14.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#f82c297728373b9aa09893d15c2c8f9c01ba8cf3"
+source = "git+https://github.com/paritytech/polkadot-sdk#2e4b8996c4924fc39f85198019039cf0987f89ec"
 dependencies = [
  "anyhow",
  "impl-trait-for-tuples",
@@ -17676,7 +17676,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.7",
- "rand 0.4.6",
+ "rand 0.8.5",
  "static_assertions",
 ]
 

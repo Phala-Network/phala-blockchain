@@ -23,6 +23,9 @@
 #![recursion_limit = "1024"]
 #![allow(clippy::identity_op)]
 
+#[macro_use]
+extern crate alloc;
+
 mod msg_routing;
 
 use codec::{Decode, Encode, MaxEncodedLen};
@@ -128,8 +131,8 @@ use pallet_ethereum::{
     TransactionData,
 };
 use pallet_evm::{Account as EVMAccount, FeeCalculator, Runner};
-use precompiles::FrontierPrecompiles;
-mod precompiles;
+use evm_precompiles::FrontierPrecompiles;
+mod evm_precompiles;
 
 // Make the WASM binary available.
 #[cfg(all(feature = "std", feature = "include-wasm"))]
