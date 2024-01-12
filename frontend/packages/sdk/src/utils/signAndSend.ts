@@ -2,6 +2,7 @@ import type { SubmittableResult } from '@polkadot/api'
 import type { Signer as InjectedSigner } from '@polkadot/api/types'
 import type { ApiTypes } from '@polkadot/api-base/types/base'
 import type { AddressOrPair, SubmittableExtrinsic } from '@polkadot/api-base/types/submittable'
+import type { ISubmittableResult } from '@polkadot/types/types'
 
 export class SignAndSendError extends Error {
   readonly isCancelled: boolean = false
@@ -39,19 +40,19 @@ export function callback<TSubmittableResult>(
 }
 
 function signAndSend<TSubmittableResult extends SubmittableResult = SubmittableResult>(
-  target: SubmittableExtrinsic<ApiTypes, TSubmittableResult>,
+  target: SubmittableExtrinsic<ApiTypes, ISubmittableResult | TSubmittableResult>,
   pair: AddressOrPair
 ): Promise<TSubmittableResult>
 function signAndSend<TSubmittableResult extends SubmittableResult = SubmittableResult>(
-  target: SubmittableExtrinsic<ApiTypes, TSubmittableResult>,
+  target: SubmittableExtrinsic<ApiTypes, ISubmittableResult | TSubmittableResult>,
   address: AddressOrPair,
   signer: InjectedSigner
 ): Promise<TSubmittableResult>
 function signAndSend<TSubmittableResult extends SubmittableResult = SubmittableResult>(
-  target: SubmittableExtrinsic<ApiTypes, TSubmittableResult>,
+  target: SubmittableExtrinsic<ApiTypes, ISubmittableResult | TSubmittableResult>,
   address: AddressOrPair,
   signer?: InjectedSigner
-) {
+): Promise<TSubmittableResult> {
   // Ready -> Broadcast -> InBlock -> Finalized
   return new Promise(async (resolve, reject) => {
     try {
