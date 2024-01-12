@@ -172,8 +172,8 @@ export class PinkCodePromise {
     return this.#instantiate(0, [])
   }
 
-  public async send({ provider }: PinkCodeSendOptions) {
-    return await provider.send(
+  public async send({ provider }: PinkCodeSendOptions): Promise<InkCodeSubmittableResult> {
+    return await provider.send<InkCodeSubmittableResult>(
       this.api.tx.phalaPhatContracts.clusterUploadResource(this.phatRegistry.clusterId, 'InkCode', u8aToHex(this.code)),
       (result) => new InkCodeSubmittableResult(result, this.abi, this.phatRegistry)
     )

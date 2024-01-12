@@ -2,6 +2,7 @@ import type { ApiPromise, SubmittableResult } from '@polkadot/api'
 import { Keyring } from '@polkadot/api'
 import type { SubmittableExtrinsic } from '@polkadot/api/types'
 import type { KeyringPair, KeyringPair$Meta } from '@polkadot/keyring/types'
+import type { ISubmittableResult } from '@polkadot/types/types'
 import { cryptoWaitReady } from '@polkadot/util-crypto'
 import type { KeypairType, Prefix } from '@polkadot/util-crypto/types'
 import { type CertificateData, signCertificate } from '../pruntime/certificate'
@@ -54,10 +55,15 @@ export class KeyringPairProvider implements Provider {
   /**
    * Send an extrinsic to the network.
    */
-  send<TSubmittableResult extends SubmittableResult = SubmittableResult>(
-    extrinsic: SubmittableExtrinsic<'promise', TSubmittableResult>
+  async send<TSubmittableResult extends SubmittableResult = SubmittableResult>(
+    extrinsic: SubmittableExtrinsic<'promise', ISubmittableResult>,
+    transform?: (input: TSubmittableResult) => TSubmittableResult
   ): Promise<TSubmittableResult> {
-    return signAndSend(extrinsic, this.#pair)
+    const result = await signAndSend<TSubmittableResult>(extrinsic, this.#pair)
+    if (transform) {
+      return transform(result)
+    }
+    return result
   }
 
   /**
