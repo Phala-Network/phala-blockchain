@@ -123,7 +123,7 @@ class PinkContractSubmittableResult<
     if (!logger) {
       return
     }
-    const { records } = await logger.tail(10, { contract: this.#contract.address.toHex() })
+    const { records } = await logger.tail(1000, { contract: this.#contract.address.toHex() })
     const sinceSubmitted = records.filter(
       (i) => (i.type === 'Log' || i.type === 'MessageOutput') && i.blockNumber >= chainHeight
     )
