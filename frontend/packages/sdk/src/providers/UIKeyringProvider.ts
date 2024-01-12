@@ -1,6 +1,7 @@
 import type { ApiPromise, SubmittableResult } from '@polkadot/api'
 import type { Signer, SubmittableExtrinsic } from '@polkadot/api/types'
 import type { InjectedWindowProvider } from '@polkadot/extension-inject/types'
+import type { ISubmittableResult } from '@polkadot/types/types'
 import { Keyring } from '@polkadot/ui-keyring'
 import { decodeAddress } from '@polkadot/util-crypto'
 import { fromPairs, map, path, propOr, sort, toPairs } from 'ramda'
@@ -135,10 +136,15 @@ export class UIKeyringProvider implements Provider {
   /**
    * Send an extrinsic to the network.
    */
-  send<TSubmittableResult extends SubmittableResult = SubmittableResult>(
-    extrinsic: SubmittableExtrinsic<'promise', TSubmittableResult>
+  async send<TSubmittableResult extends SubmittableResult = SubmittableResult>(
+    extrinsic: SubmittableExtrinsic<'promise', ISubmittableResult>,
+    transform?: (input: TSubmittableResult) => TSubmittableResult
   ): Promise<TSubmittableResult> {
-    return signAndSend(extrinsic, this.#account.address, this.#signer)
+    const result = await signAndSend<TSubmittableResult>(extrinsic, this.#account.address, this.#signer)
+    if (transform) {
+      return transform(result)
+    }
+    return result
   }
 
   /**
