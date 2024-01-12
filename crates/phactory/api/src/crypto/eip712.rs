@@ -6,6 +6,7 @@ use ethers::{
     contract::{Eip712, EthAbiType},
     types::{transaction::eip712::Eip712, Bytes},
 };
+use sp_core::ecdsa::Public;
 
 #[derive(Debug, Clone, Eip712, EthAbiType)]
 #[eip712(
@@ -57,7 +58,7 @@ pub(crate) fn recover(
     signature: &[u8],
     msg: &[u8],
     msg_type: MessageType,
-) -> Result<Vec<u8>, SignatureVerifyError> {
+) -> Result<Public, SignatureVerifyError> {
     let signature = signature
         .try_into()
         .or(Err(SignatureVerifyError::InvalidSignature))?;
@@ -70,10 +71,10 @@ pub(crate) fn recover(
     }
     .or(Err(SignatureVerifyError::Eip712EncodingError))?;
     let recovered_pubkey = evm_ecdsa_recover(signature, message_hash)?;
-    if recovered_pubkey != pubkey {
+    if recovered_pubkey.as_ref() != pubkey {
         return Err(SignatureVerifyError::InvalidSignature);
     }
-    Ok(sp_core::blake2_256(&recovered_pubkey).to_vec())
+    Ok(recovered_pubkey)
 }
 
 #[test]
