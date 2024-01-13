@@ -21,7 +21,6 @@
 //! Service implementation. Specialized wrapper over substrate service.
 
 use codec::Encode;
-use fc_consensus::FrontierBlockImport;
 use frame_system_rpc_runtime_api::AccountNonceApi;
 use futures::prelude::*;
 use node_primitives::Block;
@@ -774,7 +773,7 @@ pub fn build_babe_grandpa_import_queue(
         grandpa_block_import.clone(),
         client.clone(),
     )?;
-    let frontier_block_import = FrontierBlockImport::new(babe_block_import.clone(), client.clone());
+    let frontier_block_import = babe_block_import.clone();
     let slot_duration = babe_link.config().slot_duration();
     let target_gas_price = eth_config.target_gas_price;
     let create_inherent_data_providers = move |_, ()| async move {
