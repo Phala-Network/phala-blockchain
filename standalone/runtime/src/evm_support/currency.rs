@@ -1,4 +1,4 @@
-use super::{Authorship, Balances, Runtime, Treasury};
+use crate::{Authorship, Balances, Runtime, Treasury};
 use frame_support::traits::{fungible::Inspect, Currency, Imbalance, OnUnbalanced};
 use node_primitives::{AccountId, Balance};
 use pallet_balances::{NegativeImbalance, PositiveImbalance};

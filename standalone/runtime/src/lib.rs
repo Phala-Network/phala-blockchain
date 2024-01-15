@@ -102,15 +102,12 @@ pub use pallet_sudo::Call as SudoCall;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
-use evm_currency::{EvmCurrency, EvmDealWithFees};
-
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub mod impls;
 use impls::Author;
 
 /// Constant values used within the runtime.
 pub mod constants;
-mod evm_currency;
 use constants::{currency::*, time::*};
 use sp_runtime::generic::Era;
 
@@ -131,8 +128,9 @@ use pallet_ethereum::{
     TransactionData,
 };
 use pallet_evm::{Account as EVMAccount, FeeCalculator, Runner};
-use evm_precompiles::FrontierPrecompiles;
-mod evm_precompiles;
+
+use evm_support::{EvmCurrency, EvmDealWithFees, FrontierPrecompiles, NoCreateRunner};
+mod evm_support;
 
 // Make the WASM binary available.
 #[cfg(all(feature = "std", feature = "include-wasm"))]
@@ -163,7 +161,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // and set impl_version to 0. If only runtime
     // implementation changes and behavior does not, then leave spec_version as
     // is and increment impl_version.
-    spec_version: 101,
+    spec_version: 102,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -1672,7 +1670,7 @@ impl pallet_evm::Config for Runtime {
     type PrecompilesValue = PrecompilesValue;
     type ChainId = EVMChainId;
     type BlockGasLimit = BlockGasLimit;
-    type Runner = pallet_evm::runner::stack::Runner<Self>;
+    type Runner = NoCreateRunner<Self>;
     type OnChargeTransaction = EvmDealWithFees;
     type OnCreate = ();
     type FindAuthor = FindAuthorTruncated;

@@ -4386,7 +4386,7 @@ name = "fc-cli"
 version = "1.0.0-dev"
 source = "git+https://github.com/kvinwang/frontier?branch=polkadot-v1.5.0#67990f8e62b7cc969ca62ec38318ab8a59da6142"
 dependencies = [
- "clap 4.4.11",
+ "clap 4.4.12",
  "ethereum-types",
  "fc-db",
  "fp-rpc",
@@ -10485,6 +10485,7 @@ dependencies = [
 name = "phala-node-runtime"
 version = "2.0.0"
 dependencies = [
+ "evm",
  "fp-account",
  "fp-evm",
  "fp-rpc",

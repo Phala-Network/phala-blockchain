@@ -28,6 +28,7 @@ scale-info = { version = "2.10.0", default-features = false, features = ["derive
 static_assertions = "1.1.0"
 hex-literal = "0.4.1"
 log = { version = "0.4.14", default-features = false }
+evm = { version = "0.41.1", default-features = false }
 phala-types = { path = "../../crates/phala-types", default-features = false }
 
 # primitives
