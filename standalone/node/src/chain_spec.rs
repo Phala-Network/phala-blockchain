@@ -20,14 +20,9 @@
 
 use grandpa_primitives::AuthorityId as GrandpaId;
 use hex_literal::hex;
-use node_runtime::constants::{currency::*, time::*};
+use node_runtime::constants::currency::DOLLARS;
 use node_runtime::Block;
-use node_runtime::{
-    wasm_binary_unwrap, AssetsConfig, BabeConfig, BalancesConfig,
-    CouncilConfig, DemocracyConfig, ElectionsConfig, ImOnlineConfig, IndicesConfig,
-    NominationPoolsConfig, PhalaRegistryConfig, SessionConfig, SessionKeys, SocietyConfig,
-    StakerStatus, StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig,
-};
+use node_runtime::{wasm_binary_unwrap, SessionKeys, StakerStatus};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::{ChainSpecExtension, Properties};
 use sc_service::ChainType;
@@ -64,45 +59,7 @@ pub struct Extensions {
 }
 
 /// Specialized `ChainSpec`.
-pub type ChainSpec = sc_service::GenericChainSpec<GenesisExt, Extensions>;
-
-/// Extension for the Phala devnet genesis config to support a custom changes to the genesis state.
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct GenesisExt {
-    /// The runtime genesis config.
-    runtime_genesis_config: RuntimeGenesisConfig,
-    /// The block duration in milliseconds.
-    ///
-    /// If `None` is supplied, the default value is used.
-    block_milliseconds: Option<u64>,
-}
-
-impl sp_runtime::BuildStorage for GenesisExt {
-    fn assimilate_storage(&self, storage: &mut sp_core::storage::Storage) -> Result<(), String> {
-        sp_state_machine::BasicExternalities::execute_with_storage(storage, || {
-            if let Some(bm) = self.block_milliseconds.as_ref() {
-                MillisecsPerBlock::set(bm);
-                let bm_f = *bm as f64;
-                let secs_per_block: f64 = bm_f / 1000.0;
-                SecsPerBlock::set(&(secs_per_block as u64));
-
-                let minutes = (60.0 / secs_per_block) as u32;
-                let hours = minutes * 60;
-                let days = hours * 24;
-
-                Minutes::set(&minutes);
-                Hours::set(&hours);
-                Days::set(&days);
-
-                SlotDuration::set(bm);
-                EpochDurationInBlocks::set(&hours);
-
-                EpochDurationInSlots::set(&(hours as u64));
-            }
-        });
-        self.runtime_genesis_config.assimilate_storage(storage)
-    }
-}
+pub type ChainSpec = sc_service::GenericChainSpec<(), Extensions>;
 
 fn session_keys(
     grandpa: GrandpaId,
@@ -154,7 +111,7 @@ pub fn authority_keys_from_seed(
     )
 }
 
-fn development_config_genesis() -> RuntimeGenesisConfig {
+fn development_config_genesis() -> serde_json::Value {
     testnet_genesis(
         vec![authority_keys_from_seed("Alice")],
         get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -163,44 +120,14 @@ fn development_config_genesis() -> RuntimeGenesisConfig {
     )
 }
 
-/// Development config (single validator Alice)
+/// Development config (single genesis-buildervalidator Alice)
 pub fn development_config() -> ChainSpec {
-    ChainSpec::from_genesis(
-        "Phala Development",
-        "phala_dev",
-        ChainType::Development,
-        move || GenesisExt {
-            runtime_genesis_config: development_config_genesis(),
-            block_milliseconds: Some(MILLISECS_PER_BLOCK),
-        },
-        vec![],
-        None,
-        None,
-        None,
-        None,
-        Default::default(),
-        wasm_binary_unwrap()
-    )
-}
-
-/// Development config (single validator Alice, custom block duration)
-pub fn development_config_custom_block_duration(bd: u64) -> ChainSpec {
-    ChainSpec::from_genesis(
-        "Phala Development",
-        "phala_dev",
-        ChainType::Development,
-        move || GenesisExt {
-            runtime_genesis_config: development_config_genesis(),
-            block_milliseconds: Some(bd),
-        },
-        vec![],
-        None,
-        None,
-        None,
-        None,
-        Default::default(),
-        wasm_binary_unwrap()
-    )
+    ChainSpec::builder(wasm_binary_unwrap(), Default::default())
+        .with_name("Phala Development")
+        .with_id("phala_dev")
+        .with_chain_type(ChainType::Development)
+        .with_genesis_config(development_config_genesis())
+        .build()
 }
 
 /// Local testnet config (multivalidator Alice + Bob)
@@ -213,25 +140,16 @@ pub fn local_config() -> ChainSpec {
         p
     };
 
-    ChainSpec::from_genesis(
-        "Phala Local Testnet",
-        "local_testnet",
-        ChainType::Local,
-        move || GenesisExt {
-            runtime_genesis_config: local_genesis(),
-            block_milliseconds: Some(MILLISECS_PER_BLOCK),
-        },
-        vec![],
-        None,
-        None,
-        None,
-        Some(properties),
-        Default::default(),
-        wasm_binary_unwrap()
-    )
+    ChainSpec::builder(wasm_binary_unwrap(), Default::default())
+        .with_name("Phala Local Testnet")
+        .with_id("local_testnet")
+        .with_chain_type(ChainType::Local)
+        .with_genesis_config_patch(local_genesis())
+        .with_properties(properties)
+        .build()
 }
 
-fn local_genesis() -> RuntimeGenesisConfig {
+fn local_genesis() -> serde_json::Value {
     testnet_genesis(
         vec![
             authority_keys_from_seed("Alice"),
@@ -248,7 +166,6 @@ pub fn testnet_config() -> Result<ChainSpec, String> {
 }
 
 pub fn testnet_local_config() -> ChainSpec {
-    let boot_nodes = vec![];
     let protocol_id: &str = "phat";
     let properties = {
         let mut p = Properties::new();
@@ -258,28 +175,21 @@ pub fn testnet_local_config() -> ChainSpec {
         p
     };
 
-    ChainSpec::from_genesis(
-        "Phala PoC-6",
-        "phala_poc_6",
-        ChainType::Local,
-        move || GenesisExt {
-            runtime_genesis_config: testnet_local_config_genesis(),
-            block_milliseconds: Some(MILLISECS_PER_BLOCK),
-        },
-        boot_nodes,
-        Some(
+    ChainSpec::builder(wasm_binary_unwrap(), Default::default())
+        .with_name("Phala PoC-6")
+        .with_id("phala_poc_6")
+        .with_chain_type(ChainType::Local)
+        .with_genesis_config_patch(testnet_local_config_genesis())
+        .with_telemetry_endpoints(
             TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
-                .expect("Staging telemetry url is valid; qed"),
-        ),
-        Some(protocol_id),
-        None,
-        Some(properties),
-        Default::default(),
-        wasm_binary_unwrap()
-    )
+                .expect("Staging telemetry url is valid; qed")
+        )
+        .with_protocol_id(protocol_id)
+        .with_properties(properties)
+        .build()
 }
 
-fn testnet_local_config_genesis() -> RuntimeGenesisConfig {
+fn testnet_local_config_genesis() -> serde_json::Value {
     // stash, controller, session-key
     // generated with secret:
     // for i in 1 2 3 ; do for j in stash controller session; do subkey inspect "$secret"//phat6//$j//$i; done; done
@@ -366,7 +276,7 @@ fn testnet_local_config_genesis() -> RuntimeGenesisConfig {
     testnet_genesis(initial_authorities, root_key, Some(endowed_accounts), false)
 }
 
-/// Helper function to create RuntimeGenesisConfig for testing
+/// Helper function to create genesis json for testing
 pub fn testnet_genesis(
     initial_authorities: Vec<(
         AccountId,
@@ -379,7 +289,7 @@ pub fn testnet_genesis(
     root_key: AccountId,
     endowed_accounts: Option<Vec<AccountId>>,
     dev: bool,
-) -> RuntimeGenesisConfig {
+) -> serde_json::Value {
     let mut endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
         vec![
             get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -413,36 +323,29 @@ pub fn testnet_genesis(
         hex!["3a3d45dc55b57bf542f4c6ff41af080ec675317f4ed50ae1d2713bf9f892692d"].to_vec();
 
     let phala_registry = match dev {
-        true => PhalaRegistryConfig {
-            workers: vec![(
+        true => serde_json::json!({
+            "workers": vec![(
                 dev_sr25519_pubkey,
                 dev_ecdh_pubkey,
                 Some(endowed_accounts[0].clone()),
             )],
-            gatekeepers: Vec::new(),
-            benchmark_duration: 1,
-        },
-        false => PhalaRegistryConfig {
-            workers: Vec::new(),
-            gatekeepers: Vec::new(),
-            benchmark_duration: 50,
-        },
+            "benchmarkDuration": 1,
+        }),
+        false => serde_json::json!({
+            "benchmarkDuration": 50,
+        }),
     };
 
-	RuntimeGenesisConfig {
-        system: SystemConfig {
-            ..Default::default()
-        },
-        balances: BalancesConfig {
-            balances: endowed_accounts
+	serde_json::json!({
+        "balances": {
+            "balances": endowed_accounts
                 .iter()
                 .cloned()
                 .map(|x| (x, ENDOWMENT))
-                .collect(),
+                .collect::<Vec<_>>(),
         },
-        indices: IndicesConfig { indices: vec![] },
-        session: SessionConfig {
-            keys: initial_authorities
+        "session": {
+            "keys": initial_authorities
                 .iter()
                 .map(|x| {
                     (
@@ -453,61 +356,44 @@ pub fn testnet_genesis(
                 })
                 .collect::<Vec<_>>(),
         },
-        staking: StakingConfig {
-            validator_count: initial_authorities.len() as u32,
-            minimum_validator_count: initial_authorities.len() as u32,
-            invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
-            slash_reward_fraction: Perbill::from_percent(10),
-            stakers: initial_authorities
+        "staking": {
+            "validatorCount": initial_authorities.len() as u32,
+            "minimumValidatorCount": initial_authorities.len() as u32,
+            "invulnerables": initial_authorities.iter().map(|x| x.0.clone()).collect::<Vec<_>>(),
+            "slashRewardFraction": Perbill::from_percent(10),
+            "stakers": initial_authorities
                 .iter()
-                .map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator))
-                .collect(),
-            ..Default::default()
+                .map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::<AccountId>::Validator))
+                .collect::<Vec<_>>(),
         },
-        assets: AssetsConfig::default(),
-        democracy: DemocracyConfig::default(),
-        elections: ElectionsConfig {
-            members: endowed_accounts
+        "elections": {
+            "members": endowed_accounts
                 .iter()
                 .take((num_endowed_accounts + 1) / 2)
                 .cloned()
                 .map(|member| (member, STASH))
-                .collect(),
+                .collect::<Vec<_>>(),
         },
-        council: CouncilConfig::default(),
-        technical_committee: TechnicalCommitteeConfig {
-            members: endowed_accounts
+        "technicalCommittee": {
+            "members": endowed_accounts
                 .iter()
                 .take((num_endowed_accounts + 1) / 2)
                 .cloned()
-                .collect(),
-            phantom: Default::default(),
+                .collect::<Vec<_>>(),
         },
-        technical_membership: Default::default(),
-        sudo: SudoConfig {
-            key: Some(root_key),
+        "sudo": {
+            "key": Some(root_key),
         },
-        babe: BabeConfig {
-            authorities: vec![],
-            epoch_config: Some(node_runtime::BABE_GENESIS_EPOCH_CONFIG),
-            ..Default::default()
+        "babe": {
+            "epochConfig": Some(node_runtime::BABE_GENESIS_EPOCH_CONFIG),
         },
-        im_online: ImOnlineConfig { keys: vec![] },
-        authority_discovery: Default::default(),
-        grandpa: Default::default(),
-        treasury: Default::default(),
-		society: SocietyConfig { pot: 0 },
-        vesting: Default::default(),
-        phala_registry,
-        phala_computation: Default::default(),
-        transaction_payment: Default::default(),
-        nomination_pools: NominationPoolsConfig {
-            min_create_bond: 10 * DOLLARS,
-            #[allow(clippy::identity_op)]
-            min_join_bond: DOLLARS,
-            ..Default::default()
+		"society": { "pot": 0 },
+        "phalaRegistry": phala_registry,
+        "nominationPools": {
+            "minCreateBond": 10 * DOLLARS,
+            "minJoinBond": DOLLARS,
         },
-    }
+    })
 }
 
 #[cfg(test)]
@@ -517,7 +403,7 @@ pub(crate) mod tests {
     use sc_service_test;
     use sp_runtime::BuildStorage;
 
-    fn local_testnet_genesis_instant_single() -> RuntimeGenesisConfig {
+    fn local_testnet_genesis_instant_single() -> serde_json::Value {
         testnet_genesis(
             vec![authority_keys_from_seed("Alice")],
             get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -528,42 +414,22 @@ pub(crate) mod tests {
 
     /// Local testnet config (single validator - Alice)
     pub fn integration_test_config_with_single_authority() -> ChainSpec {
-        ChainSpec::from_genesis(
-            "Integration Test",
-            "test",
-            ChainType::Development,
-            move || GenesisExt {
-                runtime_genesis_config: local_testnet_genesis_instant_single(),
-                block_milliseconds: Some(MILLISECS_PER_BLOCK),
-            },
-            vec![],
-            None,
-            None,
-            None,
-            None,
-            Default::default(),
-            wasm_binary_unwrap()
-        )
+        ChainSpec::builder(wasm_binary_unwrap(), Default::default())
+            .with_name("Integration Test")
+            .with_id("id")
+            .with_chain_type(ChainType::Development)
+            .with_genesis_config_patch(local_testnet_genesis_instant_single())
+            .build()
     }
 
     /// Local testnet config (multivalidator Alice + Bob)
     pub fn integration_test_config_with_two_authorities() -> ChainSpec {
-        ChainSpec::from_genesis(
-            "Integration Test",
-            "test",
-            ChainType::Development,
-            move || GenesisExt {
-                runtime_genesis_config: testnet_local_config_genesis(),
-                block_milliseconds: Some(MILLISECS_PER_BLOCK),
-            },
-            vec![],
-            None,
-            None,
-            None,
-            None,
-            Default::default(),
-            wasm_binary_unwrap()
-        )
+        ChainSpec::builder(wasm_binary_unwrap(), Default::default())
+            .with_name("Integration Test")
+            .with_id("id")
+            .with_chain_type(ChainType::Development)
+            .with_genesis_config_patch(testnet_local_config_genesis())
+            .build()
     }
 
     #[test]
@@ -592,7 +458,8 @@ pub(crate) mod tests {
 
     #[test]
     fn test_create_development_chain_spec() {
-        development_config().build_storage().unwrap();
+println!("{}", testnet_local_config_genesis().to_string());
+        println!("{:?}", development_config().build_storage());
     }
 
     #[test]
