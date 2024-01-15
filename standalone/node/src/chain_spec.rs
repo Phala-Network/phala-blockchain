@@ -164,6 +164,7 @@ fn development_config_genesis() -> RuntimeGenesisConfig {
 }
 
 /// Development config (single validator Alice)
+#[allow(deprecated)]
 pub fn development_config() -> ChainSpec {
     ChainSpec::from_genesis(
         "Phala Development",
@@ -184,6 +185,7 @@ pub fn development_config() -> ChainSpec {
 }
 
 /// Development config (single validator Alice, custom block duration)
+#[allow(deprecated)]
 pub fn development_config_custom_block_duration(bd: u64) -> ChainSpec {
     ChainSpec::from_genesis(
         "Phala Development",
@@ -204,6 +206,7 @@ pub fn development_config_custom_block_duration(bd: u64) -> ChainSpec {
 }
 
 /// Local testnet config (multivalidator Alice + Bob)
+#[allow(deprecated)]
 pub fn local_config() -> ChainSpec {
     let properties = {
         let mut p = Properties::new();
@@ -247,6 +250,7 @@ pub fn testnet_config() -> Result<ChainSpec, String> {
     ChainSpec::from_json_bytes(&include_bytes!("../res/phala_testnet.json")[..])
 }
 
+#[allow(deprecated)]
 pub fn testnet_local_config() -> ChainSpec {
     let boot_nodes = vec![];
     let protocol_id: &str = "phat";
@@ -527,6 +531,7 @@ pub(crate) mod tests {
     }
 
     /// Local testnet config (single validator - Alice)
+    #[allow(deprecated)]
     pub fn integration_test_config_with_single_authority() -> ChainSpec {
         ChainSpec::from_genesis(
             "Integration Test",
@@ -547,6 +552,7 @@ pub(crate) mod tests {
     }
 
     /// Local testnet config (multivalidator Alice + Bob)
+    #[allow(deprecated)]
     pub fn integration_test_config_with_two_authorities() -> ChainSpec {
         ChainSpec::from_genesis(
             "Integration Test",
