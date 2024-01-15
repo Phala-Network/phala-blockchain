@@ -2,6 +2,7 @@ use pallet_evm::{
     runner::stack::Runner as EvmRunner, BalanceOf, Config as EvmConfig, Error as EvmError,
 };
 use sp_core::{H160, U256};
+use alloc::vec::Vec;
 
 pub struct NoCreateRunner<T>(core::marker::PhantomData<T>);
 

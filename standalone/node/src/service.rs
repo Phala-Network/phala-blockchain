@@ -773,6 +773,11 @@ pub fn build_babe_grandpa_import_queue(
         grandpa_block_import.clone(),
         client.clone(),
     )?;
+    // The original implemenation is:
+    //   let frontier_block_import = FrontierBlockImport::new(babe_block_import.clone(), client.clone());
+    // However, because our runtime didn't contains frontier stuff at the beginning, FrontierBlockImport would reject
+    // the early blocks until the runtime upgrade to support frontier. So, we use only babe_block_import here to make
+    // it compatible with the old blocks.
     let frontier_block_import = babe_block_import.clone();
     let slot_duration = babe_link.config().slot_duration();
     let target_gas_price = eth_config.target_gas_price;
