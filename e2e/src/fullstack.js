@@ -884,7 +884,7 @@ describe('A full stack', function () {
             const url = `${pruntime[0].uri}/info`;
             const urls = [url, url];
             const { output } = await ContractSystemChecker.query.batchHttpGet(alice.address, { cert: certAlice }, urls, 1000);
-            const responses = output.asOk.valueOf();
+            const responses = output.asOk.asOk.valueOf();
             assert.equal(responses.length, urls.length);
             responses.forEach(([code, body]) => {
                 assert.equal(code, 200);

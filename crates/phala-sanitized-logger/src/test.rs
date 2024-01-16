@@ -1,4 +1,5 @@
 use super::*;
+use rusty_fork::rusty_fork_test;
 
 #[test]
 fn whitelist_works() {
@@ -48,11 +49,38 @@ fn whitelist_works() {
     );
 }
 
-#[test]
-fn see_log() {
-    use log::info;
+rusty_fork_test! {
+    #[test]
+    fn show_log_via_env_logger() {
+        use log::info;
 
-    init_env_logger(true);
-    info!(target: "pink", "target pink");
-    info!(target: "other", "target other");
+        std::env::set_var("RUST_LOG_SANITIZED", "1");
+
+        init_env_logger(true);
+        info!(target: "pink", "target pink");
+        info!(target: "other", "target other");
+    }
+
+    #[test]
+    fn show_log_via_tracing_subsriber() {
+        use log::info;
+
+        std::env::set_var("RUST_LOG_SANITIZED", "1");
+
+        init_subscriber(true);
+        info!(target: "pink", "target pink");
+        info!(target: "other", "target other");
+    }
+
+    #[test]
+    fn show_log_via_env_logger_no_sanitized() {
+        init_env_logger(false);
+        log::info!(target: "pink", "target pink");
+    }
+
+    #[test]
+    fn show_log_via_tracing_no_sanitized() {
+        init_subscriber(false);
+        log::info!(target: "pink", "target pink");
+    }
 }

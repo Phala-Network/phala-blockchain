@@ -101,4 +101,54 @@ pub mod traits {
             self.prepare_message_to(message, M::topic())
         }
     }
+
+    #[test]
+    fn it_works() {
+        use crate::{Message, MessageOrigin};
+        use alloc::vec::Vec;
+        use core::cell::RefCell;
+
+        struct TestChannel {
+            messages: RefCell<Vec<Vec<u8>>>,
+        }
+        impl TestChannel {
+            fn new() -> Self {
+                Self {
+                    messages: RefCell::new(Vec::new()),
+                }
+            }
+        }
+
+        impl MessageChannel for TestChannel {
+            type Signer = ();
+            fn push_data(&self, data: alloc::vec::Vec<u8>, _topic: impl Into<Path>) {
+                self.messages.borrow_mut().push(data);
+            }
+        }
+
+        impl MessagePrepareChannel for TestChannel {
+            type Signer = ();
+            fn prepare_with_data(
+                &self,
+                data: alloc::vec::Vec<u8>,
+                to: impl Into<Path>,
+            ) -> SigningMessage<Self::Signer> {
+                SigningMessage {
+                    message: Message::new(MessageOrigin::Reserved, to.into(), data),
+                    signer: (),
+                }
+            }
+        }
+
+        crate::bind_topic!(TestMessage, b"/test");
+        #[derive(parity_scale_codec::Encode)]
+        struct TestMessage(Vec<u8>);
+
+        let mut channel = TestChannel::new();
+        channel.set_dummy(false);
+        channel.set_signer(());
+        channel.push_message(&TestMessage(b"hello".to_vec()));
+        assert_eq!(channel.messages.borrow().len(), 1);
+        let _signing_msg = channel.prepare_message(&TestMessage(b"hello".to_vec()));
+    }
 }

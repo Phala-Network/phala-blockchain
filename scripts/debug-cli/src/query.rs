@@ -33,10 +33,7 @@ pub async fn query<Request: Encode, Response: Decode>(
 
     // 3. Encrypt the ContractQuery.
 
-    let ecdh_key = sp_core::sr25519::Pair::generate()
-        .0
-        .derive_ecdh_key()
-        .map_err(|_| anyhow!("Derive ecdh key failed"))?;
+    let ecdh_key = sp_core::sr25519::Pair::generate().0.derive_ecdh_key();
 
     let iv = [1; 12];
     let encrypted_data = EncryptedData::encrypt(&ecdh_key, &remote_pubkey, iv, &query.encode())

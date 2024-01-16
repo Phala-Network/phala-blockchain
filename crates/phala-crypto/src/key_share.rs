@@ -16,8 +16,8 @@ pub fn encrypt_secret_to(
     iv: &IV,
 ) -> Result<(EcdhPublicKey, Vec<u8>), CryptoError> {
     let derived_key = my_key.derive_sr25519_pair(key_derive_info)?;
-    let my_ecdh_key = derived_key.derive_ecdh_key()?;
-    let secret = ecdh::agree(&my_ecdh_key, ecdh_pubkey)?;
+    let my_ecdh_key = derived_key.derive_ecdh_key();
+    let secret = ecdh::agree(&my_ecdh_key, ecdh_pubkey);
     let mut data = secret_key.to_vec();
     aead::encrypt(iv, &secret, &mut data)?;
 
@@ -30,10 +30,27 @@ pub fn decrypt_secret_from(
     encrypted_key: &[u8],
     iv: &IV,
 ) -> Result<Sr25519SecretKey, CryptoError> {
-    let secret = ecdh::agree(my_ecdh_key, ecdh_pubkey)?;
+    let secret = ecdh::agree(my_ecdh_key, ecdh_pubkey);
     let mut key_buff = encrypted_key.to_owned();
     let secret_key = aead::decrypt(iv, &secret, &mut key_buff[..])?;
     secret_key
         .try_into()
-        .map_err(|_| CryptoError::Sr25519InvalidSecret)
+        .or(Err(CryptoError::Sr25519InvalidSecret))
+}
+
+#[test]
+fn it_works() {
+    use sp_core::Pair;
+
+    let key0 = sr25519::Pair::from_seed(b"12345678901234567890123456789012");
+    let key1 = sr25519::Pair::from_seed(b"12345678901234567890123456789013");
+    let pubkey1 = key1.public().0;
+
+    let iv = aead::generate_iv(b"12345678901234567890123456789012");
+
+    let (pubkey, encrypted_key) =
+        encrypt_secret_to(&key0, &[b"test", b"test"], &pubkey1, &[1u8; 64], &iv).unwrap();
+    let decrypted_key =
+        decrypt_secret_from(&key1.derive_ecdh_key(), &pubkey, &encrypted_key, &iv).unwrap();
+    assert_eq!(decrypted_key, [1u8; 64]);
 }

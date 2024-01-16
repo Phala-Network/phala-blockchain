@@ -1,8 +1,9 @@
 //! An in-memory database backend intended for unit testing purposes.
 
-use sp_state_machine::BackendTransaction;
+use sp_state_machine::TrieBackend;
+use sp_trie::PrefixedMemoryDB;
 
-use super::{CommitTransaction, Hash, Hashing, Storage};
+use super::{Hashing, Storage};
 
 pub type InMemoryStorage = Storage<InMemoryBackend>;
 
@@ -12,7 +13,7 @@ impl Default for InMemoryStorage {
     }
 }
 
-pub type InMemoryBackend = phala_trie_storage::InMemoryBackend<Hashing>;
+pub type InMemoryBackend = TrieBackend<PrefixedMemoryDB<Hashing>, Hashing>;
 
 pub fn new_in_memory_backend() -> InMemoryBackend {
     let db = Default::default();
@@ -22,12 +23,4 @@ pub fn new_in_memory_backend() -> InMemoryBackend {
         sp_trie::empty_trie_root::<sp_state_machine::LayoutV1<Hashing>>(),
     )
     .build()
-}
-
-impl CommitTransaction for InMemoryBackend {
-    fn commit_transaction(&mut self, root: Hash, transaction: BackendTransaction<Hashing>) {
-        let mut storage = sp_std::mem::replace(self, new_in_memory_backend()).into_storage();
-        storage.consolidate(transaction);
-        *self = sp_state_machine::TrieBackendBuilder::new(storage, root).build();
-    }
 }

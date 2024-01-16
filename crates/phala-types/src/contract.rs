@@ -25,7 +25,7 @@ pub enum CodeIndex<CodeHash> {
     WasmCode(CodeHash),
 }
 
-#[derive(Decode, Encode, TypeInfo)]
+#[derive(Decode, Encode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub enum InkCommand {
     InkMessage {
         nonce: BoundedVec<u8, ConstU32<32>>,
@@ -60,7 +60,7 @@ pub mod messaging {
     use sp_core::crypto::AccountId32;
 
     bind_topic!(ClusterEvent, b"phala/cluster/event");
-    #[derive(Encode, Decode, Debug, ::scale_info::TypeInfo)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, ::scale_info::TypeInfo)]
     pub enum ClusterEvent {
         // TODO.shelven: enable add and remove workers
         DeployCluster {
@@ -76,7 +76,7 @@ pub mod messaging {
     }
 
     bind_topic!(ContractOperation<CodeHash, AccountId>, b"phala/contract/op");
-    #[derive(Encode, Decode, Debug, ::scale_info::TypeInfo)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, ::scale_info::TypeInfo)]
     pub enum ContractOperation<CodeHash, AccountId> {
         InstantiateCode {
             contract_info: ContractInfo<CodeHash, AccountId>,
@@ -111,7 +111,7 @@ pub mod messaging {
     }
 
     bind_topic!(WorkerClusterReport, b"phala/cluster/worker/report");
-    #[derive(Encode, Decode, Debug, TypeInfo)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
     pub enum WorkerClusterReport {
         ClusterDeployed {
             id: ContractClusterId,
@@ -136,7 +136,7 @@ pub mod messaging {
     }
 
     bind_topic!(ClusterOperation<AccountId>, b"phala/cluster/key");
-    #[derive(Encode, Decode, Clone, Debug, TypeInfo)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
     pub enum ClusterOperation<AccountId> {
         // TODO.shelven: a better way for real large batch key distribution
         /// MessageOrigin::Gatekeeper -> ALL
@@ -246,7 +246,7 @@ impl<CodeHash: AsRef<[u8]>, AccountId: AsRef<[u8]>> ContractInfo<CodeHash, Accou
 }
 
 /// Contract query request parameters, to be encrypted.
-#[derive(Encode, Decode, Debug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub struct ContractQuery<Data> {
     pub head: ContractQueryHead,
     /// The request data.
@@ -254,7 +254,7 @@ pub struct ContractQuery<Data> {
 }
 
 /// Contract query head
-#[derive(Encode, Decode, Debug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub struct ContractQueryHead {
     /// The contract id.
     pub id: ContractId,
@@ -263,7 +263,7 @@ pub struct ContractQueryHead {
 }
 
 /// Contract query response, to be encrypted.
-#[derive(Encode, Decode, Debug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub struct ContractQueryResponse<Data> {
     /// The nonce from the client.
     pub nonce: [u8; 32],
@@ -283,7 +283,7 @@ impl Encode for Data {
 }
 
 /// Contract query error define
-#[derive(Encode, Decode, Debug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub enum ContractQueryError {
     /// Signature is invalid.
     InvalidSignature,
@@ -318,5 +318,128 @@ where
 {
     fn convert_to(&self) -> T {
         (*self.as_ref()).into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{messaging::*, *};
+    use codec::{Decode, Encode};
+    use scale_info::TypeInfo;
+    use sp_core::crypto::AccountId32;
+
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+    struct TestData {
+        code_index: CodeIndex<Vec<u8>>,
+        ink_command: InkCommand,
+        cluster_event: ClusterEvent,
+        cluster_operation: ClusterOperation<AccountId32>,
+        res_type: ResourceType,
+        cluster_report: WorkerClusterReport,
+        cluster_info: ClusterInfo<AccountId32>,
+        contract_operation: ContractOperation<Vec<u8>, AccountId32>,
+        query: ContractQuery<Vec<u8>>,
+        query_response: ContractQueryResponse<Vec<u8>>,
+        query_error: ContractQueryError,
+    }
+
+    #[test]
+    fn test_codecs() {
+        let contract_info = ContractInfo {
+            deployer: AccountId32::new([1; 32]),
+            code_index: CodeIndex::WasmCode(vec![1, 2, 3]),
+            salt: vec![1, 2, 3],
+            cluster_id: ContractClusterId([1; 32]),
+            instantiate_data: vec![1, 2, 3],
+        };
+        assert_eq!(
+            contract_info.contract_id(sp_core::blake2_256),
+            ContractId(hex_literal::hex!(
+                "29a773373d12f21a9407333f6e1c9db09aed5c03d21e91060c2f34ac2b86ecb4"
+            ))
+        );
+        let data = TestData {
+            code_index: CodeIndex::WasmCode(vec![1, 2, 3]),
+            ink_command: InkCommand::InkMessage {
+                nonce: Default::default(),
+                message: vec![1, 2, 3],
+                transfer: 0,
+                gas_limit: 0,
+                storage_deposit_limit: None,
+            },
+            cluster_event: ClusterEvent::DeployCluster {
+                owner: AccountId32::new([1; 32]).convert_to(),
+                cluster: ContractClusterId([1; 32]),
+                workers: vec![],
+                deposit: 0,
+                gas_price: 0,
+                deposit_per_item: 0,
+                deposit_per_byte: 0,
+                treasury_account: AccountId32::new([1; 32]),
+            },
+            cluster_operation: ClusterOperation::batch_distribution(
+                Default::default(),
+                Default::default(),
+                AccountId32::new([1; 32]),
+                0,
+                0,
+                0,
+                0,
+                AccountId32::new([1; 32]),
+            ),
+            res_type: ResourceType::InkCode,
+            cluster_report: WorkerClusterReport::ClusterDeployed {
+                id: ContractClusterId([1; 32]),
+                pubkey: crate::ClusterPublicKey([1; 32]),
+            },
+            cluster_info: ClusterInfo {
+                owner: AccountId32::new([1; 32]),
+                permission: ClusterPermission::Public,
+                system_contract: [1; 32].into(),
+                gas_price: 0,
+                deposit_per_item: 0,
+                deposit_per_byte: 0,
+            },
+            contract_operation: ContractOperation::instantiate_code(contract_info, 0, 0, None),
+            query: ContractQuery {
+                head: ContractQueryHead {
+                    id: ContractId([1; 32]),
+                    nonce: [1; 32],
+                },
+                data: vec![1, 2, 3],
+            },
+            query_response: ContractQueryResponse {
+                nonce: [1; 32],
+                result: vec![1, 2, 3],
+            },
+            query_error: ContractQueryError::InvalidSignature,
+        };
+
+        let cloned = data.clone();
+        let encoded = data.encode();
+        let decoded = TestData::decode(&mut &encoded[..]).unwrap();
+
+        insta::assert_debug_snapshot!(decoded);
+
+        assert_eq!(cloned, decoded);
+
+        assert_eq!(decoded.code_index.code_hash(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn dump_type_info() {
+        use type_info_stringify::type_info_stringify;
+        insta::assert_display_snapshot!(type_info_stringify::<TestData>());
+    }
+
+    #[test]
+    fn helper_fn_works() {
+        let img = contract_id_preimage(&[1, 2, 3], &[4, 5, 6], &[7, 8, 9], &[10, 11, 12]);
+        assert_eq!(img, vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+        let cmd_topic = command_topic(ContractId([1; 32]));
+        assert_eq!(cmd_topic, b"phala/contract/0101010101010101010101010101010101010101010101010101010101010101/command".to_vec());
+        let _: prpc::server::Error = ContractQueryError::ContractNotFound.into();
+        let data = Data(vec![1, 2, 3]).encode();
+        assert_eq!(data, vec![1, 2, 3]);
     }
 }

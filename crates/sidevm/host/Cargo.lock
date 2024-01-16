@@ -2169,6 +2169,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-wasmer-tunables"
+version = "0.1.0"
+dependencies = [
+ "wasmer",
+]
+
+[[package]]
 name = "pin-project-lite"
 version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3031,7 +3038,7 @@ dependencies = [
 
 [[package]]
 name = "sidevm-env"
-version = "0.2.0-alpha.4"
+version = "0.2.0-alpha.7"
 dependencies = [
  "cfg-if",
  "derive_more",
@@ -3078,6 +3085,7 @@ dependencies = [
  "parity-wasm",
  "phala-scheduler",
  "phala-tokio-proxy",
+ "phala-wasmer-tunables",
  "rand 0.8.5",
  "rocket",
  "rustls-pemfile",
@@ -3094,16 +3102,16 @@ dependencies = [
  "wasmer-compiler-cranelift",
  "wasmer-compiler-singlepass",
  "wasmer-middlewares",
- "wasmer-tunables",
  "wasmer-wasix-types",
  "webpki-roots",
 ]
 
 [[package]]
 name = "sidevm-macro"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.7"
 dependencies = [
  "heck 0.4.1",
+ "proc-macro-crate 1.3.1",
  "proc-macro2",
  "syn 1.0.109",
 ]
@@ -4342,13 +4350,6 @@ dependencies = [
  "wasmer",
  "wasmer-types",
  "wasmer-vm",
-]
-
-[[package]]
-name = "wasmer-tunables"
-version = "0.1.0"
-dependencies = [
- "wasmer",
 ]
 
 [[package]]

@@ -20,3 +20,30 @@ pub fn deserialize<'de, De: Deserializer<'de>>(
         })
         .transpose()
 }
+
+#[test]
+fn it_works() {
+    use sp_core::sr25519::Pair;
+    use sp_core::Encode;
+    use sp_core::Pair as _;
+
+    #[derive(Serialize, Deserialize)]
+    struct TestData {
+        #[serde(with = "crate::option_key_bytes")]
+        pair: Option<Pair>,
+    }
+
+    let data = TestData {
+        pair: Some(Pair::from_seed_slice(&[0u8; 32]).unwrap()),
+    };
+
+    let serialized = serde_cbor::to_vec(&data).unwrap();
+    let deserialized = serde_cbor::from_slice::<TestData>(&serialized).unwrap();
+    assert_eq!(
+        deserialized.pair.unwrap().public(),
+        data.pair.unwrap().public()
+    );
+
+    assert!(serde_cbor::from_slice::<TestData>(&[]).is_err());
+    assert!(serde_cbor::from_slice::<TestData>(&b"foo".encode()).is_err());
+}
