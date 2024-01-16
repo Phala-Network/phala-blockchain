@@ -20,6 +20,8 @@ use anyhow::Result;
 use hash_db::{HashDB, Hasher, EMPTY_PREFIX};
 use trie::{trie_types::TrieDB, MemoryDB, Trie};
 
+use super::Error;
+
 pub(crate) type StorageProof = Vec<Vec<u8>>;
 
 /// This struct is used to read storage values from a subset of a Merklized database. The "proof"
@@ -57,7 +59,7 @@ where
         self.trie()?
             .get(key)
             .map(|value| value.map(|value| value.to_vec()))
-            .map_err(|err| anyhow::anyhow!("Failed to read value from trie: {err:?}"))
+            .map_err(|err| anyhow::anyhow!("Failed to read value from trie: {:?}", err))
     }
 
     fn trie(&self) -> Result<TrieDB<H>> {
