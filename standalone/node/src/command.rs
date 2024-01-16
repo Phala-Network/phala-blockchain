@@ -19,13 +19,12 @@
 use super::benchmarking::{inherent_benchmark_data, RemarkBuilder, TransferKeepAliveBuilder};
 use crate::{
     chain_spec, service,
-    service::{new_partial, FullClient},
+    service::{ChainOpsComponents, FullClient},
     Cli, Subcommand,
 };
 use frame_benchmarking_cli::*;
 use node_runtime::{Block, ExistentialDeposit, RuntimeApi};
 use sc_cli::SubstrateCli;
-use sc_service::PartialComponents;
 use sp_keyring::Sr25519Keyring;
 
 use std::sync::Arc;
@@ -96,9 +95,11 @@ pub fn run() -> sc_cli::Result<()> {
             runner.run_node_until_exit(|config| async move {
                 service::new_full(
                     config,
+                    &cli.eth,
                     cli.no_hardware_benchmarks,
                     cli.gossip_duration_millisecs,
                 )
+                .await
                 .map_err(sc_cli::Error::Service)
             })
         }
@@ -110,7 +111,7 @@ pub fn run() -> sc_cli::Result<()> {
         Some(Subcommand::Benchmark(cmd)) => {
             let runner = cli.create_runner(cmd)?;
 
-            runner.sync_run(|config| {
+            runner.sync_run(|mut config| {
                 // This switch needs to be in the client, since the client decides
                 // which sub-commands it wants to support.
                 match cmd {
@@ -127,7 +128,7 @@ pub fn run() -> sc_cli::Result<()> {
                     }
                     BenchmarkCmd::Block(cmd) => {
                         // ensure that we keep the task manager alive
-                        let partial = new_partial(&config)?;
+                        let partial = service::new_chain_ops(&mut config, &cli.eth)?;
                         cmd.run(partial.client)
                     }
                     #[cfg(not(feature = "runtime-benchmarks"))]
@@ -138,7 +139,7 @@ pub fn run() -> sc_cli::Result<()> {
                     #[cfg(feature = "runtime-benchmarks")]
                     BenchmarkCmd::Storage(cmd) => {
                         // ensure that we keep the task manager alive
-                        let partial = new_partial(&config)?;
+                        let partial = service::new_chain_ops(&mut config, &cli.eth)?;
                         let db = partial.backend.expose_db();
                         let storage = partial.backend.expose_storage();
 
@@ -146,7 +147,7 @@ pub fn run() -> sc_cli::Result<()> {
                     }
                     BenchmarkCmd::Overhead(cmd) => {
                         // ensure that we keep the task manager alive
-                        let partial = new_partial(&config)?;
+                        let partial = service::new_chain_ops(&mut config, &cli.eth)?;
                         let ext_builder = RemarkBuilder::new(partial.client.clone());
 
                         cmd.run(
@@ -159,7 +160,7 @@ pub fn run() -> sc_cli::Result<()> {
                     }
                     BenchmarkCmd::Extrinsic(cmd) => {
                         // ensure that we keep the task manager alive
-                        let partial = service::new_partial(&config)?;
+                        let partial = service::new_chain_ops(&mut config, &cli.eth)?;
                         // Register the *Remark* and *TKA* builders.
                         let ext_factory = ExtrinsicFactory(vec![
                             Box::new(RemarkBuilder::new(partial.client.clone())),
@@ -193,47 +194,47 @@ pub fn run() -> sc_cli::Result<()> {
         }
         Some(Subcommand::CheckBlock(cmd)) => {
             let runner = cli.create_runner(cmd)?;
-            runner.async_run(|config| {
-                let PartialComponents {
+            runner.async_run(|mut config| {
+                let ChainOpsComponents {
                     client,
                     task_manager,
                     import_queue,
                     ..
-                } = new_partial(&config)?;
+                } = service::new_chain_ops(&mut config, &cli.eth)?;
                 Ok((cmd.run(client, import_queue), task_manager))
             })
         }
         Some(Subcommand::ExportBlocks(cmd)) => {
             let runner = cli.create_runner(cmd)?;
-            runner.async_run(|config| {
-                let PartialComponents {
+            runner.async_run(|mut config| {
+                let ChainOpsComponents {
                     client,
                     task_manager,
                     ..
-                } = new_partial(&config)?;
+                } = service::new_chain_ops(&mut config, &cli.eth)?;
                 Ok((cmd.run(client, config.database), task_manager))
             })
         }
         Some(Subcommand::ExportState(cmd)) => {
             let runner = cli.create_runner(cmd)?;
-            runner.async_run(|config| {
-                let PartialComponents {
+            runner.async_run(|mut config| {
+                let ChainOpsComponents {
                     client,
                     task_manager,
                     ..
-                } = new_partial(&config)?;
+                } = service::new_chain_ops(&mut config, &cli.eth)?;
                 Ok((cmd.run(client, config.chain_spec), task_manager))
             })
         }
         Some(Subcommand::ImportBlocks(cmd)) => {
             let runner = cli.create_runner(cmd)?;
-            runner.async_run(|config| {
-                let PartialComponents {
+            runner.async_run(|mut config| {
+                let ChainOpsComponents {
                     client,
                     task_manager,
                     import_queue,
                     ..
-                } = new_partial(&config)?;
+                } = service::new_chain_ops(&mut config, &cli.eth)?;
                 Ok((cmd.run(client, import_queue), task_manager))
             })
         }
@@ -243,16 +244,16 @@ pub fn run() -> sc_cli::Result<()> {
         }
         Some(Subcommand::Revert(cmd)) => {
             let runner = cli.create_runner(cmd)?;
-            runner.async_run(|config| {
-                let PartialComponents {
+            runner.async_run(|mut config| {
+                let ChainOpsComponents {
                     client,
                     task_manager,
                     backend,
                     ..
-                } = new_partial(&config)?;
+                } = service::new_chain_ops(&mut config, &cli.eth)?;
                 let aux_revert = Box::new(|client: Arc<FullClient>, backend, blocks| {
                     sc_consensus_babe::revert(client.clone(), backend, blocks)?;
-                    grandpa::revert(client, blocks)?;
+                    sc_consensus_grandpa::revert(client, blocks)?;
                     Ok(())
                 });
                 Ok((cmd.run(client, backend, Some(aux_revert)), task_manager))
@@ -261,6 +262,21 @@ pub fn run() -> sc_cli::Result<()> {
         Some(Subcommand::ChainInfo(cmd)) => {
             let runner = cli.create_runner(cmd)?;
             runner.sync_run(|config| cmd.run::<Block>(&config))
+        }
+        Some(Subcommand::FrontierDb(cmd)) => {
+            let runner = cli.create_runner(cmd)?;
+            runner.sync_run(|mut config| {
+                let ChainOpsComponents {
+                    client,
+                    frontier_backend,
+                    ..
+                } = service::new_chain_ops(&mut config, &cli.eth)?;
+                let frontier_backend = match frontier_backend {
+                    fc_db::Backend::KeyValue(kv) => std::sync::Arc::new(kv),
+                    _ => panic!("Only fc_db::Backend::KeyValue supported"),
+                };
+                cmd.run(client, frontier_backend)
+            })
         }
     }
 }

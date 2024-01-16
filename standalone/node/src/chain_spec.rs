@@ -23,10 +23,10 @@ use hex_literal::hex;
 use node_runtime::constants::{currency::*, time::*};
 use node_runtime::Block;
 use node_runtime::{
-    wasm_binary_unwrap, AssetsConfig, BabeConfig, BalancesConfig,
-    CouncilConfig, DemocracyConfig, ElectionsConfig, ImOnlineConfig, IndicesConfig,
-    NominationPoolsConfig, PhalaRegistryConfig, SessionConfig, SessionKeys, SocietyConfig,
-    StakerStatus, StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig,
+    wasm_binary_unwrap, AssetsConfig, BabeConfig, BalancesConfig, BaseFeeConfig, CouncilConfig,
+    DemocracyConfig, ElectionsConfig, ImOnlineConfig, IndicesConfig, NominationPoolsConfig,
+    PhalaRegistryConfig, SessionConfig, SessionKeys, SocietyConfig, StakerStatus, StakingConfig,
+    SudoConfig, SystemConfig, TechnicalCommitteeConfig,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::{ChainSpecExtension, Properties};
@@ -36,6 +36,7 @@ use serde::{Deserialize, Serialize};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
+use sp_runtime::Permill;
 use sp_runtime::{
     traits::{IdentifyAccount, Verify},
     Perbill,
@@ -166,6 +167,13 @@ fn development_config_genesis() -> RuntimeGenesisConfig {
 /// Development config (single validator Alice)
 #[allow(deprecated)]
 pub fn development_config() -> ChainSpec {
+    let properties = {
+        let mut p = Properties::new();
+        p.insert("tokenSymbol".into(), "PHA".into());
+        p.insert("tokenDecimals".into(), 12u32.into());
+        p.insert("ss58Format".into(), 30u32.into());
+        p
+    };
     ChainSpec::from_genesis(
         "Phala Development",
         "phala_dev",
@@ -178,15 +186,22 @@ pub fn development_config() -> ChainSpec {
         None,
         None,
         None,
-        None,
+        Some(properties),
         Default::default(),
-        wasm_binary_unwrap()
+        wasm_binary_unwrap(),
     )
 }
 
 /// Development config (single validator Alice, custom block duration)
 #[allow(deprecated)]
 pub fn development_config_custom_block_duration(bd: u64) -> ChainSpec {
+    let properties = {
+        let mut p = Properties::new();
+        p.insert("tokenSymbol".into(), "PHA".into());
+        p.insert("tokenDecimals".into(), 12u32.into());
+        p.insert("ss58Format".into(), 30u32.into());
+        p
+    };
     ChainSpec::from_genesis(
         "Phala Development",
         "phala_dev",
@@ -199,9 +214,9 @@ pub fn development_config_custom_block_duration(bd: u64) -> ChainSpec {
         None,
         None,
         None,
-        None,
+        Some(properties),
         Default::default(),
-        wasm_binary_unwrap()
+        wasm_binary_unwrap(),
     )
 }
 
@@ -230,7 +245,7 @@ pub fn local_config() -> ChainSpec {
         None,
         Some(properties),
         Default::default(),
-        wasm_binary_unwrap()
+        wasm_binary_unwrap(),
     )
 }
 
@@ -279,7 +294,7 @@ pub fn testnet_local_config() -> ChainSpec {
         None,
         Some(properties),
         Default::default(),
-        wasm_binary_unwrap()
+        wasm_binary_unwrap(),
     )
 }
 
@@ -433,7 +448,7 @@ pub fn testnet_genesis(
         },
     };
 
-	RuntimeGenesisConfig {
+    RuntimeGenesisConfig {
         system: SystemConfig {
             ..Default::default()
         },
@@ -500,7 +515,7 @@ pub fn testnet_genesis(
         authority_discovery: Default::default(),
         grandpa: Default::default(),
         treasury: Default::default(),
-		society: SocietyConfig { pot: 0 },
+        society: SocietyConfig { pot: 0 },
         vesting: Default::default(),
         phala_registry,
         phala_computation: Default::default(),
@@ -511,6 +526,9 @@ pub fn testnet_genesis(
             min_join_bond: DOLLARS,
             ..Default::default()
         },
+        base_fee: BaseFeeConfig::new(100_000_000_000_u64.into(), Permill::zero()),
+        ethereum: Default::default(),
+        evm: Default::default(),
     }
 }
 
@@ -547,7 +565,7 @@ pub(crate) mod tests {
             None,
             None,
             Default::default(),
-            wasm_binary_unwrap()
+            wasm_binary_unwrap(),
         )
     }
 
@@ -568,7 +586,7 @@ pub(crate) mod tests {
             None,
             None,
             Default::default(),
-            wasm_binary_unwrap()
+            wasm_binary_unwrap(),
         )
     }
 
@@ -585,7 +603,7 @@ pub(crate) mod tests {
                 sync,
                 transaction_pool,
                 ..
-            } = new_full_base(config, false, |_, _| (), None)?;
+            } = new_full_base(config, Default::default(), false, None)?;
             Ok(sc_service_test::TestNetComponents::new(
                 task_manager,
                 client,

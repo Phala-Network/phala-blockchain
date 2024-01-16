@@ -9,7 +9,7 @@ use rocket::response::status::Custom;
 use rocket::{get, launch, routes, State};
 
 #[derive(Parser, Debug)]
-#[clap(about = "SFQ test server", version, author)]
+#[command(about = "SFQ test server", version, author)]
 pub struct Args {
     #[arg(short, long, default_value = "32")]
     backlog: usize,

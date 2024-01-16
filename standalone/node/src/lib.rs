@@ -38,8 +38,10 @@ mod benchmarking;
 mod cli;
 #[cfg(feature = "cli")]
 mod command;
-
+#[cfg(feature = "cli")]
+mod eth;
 #[cfg(feature = "cli")]
 pub use cli::*;
 #[cfg(feature = "cli")]
 pub use command::*;
+mod rpc;

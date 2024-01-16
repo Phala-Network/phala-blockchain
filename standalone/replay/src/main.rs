@@ -4,7 +4,7 @@ mod replay_gk;
 use clap::Parser;
 
 #[derive(Parser, Debug)]
-#[clap(about = "The Phala TEE worker app.", version, author)]
+#[command(about = "The Phala TEE worker app.", version, author)]
 pub struct Args {
     #[arg(
         default_value = "ws://localhost:9944",

@@ -69,7 +69,7 @@ struct NodeRpcExt<BE, Block: BlockT, Client, P> {
 }
 
 impl<BE, Block: BlockT, Client, P> NodeRpcExt<BE, Block, Client, P> {
-    fn new(client: Arc<Client>, backend: Arc<BE>, _is_archive_mode: bool, pool: Arc<P>) -> Self {
+    fn new(client: Arc<Client>, backend: Arc<BE>, pool: Arc<P>) -> Self {
         Self {
             client,
             backend,
@@ -89,8 +89,7 @@ where
         + BlockBackend<Block>
         + HeaderMetadata<Block, Error = sp_blockchain::Error>
         + ProvideRuntimeApi<Block>,
-    Client::Api:
-        sp_api::Metadata<Block> + ApiExt<Block>,
+    Client::Api: sp_api::Metadata<Block> + ApiExt<Block>,
     Client::Api: MqApi<Block>,
     Block: BlockT + 'static,
     <<Block as BlockT>::Header as Header>::Number: Into<u64>,
@@ -143,7 +142,6 @@ pub fn extend_rpc<Client, BE, Block, P>(
     io: &mut RpcModule<()>,
     client: Arc<Client>,
     backend: Arc<BE>,
-    is_archive_mode: bool,
     pool: Arc<P>,
 ) where
     BE: Backend<Block> + 'static,
@@ -154,12 +152,11 @@ pub fn extend_rpc<Client, BE, Block, P>(
         + ProvideRuntimeApi<Block>
         + 'static,
     Block: BlockT + 'static,
-    Client::Api:
-        sp_api::Metadata<Block> + ApiExt<Block>,
+    Client::Api: sp_api::Metadata<Block> + ApiExt<Block>,
     Client::Api: MqApi<Block>,
     <<Block as BlockT>::Header as Header>::Number: Into<u64>,
     P: TransactionPool + 'static,
 {
-    io.merge(NodeRpcExt::new(client, backend, is_archive_mode, pool).into_rpc())
+    io.merge(NodeRpcExt::new(client, backend, pool).into_rpc())
         .expect("Initialize Phala node RPC ext failed.");
 }
