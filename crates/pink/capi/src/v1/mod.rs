@@ -42,7 +42,7 @@ pub trait OCall: CrossCall {}
 pub mod ecall {
     use super::{CrossCallMut, ECall, Executing};
     use crate::types::{AccountId, Balance, BlockNumber, ExecutionMode, Hash, Weight};
-    use pink_macro::cross_call;
+    use pink_runtime_macro::cross_call;
     use scale::{Decode, Encode};
 
     /// Contains the parameters for a contract call or instantiation.
@@ -211,7 +211,7 @@ pub mod ocall {
     use super::{CrossCallMut, Executing, OCall};
     use crate::types::{AccountId, BlockNumber, ExecSideEffects, ExecutionMode, Hash};
     pub use pink::chain_extension::{JsCode, JsValue};
-    use pink_macro::cross_call;
+    use pink_runtime_macro::cross_call;
     use scale::{Decode, Encode};
 
     pub use pink::chain_extension::{
