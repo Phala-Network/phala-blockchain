@@ -587,8 +587,8 @@ mod sidevm_deployer {
         #[ink::test]
         fn paid_vm_works() {
             tracing_subscriber::fmt::init();
-            pink_extension_runtime::mock_ext::mock_all_ext();
-            pink_extension_runtime::mock_ext::set_mode(true);
+            pink_chain_extension::mock_ext::mock_all_ext();
+            pink_chain_extension::mock_ext::set_mode(true);
 
             use pink::system::{SidevmOperationRef, System as _, SystemRef};
 

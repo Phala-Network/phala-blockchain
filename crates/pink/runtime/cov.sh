@@ -5,7 +5,7 @@ cargo llvm-cov \
     --html \
     -p pink \
     -p pink-macro \
-    -p pink-extension-runtime \
+    -p pink-chain-extension \
     -p pink-runtime \
     -p pink-runtime-macro \
     -p pink-capi \

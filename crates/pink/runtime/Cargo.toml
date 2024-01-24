@@ -37,7 +37,7 @@ scale-info = { version = "2.10.0", default-features = false, features = [
 phala-types = { path = "../../phala-types" }
 phala-crypto = { path = "../../phala-crypto" }
 pink = { path = "../pink" }
-pink-extension-runtime = { path = "../pink-extension-runtime" }
+pink-chain-extension = { path = "../chain-extension" }
 pink-capi = { path = "../capi" }
 phala-sanitized-logger = { path = "../../phala-sanitized-logger" }
 hash-db = "0.16.0"

@@ -6,7 +6,7 @@ use pink::{
     },
     HookPoint, PinkEvent, ResultExt, SidevmOperation,
 };
-use pink_extension_runtime::{local_cache::apply_quotas, mock_ext::mock_all_ext};
+use pink_chain_extension::{local_cache::apply_quotas, mock_ext::mock_all_ext};
 use rusty_fork::rusty_fork_test;
 use scale::{Decode, Encode};
 use std::convert::TryInto;

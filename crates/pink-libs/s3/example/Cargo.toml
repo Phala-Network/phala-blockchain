@@ -16,7 +16,7 @@ scale-info = { version = "2.10.0", default-features = false, features = ["derive
 
 
 [dev-dependencies]
-pink-extension-runtime = { path = "../../../pink/pink-extension-runtime" }
+pink-chain-extension = { path = "../../../pink/chain-extension" }
 
 [lib]
 path = "lib.rs"

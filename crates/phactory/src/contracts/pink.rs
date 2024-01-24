@@ -467,7 +467,7 @@ impl OCalls for RuntimeHandle<'_> {
                 }
             };
         }
-        let result = pink_extension_runtime::http_request(request, context::time_remaining());
+        let result = pink_chain_extension::http_request(request, context::time_remaining());
         match &result {
             Ok(response) => {
                 http_counters::add(contract, response.status_code);
@@ -485,7 +485,7 @@ impl OCalls for RuntimeHandle<'_> {
         requests: Vec<HttpRequest>,
         timeout_ms: u64,
     ) -> BatchHttpResult {
-        let results = pink_extension_runtime::batch_http_request(
+        let results = pink_chain_extension::batch_http_request(
             requests,
             context::time_remaining().min(timeout_ms),
         )?;

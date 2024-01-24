@@ -31,7 +31,7 @@ fn whitelist_works() {
             "pink",
             "pink::contract",
             "pink::runtime::extension",
-            "pink_extension_runtime",
+            "pink_chain_extension",
             "prpc_measuring",
             "pruntime",
             "pruntime::api_server",

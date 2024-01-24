@@ -17,7 +17,7 @@ base16 = { version = "0.2.1", default-features = false, features = ["alloc"] }
 chrono = { version = "0.4", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
-pink-extension-runtime = { path = "../../pink/pink-extension-runtime" }
+pink-chain-extension = { path = "../../pink/chain-extension" }
 
 [features]
 default = ["std"]

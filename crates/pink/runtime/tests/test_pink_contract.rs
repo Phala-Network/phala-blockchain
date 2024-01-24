@@ -5,7 +5,7 @@ use pink_capi::{
     v1::ecall::{ECalls, TransactionArguments},
 };
 use pink::system::System;
-use pink_extension_runtime::local_cache;
+use pink_chain_extension::local_cache;
 use sp_core::Pair;
 use sp_runtime::AccountId32;
 

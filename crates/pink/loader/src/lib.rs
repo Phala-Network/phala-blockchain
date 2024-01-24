@@ -1,5 +1,5 @@
 pub use pink_capi as capi;
-pub use pink_extension_runtime::local_cache;
+pub use pink_chain_extension::local_cache;
 pub use sp_weights::constants;
 
 pub mod types {

@@ -20,7 +20,7 @@ hex = { version = "0.4", default-features = false, features = ["alloc"] }
 pink-types = { version = "0.1", path = "../pink-types", default-features = false }
 
 [dev-dependencies]
-pink-extension-runtime = { default-features = false, path = "../pink-extension-runtime" }
+pink-chain-extension = { default-features = false, path = "../chain-extension" }
 type-info-stringify = { path = "../../type-info-stringify" }
 insta = "1.7.2"
 rusty-fork = "0.3.0"

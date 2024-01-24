@@ -14,7 +14,7 @@ use pink::{
     },
     dispatch_ext_call, CacheOp, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
 };
-use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
+use pink_chain_extension::{DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
 use sp_runtime::{AccountId32, DispatchError};
 

@@ -72,7 +72,7 @@ members = [
 	"crates/pink/macro",
 	"crates/pink/pink-types",
 	"crates/pink/pink",
-	"crates/pink/pink-extension-runtime",
+	"crates/pink/chain-extension",
 	"crates/pink-libs/s3",
 	"crates/pink-libs/utils",
 	"crates/pink-libs/subrpc",
@@ -107,6 +107,6 @@ sp-core-hashing = { git = "https://github.com/paritytech/polkadot-sdk.git", bran
 sp-std = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0" }
 sp-runtime-interface = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0" }
 
-# For pink-extension-runtime, it will introduce Substrate from crates-io which usually different with polkadot-branch
+# For pink-chain-extension, it will introduce Substrate from crates-io which usually different with polkadot-branch
 pink = { path = "crates/pink/pink" }
-pink-extension-runtime = { path = "crates/pink/pink-extension-runtime" }
+pink-chain-extension = { path = "crates/pink/chain-extension" }

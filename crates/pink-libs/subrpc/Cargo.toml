@@ -30,7 +30,7 @@ ss58-registry = { version = "1.33.0", default-features = false }
 base58 = { version = "0.2.0", default-features = false }
 
 [dev-dependencies]
-pink-extension-runtime = { path = "../../pink/pink-extension-runtime" }
+pink-chain-extension = { path = "../../pink/chain-extension" }
 xcm = { package = "staging-xcm", git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0", default-features = false, features = ["std"] }
 
 [features]

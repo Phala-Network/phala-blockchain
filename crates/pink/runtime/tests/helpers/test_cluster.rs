@@ -19,7 +19,7 @@ use pink_capi::{
         CrossCall, CrossCallMut, ECall,
     },
 };
-use pink_extension_runtime::local_cache::{self, StorageQuotaExceeded};
+use pink_chain_extension::local_cache::{self, StorageQuotaExceeded};
 use scale::{Decode, Encode};
 use sp_core::Pair;
 use sp_runtime::DispatchError;
@@ -68,7 +68,7 @@ impl TestCluster {
     }
 
     pub fn for_test() -> Self {
-        pink_extension_runtime::mock_ext::mock_all_ext();
+        pink_chain_extension::mock_ext::mock_all_ext();
         let test_key = test_key();
         let mut me = Self::bare();
         me.tx().on_genesis();
