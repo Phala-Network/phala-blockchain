@@ -11,7 +11,7 @@ use parity_scale_codec::Encode;
 use phala_crypto::sr25519::Persistence;
 use phala_mq::{ContractClusterId, MessageOrigin};
 use phala_types::{contract::messaging::ResourceType, SignedContentType};
-use pink_extension::chain_extension::{JsCode, JsValue};
+use pink::chain_extension::{JsCode, JsValue};
 use pink_loader::{
     capi::v1::{
         self,

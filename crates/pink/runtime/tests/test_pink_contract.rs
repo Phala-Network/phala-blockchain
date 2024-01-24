@@ -4,7 +4,7 @@ use pink_capi::{
     types::{AccountId, Weight},
     v1::ecall::{ECalls, TransactionArguments},
 };
-use pink_extension::system::System;
+use pink::system::System;
 use pink_extension_runtime::local_cache;
 use sp_core::Pair;
 use sp_runtime::AccountId32;
@@ -696,7 +696,7 @@ fn test_event_chain_head() {
 
 #[test]
 fn test_pink_js_eval() {
-    use pink_extension::chain_extension::JsValue;
+    use pink::chain_extension::JsValue;
 
     let (mut cluster, checker) = create_cluster();
 

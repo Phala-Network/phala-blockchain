@@ -13,7 +13,7 @@ ink = { version = "4", default-features = false }
 scale = { package = "parity-scale-codec", version = "3.6.5", default-features = false, features = ["derive"] }
 scale-info = { version = "2.10.0", default-features = false, features = ["derive"], optional = true }
 
-pink-extension = { default-features = false, path = "../../pink/pink-extension" }
+pink = { default-features = false, path = "../../pink/pink" }
 system = { version = "1.0", default-features = false, path = "../system" }
 this-crate = { path = "../../this-crate" }
 hex_fmt = "0.3"
@@ -33,7 +33,7 @@ std = [
     "ink/std",
     "scale/std",
     "scale-info/std",
-    "pink-extension/std",
+    "pink/std",
     "system/std",
 ]
 ink-as-dependency = []

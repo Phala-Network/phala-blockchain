@@ -1,6 +1,6 @@
 use anyhow::{anyhow, bail, Context, Result};
 use core::time::Duration;
-use pink_extension::{chain_extension::JsValue, SidevmConfig};
+use pink::{chain_extension::JsValue, SidevmConfig};
 use pink_loader::types::{AccountId, ExecutionMode, TransactionArguments};
 use serde::{Deserialize, Serialize};
 use std::sync::{mpsc, Arc, Mutex};

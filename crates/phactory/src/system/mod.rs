@@ -63,7 +63,7 @@ use sidevm::{
 };
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
-use pink_extension::{SidevmOperation, Workers};
+use pink::{SidevmOperation, Workers};
 use std::convert::TryFrom;
 use std::future::Future;
 use tracing::{error, info};

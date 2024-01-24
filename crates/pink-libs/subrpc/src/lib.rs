@@ -15,7 +15,7 @@ use scale::{Compact, Decode, Encode};
 
 use contracts::objects::ContractQueryResult;
 use objects::*;
-use pink_extension::chain_extension::{signing, SigType};
+use pink::chain_extension::{signing, SigType};
 pub use primitives::era::Era;
 use rpc::call_rpc;
 pub use ss58::{get_ss58addr_version, Ss58Codec};

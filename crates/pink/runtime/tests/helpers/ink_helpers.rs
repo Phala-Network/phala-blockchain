@@ -10,11 +10,11 @@ use ink::{
     primitives::Hash,
     MessageResult,
 };
+use pink::Balance;
 use pink_capi::{
     types::{ExecSideEffects, ExecutionMode},
     v1::ecall::{ECalls, TransactionArguments},
 };
-use pink_extension::Balance;
 use scale::{Decode, Encode};
 use sp_runtime::AccountId32 as AccountId;
 
@@ -389,11 +389,12 @@ where
 }
 
 mod system {
-    use ink::env::call::FromAccountId;
-    use ink::reflect::TraitDefinitionRegistry;
-    use ink::{codegen::TraitCallForwarder, primitives::AccountId};
+    use ink::{
+        codegen::TraitCallForwarder, env::call::FromAccountId, primitives::AccountId,
+        reflect::TraitDefinitionRegistry,
+    };
+    use pink::{system::System, ConvertTo, PinkEnvironment};
     use pink_capi::v1::ecall::ECalls;
-    use pink_extension::{system::System, ConvertTo, PinkEnvironment};
 
     use crate::helpers::TestCluster;
 

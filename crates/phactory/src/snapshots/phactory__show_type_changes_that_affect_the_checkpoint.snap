@@ -493,9 +493,9 @@ phactory::contracts::support::SidevmInfo = struct {
     code_hash: primitive_types::H256,
     start_time: String,
     auto_restart: bool,
-    config: pink_extension::SidevmConfig,
+    config: pink::SidevmConfig,
 }
-pink_extension::SidevmConfig = struct {
+pink::SidevmConfig = struct {
     max_code_size: u32,
     max_memory_pages: u32,
     vital_capacity: u64,

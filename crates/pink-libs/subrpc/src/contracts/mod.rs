@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 use objects::*;
-use pink_extension::chain_extension::signing;
+use pink::chain_extension::signing;
 use primitive_types::H256;
 use scale::{Decode, Encode};
 

@@ -2,13 +2,10 @@
 
 extern crate alloc;
 
-use pink_extension as pink;
-
 pub use system::System;
 
 #[pink::contract(env = PinkEnvironment)]
 mod system {
-    use super::pink;
     use alloc::string::String;
     use alloc::vec::Vec;
     use ink::{codegen::Env, storage::Mapping};

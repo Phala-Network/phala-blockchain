@@ -3,7 +3,6 @@
 use alloc::vec::Vec;
 use core::fmt;
 use pink::chain_extension::{signing, SigType};
-use pink_extension as pink;
 use scale::{Decode, Encode};
 
 /// A signed payload produced by a [`Generator`], and can be validated by [`Verifier`].

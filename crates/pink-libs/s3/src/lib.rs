@@ -6,8 +6,6 @@ extern crate alloc;
 
 pub use pink::chain_extension::HttpResponse;
 
-use pink_extension as pink;
-
 use scale::{Decode, Encode};
 // To encrypt/decrypt HTTP payloads
 
@@ -79,7 +77,12 @@ impl<'a> S3<'a> {
     }
 
     /// Put an value into bucket `bucket_name` with key `object_key`.
-    pub fn put(&self, bucket_name: &str, object_key: &str, value: &[u8]) -> Result<HttpResponse, Error> {
+    pub fn put(
+        &self,
+        bucket_name: &str,
+        object_key: &str,
+        value: &[u8],
+    ) -> Result<HttpResponse, Error> {
         self.request("PUT", bucket_name, object_key, Some(value))
     }
 

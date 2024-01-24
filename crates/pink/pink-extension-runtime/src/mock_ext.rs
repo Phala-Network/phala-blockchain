@@ -1,7 +1,9 @@
 use std::borrow::Cow;
 
-use pink_extension::chain_extension::{mock::mock_all_with, JsCode, JsValue, SigType};
-use pink_extension::{chain_extension as ext, EcdsaPublicKey, EcdsaSignature, Hash};
+use pink::{
+    chain_extension::{self as ext, mock::mock_all_with, JsCode, JsValue, SigType},
+    EcdsaPublicKey, EcdsaSignature, Hash,
+};
 use sp_core::crypto::AccountId32;
 
 use crate::local_cache;
@@ -121,7 +123,7 @@ impl ext::PinkExtBackend for MockExtension {
     fn balance_of(
         &self,
         _account: ext::AccountId,
-    ) -> Result<(pink_extension::Balance, pink_extension::Balance), Self::Error> {
+    ) -> Result<(pink::Balance, pink::Balance), Self::Error> {
         Ok((0, 0))
     }
 
@@ -175,7 +177,7 @@ pub fn mock_all_ext() {
 #[cfg(test)]
 mod tests {
     use crate::PinkRuntimeEnv;
-    use pink_extension::chain_extension::{HttpRequest, PinkExtBackend};
+    use pink::chain_extension::{HttpRequest, PinkExtBackend};
 
     use super::*;
 

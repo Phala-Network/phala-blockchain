@@ -29,7 +29,7 @@ phala-crypto = { path = "../phala-crypto", features = ["getrandom", "stream"] }
 prpc = { path = "../prpc" }
 pink-loader = { path = "../pink/loader" }
 pink-extension-runtime = { path = "../pink/pink-extension-runtime" }
-pink-extension = { path = "../pink/pink-extension" }
+pink = { path = "../pink/pink" }
 
 sp-io                = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0", features = ["disable_panic_handler", "disable_oom", "disable_allocator"] }
 sp-runtime           = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0" }

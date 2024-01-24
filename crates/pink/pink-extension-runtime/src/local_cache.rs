@@ -4,7 +4,7 @@
 //! by some kind of cache expiring machanism.
 
 use once_cell::sync::Lazy;
-use pink_extension::CacheOp;
+use pink::CacheOp;
 use sp_core::{crypto::AccountId32, ByteArray};
 use std::{
     borrow::Cow,
@@ -13,7 +13,7 @@ use std::{
     time::Instant,
 };
 
-pub use pink_extension::chain_extension::StorageQuotaExceeded;
+pub use pink::chain_extension::StorageQuotaExceeded;
 
 static TEST_MODE: AtomicBool = AtomicBool::new(false);
 
@@ -405,7 +405,7 @@ mod test {
 
     #[test]
     fn cache_op_works() {
-        use pink_extension::CacheOp;
+        use pink::CacheOp;
 
         enable_test_mode();
 

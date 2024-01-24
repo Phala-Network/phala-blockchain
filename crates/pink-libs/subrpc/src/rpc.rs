@@ -3,7 +3,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
-use pink_extension::http_post;
+use pink::http_post;
 
 pub fn call_rpc(rpc_node: &str, data: Vec<u8>) -> core::result::Result<Vec<u8>, Error> {
     let content_length = format!("{}", data.len());

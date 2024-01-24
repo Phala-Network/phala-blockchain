@@ -7,6 +7,7 @@ use super::{
 };
 use log::{error, info};
 use phala_crypto::sr25519::Persistence;
+use pink::{ConvertTo, PinkEvent};
 use pink_capi::{
     types::{AccountId, ExecSideEffects, ExecutionMode, Hash},
     v1::{
@@ -18,8 +19,6 @@ use pink_capi::{
         CrossCall, CrossCallMut, ECall,
     },
 };
-use pink_extension::ConvertTo;
-use pink_extension::PinkEvent;
 use pink_extension_runtime::local_cache::{self, StorageQuotaExceeded};
 use scale::{Decode, Encode};
 use sp_core::Pair;
