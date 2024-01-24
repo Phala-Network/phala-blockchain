@@ -1,5 +1,5 @@
 [package]
-name = "pink"
+name = "pink-runtime"
 version = "1.2.0"
 edition = "2021"
 
