@@ -4,7 +4,7 @@ set -e
 cargo llvm-cov \
     --html \
     -p pink \
-    -p pink-extension-macro \
+    -p pink-macro \
     -p pink-extension-runtime \
     -p pink-runtime \
     -p pink-runtime-macro \

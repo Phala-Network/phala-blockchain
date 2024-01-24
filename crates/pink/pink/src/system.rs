@@ -1,7 +1,4 @@
 #![allow(clippy::let_unit_value)]
-
-use pink_extension_macro as pink;
-
 use alloc::string::String;
 use alloc::vec::Vec;
 use scale::{Decode, Encode};
@@ -46,7 +43,7 @@ pub use this_crate::VersionTuple;
 /// are exclusive to the system contract. User contracts wishing to call these functions or
 /// emit these events must first request the system contract, which then checks the permissions
 /// to either execute or reject the request.
-#[pink::system]
+#[pink_macro::system]
 #[ink::trait_definition(namespace = "pink_system")]
 pub trait System {
     /// Returns the system contract version, indicating its API capabilities.
@@ -190,7 +187,7 @@ impl From<Error> for DriverError {
 }
 
 /// Driver to manage sidevm deployments.
-#[pink::driver]
+#[pink_macro::driver]
 #[ink::trait_definition]
 pub trait SidevmOperation {
     /// Invoked by a contract to deploy a sidevm instance that attached to itself.
@@ -264,7 +261,7 @@ pub trait SidevmOperation {
 }
 
 /// Contracts receiving processing deposit events. Can be a driver and the system.
-#[pink::driver]
+#[pink_macro::driver]
 #[ink::trait_definition]
 pub trait ContractDeposit {
     /// Change deposit of a contract. A driver should set the contract weight according to the

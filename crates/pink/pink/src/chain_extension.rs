@@ -105,7 +105,7 @@ impl ink::env::chain_extension::FromStatusCode for ErrorCode {
 pub type BatchHttpResult = Result<Vec<Result<HttpResponse, HttpRequestError>>, HttpRequestError>;
 
 /// Extensions for the ink runtime defined by phat contract.
-#[pink_extension_macro::chain_extension]
+#[pink_macro::chain_extension]
 pub trait PinkExt {
     type ErrorCode = ErrorCode;
 

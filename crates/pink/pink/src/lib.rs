@@ -13,7 +13,7 @@ use ink::env::{emit_event, topics::state::HasRemainingTopics, Environment, Topic
 use ink::EnvAccess;
 use scale::{Decode, Encode};
 
-pub use pink_extension_macro::{contract, driver};
+pub use pink_macro::{contract, driver};
 
 pub mod chain_extension;
 pub use chain_extension::pink_extension_instance as ext;
