@@ -1,6 +1,7 @@
-use pink::types::AccountId;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, sync::Mutex};
+
+use pink_loader::types::AccountId;
 
 /// Represents outgoing HTTP requests statistics.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -51,10 +52,7 @@ pub(super) fn add(contract: AccountId, status_code: u16) {
             .or_insert(0) += 1;
     }
 
-    let counters = counters
-        .by_contract
-        .entry(contract)
-        .or_default();
+    let counters = counters.by_contract.entry(contract).or_default();
     counters.latest_activity = now;
     counters.requests += 1;
     if !success {

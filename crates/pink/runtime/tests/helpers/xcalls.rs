@@ -37,11 +37,7 @@ impl Runtime {
     }
 
     pub fn ecall(&self, call_id: u32, data: &[u8]) -> Vec<u8> {
-        unsafe extern "C" fn output_fn(
-            ctx: *mut ::core::ffi::c_void,
-            data: *const u8,
-            len: usize,
-        ) {
+        unsafe extern "C" fn output_fn(ctx: *mut ::core::ffi::c_void, data: *const u8, len: usize) {
             let output = &mut *(ctx as *mut Vec<u8>);
             output.extend_from_slice(std::slice::from_raw_parts(data, len));
         }
@@ -81,6 +77,7 @@ unsafe extern "C" fn handle_ocall(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pink_runtime::capi::__pink_runtime_init;
     use rusty_fork::rusty_fork_test;
 
     #[test]
@@ -95,7 +92,7 @@ mod tests {
             },
         };
         let mut ecalls = ecalls_t::default();
-        let ret = unsafe { pink::capi::__pink_runtime_init(&config, &mut ecalls) };
+        let ret = unsafe { __pink_runtime_init(&config, &mut ecalls) };
         assert!(ret != 0);
         assert!(ecalls.ecall.is_none());
     }
@@ -111,7 +108,7 @@ mod tests {
                 dealloc: None,
             },
         };
-        let ret = unsafe { pink::capi::__pink_runtime_init(&config, std::ptr::null_mut()) };
+        let ret = unsafe { __pink_runtime_init(&config, std::ptr::null_mut()) };
         assert!(ret != 0);
     }
 
@@ -128,12 +125,12 @@ mod tests {
                 },
             };
             let mut ecalls = ecalls_t::default();
-            let ret = unsafe { pink::capi::__pink_runtime_init(&config, &mut ecalls) };
+            let ret = unsafe { __pink_runtime_init(&config, &mut ecalls) };
             assert!(ret == 0);
             assert!(ecalls.ecall.is_some());
             let (mut major, mut minor) = (0u32, 0u32);
             unsafe { ecalls.get_version.unwrap()(&mut major, &mut minor) };
-            assert!((major, minor) == pink::version())
+            assert!((major, minor) == pink_runtime::version())
         }
 
         #[test]
@@ -148,7 +145,7 @@ mod tests {
                 },
             };
             let mut ecalls = ecalls_t::default();
-            let ret = unsafe { pink::capi::__pink_runtime_init(&config, &mut ecalls) };
+            let ret = unsafe { __pink_runtime_init(&config, &mut ecalls) };
             assert!(ret == 0);
             assert!(ecalls.ecall.is_some());
         }

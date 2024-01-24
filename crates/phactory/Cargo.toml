@@ -27,7 +27,7 @@ phala-serde-more = { path = "../phala-serde-more" }
 
 phala-crypto = { path = "../phala-crypto", features = ["getrandom", "stream"] }
 prpc = { path = "../prpc" }
-pink = { path = "../pink/loader", package = "pink-loader" }
+pink-loader = { path = "../pink/loader" }
 pink-extension-runtime = { path = "../pink/pink-extension-runtime" }
 pink-extension = { path = "../pink/pink-extension" }
 

@@ -25,8 +25,7 @@ use scale::{Decode, Encode};
 use sp_core::Pair;
 use sp_runtime::DispatchError;
 
-pub type ContractExecResult = pink::ContractExecResult;
-pub type ContractInstantiateResult = pink::ContractInstantiateResult;
+pub use pink_runtime::{ContractExecResult, ContractInstantiateResult};
 
 fn test_key() -> [u8; 64] {
     let pair = sp_core::sr25519::Pair::from_seed(&[42u8; 32]);
@@ -58,7 +57,7 @@ impl Clone for TestCluster {
 impl TestCluster {
     pub fn bare() -> Self {
         let storage = ClusterStorage::default();
-        let runtime = Runtime::from_fn(pink::capi::__pink_runtime_init);
+        let runtime = Runtime::from_fn(pink_runtime::capi::__pink_runtime_init);
         Self {
             storage,
             runtime,

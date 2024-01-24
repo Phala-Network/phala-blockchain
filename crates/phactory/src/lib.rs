@@ -6,15 +6,15 @@ extern crate log;
 extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
-use ::pink::{
-    runtimes::v1::PinkRuntimeVersion,
-    types::{AccountId, ExecSideEffects},
-};
 use contracts::{
     pink::{http_counters, Cluster},
     ContractsKeeper,
 };
 use glob::PatternError;
+use pink_loader::{
+    runtimes::v1::PinkRuntimeVersion,
+    types::{AccountId, ExecSideEffects},
+};
 use rand::*;
 use serde::{
     de::{self, DeserializeOwned, SeqAccess, Visitor},
@@ -306,7 +306,7 @@ pub struct Phactory<Platform> {
 
     #[codec(skip)]
     #[serde(skip)]
-    pub(crate) pending_effects: Vec<::pink::types::ExecSideEffects>,
+    pub(crate) pending_effects: Vec<ExecSideEffects>,
 
     #[codec(skip)]
     #[serde(skip)]

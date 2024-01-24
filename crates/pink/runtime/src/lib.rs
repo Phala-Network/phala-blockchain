@@ -54,7 +54,7 @@ pub use crate::contract::{ContractExecResult, ContractInstantiateResult, Contrac
 /// # Examples
 ///
 /// ```
-/// let (major, minor) = pink::version();
+/// let (major, minor) = pink_runtime::version();
 /// println!("Current version: {}.{}", major, minor);
 /// ```
 pub fn version() -> (u32, u32) {

@@ -3156,7 +3156,7 @@ dependencies = [
  "phala-crypto",
  "phala-pallets",
  "phala-types",
- "pink",
+ "pink-runtime",
  "sc-consensus-grandpa",
  "sp-core 21.0.0",
  "sp-runtime",
@@ -10424,50 +10424,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
-name = "pink"
-version = "1.2.0"
-dependencies = [
- "anyhow",
- "assert_matches",
- "check_system",
- "env_logger 0.11.0",
- "environmental",
- "frame-support",
- "frame-system",
- "hash-db",
- "hex",
- "hex-literal",
- "im",
- "ink",
- "insta",
- "log",
- "pallet-balances",
- "pallet-contracts",
- "pallet-insecure-randomness-collective-flip",
- "pallet-timestamp",
- "parity-scale-codec",
- "phala-crypto",
- "phala-git-revision",
- "phala-sanitized-logger",
- "phala-types",
- "phala-wasm-checker",
- "pink-capi",
- "pink-extension",
- "pink-extension-runtime",
- "rusty-fork",
- "scale-info",
- "serde",
- "sp-core 21.0.0",
- "sp-externalities 0.19.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
- "sp-runtime",
- "sp-state-machine",
- "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
- "sp-trie",
- "this-crate 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "tracing",
-]
-
-[[package]]
 name = "pink-capi"
 version = "0.1.0"
 dependencies = [
@@ -10563,9 +10519,9 @@ dependencies = [
  "once_cell",
  "parity-scale-codec",
  "phala-crypto",
- "pink",
  "pink-capi",
  "pink-extension-runtime",
+ "pink-runtime",
  "scale-info",
  "serde",
  "sp-runtime",
@@ -10582,6 +10538,50 @@ dependencies = [
  "rustfmt-snippet 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn 1.0.109",
  "template-quote",
+]
+
+[[package]]
+name = "pink-runtime"
+version = "1.2.0"
+dependencies = [
+ "anyhow",
+ "assert_matches",
+ "check_system",
+ "env_logger 0.11.0",
+ "environmental",
+ "frame-support",
+ "frame-system",
+ "hash-db",
+ "hex",
+ "hex-literal",
+ "im",
+ "ink",
+ "insta",
+ "log",
+ "pallet-balances",
+ "pallet-contracts",
+ "pallet-insecure-randomness-collective-flip",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "phala-crypto",
+ "phala-git-revision",
+ "phala-sanitized-logger",
+ "phala-types",
+ "phala-wasm-checker",
+ "pink-capi",
+ "pink-extension",
+ "pink-extension-runtime",
+ "rusty-fork",
+ "scale-info",
+ "serde",
+ "sp-core 21.0.0",
+ "sp-externalities 0.19.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
+ "sp-trie",
+ "this-crate 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tracing",
 ]
 
 [[package]]
