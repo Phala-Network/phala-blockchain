@@ -1,10 +1,10 @@
 use assert_matches::assert_matches;
 use phala_types::contract::ConvertTo;
+use pink::system::System;
 use pink_capi::{
     types::{AccountId, Weight},
     v1::ecall::{ECalls, TransactionArguments},
 };
-use pink::system::System;
 use pink_chain_extension::local_cache;
 use sp_core::Pair;
 use sp_runtime::AccountId32;
