@@ -1,5 +1,5 @@
 [package]
-name = "pink-runner"
+name = "pink-loader"
 version = "0.1.0"
 edition = "2021"
 

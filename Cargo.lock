@@ -9698,7 +9698,7 @@ dependencies = [
  "phala-types",
  "pink-extension",
  "pink-extension-runtime",
- "pink-runner",
+ "pink-loader",
  "prpc",
  "rand 0.8.5",
  "reqwest",
@@ -10550,18 +10550,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pink-macro"
-version = "0.1.1"
-dependencies = [
- "insta",
- "proc-macro2",
- "rustfmt-snippet 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "syn 1.0.109",
- "template-quote",
-]
-
-[[package]]
-name = "pink-runner"
+name = "pink-loader"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
@@ -10582,6 +10571,17 @@ dependencies = [
  "sp-runtime",
  "sp-weights",
  "tracing",
+]
+
+[[package]]
+name = "pink-macro"
+version = "0.1.1"
+dependencies = [
+ "insta",
+ "proc-macro2",
+ "rustfmt-snippet 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn 1.0.109",
+ "template-quote",
 ]
 
 [[package]]
