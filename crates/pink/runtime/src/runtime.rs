@@ -11,7 +11,7 @@ use log::info;
 use pallet_contracts::{
     migration::{v11, v12, v13, v14, v15, NoopMigration},
     weights::SubstrateWeight,
-    Config, Frame, Migration, Schedule,
+    Frame, Migration, Schedule,
 };
 use sp_runtime::{traits::IdentityLookup, Perbill};
 
@@ -135,7 +135,7 @@ parameter_types! {
     pub CodeHashLockupDepositPercent: Perbill = Perbill::from_percent(0);
 }
 
-impl Config for PinkRuntime {
+impl pallet_contracts::Config for PinkRuntime {
     type Time = Timestamp;
     type Randomness = Randomness;
     type Currency = Balances;
