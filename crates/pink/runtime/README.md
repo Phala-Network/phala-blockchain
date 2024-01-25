@@ -1,51 +1,50 @@
 # Pink Runtime
 
-This crate contains the runtime implementation for Phala's `ink!` smart contracts.
+This crate provides the runtime for Phala's `ink!` smart contracts.
 
-## Overview architecture
+## System Architecture
 
-![Alt text](assets/graph-overview.png)
+![Overview of the System Architecture](assets/graph-overview.png)
 
-As shown in the picture above, the system is composed of two parts: the chain and the worker.
-The Pink Runtime runs inside the workers. There are two paths for messages from an end-user to the Pink Runtime: via on-chain transactions or off-chain queries over RPC.
+The system architecture comprises two main components: the chain and the worker. Inside the worker, Pink Runtime is operational. Messages from end-users reach Pink Runtime via one of two routes: on-chain transactions or off-chain RPC queries.
 
-Below is the call stack of a typical query flow:
-![Alt text](assets/query-flow.png)
+The following diagram illustrates the typical flow of a query:
+![Sequence of a Query Flow](assets/query-flow.png)
 
-## The dylib interface
+## The dylib Interface
 
-When a message from the user arrives at the worker, either via a transaction or a query, the worker decrypts the message and passes it to the Pink Runtime via the dylib interface.
-From the interface point of view, the stack looks like this:
+Upon receiving a user's message through a transaction or query, the worker decrypts the message and hands it off to Pink Runtime through the dylib interface.
+
+From the interface point of view, the layers in Pink Runtime looks like this:
+
 ![Alt text](assets/runtime-stack.png)
 
-There are two layers of the interface: the low-level ABI layer and the higher-level ecalls/ocalls layer.
+The interface consists of two layers:
 
-### The low-level ABI layer
+### Low-level ABI Layer
 
-The types of the low-level ABI layer are defined in a C header file [`capi/src/v1/types.h`](../capi/src/v1/types.h).
-The Pink Runtime exports only one public function, `__pink_runtime_init`.
-The worker loads the Pink Runtime dylib using `dlopen` and calls `__pink_runtime_init` to initialize the runtime and convert the dylib handle into a singleton instance. Later on, the worker can call the exported functions of the dylib via the singleton instance.
-There are two parameters for `__pink_runtime_init`:
+This layer's types are described in the C header file at [`capi/src/v1/types.h`](../capi/src/v1/types.h).
+The Pink Runtime exposes a single public function, `__pink_runtime_init`, which initializes the runtime and turns the dylib handle into a singleton instance for future use. The worker employs `dlopen` for loading Pink Runtime dylib and calls `__pink_runtime_init`. The `__pink_runtime_init` function accepts two parameters:
 
--   `config`: the configuration of the runtime, mainly containing the ocall function pointers which are used by the runtime to call the host functions.
--   `ecalls`: the output parameter; the runtime will fill the ecalls function pointers into this struct so that the worker can call the runtime functions via these pointers.
+-   `config`: Contains the runtime configuration, primarily the ocall function pointers that enable the runtime to invoke host functions.
+-   `ecalls`: An output parameter to which the runtime assigns the ecall function pointers, allowing the worker to invoke runtime functions through these pointers.
 
-After initialization, the worker can call the runtime functions via the ecalls function pointers where the cross-call ABI is defined as:
+After initialization, the worker interacts with runtime functions using the ecall function pointers. The cross-call ABI is defined as follows:
 
 ```c
 typedef void (*output_fn_t)(void *ctx, const uint8_t *data, size_t len);
 typedef void (*cross_call_fn_t)(uint32_t call_id, const uint8_t *data, size_t len, void *ctx, output_fn_t output);
 ```
 
-Each call is identified by a call_id and comes with a data buffer as input and an output function that will be called by the callee to emit the output data.
+Each call is distinct by a unique call_id and accompanied by a data buffer. The calls also include an output function employed by the callee to relay output data.
 
-The input data and output data will be used by the ecalls/ocalls layer to serialize/deserialize the data.
+The data for both input and output is used by the ecalls/ocalls layer to serialize or deserialize the information.
 
-### The ecalls/ocalls layer
+### ecalls/ocalls Layer
 
-The ecalls/ocalls interfaces are defined in Rust [here](../capi/src/v1/mod.rs). In this layer, we defined a procedural macro #[cross_call] which can be used to decorate a trait definition containing the ecalls/ocalls function declarations. The macro will generate a generic implementation of the trait for the caller's side and a call dispatch function for the callee's side.
+These interfaces are detailed in Rust [here](../capi/src/v1/mod.rs). This layer uses the #[cross_call] procedural macro, which can decorate a trait declaration with ecall/ocall function declarations. The macro will output an implementation of the trait that the caller can use, as well as a dispatch function on the callee's side.
 
-For example, if we have a trait definition like this:
+For instance, a trait declaration like this:
 
 ```rust
 #[cross_call(Impl)]
@@ -55,7 +54,7 @@ pub trait ECalls {
 }
 ```
 
-It will generate the following code:
+...would result in the following code:
 
 ```rust
 pub trait ECalls {
@@ -104,10 +103,10 @@ pub fn dispatch(
 }
 ```
 
-### Mutability of ecalls
+### Mutability in ecalls
 
-The first parameter of each ecall function is `&self` or `&mut self`, where `&self` is used for read-only ecalls and `&mut self` is used for read-write ecalls. If state modifications are made during a read-only ecall, the changes will be discarded after the ecall returns.
+The first parameter in each ecall function is either `&self` or `&mut self`, indicating whether the ecall is read-only (`&self`) or read-write (`&mut self`). Changes made during a read-only ecall get discarded once the ecall concludes.
 
-## The substrate runtime
+## Substrate Runtime
 
-The core part of the Pink Runtime is the Substrate runtime. It is composed of pallet-contracts and a few other pallets with a chain extension where the Phala-specific features are implemented. The runtime itself is constructed at [`src/runtime.rs`](src/runtime.rs), where most of the code is standard Substrate template code. The key part is the chain extension, where the Phala-specific features are implemented at [`src/runtime/extension.rs`](src/runtime/extension.rs).
+At the heart of Pink Runtime is the Substrate runtime, which includes pallet-contracts along with other pallets. A chain extension incorporates Phala-specific implementations. The composition of the runtime takes place in [`src/runtime.rs`](src/runtime.rs), with the majority following the standard Substrate codebase. The critical segment is the chain extension, where Phala's unique functionalities are introduced at [`src/runtime/extension.rs`](src/runtime/extension.rs).
