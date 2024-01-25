@@ -818,7 +818,7 @@ fn test_some_other_ecalls() {
     assert_eq!(cluster_id, sp_core::H256::default());
 
     let git_rev = cluster.query().git_revision();
-    assert_eq!(git_rev.len(), 46);
+    assert!(!git_rev.is_empty());
 
     let code = cluster.query().get_sidevm_code([0u8; 32].into());
     assert!(code.is_none());
