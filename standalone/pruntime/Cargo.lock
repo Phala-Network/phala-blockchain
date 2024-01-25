@@ -5894,8 +5894,8 @@ dependencies = [
  "phala-serde-more",
  "phala-trie-storage",
  "phala-types",
- "pink-extension",
- "pink-extension-runtime",
+ "pink",
+ "pink-chain-extension",
  "pink-loader",
  "prpc",
  "rand 0.8.5",
@@ -6340,35 +6340,18 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "pink"
-version = "1.2.0"
+version = "0.5.1"
 dependencies = [
- "anyhow",
- "frame-support",
- "frame-system",
- "hash-db",
  "hex",
+ "ink",
  "log",
- "pallet-balances",
- "pallet-contracts",
- "pallet-insecure-randomness-collective-flip",
- "pallet-timestamp",
+ "num_enum 0.6.1",
  "parity-scale-codec",
- "phala-crypto",
- "phala-git-revision",
- "phala-sanitized-logger",
- "phala-types",
- "phala-wasm-checker",
- "pink-capi",
- "pink-extension",
- "pink-extension-runtime",
+ "pink-macro",
+ "pink-types",
  "scale-info",
- "sp-core",
- "sp-externalities 0.19.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
- "sp-runtime",
- "sp-state-machine",
- "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
- "sp-trie",
- "tracing",
+ "serde",
+ "this-crate 0.1.0",
 ]
 
 [[package]]
@@ -6377,43 +6360,14 @@ version = "0.1.0"
 dependencies = [
  "bindgen",
  "parity-scale-codec",
- "pink-extension",
- "pink-macro",
+ "pink",
+ "pink-runtime-macro",
  "sp-core",
  "sp-runtime",
 ]
 
 [[package]]
-name = "pink-extension"
-version = "0.5.1"
-dependencies = [
- "hex",
- "ink",
- "log",
- "num_enum 0.6.1",
- "parity-scale-codec",
- "pink-extension-macro",
- "pink-types",
- "scale-info",
- "serde",
- "this-crate 0.1.0",
-]
-
-[[package]]
-name = "pink-extension-macro"
-version = "0.4.5"
-dependencies = [
- "heck 0.4.1",
- "ink_ir",
- "proc-macro-crate 1.2.1",
- "proc-macro2",
- "quote",
- "syn 2.0.43",
- "unzip3",
-]
-
-[[package]]
-name = "pink-extension-runtime"
+name = "pink-chain-extension"
 version = "0.5.1"
 dependencies = [
  "futures",
@@ -6421,7 +6375,7 @@ dependencies = [
  "hex_fmt",
  "log",
  "once_cell",
- "pink-extension",
+ "pink",
  "reqwest",
  "reqwest-env-proxy",
  "sp-core",
@@ -6448,9 +6402,9 @@ dependencies = [
  "log",
  "once_cell",
  "phala-crypto",
- "pink",
  "pink-capi",
- "pink-extension-runtime",
+ "pink-chain-extension",
+ "pink-runtime",
  "scale-info",
  "serde",
  "sp-weights",
@@ -6459,6 +6413,52 @@ dependencies = [
 
 [[package]]
 name = "pink-macro"
+version = "0.4.5"
+dependencies = [
+ "heck 0.4.1",
+ "ink_ir",
+ "proc-macro-crate 1.2.1",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.43",
+ "unzip3",
+]
+
+[[package]]
+name = "pink-runtime"
+version = "1.2.0"
+dependencies = [
+ "anyhow",
+ "frame-support",
+ "frame-system",
+ "hash-db",
+ "hex",
+ "log",
+ "pallet-balances",
+ "pallet-contracts",
+ "pallet-insecure-randomness-collective-flip",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "phala-crypto",
+ "phala-git-revision",
+ "phala-sanitized-logger",
+ "phala-types",
+ "phala-wasm-checker",
+ "pink",
+ "pink-capi",
+ "pink-chain-extension",
+ "scale-info",
+ "sp-core",
+ "sp-externalities 0.19.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std 8.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0)",
+ "sp-trie",
+ "tracing",
+]
+
+[[package]]
+name = "pink-runtime-macro"
 version = "0.1.1"
 dependencies = [
  "proc-macro2",
