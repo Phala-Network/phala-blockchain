@@ -5896,7 +5896,7 @@ dependencies = [
  "phala-types",
  "pink-extension",
  "pink-extension-runtime",
- "pink-runner",
+ "pink-loader",
  "prpc",
  "rand 0.8.5",
  "reqwest",
@@ -6439,16 +6439,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pink-macro"
-version = "0.1.1"
-dependencies = [
- "proc-macro2",
- "syn 1.0.109",
- "template-quote",
-]
-
-[[package]]
-name = "pink-runner"
+name = "pink-loader"
 version = "0.1.0"
 dependencies = [
  "environmental",
@@ -6464,6 +6455,15 @@ dependencies = [
  "serde",
  "sp-weights",
  "tracing",
+]
+
+[[package]]
+name = "pink-macro"
+version = "0.1.1"
+dependencies = [
+ "proc-macro2",
+ "syn 1.0.109",
+ "template-quote",
 ]
 
 [[package]]

@@ -175,6 +175,8 @@ impl Config for PinkRuntime {
 
 #[test]
 fn detect_parameter_changes() {
+    use pallet_contracts::Config;
+
     insta::assert_debug_snapshot!((
         <PinkRuntime as frame_system::Config>::BlockWeights::get(),
         <PinkRuntime as Config>::Schedule::get(),
