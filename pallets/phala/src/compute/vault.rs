@@ -589,6 +589,7 @@ pub mod pallet {
 		///
 		/// Note 2: This function guarantees no-op when it returns error.
 		fn do_gain_owner_share(vault_pid: u64) -> DispatchResult {
+			use sp_runtime::traits::CheckedSub;
 			let mut pool_info = ensure_vault::<T>(vault_pid)?;
 			let current_price = match pool_info.basepool.share_price() {
 				Some(price) => BalanceOf::<T>::from_fixed(&price),
@@ -606,7 +607,8 @@ pub mod pallet {
 				* (current_price - pool_info.last_share_price_checkpoint);
 			let new_price = current_price - delta_price;
 			let adjust_shares = bdiv(pool_info.basepool.total_value, &new_price.to_fixed())
-				- pool_info.basepool.total_shares;
+				.checked_sub(&pool_info.basepool.total_shares)
+				.unwrap_or_default();
 			pool_info.basepool.total_shares += adjust_shares;
 			pool_info.owner_shares += adjust_shares;
 			pool_info.last_share_price_checkpoint = new_price;
