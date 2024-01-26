@@ -72,7 +72,7 @@ export class EvmAccountMappingProvider implements Provider {
     this.#client = client
     this.#account = account
     this.#domain = createEip712Domain(api)
-    this.#SS58Prefix = SS58Prefix || (api.consts.system?.ss58Prefix as u16).toNumber() || 42
+    this.#SS58Prefix = SS58Prefix || (api.consts.system?.ss58Prefix as u16).toNumber() || 30
   }
 
   get name(): 'evmAccountMapping' {
