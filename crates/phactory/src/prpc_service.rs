@@ -32,6 +32,7 @@ use phala_types::{
     ChallengeHandlerInfo, EncryptedWorkerKey, HandoverChallenge, SignedContentType,
     VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfoV2,
 };
+use phala_types::{DcapChallengeHandlerInfo, DcapHandoverChallenge};
 use sp_application_crypto::UncheckedFrom;
 use sp_core::hashing::blake2_256;
 use tracing::{error, info};
@@ -1141,11 +1142,42 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         challenge
     }
 
+    fn get_dcap_worker_key_challenge(
+        &mut self,
+        block_number: chain::BlockNumber,
+        now: u64,
+        ntp_time_secs: u64,
+    ) -> DcapHandoverChallenge<chain::BlockNumber> {
+        let sgx_target_info = if self.dev_mode {
+            vec![]
+        } else {
+            let my_target_info = sgx_api_lite::target_info().unwrap();
+            sgx_api_lite::encode(&my_target_info).to_vec()
+        };
+        let challenge = DcapHandoverChallenge {
+            sgx_target_info,
+            block_number,
+            now,
+            dev_mode: self.dev_mode,
+            nonce: crate::generate_random_info(),
+            ntp_time_secs,
+        };
+        self.dcap_handover_last_challenge = Some(challenge.clone());
+        challenge
+    }
+
     pub fn verify_worker_key_challenge(
         &mut self,
         challenge: &HandoverChallenge<chain::BlockNumber>,
     ) -> bool {
         return self.handover_last_challenge.take().as_ref() == Some(challenge);
+    }
+
+    pub fn dcap_verify_worker_key_challenge(
+        &mut self,
+        challenge: &DcapHandoverChallenge<chain::BlockNumber>,
+    ) -> bool {
+        return self.dcap_handover_last_challenge.take().as_ref() == Some(challenge);
     }
 }
 
@@ -1807,6 +1839,213 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         Ok(())
     }
 
+    // DCAP WorkerKey Handover Server
+    async fn dcap_handover_create_challenge(
+        &mut self,
+        _request: (),
+    ) -> RpcResult<pb::DcapHandoverChallenge> {
+        let ntp_time_secs = crate::nts::nts_get_time_secs()
+            .await
+            .map_err(from_display)?;
+        let mut phactory = self.lock_phactory(false, true)?;
+        if phactory.attestation_provider != Some(AttestationProvider::Dcap) {
+            return Err(from_display("DCAP not enabled"));
+        }
+        let (block, block_time_ms) = phactory.current_block()?;
+        let a_week = 7 * 24 * 60 * 60;
+        if block_time_ms / 1000 + a_week < ntp_time_secs {
+            return Err(from_display(
+                "Current block is too old, please sync to latest",
+            ));
+        }
+        let challenge = phactory.get_dcap_worker_key_challenge(block, block_time_ms, ntp_time_secs);
+        Ok(pb::DcapHandoverChallenge::new(challenge))
+    }
+
+    async fn dcap_handover_start(
+        &mut self,
+        request: pb::DcapHandoverChallengeResponse,
+    ) -> RpcResult<pb::DcapHandoverWorkerKey> {
+        let ntp_now = crate::nts::nts_get_time_secs()
+            .await
+            .map_err(from_display)?;
+        let mut phactory = self.lock_phactory(false, true)?;
+        if phactory.attestation_provider != Some(AttestationProvider::Dcap) {
+            return Err(from_display("DCAP not enabled"));
+        }
+        let dev_mode = phactory.dev_mode;
+        let (block_number, _) = phactory.current_block()?;
+
+        let challenge_handler = request.decode_challenge_handler().map_err(from_display)?;
+
+        // 1. verify challenge validity to prevent replay attack
+        let challenge = &challenge_handler.challenge;
+        if !phactory.dcap_verify_worker_key_challenge(challenge) {
+            return Err(from_display("Invalid challenge"));
+        }
+        // 2. ensure delta time between client and server is within 1 minutes
+        if challenge.ntp_time_secs > ntp_now || ntp_now - challenge.ntp_time_secs > 60 {
+            return Err(from_display("Invalid NTP time"));
+        }
+        // 3. verify sgx local attestation report to ensure the handover pRuntimes are on the same machine
+        let recv_local_report = unsafe {
+            sgx_api_lite::decode(&request.la_report)
+                .map_err(|_| from_display("Invalid client LA report"))?
+        };
+        sgx_api_lite::verify(recv_local_report).map_err(|_| from_display("No remote handover"))?;
+        let handler_hash = blake2_256(&request.encoded_challenge_handler);
+        if handler_hash != recv_local_report.body.report_data[..32] {
+            return Err(from_display("Invalid challenge handler"));
+        }
+        // 4. verify challenge block height and report timestamp
+        // only challenge within 150 blocks (30 minutes) is accepted
+        let challenge_height = challenge.block_number;
+        if !(challenge_height <= block_number && block_number - challenge_height <= 150) {
+            return Err(from_display("Outdated challenge"));
+        }
+        // 5. verify pruntime launch date, never handover to old pruntime
+        if !dev_mode {
+            let runtime_state = phactory.runtime_state()?;
+            let my_runtime_timestamp = runtime_state
+                .chain_storage
+                .get_pruntime_added_at(&my_measurement())
+                .ok_or_else(|| from_display("Server pRuntime not allowed on chain"))?;
+            let req_runtime_timestamp = runtime_state
+                .chain_storage
+                .get_pruntime_added_at(&measurement_of(recv_local_report))
+                .ok_or_else(|| from_display("Client pRuntime not allowed on chain"))?;
+            if my_runtime_timestamp >= req_runtime_timestamp {
+                return Err(from_display("No handover for old pRuntime"));
+            }
+        }
+
+        // Share the key with local attestation
+        let ecdh_pubkey = challenge_handler.ecdh_pubkey;
+        let iv = crate::generate_random_iv();
+        let runtime_data = phactory.persistent_runtime_data().map_err(from_display)?;
+        let (my_identity_key, _) = runtime_data.decode_keys();
+        let (ecdh_pubkey, encrypted_key) = key_share::encrypt_secret_to(
+            &my_identity_key,
+            &[b"worker_key_handover"],
+            &ecdh_pubkey.0,
+            &my_identity_key.dump_secret_key(),
+            &iv,
+        )
+        .map_err(from_debug)?;
+        let encrypted_key = EncryptedKey {
+            ecdh_pubkey: sr25519::Public(ecdh_pubkey),
+            encrypted_key,
+            iv,
+        };
+        let runtime_state = phactory.runtime_state()?;
+        let genesis_block_hash = runtime_state.genesis_block_hash;
+        let encrypted_worker_key = EncryptedWorkerKey {
+            genesis_block_hash,
+            para_id: runtime_state.para_id,
+            dev_mode,
+            encrypted_key,
+        };
+
+        let worker_key_hash = blake2_256(&encrypted_worker_key.encode());
+        let mut report_data = [0u8; 64];
+        report_data[..32].copy_from_slice(&worker_key_hash);
+        let remote_target_info = sgx_api_lite::target_info_from_report(recv_local_report);
+        let report = sgx_api_lite::report(&remote_target_info, &report_data).map_err(|_| {
+            from_display("Failed to create attestation report for worker key handover")
+        })?;
+        let la_report = sgx_api_lite::encode(&report).to_vec();
+        Ok(pb::DcapHandoverWorkerKey::new(
+            encrypted_worker_key,
+            la_report,
+        ))
+    }
+
+    // Dcap WorkerKey Handover Client
+    async fn dcap_handover_accept_challenge(
+        &mut self,
+        request: pb::DcapHandoverChallenge,
+    ) -> RpcResult<pb::DcapHandoverChallengeResponse> {
+        let mut phactory = self.lock_phactory(false, true)?;
+
+        // generate and save tmp key only for key handover encryption
+        let handover_key = crate::new_sr25519_key();
+        let handover_ecdh_key = handover_key
+            .derive_ecdh_key()
+            .expect("should never fail with valid key; qed.");
+        let ecdh_pubkey = phala_types::EcdhPublicKey(handover_ecdh_key.public());
+        phactory.handover_ecdh_key = Some(handover_ecdh_key);
+
+        let challenge = request.decode_challenge().map_err(from_display)?;
+        let challenge_handler = DcapChallengeHandlerInfo {
+            challenge: challenge.clone(),
+            ecdh_pubkey,
+        };
+        let handler_hash = blake2_256(&challenge_handler.encode());
+        let mut report_data = [0u8; 64];
+        report_data[..32].copy_from_slice(&handler_hash);
+        // generate local attestation report to ensure the handover pRuntimes are on the same machine
+        let la_report = {
+            let its_target_info = unsafe {
+                sgx_api_lite::decode(&challenge.sgx_target_info)
+                    .map_err(|_| from_display("Invalid client sgx target info"))?
+            };
+            // the report data does not matter since we only care about the origin
+            let report = sgx_api_lite::report(its_target_info, &report_data)
+                .map_err(|_| from_display("Failed to create client LA report"))?;
+            sgx_api_lite::encode(&report).to_vec()
+        };
+
+        Ok(pb::DcapHandoverChallengeResponse::new(
+            challenge_handler,
+            la_report,
+        ))
+    }
+
+    async fn dcap_handover_receive(&mut self, request: pb::DcapHandoverWorkerKey) -> RpcResult<()> {
+        let mut phactory = self.lock_phactory(false, true)?;
+        let encrypted_worker_key = request.decode_worker_key().map_err(from_display)?;
+
+        let dev_mode = encrypted_worker_key.dev_mode;
+        let worker_key_hash = blake2_256(&encrypted_worker_key.encode());
+        // verify LA report
+        let la_report = unsafe {
+            sgx_api_lite::decode(&request.la_report)
+                .map_err(|_| from_display("Invalid server LA report"))?
+        };
+        sgx_api_lite::verify(la_report).map_err(|_| from_display("Invalid LA report"))?;
+        if worker_key_hash != la_report.body.report_data[..32] {
+            return Err(from_display("Invalid key received"));
+        }
+        let encrypted_key = encrypted_worker_key.encrypted_key;
+        let my_ecdh_key = phactory
+            .handover_ecdh_key
+            .as_ref()
+            .ok_or_else(|| from_display("Handover ecdhkey not initialized"))?;
+        let secret = key_share::decrypt_secret_from(
+            my_ecdh_key,
+            &encrypted_key.ecdh_pubkey.0,
+            &encrypted_key.encrypted_key,
+            &encrypted_key.iv,
+        )
+        .map_err(from_debug)?;
+
+        // only seal if the key is successfully updated
+        phactory
+            .save_runtime_data(
+                encrypted_worker_key.genesis_block_hash,
+                encrypted_worker_key.para_id,
+                sr25519::Pair::restore_from_secret_key(&secret),
+                false, // we are not sure whether this key is injected
+                dev_mode,
+            )
+            .map_err(from_display)?;
+
+        // clear cached RA report and handover ecdh key to prevent replay
+        phactory.runtime_info = None;
+        phactory.handover_ecdh_key = None;
+        Ok(())
+    }
+
     async fn config_network(
         &mut self,
         request: super::NetworkConfig,
@@ -2046,4 +2285,25 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         cluster.on_idle(block_number);
         Ok(())
     }
+}
+
+fn measurement_of(report: &sgx_api_lite::Report) -> Vec<u8> {
+    let ias_fields = IasFields {
+        mr_enclave: report.body.mr_enclave.m,
+        mr_signer: report.body.mr_signer.m,
+        isv_prod_id: report.body.isv_prod_id.to_ne_bytes(),
+        isv_svn: report.body.isv_svn.to_ne_bytes(),
+        report_data: [0; 64],
+        confidence_level: 0,
+    };
+    ias_fields.extend_mrenclave()
+}
+
+fn my_measurement() -> Vec<u8> {
+    let my_la_report = {
+        // target_info and reportdata not important, we just need the report metadata
+        let target_info = sgx_api_lite::target_info().expect("should not fail in SGX; qed.");
+        sgx_api_lite::report(&target_info, &[0; 64]).expect("should not fail in SGX; qed.")
+    };
+    measurement_of(&my_la_report)
 }

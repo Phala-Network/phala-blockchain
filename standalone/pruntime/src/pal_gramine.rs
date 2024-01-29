@@ -199,6 +199,10 @@ fn ensure_supported(provider: Option<AttestationProvider>) -> anyhow::Result<()>
     }
 }
 
+pub(crate) fn is_dcap() -> bool {
+    ensure_supported(Some(AttestationProvider::Dcap)).is_ok()
+}
+
 pub(crate) fn is_gramine() -> bool {
     lazy_static::lazy_static! {
         static ref IS_GRAMINE: bool =

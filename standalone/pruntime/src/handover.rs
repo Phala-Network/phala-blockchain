@@ -31,3 +31,28 @@ pub(crate) async fn handover_from(url: &str, args: InitArgs) -> Result<()> {
         .context("Failed to receive handover result")?;
     Ok(())
 }
+
+pub(crate) async fn dcap_handover_from(url: &str, args: InitArgs) -> Result<()> {
+    let mut this = RpcService::new(GraminePlatform, args);
+    let from_pruntime = new_pruntime_client(url.into());
+    info!("Requesting for challenge");
+    let challenge = from_pruntime
+        .dcap_handover_create_challenge(())
+        .await
+        .context("Failed to create challenge")?;
+    info!("Challenge received");
+    let response = this
+        .dcap_handover_accept_challenge(challenge)
+        .await
+        .context("Failed to accept challenge")?;
+    info!("Requesting for key");
+    let encrypted_key = from_pruntime
+        .dcap_handover_start(response)
+        .await
+        .context("Failed to start handover")?;
+    info!("Key received");
+    this.dcap_handover_receive(encrypted_key)
+        .await
+        .context("Failed to receive handover result")?;
+    Ok(())
+}

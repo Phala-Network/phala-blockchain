@@ -63,7 +63,14 @@ pub fn target_info() -> Result<TargetInfo> {
         if sys::sgx_report(&targetinfo.0, &reportdata.0, &mut report.0) != 0 {
             return Err(SgxError);
         }
-        let body = report.0.body;
+        Ok(target_info_from_report(&report.0))
+    }
+}
+
+/// Get the target info from given report.
+pub fn target_info_from_report(report: &Report) -> TargetInfo {
+    unsafe {
+        let body = &report.body;
         let my_target_info = sys::_target_info_t {
             mr_enclave: body.mr_enclave,
             attributes: body.attributes,
@@ -74,7 +81,7 @@ pub fn target_info() -> Result<TargetInfo> {
             config_id: body.config_id,
             reserved3: zeroed(),
         };
-        Ok(my_target_info)
+        my_target_info
     }
 }
 
