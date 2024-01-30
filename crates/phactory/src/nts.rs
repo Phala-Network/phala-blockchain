@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 
-use phala_nts::get_time;
+use phala_nts::{get_time, NtpResult};
 
 /// Ref: https://github.com/jauderho/nts-servers/
 const TRUSTED_NTS_SERVERS: &[&str] = &[
@@ -25,6 +25,7 @@ pub(crate) async fn nts_get_time_secs() -> Result<u64> {
         .await
         .into_iter()
         .filter_map(|r| r.ok())
+        .map(|r| r.receive_time_duration().as_secs())
         .collect::<Vec<_>>();
     info!("Got time from {} servers", results.len());
     validate_results(results).context("Failed to get time from NTS servers")
@@ -46,10 +47,9 @@ fn validate_results(results: Vec<u64>) -> Result<u64> {
     Ok(average)
 }
 
-async fn get_time_timeout(server: &str, timeout: u64) -> Result<u64> {
+async fn get_time_timeout(server: &str, timeout: u64) -> Result<NtpResult> {
     let timeout = std::time::Duration::from_secs(timeout);
-    let result = tokio::time::timeout(timeout, get_time(server, None)).await??;
-    Ok(result.transmit_timestamp as u64)
+    tokio::time::timeout(timeout, get_time(server, None)).await?
 }
 
 #[tokio::test]

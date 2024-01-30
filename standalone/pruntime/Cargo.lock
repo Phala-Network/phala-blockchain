@@ -6112,7 +6112,7 @@ dependencies = [
 [[package]]
 name = "phala-nts"
 version = "0.1.0"
-source = "git+https://github.com/Phala-Network/phala-nts.git?branch=lib#36916f414d9f3618a5565799ad5ca82e49df9928"
+source = "git+https://github.com/Phala-Network/phala-nts.git?branch=lib#2cc343678dbaf37de4e32ee14a7a654ac56842d9"
 dependencies = [
  "aes-siv",
  "anyhow",
