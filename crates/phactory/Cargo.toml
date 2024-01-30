@@ -86,7 +86,6 @@ serde_path_to_error = "0.1.5"
 ron = "0.8.0"
 ciborium = "0.2.0"
 type-info-stringify = { path = "../type-info-stringify" }
-env_logger = "*"
 
 [features]
 default = [

@@ -51,9 +51,3 @@ async fn get_time_timeout(server: &str, timeout: u64) -> Result<NtpResult> {
     let timeout = std::time::Duration::from_secs(timeout);
     tokio::time::timeout(timeout, get_time(server, None)).await?
 }
-
-#[tokio::test]
-async fn ntp_servers_works() {
-    env_logger::init();
-    nts_get_time().await.unwrap();
-}

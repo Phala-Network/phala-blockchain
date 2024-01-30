@@ -9621,7 +9621,6 @@ dependencies = [
  "chrono",
  "ciborium",
  "derive_more",
- "env_logger 0.9.0",
  "environmental",
  "finality-grandpa",
  "fixed",
