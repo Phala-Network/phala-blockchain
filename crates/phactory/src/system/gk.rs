@@ -772,7 +772,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                     }
                     event_listener.emit_event(EconomicEvent::ExitUnresponsive, worker_info);
                 }
-            } else if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
+            } else if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.front() {
                 if block.block_number - hb_sent_at > heartbeat_window {
                     trace!(
                         target: "gk_computing",
@@ -922,7 +922,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                     worker_info.stat.last_heartbeat_for_block = challenge_block;
                 }
 
-                if Some(&challenge_block) != worker_info.waiting_heartbeats.get(0) {
+                if Some(&challenge_block) != worker_info.waiting_heartbeats.front() {
                     error!(target: "gk_computing", "Fatal error: Unexpected heartbeat {:?}", event);
                     error!(target: "gk_computing", "Sent from worker {}", hex::encode(worker_pubkey));
                     error!(target: "gk_computing", "Waiting heartbeats {:#?}", worker_info.waiting_heartbeats);

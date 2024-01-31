@@ -78,7 +78,7 @@ impl SignedIasReport {
     }
 
     pub fn verify(&self, now_since_unix_epoch: Duration) -> Result<(), Error> {
-        let report = self.ra_report.as_str().as_bytes();
+        let report = self.ra_report.as_bytes();
         let signature = b64_decode(&self.signature)?;
         let raw_signing_cert = b64_decode(&self.raw_signing_cert)?;
         verify_signature(report, &signature, &raw_signing_cert, now_since_unix_epoch)

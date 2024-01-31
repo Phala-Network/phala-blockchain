@@ -2,7 +2,6 @@ mod protos_codec_extensions;
 #[allow(clippy::derive_partial_eq_without_eq, clippy::let_unit_value)]
 mod pruntime_rpc;
 
-pub use protos_codec_extensions::*;
 pub use pruntime_rpc::*;
 
 pub const PROTO_DEF: &str = include_str!("../../proto/pruntime_rpc.proto");
