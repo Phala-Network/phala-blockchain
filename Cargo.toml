@@ -116,7 +116,6 @@ pink-extension-runtime = { path = "crates/pink/pink-extension-runtime" }
 # but latest rustls requires subtle v2.5 which cause it conflict. Ideally, substrate should upgrade it's dependencies
 # to latest version.
 # Here we patch the old crates to use subtle v2.5 as a workaround.
-substrate-bip39 = { git = "https://github.com/kvinwang/substrate-bip39" }
 aes-gcm = { git = "https://github.com/kvinwang/AEADs.git", branch = "subtle-v2.5"}
 crypto-mac = { git = "https://github.com/kvinwang/rust-crypto-traits.git", branch = "subtle-v2.5" }
 universal-hash = { git = "https://github.com/kvinwang/rust-crypto-traits.git", branch = "subtle-v2.5" }

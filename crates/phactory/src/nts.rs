@@ -38,7 +38,7 @@ fn validate_results(results: Vec<u64>) -> Result<u64> {
     let average = results.iter().sum::<u64>() / results.len() as u64;
     let max_diff = results
         .iter()
-        .map(|r| (*r as i64 - average as i64).abs() as u64)
+        .map(|r| (*r as i64 - average as i64).unsigned_abs())
         .max()
         .unwrap_or_default();
     if max_diff > 60 {

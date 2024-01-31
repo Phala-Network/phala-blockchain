@@ -69,9 +69,9 @@ pub fn target_info() -> Result<TargetInfo> {
 
 /// Get the target info from given report.
 pub fn target_info_from_report(report: &Report) -> TargetInfo {
+    let body = &report.body;
     unsafe {
-        let body = &report.body;
-        let my_target_info = sys::_target_info_t {
+        sys::_target_info_t {
             mr_enclave: body.mr_enclave,
             attributes: body.attributes,
             reserved1: zeroed(),
@@ -80,8 +80,7 @@ pub fn target_info_from_report(report: &Report) -> TargetInfo {
             reserved2: zeroed(),
             config_id: body.config_id,
             reserved3: zeroed(),
-        };
-        my_target_info
+        }
     }
 }
 

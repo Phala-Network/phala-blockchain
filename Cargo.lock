@@ -19090,8 +19090,3 @@ dependencies = [
  "libc",
  "pkg-config",
 ]
-
-[[patch.unused]]
-name = "substrate-bip39"
-version = "0.4.5"
-source = "git+https://github.com/kvinwang/substrate-bip39#5aa136b498943581ee909a078d4b5f6342903c64"
