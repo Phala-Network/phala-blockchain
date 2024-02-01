@@ -1,8 +1,8 @@
 //! Platform abstraction layer for Trusted Execution Environments
 
+use core::time::Duration;
 use std::fmt::Debug;
 use std::path::Path;
-use core::time::Duration;
 
 use phala_types::AttestationProvider;
 
@@ -53,7 +53,10 @@ pub trait AppInfo {
 }
 
 pub trait Platform:
-    Sealing + RA + Machine + MemoryStats + AppInfo + Clone + Send + 'static
+    Sealing + RA + Machine + MemoryStats + AppInfo + Clone + Send + Sync + 'static
 {
 }
-impl<T: Sealing + RA + Machine + MemoryStats + AppInfo + Clone + Send + 'static> Platform for T {}
+impl<T: Sealing + RA + Machine + MemoryStats + AppInfo + Clone + Send + Sync + 'static> Platform
+    for T
+{
+}

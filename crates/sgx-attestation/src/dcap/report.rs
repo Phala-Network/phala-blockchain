@@ -2,13 +2,16 @@ use core::time::Duration;
 
 use alloc::string::{String, ToString};
 use anyhow::{anyhow, Result};
+use futures::executor::block_on;
+use pink_types::sgx::Collateral;
 use scale::Decode;
 
 use super::{
-    SgxV30QuoteCollateral,
     quote::{AuthData, Quote},
-    utils::{extract_certs, get_intel_extension, get_fmspc},
+    utils::{extract_certs, get_fmspc, get_intel_extension},
+    SgxV30QuoteCollateral,
 };
+use crate::{gramine::create_quote_vec, AttestationReport};
 
 fn get_header(resposne: &reqwest::Response, name: &str) -> Result<String> {
     let value = resposne
@@ -32,14 +35,12 @@ pub async fn get_collateral(
         AuthData::V3(data) => &data.certification_data.body.data,
         AuthData::V4(data) => &data.qe_report_data.certification_data.body.data,
     };
-    let certification_certs = extract_certs(raw_cert_chain)
-        .map_err(|_| anyhow!("extract certs error"))?;
-    let extension_section = get_intel_extension(&certification_certs[0])
-        .map_err(|_| anyhow!("get extension error"))?;
-    let fmspc = hex::encode_upper(
-        get_fmspc(&extension_section)
-            .map_err(|_| anyhow!("get fmspc error"))?
-    );
+    let certification_certs =
+        extract_certs(raw_cert_chain).map_err(|_| anyhow!("extract certs error"))?;
+    let extension_section =
+        get_intel_extension(&certification_certs[0]).map_err(|_| anyhow!("get extension error"))?;
+    let fmspc =
+        hex::encode_upper(get_fmspc(&extension_section).map_err(|_| anyhow!("get fmspc error"))?);
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .timeout(timeout)
@@ -117,4 +118,19 @@ pub async fn get_collateral(
         qe_identity,
         qe_identity_signature,
     })
+}
+
+pub fn create_attestation_report(
+    data: &[u8],
+    pccs_url: &str,
+    timeout: Duration,
+) -> Result<AttestationReport> {
+    let quote = create_quote_vec(data)?;
+    let collateral = if pccs_url.is_empty() {
+        None
+    } else {
+        let collateral = block_on(get_collateral(pccs_url, &quote, timeout))?;
+        Some(Collateral::SgxV30(collateral))
+    };
+    Ok(AttestationReport::SgxDcap { quote, collateral })
 }

@@ -9,6 +9,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::Error;
 
+#[cfg(feature = "report")]
+pub mod report;
+
 #[derive(Debug, Decode, Encode)]
 pub struct EnclaveQuoteBody {
     pub version: [u8; 2],

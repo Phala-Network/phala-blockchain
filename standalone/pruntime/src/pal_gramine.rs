@@ -9,9 +9,9 @@ use std::io::ErrorKind;
 use std::str::FromStr as _;
 use std::time::Duration;
 
-use crate::ias;
-
 use phala_types::AttestationProvider;
+
+use sgx_attestation::{dcap, gramine::create_quote_vec, ias};
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub(crate) struct GraminePlatform;
@@ -52,21 +52,12 @@ impl RA for GraminePlatform {
         ensure_supported(provider)?;
         let report = match provider {
             Some(AttestationProvider::Ias) => {
-                // TODO.kevin: move the key out of the binary?
-                const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
-
-                let (attn_report, sig, cert) =
-                    ias::create_attestation_report(data, IAS_API_KEY_STR, timeout)?;
-                Some(phala_types::AttestationReport::SgxIas {
-                    ra_report: attn_report.as_bytes().to_vec(),
-                    signature: sig,
-                    raw_signing_cert: cert,
-                })
+                Some(ias::report::create_attestation_report(data, timeout)?)
             }
-            Some(AttestationProvider::Dcap) => Some(phala_types::AttestationReport::SgxDcap {
-                quote: ias::create_quote_vec(data)?,
-                collateral: None,
-            }),
+            Some(AttestationProvider::Dcap) => {
+                let todo = "pccs_url";
+                Some(dcap::report::create_attestation_report(data, "", timeout)?)
+            }
             None => None,
             _ => anyhow::bail!("Unknown attestation provider `{:?}`", provider),
         };
@@ -77,7 +68,8 @@ impl RA for GraminePlatform {
         ensure_supported(provider)?;
         match provider {
             Some(AttestationProvider::Ias | AttestationProvider::Dcap) => {
-                ias::create_quote_vec(&[0u8; 64]).map(|_| ())
+                create_quote_vec(&[0u8; 64]).map(|_| ())?;
+                Ok(())
             }
             None => Ok(()),
             _ => Err(anyhow!("Unknown attestation provider `{:?}`", provider)),

@@ -29,17 +29,22 @@ webpki = { git = "https://github.com/rustls/webpki", rev = "2ed9a4324f48c2c46ffd
 
 anyhow = { version = "1", optional = true }
 
-reqwest = { version = "0.11", optional = true, default-features = false, features = ["rustls-tls"] }
+reqwest = { version = "0.11", optional = true, default-features = false, features = ["rustls-tls", "blocking"] }
 urlencoding = { version = "2", optional = true }
 serde_json = { version = "1.0.108", optional = true, features = ["preserve_order"] }
+pink-types = { version = "0.1", default-features = false, path = "../pink/pink-types" }
+tracing = { version = "0.1", optional = true }
+reqwest-env-proxy = { path = "../reqwest-env-proxy", optional = true }
+futures = { version = "0.3", optional = true }
 
 [dev-dependencies]
 insta = "1"
 
 [features]
-default = ["std"]
+default = ["std", "report"]
 std = [
     "pink-json/std",
+    "pink-types/std",
     "serde/std",
     "scale/std",
     "scale-info/std",
@@ -54,3 +59,4 @@ std = [
     "reqwest",
     "urlencoding",
 ]
+report = ["std", "reqwest-env-proxy", "tracing", "futures"]

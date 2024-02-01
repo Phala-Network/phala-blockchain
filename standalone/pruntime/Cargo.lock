@@ -6233,6 +6233,7 @@ dependencies = [
  "hex",
  "parity-scale-codec",
  "phala-mq",
+ "pink-types",
  "prpc",
  "scale-info",
  "serde",
@@ -6503,7 +6504,7 @@ dependencies = [
 
 [[package]]
 name = "pink-types"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -6894,6 +6895,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sgx-api-lite",
+ "sgx-attestation",
  "sidevm-host-runtime",
  "this-crate 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing",
@@ -8105,17 +8107,21 @@ dependencies = [
  "chrono",
  "const-oid",
  "der",
+ "futures",
  "hex",
  "log",
  "parity-scale-codec",
  "pem",
  "pink-json",
+ "pink-types",
  "reqwest",
+ "reqwest-env-proxy",
  "ring 0.16.20",
  "rustls-webpki 0.102.0-alpha.3",
  "scale-info",
  "serde",
  "serde_json",
+ "tracing",
  "urlencoding",
  "x509-cert",
 ]

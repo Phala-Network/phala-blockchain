@@ -1,18 +1,19 @@
 use anyhow::{anyhow, Context as _, Result};
-use std::{fs, time::Duration};
+use std::time::Duration;
 use tracing::{error, info, warn};
+
+use crate::{gramine::create_quote_vec, AttestationReport};
+
+use base64::{engine::general_purpose::STANDARD as base64, Engine};
 
 use reqwest_env_proxy::EnvProxyBuilder as _;
 
-pub const IAS_HOST: &str = env!("IAS_HOST");
-pub const IAS_REPORT_ENDPOINT: &str = env!("IAS_REPORT_ENDPOINT");
+const IAS_HOST: &str = env!("IAS_HOST");
+const IAS_REPORT_ENDPOINT: &str = env!("IAS_REPORT_ENDPOINT");
+const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
 
-fn get_report_from_intel(
-    quote: &[u8],
-    ias_key: &str,
-    timeout: Duration,
-) -> Result<(String, String, String)> {
-    let encoded_quote = base64::encode(quote);
+fn get_report_from_intel(quote: &[u8], timeout: Duration) -> Result<(String, String, String)> {
+    let encoded_quote = base64.encode(quote);
     let encoded_json = format!("{{\"isvEnclaveQuote\":\"{encoded_quote}\"}}\r\n");
 
     let mut res_body_buffer = Vec::new(); //container for body of a response
@@ -28,7 +29,7 @@ fn get_report_from_intel(
         .post(url)
         .header("Connection", "Close")
         .header("Content-Type", "application/json")
-        .header("Ocp-Apim-Subscription-Key", ias_key)
+        .header("Ocp-Apim-Subscription-Key", IAS_API_KEY_STR)
         .body(encoded_json)
         .send()
         .context("Failed to send http request")?;
@@ -92,21 +93,19 @@ fn get_report_from_intel(
     Ok((attn_report, sig.into(), sig_cert))
 }
 
-pub fn create_quote_vec(data: &[u8]) -> Result<Vec<u8>> {
-    fs::write("/dev/attestation/user_report_data", data)?;
-    Ok(fs::read("/dev/attestation/quote")?)
-}
-
-pub fn create_attestation_report(
-    data: &[u8],
-    ias_key: &str,
-    timeout: Duration,
-) -> Result<(String, Vec<u8>, Vec<u8>)> {
+pub fn create_attestation_report(data: &[u8], timeout: Duration) -> Result<AttestationReport> {
     let quote_vec = create_quote_vec(data)?;
-    let (attn_report, sig, cert) = get_report_from_intel(&quote_vec, ias_key, timeout)?;
+    let (ra_report, sig, cert) = get_report_from_intel(&quote_vec, timeout)?;
 
-    let sig = base64::decode(sig).context("Failed to decode sig in base64 format")?;
-    let cert = base64::decode(cert).context("Failed to decode cert in base64 format")?;
-
-    Ok((attn_report, sig, cert))
+    let signature = base64
+        .decode(&sig)
+        .context("Failed to decode sig in base64 format")?;
+    let raw_signing_cert = base64
+        .decode(&cert)
+        .context("Failed to decode cert in base64 format")?;
+    Ok(AttestationReport::SgxIas {
+        ra_report: ra_report.into_bytes(),
+        signature,
+        raw_signing_cert,
+    })
 }

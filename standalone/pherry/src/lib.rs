@@ -2,7 +2,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use log::{debug, error, info, warn};
 use phala_node_rpc_ext::MakeInto;
 use phala_trie_storage::ser::StorageChanges;
-use sgx_attestation::dcap::get_collateral::get_collateral;
+use sgx_attestation::dcap::report::get_collateral;
 use sp_core::{crypto::AccountId32, H256};
 use std::cmp;
 use std::convert::TryFrom;
