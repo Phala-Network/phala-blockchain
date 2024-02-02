@@ -1,5 +1,6 @@
 use anyhow::{anyhow, bail, Context, Result};
 use core::time::Duration;
+use phala_types::AttestationProvider;
 use pink::types::{AccountId, ExecutionMode, TransactionArguments};
 use pink_extension::{chain_extension::JsValue, SidevmConfig};
 use serde::{Deserialize, Serialize};
@@ -50,6 +51,7 @@ pub struct QueryContext {
     pub chain_storage: ChainStorage,
     pub req_id: u64,
     pub sidevm_event_tx: OutgoingRequestChannel,
+    pub attestation_provider: Option<AttestationProvider>,
 }
 
 pub(crate) struct RawData(Vec<u8>);

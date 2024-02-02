@@ -55,7 +55,6 @@ impl RA for GraminePlatform {
                 Some(ias::report::create_attestation_report(data, timeout)?)
             }
             Some(AttestationProvider::Dcap) => {
-                let todo = "pccs_url";
                 Some(dcap::report::create_attestation_report(data, "", timeout)?)
             }
             None => None,

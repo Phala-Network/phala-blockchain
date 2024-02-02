@@ -517,6 +517,10 @@ mod test_cluster {
         fn origin(&self) -> Option<AccountId> {
             None
         }
+
+        fn worker_attestation(&self) -> Result<Option<Vec<u8>>, String> {
+            Ok(None)
+        }
     }
 
     impl CrossCall for TestCluster {

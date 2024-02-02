@@ -9,6 +9,9 @@ pub use signing::SigType;
 
 use crate::{Balance, EcdsaPublicKey, EcdsaSignature, Hash};
 pub use pink_types::js::{JsCode, JsValue};
+pub use pink_types::result::Result as PinkExtResult;
+
+pub type AttestationResult = PinkExtResult<Option<Vec<u8>>, String>;
 
 #[cfg(doc)]
 use crate::{debug, error, http_get, http_post, http_put, info, warn};
@@ -665,7 +668,7 @@ pub trait PinkExt {
     /// - [setTimeout/setInterval](https://developer.mozilla.org/en-US/docs/Web/API/setTimeout)
     /// - [Streams](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API)
     /// - [URL](https://developer.mozilla.org/en-US/docs/Web/API/URL)
-    /// - [TextEncoder/Decoder](https://developer.mozilla.org/zh-CN/docs/Web/API/TextEncoder) - 
+    /// - [TextEncoder/Decoder](https://developer.mozilla.org/zh-CN/docs/Web/API/TextEncoder) -
     ///   Note that this implementation is incomplete. It only supports utf8 encoding/decoding.
     ///   Additional polyfills may be necessary for other requirements.
     /// - [fetch](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch)
@@ -700,6 +703,10 @@ pub trait PinkExt {
     /// 1.2
     #[ink(extension = 24, handle_status = false)]
     fn js_eval(codes: Vec<JsCode>, args: Vec<String>) -> JsValue;
+
+    /// Get the SGX attestation of the worker running this query.
+    #[ink(extension = 25, handle_status = false)]
+    fn worker_attestation() -> AttestationResult;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

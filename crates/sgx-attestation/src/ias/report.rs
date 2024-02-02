@@ -98,10 +98,10 @@ pub fn create_attestation_report(data: &[u8], timeout: Duration) -> Result<Attes
     let (ra_report, sig, cert) = get_report_from_intel(&quote_vec, timeout)?;
 
     let signature = base64
-        .decode(&sig)
+        .decode(sig)
         .context("Failed to decode sig in base64 format")?;
     let raw_signing_cert = base64
-        .decode(&cert)
+        .decode(cert)
         .context("Failed to decode cert in base64 format")?;
     Ok(AttestationReport::SgxIas {
         ra_report: ra_report.into_bytes(),

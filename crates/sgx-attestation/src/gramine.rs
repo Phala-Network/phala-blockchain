@@ -6,7 +6,7 @@ use super::AttestationType;
 /// Create an SGX quote from the given data.
 pub fn create_quote_vec(data: &[u8]) -> Result<Vec<u8>> {
     fs::write("/dev/attestation/user_report_data", data)?;
-    Ok(fs::read("/dev/attestation/quote")?)
+    fs::read("/dev/attestation/quote")
 }
 
 /// Get the attestation type of the current running gramine instance.

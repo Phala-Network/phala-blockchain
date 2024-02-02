@@ -8,8 +8,8 @@ use std::{
 
 use pink_extension::{
     chain_extension::{
-        self as ext, HttpRequest, HttpRequestError, HttpResponse, JsCode, JsValue, PinkExtBackend,
-        SigType, StorageQuotaExceeded,
+        self as ext, AttestationResult, HttpRequest, HttpRequestError, HttpResponse, JsCode,
+        JsValue, PinkExtBackend, SigType, StorageQuotaExceeded,
     },
     Balance, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash,
 };
@@ -374,6 +374,10 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
 
     fn js_eval(&self, _codes: Vec<JsCode>, _args: Vec<String>) -> Result<JsValue, Self::Error> {
         Ok(JsValue::Exception("No Js Runtime".into()))
+    }
+
+    fn worker_attestation(&self) -> Result<AttestationResult, Self::Error> {
+        Ok(Ok(None).into())
     }
 }
 

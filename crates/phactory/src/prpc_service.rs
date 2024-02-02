@@ -300,6 +300,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 req_id,
                 contracts,
                 self.sidevm_spawner.event_tx(),
+                self.attestation_provider,
             );
             self.check_requirements();
             contracts::pink::context::using(&mut context, || {
@@ -649,6 +650,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                     .expect("runtime state always exists here")
                     .chain_storage,
                 self.sidevm_spawner.event_tx(),
+                self.attestation_provider,
             )?;
 
         Ok(async move {

@@ -137,7 +137,7 @@ pub(crate) mod context {
     use std::time::{Duration, Instant};
 
     use anyhow::{anyhow, Result};
-    use phala_types::{wrap_content_to_sign, SignedContentType};
+    use phala_types::{wrap_content_to_sign, AttestationProvider, SignedContentType};
     use pink::{
         capi::v1::ocall::ExecContext,
         types::{AccountId, BlockNumber, ExecutionMode},
@@ -163,6 +163,7 @@ pub(crate) mod context {
             timeout: Duration,
         ) -> Result<Vec<u8>>;
         fn sidevm_event_tx(&self) -> OutgoingRequestChannel;
+        fn worker_attestation(&self) -> Result<Option<Vec<u8>>>;
     }
 
     pub struct ContractExecContext {
@@ -175,6 +176,7 @@ pub(crate) mod context {
         pub start_at: Instant,
         pub req_id: u64,
         pub sidevm_event_tx: OutgoingRequestChannel,
+        pub attestation_provider: Option<AttestationProvider>,
     }
 
     impl ContractExecContext {
@@ -188,6 +190,7 @@ pub(crate) mod context {
             req_id: u64,
             contracts: ContractsKeeper,
             sidevm_event_tx: OutgoingRequestChannel,
+            attestation_provider: Option<AttestationProvider>,
         ) -> Self {
             Self {
                 mode,
@@ -199,6 +202,7 @@ pub(crate) mod context {
                 req_id,
                 contracts,
                 sidevm_event_tx,
+                attestation_provider,
             }
         }
     }
@@ -266,6 +270,25 @@ pub(crate) mod context {
         fn sidevm_event_tx(&self) -> OutgoingRequestChannel {
             self.sidevm_event_tx.clone()
         }
+
+        fn worker_attestation(&self) -> Result<Option<Vec<u8>>> {
+            use sgx_attestation::{dcap, ias};
+            let Some(provider) = self.attestation_provider else {
+                return Ok(None);
+            };
+            let timeout = time_remaining();
+            let report = match provider {
+                AttestationProvider::Root => return Ok(None),
+                AttestationProvider::Ias => {
+                    ias::report::create_attestation_report(&self.worker_pubkey(), timeout)
+                }
+                AttestationProvider::Dcap => {
+                    dcap::report::create_attestation_report(&self.worker_pubkey(), "", timeout)
+                }
+            }?;
+            use parity_scale_codec::Encode;
+            Ok(Some(report.encode()))
+        }
     }
 
     pub fn get() -> ExecContext {
@@ -295,13 +318,17 @@ pub(crate) mod context {
         exec_context::with(|ctx| ctx.call_elapsed()).unwrap_or_else(|| Duration::from_secs(0))
     }
 
-    pub fn time_remaining() -> u64 {
+    pub fn time_remaining_ms() -> u64 {
+        time_remaining().as_millis() as u64
+    }
+
+    pub fn time_remaining() -> Duration {
         const MAX_QUERY_TIME: Duration = Duration::from_secs(10);
-        MAX_QUERY_TIME.saturating_sub(call_elapsed()).as_millis() as _
+        MAX_QUERY_TIME.saturating_sub(call_elapsed())
     }
 
     pub fn sidevm_query(origin: [u8; 32], vmid: [u8; 32], payload: Vec<u8>) -> Result<Vec<u8>> {
-        let timeout = Duration::from_millis(time_remaining());
+        let timeout = Duration::from_millis(time_remaining_ms());
         exec_context::with(|ctx| ctx.sidevm_query(origin, vmid, payload, timeout))
             .ok_or(anyhow!("sidevm_query called outside of contract execution"))?
     }
@@ -466,7 +493,7 @@ impl OCalls for RuntimeHandle<'_> {
                 }
             };
         }
-        let result = pink_extension_runtime::http_request(request, context::time_remaining());
+        let result = pink_extension_runtime::http_request(request, context::time_remaining_ms());
         match &result {
             Ok(response) => {
                 http_counters::add(contract, response.status_code);
@@ -486,7 +513,7 @@ impl OCalls for RuntimeHandle<'_> {
     ) -> BatchHttpResult {
         let results = pink_extension_runtime::batch_http_request(
             requests,
-            context::time_remaining().min(timeout_ms),
+            context::time_remaining_ms().min(timeout_ms),
         )?;
         for result in &results {
             match result {
@@ -518,7 +545,7 @@ impl OCalls for RuntimeHandle<'_> {
         let Some(js_runtime) = self.cluster.config.js_runtime else {
             return JsValue::Exception("No js runtime".into());
         };
-        let timeout = Duration::from_millis(context::time_remaining());
+        let timeout = Duration::from_millis(context::time_remaining_ms());
         let mut args = vec!["phatjs".into()];
         for code in codes {
             match code {
@@ -567,6 +594,10 @@ impl OCalls for RuntimeHandle<'_> {
 
     fn origin(&self) -> Option<AccountId> {
         context::get_origin()
+    }
+
+    fn worker_attestation(&self) -> Result<Option<Vec<u8>>, String> {
+        context::with(|ctx| ctx.worker_attestation().map_err(|err| err.to_string()))
     }
 }
 
@@ -699,6 +730,10 @@ impl OCalls for RuntimeHandleMut<'_> {
 
     fn origin(&self) -> Option<AccountId> {
         self.readonly().origin()
+    }
+
+    fn worker_attestation(&self) -> Result<Option<Vec<u8>>, String> {
+        self.readonly().worker_attestation()
     }
 }
 
@@ -863,6 +898,7 @@ impl Cluster {
                     context.req_id,
                     contracts,
                     context.sidevm_event_tx.clone(),
+                    context.attestation_provider,
                 );
                 let log_handler = context.log_handler.clone();
                 let contract_id = contract_id.clone();
@@ -946,6 +982,7 @@ impl Cluster {
                     context.req_id,
                     contracts,
                     context.sidevm_event_tx.clone(),
+                    context.attestation_provider,
                 );
                 let log_handler = context.log_handler.clone();
                 context::using(&mut ctx, move || {

@@ -9,8 +9,8 @@ use phala_crypto::sr25519::{Persistence, KDF};
 use phala_types::contract::ConvertTo;
 use pink_extension::{
     chain_extension::{
-        self as ext, HttpRequest, HttpResponse, JsCode, JsValue, PinkExtBackend, SigType,
-        StorageQuotaExceeded,
+        self as ext, AttestationResult, HttpRequest, HttpResponse, JsCode, JsValue, PinkExtBackend,
+        SigType, StorageQuotaExceeded,
     },
     dispatch_ext_call, CacheOp, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
 };
@@ -325,6 +325,10 @@ impl PinkExtBackend for CallInQuery {
     fn js_eval(&self, codes: Vec<JsCode>, args: Vec<String>) -> Result<JsValue, Self::Error> {
         Ok(OCallImpl.js_eval(self.address.clone(), codes, args))
     }
+
+    fn worker_attestation(&self) -> Result<AttestationResult, Self::Error> {
+        Ok(OCallImpl.worker_attestation().into())
+    }
 }
 
 struct CallInCommand {
@@ -494,5 +498,9 @@ impl PinkExtBackend for CallInCommand {
         Ok(JsValue::Exception(
             "Js evaluation is not supported in transaction".into(),
         ))
+    }
+
+    fn worker_attestation(&self) -> Result<AttestationResult, Self::Error> {
+        Ok(Ok(None).into())
     }
 }

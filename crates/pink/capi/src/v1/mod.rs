@@ -322,5 +322,9 @@ pub mod ocall {
         /// Get the origin of the transaction (if available).
         #[xcall(id = 20)]
         fn origin(&self) -> Option<AccountId>;
+
+        /// Returns the attestation of the worker.
+        #[xcall(id = 21)]
+        fn worker_attestation(&self) -> Result<Option<Vec<u8>>, String>;
     }
 }
