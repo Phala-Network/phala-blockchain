@@ -14,6 +14,7 @@ use ink::EnvAccess;
 use scale::{Decode, Encode};
 
 pub use pink_extension_macro::{contract, driver};
+pub use pink_types as types;
 
 pub mod chain_extension;
 pub use chain_extension::pink_extension_instance as ext;

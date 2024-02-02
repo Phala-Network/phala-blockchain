@@ -705,6 +705,24 @@ pub trait PinkExt {
     fn js_eval(codes: Vec<JsCode>, args: Vec<String>) -> JsValue;
 
     /// Get the SGX attestation of the worker running this query.
+    ///
+    /// # Returns
+    /// - Ok(Some(Vec<u8>)) - The attestation report of the worker where the inner bytes are the encoded attestation report.
+    /// - Ok(None) - The worker is not running in SGX mode.
+    /// - Err(String) - An error occurred while getting the attestation report.
+    ///
+    /// # Availability
+    /// any contract | query only
+    ///
+    /// # Runtime version
+    /// 1.2
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let attestation = pink::ext().worker_attestation().unwrap().unwrap();
+    /// let decoded = pink::types::AttestationReport::decode(&attestation).unwrap();
+    /// ```
     #[ink(extension = 25, handle_status = false)]
     fn worker_attestation() -> AttestationResult;
 }
