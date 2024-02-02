@@ -502,6 +502,10 @@ export class PinkContractPromise<
     const pair = sr25519PairFromSeed(seed)
     const [sk, pk] = [pair.secretKey, pair.publicKey]
 
+    if (!this.phatRegistry.remotePubkey) {
+      throw new Error("You OnChainRegistry object doesn't setup correctly and no remotePubkey found.")
+    }
+
     const queryAgreementKey = sr25519Agreement(sk, hexToU8a(hexAddPrefix(this.phatRegistry.remotePubkey)))
 
     const inkQueryInternal = async (origin: string | AccountId | Uint8Array): Promise<ContractCallOutcome> => {
