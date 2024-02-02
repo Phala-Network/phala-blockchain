@@ -1,6 +1,6 @@
 use scale::{Decode, Encode};
 use scale_info::TypeInfo;
-use std::result::Result as StdResult;
+use core::result::Result as StdResult;
 
 /// A custom `Result` type that used by pink extension to avoid auto error handling by ink! macro.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode, TypeInfo, Hash)]
