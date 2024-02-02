@@ -321,13 +321,6 @@ export class PinkContractPromise<
     contractKey: string,
     provider?: AnyProvider
   ) {
-    if (!api || !api.isConnected || !api.tx) {
-      throw new Error('Your API has not been initialized correctly and is not connected to a chain')
-    }
-    if (!phatRegistry.isReady()) {
-      throw new Error('Your phatRegistry has not been initialized correctly.')
-    }
-
     this.abi = abi instanceof Abi ? abi : new Abi(abi, api.registry.getChainProperties())
     this.api = api
     this._decorateMethod = toPromiseMethod
