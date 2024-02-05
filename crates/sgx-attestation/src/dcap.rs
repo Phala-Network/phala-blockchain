@@ -170,10 +170,11 @@ pub fn verify(
             }
 
             tcb_status = tcb_level.tcb_status.clone();
-            tcb_level
-                .advisory_ids
-                .iter()
-                .for_each(|id| advisory_ids.push(id.clone()));
+            if let Some(inner_advisory_ids) = &tcb_level.advisory_ids {
+                for id in inner_advisory_ids {
+                    advisory_ids.push(id.clone());
+                }
+            }
 
             break;
         }

@@ -23,7 +23,7 @@ pub struct TcbLevel {
     pub tcb_date: String,
     pub tcb_status: String,
     #[serde(rename = "advisoryIDs")]
-    pub advisory_ids: Vec<String>,
+    pub advisory_ids: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
