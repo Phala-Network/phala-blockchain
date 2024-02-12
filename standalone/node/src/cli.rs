@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::eth::EthConfiguration;
+
 /// An overarching CLI command definition.
 #[derive(Debug, clap::Parser)]
 pub struct Cli {
@@ -44,6 +46,10 @@ pub struct Cli {
     /// Custom gossip duration in milliseconds.
     #[arg(long)]
     pub gossip_duration_millisecs: Option<u64>,
+
+    /// Ethereum RPC configuration.
+    #[command(flatten)]
+    pub eth: EthConfiguration,
 }
 
 /// Possible subcommands of the main binary.
@@ -51,7 +57,7 @@ pub struct Cli {
 #[derive(Debug, clap::Subcommand)]
 pub enum Subcommand {
     /// The custom inspect subcommmand for decoding blocks and extrinsics.
-    #[clap(
+    #[command(
         name = "inspect",
         about = "Decode given block or extrinsic using current native runtime."
     )]
@@ -98,4 +104,6 @@ pub enum Subcommand {
 
     /// Db meta columns information.
     ChainInfo(sc_cli::ChainInfoCmd),
+    /// Frontier database subcommands.
+    FrontierDb(::fc_cli::FrontierDbCmd),
 }

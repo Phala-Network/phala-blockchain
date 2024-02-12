@@ -4,9 +4,9 @@ use sp_core::{crypto::SecretStringError, Pair, H256};
 use std::time::Duration;
 
 #[derive(Parser)]
-#[clap(about = "Cache server for relaychain headers", version, author)]
+#[command(about = "Cache server for relaychain headers", version, author)]
 pub struct AppArgs {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub action: Action,
 }
 

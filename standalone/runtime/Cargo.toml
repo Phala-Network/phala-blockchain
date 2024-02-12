@@ -28,6 +28,7 @@ scale-info = { version = "2.10.0", default-features = false, features = ["derive
 static_assertions = "1.1.0"
 hex-literal = "0.4.1"
 log = { version = "0.4.14", default-features = false }
+evm = { version = "0.41.1", default-features = false }
 phala-types = { path = "../../crates/phala-types", default-features = false }
 
 # primitives
@@ -112,6 +113,21 @@ rmrk-traits = { git = "https://github.com/Phala-Network/rmrk-substrate", branch 
 
 pallet-evm_account_mapping = { git = "https://github.com/Phala-Network/substrate-evm_account_mapping", branch = "release-polkadot-v1.5.0", default-features = false }
 
+# Frontier
+fp-account = { workspace = true, features = ["serde"] }
+fp-evm = { workspace = true, features = ["serde"] }
+fp-rpc = { workspace = true }
+fp-self-contained = { workspace = true, features = ["serde"] }
+# Frontier FRAME
+pallet-base-fee = { workspace = true }
+pallet-ethereum = { workspace = true }
+pallet-evm = { workspace = true }
+pallet-evm-precompile-modexp = { workspace = true }
+pallet-evm-precompile-sha3fips = { workspace = true }
+pallet-evm-precompile-simple = { workspace = true }
+pallet-evm-precompile-dispatch =  { workspace = true }
+pallet-hotfix-sufficients = { workspace = true }
+
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0", optional = true }
 
@@ -195,6 +211,20 @@ std = [
 	"pallet-rmrk-core/std",
 	"rmrk-traits/std",
 	"phat-offchain-rollup/std",
+	# Frontier
+	"fp-account/std",
+	"fp-evm/std",
+	"fp-rpc/std",
+	"fp-self-contained/std",
+	# Frontier FRAME
+	"pallet-base-fee/std",
+	"pallet-ethereum/std",
+	"pallet-evm/std",
+	"pallet-evm-precompile-modexp/std",
+	"pallet-evm-precompile-sha3fips/std",
+	"pallet-evm-precompile-simple/std",
+	"pallet-evm-precompile-dispatch/std",
+	"pallet-hotfix-sufficients/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

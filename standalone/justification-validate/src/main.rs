@@ -4,7 +4,7 @@ mod feed_pruntime;
 mod validator;
 
 #[derive(Parser)]
-#[clap(about = "Validate justifications", version, author)]
+#[command(about = "Validate justifications", version, author)]
 pub struct Args {
     /// The genesis.bin grabbed with headers-cache.
     #[arg(long)]
