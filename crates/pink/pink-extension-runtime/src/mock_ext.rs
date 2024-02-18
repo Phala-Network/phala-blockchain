@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
-use pink_extension::chain_extension::AttestationResult;
 use pink_extension::chain_extension::{mock::mock_all_with, JsCode, JsValue, SigType};
+use pink_extension::types::sgx::SgxQuote;
 use pink_extension::{chain_extension as ext, EcdsaPublicKey, EcdsaSignature, Hash};
 use sp_core::crypto::AccountId32;
 
@@ -157,8 +157,8 @@ impl ext::PinkExtBackend for MockExtension {
         super::DefaultPinkExtension::new(self).js_eval(codes, args)
     }
 
-    fn worker_attestation(&self) -> Result<AttestationResult, Self::Error> {
-        Ok(Ok(None).into())
+    fn worker_sgx_quote(&self) -> Result<Option<SgxQuote>, Self::Error> {
+        Ok(None)
     }
 }
 

@@ -187,6 +187,7 @@ pub mod ocall {
     use super::{CrossCallMut, Executing, OCall};
     use crate::types::{AccountId, BlockNumber, ExecSideEffects, ExecutionMode, Hash};
     pub use pink_extension::chain_extension::{JsCode, JsValue};
+    use pink_extension::types::sgx::SgxQuote;
     use pink_macro::cross_call;
     use scale::{Decode, Encode};
 
@@ -323,8 +324,8 @@ pub mod ocall {
         #[xcall(id = 20)]
         fn origin(&self) -> Option<AccountId>;
 
-        /// Returns the attestation of the worker.
+        /// Returns the SGX quote of the worker.
         #[xcall(id = 21)]
-        fn worker_attestation(&self) -> Result<Option<Vec<u8>>, String>;
+        fn worker_sgx_quote(&self) -> Option<SgxQuote>;
     }
 }

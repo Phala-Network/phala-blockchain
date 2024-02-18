@@ -8,9 +8,10 @@ use std::{
 
 use pink_extension::{
     chain_extension::{
-        self as ext, AttestationResult, HttpRequest, HttpRequestError, HttpResponse, JsCode,
-        JsValue, PinkExtBackend, SigType, StorageQuotaExceeded,
+        self as ext, HttpRequest, HttpRequestError, HttpResponse, JsCode, JsValue, PinkExtBackend,
+        SigType, StorageQuotaExceeded,
     },
+    types::sgx::SgxQuote,
     Balance, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash,
 };
 use reqwest::{
@@ -376,8 +377,8 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         Ok(JsValue::Exception("No Js Runtime".into()))
     }
 
-    fn worker_attestation(&self) -> Result<AttestationResult, Self::Error> {
-        Ok(Ok(None).into())
+    fn worker_sgx_quote(&self) -> Result<Option<SgxQuote>, Self::Error> {
+        Ok(None)
     }
 }
 

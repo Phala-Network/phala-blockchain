@@ -1,12 +1,22 @@
 use std::fs;
 use std::io::Result;
 
-use super::AttestationType;
+use super::{AttestationType, SgxQuote};
 
 /// Create an SGX quote from the given data.
 pub fn create_quote_vec(data: &[u8]) -> Result<Vec<u8>> {
     fs::write("/dev/attestation/user_report_data", data)?;
     fs::read("/dev/attestation/quote")
+}
+
+/// Create an SGX quote from the given data.
+pub fn create_quote(data: &[u8]) -> Option<SgxQuote> {
+    let quote = create_quote_vec(data).ok()?;
+    let attestation_type = attestation_type()?;
+    Some(SgxQuote {
+        attestation_type,
+        quote,
+    })
 }
 
 /// Get the attestation type of the current running gramine instance.

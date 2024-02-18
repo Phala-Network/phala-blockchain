@@ -2,6 +2,7 @@ use alloc::borrow::Cow;
 use alloc::string::String;
 use alloc::vec::Vec;
 use ink::ChainExtensionInstance;
+use pink_types::sgx::SgxQuote;
 
 pub use http_request::{HttpRequest, HttpRequestError, HttpResponse};
 pub use ink::primitives::AccountId;
@@ -10,8 +11,6 @@ pub use signing::SigType;
 use crate::{Balance, EcdsaPublicKey, EcdsaSignature, Hash};
 pub use pink_types::js::{JsCode, JsValue};
 pub use pink_types::result::Result as PinkExtResult;
-
-pub type AttestationResult = PinkExtResult<Option<Vec<u8>>, String>;
 
 #[cfg(doc)]
 use crate::{debug, error, http_get, http_post, http_put, info, warn};
@@ -704,12 +703,7 @@ pub trait PinkExt {
     #[ink(extension = 24, handle_status = false)]
     fn js_eval(codes: Vec<JsCode>, args: Vec<String>) -> JsValue;
 
-    /// Get the SGX attestation of the worker running this query.
-    ///
-    /// # Returns
-    /// - Ok(Some(Vec<u8>)) - The attestation report of the worker where the inner bytes are the encoded attestation report.
-    /// - Ok(None) - The worker is not running in SGX mode.
-    /// - Err(String) - An error occurred while getting the attestation report.
+    /// Get the SGX quote of the worker running this query.
     ///
     /// # Availability
     /// any contract | query only
@@ -720,11 +714,11 @@ pub trait PinkExt {
     /// # Example
     ///
     /// ```ignore
-    /// let attestation = pink::ext().worker_attestation().unwrap().unwrap();
-    /// let decoded = pink::types::AttestationReport::decode(&attestation).unwrap();
+    /// use pink::types::sgx::SgxQuote;
+    /// let SgxQuote { attestation_type, quote } = pink::ext().worker_sgx_quote().unwrap();
     /// ```
     #[ink(extension = 25, handle_status = false)]
-    fn worker_attestation() -> AttestationResult;
+    fn worker_sgx_quote() -> Option<SgxQuote>;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

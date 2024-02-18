@@ -518,7 +518,7 @@ mod test_cluster {
             None
         }
 
-        fn worker_attestation(&self) -> Result<Option<Vec<u8>>, String> {
+        fn worker_sgx_quote(&self) -> Result<Option<Vec<u8>>, String> {
             Ok(None)
         }
     }

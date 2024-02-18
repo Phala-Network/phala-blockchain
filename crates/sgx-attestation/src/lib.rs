@@ -46,10 +46,6 @@ pub enum Error {
     OidIsMissing,
 }
 
-#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
-pub enum AttestationType {
-    Epid,
-    Dcap,
-}
-
-pub use pink_types::sgx::{AttestationReport, Collateral, SgxV30QuoteCollateral};
+pub use pink_types::sgx::{
+    AttestationReport, AttestationType, Collateral, SgxQuote, SgxV30QuoteCollateral,
+};

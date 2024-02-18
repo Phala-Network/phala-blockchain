@@ -9,10 +9,12 @@ use phala_crypto::sr25519::{Persistence, KDF};
 use phala_types::contract::ConvertTo;
 use pink_extension::{
     chain_extension::{
-        self as ext, AttestationResult, HttpRequest, HttpResponse, JsCode, JsValue, PinkExtBackend,
-        SigType, StorageQuotaExceeded,
+        self as ext, HttpRequest, HttpResponse, JsCode, JsValue, PinkExtBackend, SigType,
+        StorageQuotaExceeded,
     },
-    dispatch_ext_call, CacheOp, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
+    dispatch_ext_call,
+    types::sgx::SgxQuote,
+    CacheOp, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
 };
 use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
@@ -326,8 +328,8 @@ impl PinkExtBackend for CallInQuery {
         Ok(OCallImpl.js_eval(self.address.clone(), codes, args))
     }
 
-    fn worker_attestation(&self) -> Result<AttestationResult, Self::Error> {
-        Ok(OCallImpl.worker_attestation().into())
+    fn worker_sgx_quote(&self) -> Result<Option<SgxQuote>, Self::Error> {
+        Ok(OCallImpl.worker_sgx_quote())
     }
 }
 
@@ -500,7 +502,7 @@ impl PinkExtBackend for CallInCommand {
         ))
     }
 
-    fn worker_attestation(&self) -> Result<AttestationResult, Self::Error> {
-        Ok(Ok(None).into())
+    fn worker_sgx_quote(&self) -> Result<Option<SgxQuote>, Self::Error> {
+        Ok(None)
     }
 }

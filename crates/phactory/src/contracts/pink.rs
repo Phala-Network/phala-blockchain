@@ -1,4 +1,5 @@
 use once_cell::sync::Lazy;
+use sgx_attestation::SgxQuote;
 use std::sync::Mutex;
 use std::{convert::TryInto, time::Duration};
 
@@ -142,6 +143,7 @@ pub(crate) mod context {
         capi::v1::ocall::ExecContext,
         types::{AccountId, BlockNumber, ExecutionMode},
     };
+    use sgx_attestation::SgxQuote;
     use sidevm::OutgoingRequestChannel;
     use sp_core::Pair;
 
@@ -163,7 +165,7 @@ pub(crate) mod context {
             timeout: Duration,
         ) -> Result<Vec<u8>>;
         fn sidevm_event_tx(&self) -> OutgoingRequestChannel;
-        fn worker_attestation(&self) -> Result<Option<Vec<u8>>>;
+        fn worker_sgx_quote(&self) -> Option<SgxQuote>;
     }
 
     pub struct ContractExecContext {
@@ -271,23 +273,11 @@ pub(crate) mod context {
             self.sidevm_event_tx.clone()
         }
 
-        fn worker_attestation(&self) -> Result<Option<Vec<u8>>> {
-            use sgx_attestation::{dcap, ias};
-            let Some(provider) = self.attestation_provider else {
-                return Ok(None);
+        fn worker_sgx_quote(&self) -> Option<SgxQuote> {
+            if self.attestation_provider.is_none() {
+                return None;
             };
-            let timeout = time_remaining();
-            let report = match provider {
-                AttestationProvider::Root => return Ok(None),
-                AttestationProvider::Ias => {
-                    ias::report::create_attestation_report(&self.worker_pubkey(), timeout)
-                }
-                AttestationProvider::Dcap => {
-                    dcap::report::create_attestation_report(&self.worker_pubkey(), "", timeout)
-                }
-            }?;
-            use parity_scale_codec::Encode;
-            Ok(Some(report.encode()))
+            sgx_attestation::gramine::create_quote(&self.worker_pubkey())
         }
     }
 
@@ -596,8 +586,8 @@ impl OCalls for RuntimeHandle<'_> {
         context::get_origin()
     }
 
-    fn worker_attestation(&self) -> Result<Option<Vec<u8>>, String> {
-        context::with(|ctx| ctx.worker_attestation().map_err(|err| err.to_string()))
+    fn worker_sgx_quote(&self) -> Option<SgxQuote> {
+        context::with(|ctx| ctx.worker_sgx_quote())
     }
 }
 
@@ -732,8 +722,8 @@ impl OCalls for RuntimeHandleMut<'_> {
         self.readonly().origin()
     }
 
-    fn worker_attestation(&self) -> Result<Option<Vec<u8>>, String> {
-        self.readonly().worker_attestation()
+    fn worker_sgx_quote(&self) -> Option<SgxQuote> {
+        self.readonly().worker_sgx_quote()
     }
 }
 

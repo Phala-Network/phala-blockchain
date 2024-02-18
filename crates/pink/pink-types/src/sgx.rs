@@ -3,6 +3,18 @@ use alloc::vec::Vec;
 use scale::{Decode, Encode};
 use scale_info::TypeInfo;
 
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AttestationType {
+    Epid,
+    Dcap,
+}
+
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
+pub struct SgxQuote {
+    pub attestation_type: AttestationType,
+    pub quote: Vec<u8>,
+}
+
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub enum AttestationReport {
     SgxIas {
