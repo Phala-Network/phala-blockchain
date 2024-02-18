@@ -1866,6 +1866,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         request: pb::DcapHandoverChallengeResponse,
     ) -> RpcResult<pb::DcapHandoverWorkerKey> {
+        const CLIENT_TIMEOUT_SECS: u64 = 60;
+
         let ntp_now = crate::nts::nts_get_time_secs()
             .await
             .map_err(from_display)?;
@@ -1884,7 +1886,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             return Err(from_display("Invalid challenge"));
         }
         // 2. ensure delta time between client and server is within 1 minutes
-        if challenge.ntp_time_secs > ntp_now || ntp_now - challenge.ntp_time_secs > 60 {
+        if challenge.ntp_time_secs > ntp_now
+            || ntp_now - challenge.ntp_time_secs > CLIENT_TIMEOUT_SECS
+        {
             return Err(from_display("Invalid NTP time"));
         }
         // 3. verify sgx local attestation report to ensure the handover pRuntimes are on the same machine
@@ -1897,13 +1901,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         if handler_hash != recv_local_report.body.report_data[..32] {
             return Err(from_display("Invalid challenge handler"));
         }
-        // 4. verify challenge block height and report timestamp
-        // only challenge within 150 blocks (30 minutes) is accepted
-        let challenge_height = challenge.block_number;
-        if !(challenge_height <= block_number && block_number - challenge_height <= 150) {
-            return Err(from_display("Outdated challenge"));
-        }
-        // 5. verify pruntime launch date, never handover to old pruntime
+        // 4. verify pruntime launch date, never handover to old pruntime
         if !dev_mode {
             let runtime_state = phactory.runtime_state()?;
             let my_runtime_timestamp = runtime_state

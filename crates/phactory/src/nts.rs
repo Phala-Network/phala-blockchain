@@ -32,7 +32,9 @@ pub(crate) async fn nts_get_time_secs() -> Result<u64> {
 }
 
 fn validate_results(results: Vec<u64>) -> Result<u64> {
-    if results.len() < 2 {
+    const MIN_RESULTS: usize = 2;
+    const MAX_VARIANCE: u64 = 60;
+    if results.len() < MIN_RESULTS {
         anyhow::bail!("Not enough results");
     }
     let average = results.iter().sum::<u64>() / results.len() as u64;
@@ -41,7 +43,7 @@ fn validate_results(results: Vec<u64>) -> Result<u64> {
         .map(|r| (*r as i64 - average as i64).unsigned_abs())
         .max()
         .unwrap_or_default();
-    if max_diff > 60 {
+    if max_diff > MAX_VARIANCE {
         anyhow::bail!("Time difference is too large: {}", max_diff);
     }
     Ok(average)
