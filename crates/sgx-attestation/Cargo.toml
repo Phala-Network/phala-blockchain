@@ -19,6 +19,7 @@ asn1_der = { version = "0.7", default-features = false, features = ["native_type
 der = { version = "0.7.8", default-features = false, features = ["alloc"] }
 
 log = { version = "0.4.20", default-features = false }
+pink-types = { version = "0.1", default-features = false, path = "../pink/pink-types" }
 
 ring = { version = "0.16.20", default-features = false, features = ["alloc"] }
 # Release version no-std has bug
@@ -32,7 +33,6 @@ anyhow = { version = "1", optional = true }
 reqwest = { version = "0.11", optional = true, default-features = false, features = ["rustls-tls", "blocking"] }
 urlencoding = { version = "2", optional = true }
 serde_json = { version = "1.0.108", optional = true, features = ["preserve_order"] }
-pink-types = { version = "0.1", default-features = false, path = "../pink/pink-types" }
 tracing = { version = "0.1", optional = true }
 reqwest-env-proxy = { path = "../reqwest-env-proxy", optional = true }
 futures = { version = "0.3", optional = true }

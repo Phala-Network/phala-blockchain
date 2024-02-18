@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 
 use scale::{Decode, Input};
 
-use crate::dcap::constants::*;
+use crate::{dcap::constants::*, Error};
 
 #[derive(Debug)]
 pub struct Data<T> {
@@ -163,5 +163,20 @@ impl Decode for Quote {
             report,
             auth_data,
         })
+    }
+}
+
+impl Quote {
+    pub fn raw_cert_chain(&self) -> &[u8] {
+        match &self.auth_data {
+            AuthData::V3(data) => &data.certification_data.body.data,
+            AuthData::V4(data) => &data.qe_report_data.certification_data.body.data,
+        }
+    }
+    pub fn fmspc(&self) -> Result<Fmspc, Error> {
+        let raw_cert_chain = self.raw_cert_chain();
+        let certs = super::extract_certs(raw_cert_chain)?;
+        let extension_section = super::get_intel_extension(&certs[0])?;
+        super::get_fmspc(&extension_section)
     }
 }

@@ -6,11 +6,7 @@ use futures::executor::block_on;
 use pink_types::sgx::Collateral;
 use scale::Decode;
 
-use super::{
-    quote::{AuthData, Quote},
-    utils::{extract_certs, get_fmspc, get_intel_extension},
-    SgxV30QuoteCollateral,
-};
+use super::{quote::Quote, SgxV30QuoteCollateral};
 use crate::{gramine::create_quote_vec, AttestationReport};
 
 fn get_header(resposne: &reqwest::Response, name: &str) -> Result<String> {
@@ -30,17 +26,7 @@ pub async fn get_collateral(
     timeout: Duration,
 ) -> Result<SgxV30QuoteCollateral> {
     let quote = Quote::decode(&mut quote)?;
-
-    let raw_cert_chain = match &quote.auth_data {
-        AuthData::V3(data) => &data.certification_data.body.data,
-        AuthData::V4(data) => &data.qe_report_data.certification_data.body.data,
-    };
-    let certification_certs =
-        extract_certs(raw_cert_chain).map_err(|_| anyhow!("extract certs error"))?;
-    let extension_section =
-        get_intel_extension(&certification_certs[0]).map_err(|_| anyhow!("get extension error"))?;
-    let fmspc =
-        hex::encode_upper(get_fmspc(&extension_section).map_err(|_| anyhow!("get fmspc error"))?);
+    let fmspc = hex::encode_upper(quote.fmspc().map_err(|_| anyhow!("get fmspc error"))?);
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .timeout(timeout)
