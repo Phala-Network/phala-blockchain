@@ -186,13 +186,15 @@ pub mod ecall {
 pub mod ocall {
     use super::{CrossCallMut, Executing, OCall};
     use crate::types::{AccountId, BlockNumber, ExecSideEffects, ExecutionMode, Hash};
-    pub use pink_extension::chain_extension::{JsCode, JsValue};
-    use pink_extension::types::sgx::SgxQuote;
     use pink_macro::cross_call;
     use scale::{Decode, Encode};
 
-    pub use pink_extension::chain_extension::{
-        BatchHttpResult, HttpRequest, HttpRequestError, HttpResponse, StorageQuotaExceeded,
+    pub use pink_extension::{
+        chain_extension::{
+            BatchHttpResult, HttpRequest, HttpRequestError, HttpResponse, JsCode, JsValue,
+            StorageQuotaExceeded,
+        },
+        types::sgx::SgxQuote,
     };
     pub type StorageChanges = Vec<(Vec<u8>, (Vec<u8>, i32))>;
 

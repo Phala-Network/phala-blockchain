@@ -257,7 +257,7 @@ mod test_cluster {
         ecall::ECalls,
         ocall::{
             BatchHttpResult, ExecContext, HttpRequest, HttpRequestError, HttpResponse, JsCode,
-            JsValue, OCalls, StorageChanges,
+            JsValue, OCalls, SgxQuote, StorageChanges,
         },
         CrossCall, CrossCallMut, ECall,
     };
@@ -518,8 +518,8 @@ mod test_cluster {
             None
         }
 
-        fn worker_sgx_quote(&self) -> Result<Option<Vec<u8>>, String> {
-            Ok(None)
+        fn worker_sgx_quote(&self) -> Option<SgxQuote> {
+            None
         }
     }
 
