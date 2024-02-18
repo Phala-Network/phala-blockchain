@@ -1876,7 +1876,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             return Err(from_display("DCAP not enabled"));
         }
         let dev_mode = phactory.dev_mode;
-        let (block_number, _) = phactory.current_block()?;
 
         let challenge_handler = request.decode_challenge_handler().map_err(from_display)?;
 
