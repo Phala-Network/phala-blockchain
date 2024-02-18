@@ -274,7 +274,8 @@ pub(crate) mod context {
         }
 
         fn worker_sgx_quote(&self) -> Option<SgxQuote> {
-            if self.attestation_provider.is_none() {
+            use AttestationProvider::*;
+            let Some(Ias | Dcap) = self.attestation_provider else {
                 return None;
             };
             sgx_attestation::gramine::create_quote(&self.worker_pubkey())
