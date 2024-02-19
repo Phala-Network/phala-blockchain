@@ -1,5 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
+#[macro_use]
 extern crate alloc;
 
 use pink_extension as pink;
@@ -10,11 +11,17 @@ mod check_system {
     use alloc::vec::Vec;
     use pink::chain_extension::{JsCode, JsValue};
     use pink::system::{ContractDeposit, DriverError, Result, SystemRef};
+    use pink::types::sgx::AttestationType;
     use pink::{PinkEnvironment, WorkerId};
 
     use alloc::string::{String, ToString};
     use indeterministic_functions::Usd;
     use phat_js as js;
+
+    use sgx_attestation::dcap::{Quote, SgxV30QuoteCollateral as Collateral};
+    use sgx_attestation::SgxQuote;
+
+    type RawQuote = Vec<u8>;
 
     #[ink(storage)]
     pub struct CheckSystem {
@@ -261,6 +268,35 @@ mod check_system {
         #[ink(message)]
         pub fn pink_eval_js(&self, script: String, args: Vec<String>) -> JsValue {
             pink::ext().js_eval(alloc::vec![JsCode::Source(script)], args)
+        }
+
+        #[ink(message)]
+        pub fn get_worker_dcap_report(&self, pccs_url: String) -> Option<(RawQuote, Collateral)> {
+            use scale::Decode;
+
+            let SgxQuote {
+                quote,
+                attestation_type: AttestationType::Dcap,
+            } = pink::ext().worker_sgx_quote()?
+            else {
+                return None;
+            };
+            let decoded_quote = Quote::decode(&mut &quote[..]).expect("Failed to decode quote");
+            let fmspc = decoded_quote
+                .fmspc()
+                .expect("Failed to get fmspc, invalid quote");
+
+            let js_get_collateral = include_str!("getCollateral.js").into();
+            let args = vec![pccs_url, hex::encode(fmspc)];
+            let result = pink::ext().js_eval(alloc::vec![JsCode::Source(js_get_collateral)], args);
+
+            let JsValue::Bytes(collateral) = result else {
+                pink::warn!("Failed to get collateral");
+                return None;
+            };
+            let collateral =
+                Collateral::decode(&mut &collateral[..]).expect("Failed to decode collateral");
+            Some((quote, collateral))
         }
     }
 

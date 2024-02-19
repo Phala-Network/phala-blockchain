@@ -6,19 +6,23 @@ mod quote;
 mod tcb_info;
 mod utils;
 
-use alloc::borrow::ToOwned;
-use alloc::string::{String, ToString};
-use alloc::vec::Vec;
-use scale::Decode;
-
-use crate::dcap::constants::*;
-use crate::dcap::quote::{AuthData, EnclaveReport, Quote};
-use crate::dcap::tcb_info::TcbInfo;
 use crate::dcap::utils::*;
-use crate::Error;
 
+#[cfg(feature = "verify")]
+use {
+    crate::dcap::constants::*,
+    crate::dcap::tcb_info::TcbInfo,
+    crate::Error,
+    alloc::borrow::ToOwned,
+    alloc::string::{String, ToString},
+    alloc::vec::Vec,
+    scale::Decode,
+};
+
+pub use crate::dcap::quote::{AuthData, EnclaveReport, Quote};
 pub use pink_types::sgx::SgxV30QuoteCollateral;
 
+#[cfg(feature = "verify")]
 #[allow(clippy::type_complexity)]
 pub fn verify(
     raw_quote: &[u8],
@@ -191,6 +195,7 @@ pub fn verify(
 mod test {
     use super::*;
 
+    #[cfg(feature = "verify")]
     #[test]
     fn could_parse() {
         let raw_quote = include_bytes!("../sample/dcap_quote").to_vec();

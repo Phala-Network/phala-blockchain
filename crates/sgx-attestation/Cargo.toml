@@ -8,40 +8,58 @@ hex = { version = "0.4", default-features = false, features = ["alloc"] }
 serde = { version = "1", default-features = false, features = ["derive"] }
 pink-json = { version = "0.4", default-features = false }
 base64 = { version = "0.21", default-features = false, features = ["alloc"] }
-scale = { package = "parity-scale-codec", version = "3.6.5", default-features = false, features = ["derive"] }
+scale = { package = "parity-scale-codec", version = "3.6.5", default-features = false, features = [
+    "derive",
+] }
 scale-info = { version = "2", default-features = false, features = ["derive"] }
-chrono = { version = "0.4.31", default-features = false, features = ["alloc", "serde"] }
+chrono = { version = "0.4.31", default-features = false, features = [
+    "alloc",
+    "serde",
+] }
 const-oid = { version = "0.9.5", default-features = false }
 x509-cert = { version = "0.2.4", default-features = false }
 byteorder = { version = "1.5.0", default-features = false }
 pem = { version = "3", default-features = false }
-asn1_der = { version = "0.7", default-features = false, features = ["native_types"] }
+asn1_der = { version = "0.7", default-features = false, features = [
+    "native_types",
+] }
 der = { version = "0.7.8", default-features = false, features = ["alloc"] }
 
 log = { version = "0.4.20", default-features = false }
 pink-types = { version = "0.1", default-features = false, path = "../pink/pink-types" }
 
-ring = { version = "0.16.20", default-features = false, features = ["alloc"] }
-# Release version no-std has bug
-webpki = { git = "https://github.com/rustls/webpki", rev = "2ed9a4324f48c2c46ffdd7dc9d3eb315af25fce2", version = "=0.102.0-alpha.3", package = "rustls-webpki", default-features = false, features = [
-    "alloc",
-    "ring",
-] }
-
 anyhow = { version = "1", optional = true }
 
-reqwest = { version = "0.11", optional = true, default-features = false, features = ["rustls-tls", "blocking"] }
+ring = { version = "0.16.20", optional = true, default-features = false, features = [
+    "alloc",
+] }
+reqwest = { version = "0.11", optional = true, default-features = false, features = [
+    "rustls-tls",
+    "blocking",
+    "trust-dns",
+] }
 urlencoding = { version = "2", optional = true }
-serde_json = { version = "1.0.108", optional = true, features = ["preserve_order"] }
+serde_json = { version = "1.0.108", optional = true, features = [
+    "preserve_order",
+] }
 tracing = { version = "0.1", optional = true }
 reqwest-env-proxy = { path = "../reqwest-env-proxy", optional = true }
 futures = { version = "0.3", optional = true }
+
+[dependencies.webpki]
+# Release version no-std has bug
+git = "https://github.com/rustls/webpki"
+rev = "2ed9a4324f48c2c46ffdd7dc9d3eb315af25fce2"
+version = "=0.102.0-alpha.3"
+package = "rustls-webpki"
+default-features = false
+features = ["alloc"]
 
 [dev-dependencies]
 insta = "1"
 
 [features]
-default = ["std", "report"]
+default = ["std", "report", "verify"]
 std = [
     "pink-json/std",
     "pink-types/std",
@@ -60,3 +78,4 @@ std = [
     "urlencoding",
 ]
 report = ["std", "reqwest-env-proxy", "tracing", "futures"]
+verify = ["ring", "webpki/ring"]
