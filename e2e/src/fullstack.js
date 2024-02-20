@@ -1248,6 +1248,7 @@ function testPruntimeManagement(workDir) {
                 true,
                 await checkUntil(
                     async () => {
+                        console.log(worker.processPRuntime.stopped);
                         return worker.processPRuntime.stopped;
                     },
                     60000
@@ -1269,6 +1270,7 @@ function testPruntimeManagement(workDir) {
             assertTrue(
                 await checkUntil(
                     async () => {
+                        console.log(worker.processPRuntime.stopped);
                         return worker.processPRuntime.stopped;
                     },
                     60000
