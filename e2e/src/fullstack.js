@@ -32,7 +32,7 @@ const quickMode = process.env.QUICK == '1';
 let keyring;
 
 const CENTS = 10_000_000_000;
-const blockInterval = quickMode ? 100 : 300; // ms
+const blockInterval = quickMode ? 2000 : 2000; // ms
 const gossipDuration = 20; // ms
 
 console.log(`Testing in ${inSgx ? "SGX Hardware" : "Software"} mode`);
