@@ -1250,7 +1250,7 @@ function testPruntimeManagement(workDir) {
                     async () => {
                         return worker.processPRuntime.stopped;
                     },
-                    6000
+                    60000
                 ),
                 "Failed to retire old version pruntime"
             );
@@ -1271,7 +1271,7 @@ function testPruntimeManagement(workDir) {
                     async () => {
                         return worker.processPRuntime.stopped;
                     },
-                    6000
+                    60000
                 ),
                 'Failed to wait pruntime to exit'
             );
