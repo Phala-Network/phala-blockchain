@@ -1248,7 +1248,8 @@ function testPruntimeManagement(workDir) {
                 true,
                 await checkUntil(
                     async () => {
-                        console.log(worker.processPRuntime.stopped);
+                        console.log(JSON.stringify(worker.processPRuntime));
+                        console.log(JSON.stringify(await worker.api.getInfo()));
                         return worker.processPRuntime.stopped;
                     },
                     60000
@@ -1270,7 +1271,8 @@ function testPruntimeManagement(workDir) {
             assertTrue(
                 await checkUntil(
                     async () => {
-                        console.log(worker.processPRuntime.stopped);
+                        console.log(JSON.stringify(worker.processPRuntime));
+                        console.log(JSON.stringify(await worker.api.getInfo()));
                         return worker.processPRuntime.stopped;
                     },
                     60000
