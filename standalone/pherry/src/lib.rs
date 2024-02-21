@@ -907,7 +907,12 @@ async fn get_sync_operation(
     }
 
     let latest_header = get_header_at(relay_api, None).await?.0;
-    if info.headernum <= latest_header.number {
+    info!(
+        "get_sync_operation: pRuntime next headernum: {}, latest_header at {}",
+        info.headernum,
+        latest_header.number,
+    );
+    if latest_header.number > 0 && info.headernum <= latest_header.number {
         Ok(SyncOperation::RelaychainHeader)
     } else {
         Ok(SyncOperation::ReachedChainTip)
