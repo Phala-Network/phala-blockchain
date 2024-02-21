@@ -581,6 +581,7 @@ async fn sync_headers(
     api: &RelaychainApi,
     from: BlockNumber,
 ) -> Result<()> {
+    info!("sync_headers: from {}", from);
     let first_header = get_header_at(api, Some(from)).await?;
     let mut headers = vec![
         HeaderToSync {
@@ -590,6 +591,7 @@ async fn sync_headers(
     ];
 
     let encoded_finality_proof = prove_finality_at(api, from).await?;
+    info!("sync_headers: encoded_finality_proof len {}", encoded_finality_proof.len());
     let finality_proof : FinalityProof<Header> = Decode::decode(&mut encoded_finality_proof.as_slice())?;
     headers.extend(
         finality_proof.unknown_headers
@@ -907,6 +909,11 @@ async fn get_sync_operation(
     }
 
     let latest_header = get_header_at(relay_api, None).await?.0;
+    info!(
+        "get_sync_operation: pRuntime next headernum: {}, latest_header at {}",
+        info.headernum,
+        latest_header.number,
+    );
     if info.headernum <= latest_header.number {
         Ok(SyncOperation::RelaychainHeader)
     } else {
@@ -1075,6 +1082,7 @@ async fn bridge(
             &info,
             args.parachain,
         ).await?;
+        info!("next sync operation: {:?}", sync_operation);
         match sync_operation {
             SyncOperation::RelaychainHeader => {
                 sync_headers(&pr, &api, info.headernum).await?;
