@@ -160,7 +160,7 @@ impl ext::PinkExtBackend for MockExtension {
     fn worker_sgx_quote(&self) -> Result<Option<SgxQuote>, Self::Error> {
         let quote = include_bytes!("mock-quote.bin").to_vec();
         Ok(Some(SgxQuote {
-            attestation_type: AttestationType::Epid,
+            attestation_type: AttestationType::Dcap,
             quote,
         }))
     }

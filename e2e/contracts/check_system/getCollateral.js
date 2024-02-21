@@ -7,6 +7,7 @@ async function httpGet(url) {
 }
 
 async function getCollateral(baseUrl, fmspc) {
+    console.log(`Fetching collateral from ${baseUrl} for FMSPC ${fmspc}`);
     // PCK CRL
     let pckCrlResponse = await httpGet(`${baseUrl}/pckcrl?ca=processor`);
     const pckCrlIssuerChain = pckCrlResponse.headers.get("SGX-PCK-CRL-Issuer-Chain");
@@ -55,6 +56,7 @@ async function main() {
     const collateral = await getCollateral(pccsUrl, fmspc);
     const typeRegistry = `
         String=str
+        Vec<T>=[T]
         Collateral={
             pckCrlIssuerChain: String,
             rootCaCrl: String,
@@ -74,6 +76,6 @@ main()
     .then(result => scriptOutput = result)
     .catch(error => {
         console.error(`Error: ${error}`);
-        scriptOutput = error
+        scriptOutput = error;
     })
     .finally(() => process.exit());

@@ -274,11 +274,12 @@ mod check_system {
         pub fn get_worker_dcap_report(&self, pccs_url: String) -> Option<(RawQuote, Collateral)> {
             use scale::Decode;
 
-            let SgxQuote {
+            let Some(SgxQuote {
                 quote,
                 attestation_type: AttestationType::Dcap,
-            } = pink::ext().worker_sgx_quote()?
+            }) = pink::ext().worker_sgx_quote()
             else {
+                pink::warn!("Failed to get worker dcap quote");
                 return None;
             };
             let decoded_quote = Quote::decode(&mut &quote[..]).expect("Failed to decode quote");
@@ -328,8 +329,7 @@ mod check_system {
         enum BundleProvider {}
 
         #[test]
-        fn it_works() -> Result<(), Box<dyn std::error::Error>> {
-            tracing_subscriber::fmt::init();
+        fn test_eval_js() -> Result<(), Box<dyn std::error::Error>> {
             let mut session = Session::<PinkRuntime>::new()?;
             let mut checker = CheckSystemRef::default()
                 .deploy_bundle(&BundleProvider::local()?, &mut session)
@@ -359,6 +359,22 @@ mod check_system {
                 .pink_eval_js(js_code.into(), vec![])
                 .query(&mut session)?;
             assert_eq!(url, JsValue::String("https://httpbin.org/get".into()));
+            Ok(())
+        }
+
+        #[test]
+        fn test_dcap_report() -> Result<(), Box<dyn std::error::Error>> {
+            let pccs_url = std::env::var("PCCS_URL").expect("PCCS_URL not set");
+            let mut session = Session::<PinkRuntime>::new()?;
+            let checker = CheckSystemRef::default()
+                .deploy_bundle(&BundleProvider::local()?, &mut session)
+                .expect("Failed to deploy checker contract");
+            let ra_report = checker
+                .call()
+                .get_worker_dcap_report(pccs_url)
+                .query(&mut session)?;
+            assert!(ra_report.is_some());
+            dbg!(ra_report);
             Ok(())
         }
     }
