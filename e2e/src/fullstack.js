@@ -1220,6 +1220,10 @@ function testPruntimeManagement(workDir) {
             }, 1000), 'not initialized in time');
             assertTrue(await checkUntil(async () => {
                 const info = await worker.api.getInfo();
+                return info.headernum > 0;
+            }, 7000), 'stuck at header 0');
+            assertTrue(await checkUntil(async () => {
+                const info = await worker.api.getInfo();
                 return info.blocknum > 0;
             }, 7000), 'stuck at block 0');
 
