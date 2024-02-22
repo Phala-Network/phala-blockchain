@@ -1,4 +1,4 @@
-import { ApiPromise, Keyring, WsProvider } from '@polkadot/api'
+import { ApiPromise, type HttpProvider, Keyring, WsProvider } from '@polkadot/api'
 import type { ApiOptions } from '@polkadot/api/types'
 import type { AccountId } from '@polkadot/types/interfaces'
 import { cryptoWaitReady } from '@polkadot/util-crypto'
@@ -11,7 +11,7 @@ import type { AbiLike, AnyProvider } from './types'
 import { type LiteralRpc, fetchMetadata } from './utils/fetchMetadata'
 
 export type GetClientOptions = {
-  transport: LiteralRpc | WsProvider | string
+  transport: LiteralRpc | WsProvider | HttpProvider | string
 
   // Provides metadata instead loading via RPC when initializing the client.
   // It's optional since if the RPC under the phala.network domain, we will
