@@ -12654,7 +12654,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-grandpa"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.5.0#8a98fec3e456033fdedf284e3613d5300f817085"
+source = "git+https://github.com/Phala-Network/polkadot-sdk.git?branch=phala-patch-polkadot-v1.5.0#559a9126a2aa1de47356fea36aa246eb3e27e38a"
 dependencies = [
  "ahash 0.8.9",
  "array-bytes 6.1.0",
