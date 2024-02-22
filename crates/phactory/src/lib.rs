@@ -323,6 +323,11 @@ pub struct Phactory<Platform> {
     #[serde(skip)]
     #[serde(default = "sidevm_helper::create_sidevm_service_default")]
     sidevm_spawner: sidevm::service::Spawner,
+
+    /// The pRuntime measurement that allowed by the Council.
+    #[codec(skip)]
+    #[serde(skip)]
+    allow_handover_to: Option<Vec<u8>>,
 }
 
 mod sidevm_helper {
@@ -409,6 +414,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                 args.cores as _,
                 create_sidevm_outgoing_channel(weak_self),
             ),
+            allow_handover_to: None,
         };
         me.init(args);
         me

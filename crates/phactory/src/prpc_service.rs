@@ -263,6 +263,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             ),
             "dispatch_block",
         );
+
+        self.allow_handover_to = None;
+
         let counters = self.runtime_state()?.storage_synchronizer.counters();
         blocks.retain(|b| b.block_header.number >= counters.next_block_number);
 
@@ -389,7 +392,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let chain_storage = ChainStorage::from_pairs(genesis_state.into_iter());
         let para_id = chain_storage.para_id();
         info!(
-            "Genesis state loaded: root={:?}, para_id={para_id}",
+            "Genesis state loaded: root={:?}, para_id={para_id}, genesis_hash={genesis_block_hash:?}",
             chain_storage.root()
         );
 
@@ -1592,24 +1595,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         }
         // 5. verify pruntime launch date, never handover to old pruntime
         if !dev_mode && in_sgx {
-            let my_la_report = {
-                // target_info and reportdata not important, we just need the report metadata
-                let target_info =
-                    sgx_api_lite::target_info().expect("should not fail in SGX; qed.");
-                sgx_api_lite::report(&target_info, &[0; 64])
-                    .map_err(|_| from_display("Cannot read server pRuntime info"))?
-            };
-            let my_runtime_hash = {
-                let ias_fields = IasFields {
-                    mr_enclave: my_la_report.body.mr_enclave.m,
-                    mr_signer: my_la_report.body.mr_signer.m,
-                    isv_prod_id: my_la_report.body.isv_prod_id.to_ne_bytes(),
-                    isv_svn: my_la_report.body.isv_svn.to_ne_bytes(),
-                    report_data: [0; 64],
-                    confidence_level: 0,
-                };
-                ias_fields.extend_mrenclave()
-            };
+            let my_runtime_hash = my_measurement()?;
             let runtime_state = phactory.runtime_state()?;
             let my_runtime_timestamp = runtime_state
                 .chain_storage
@@ -1633,13 +1619,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                     collateral: _,
                 } => todo!(),
             };
-            let req_runtime_timestamp = runtime_state
+            if let Some(req_runtime_timestamp) = runtime_state
                 .chain_storage
                 .get_pruntime_added_at(&runtime_hash)
-                .ok_or_else(|| from_display("Client pRuntime not allowed on chain"))?;
-
-            if my_runtime_timestamp >= req_runtime_timestamp {
-                return Err(from_display("No handover for old pRuntime"));
+            {
+                if my_runtime_timestamp >= req_runtime_timestamp {
+                    return Err(from_display("No handover for old pRuntime"));
+                }
+            } else if phactory.allow_handover_to != Some(runtime_hash) {
+                return Err(from_display("Client pRuntime not allowed on chain"));
             }
         } else {
             info!("Skip pRuntime timestamp check in dev mode");
@@ -2046,4 +2034,69 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         cluster.on_idle(block_number);
         Ok(())
     }
+
+    async fn allow_handover_to(
+        &mut self,
+        request: pb::AllowHandoverToRequest,
+    ) -> Result<(), prpc::server::Error> {
+        let mut phactory = self.lock_phactory(false, true)?;
+        let runtime_state = phactory.runtime_state()?;
+        let council_members = runtime_state.chain_storage.council_members();
+        if request.signatures.len() > council_members.len() {
+            return Err(from_display("Too many signatures"));
+        }
+        let genesis_hash = hex::encode(runtime_state.genesis_block_hash);
+        let mr_to = hex::encode(&request.measurement);
+        let mr_from = hex::encode(my_measurement()?);
+        let signed_message = format!("Allow pRuntime to handover\n from: 0x{mr_from}\n to: 0x{mr_to}\n genesis: 0x{genesis_hash}").into_bytes();
+        debug!("Signed message: {:?}", hex::encode(&signed_message));
+        let mut signers = std::collections::BTreeSet::new();
+        for sig in &request.signatures {
+            let sig_type = pb::SignatureType::from_i32(sig.signature_type)
+                .ok_or_else(|| from_display("Invalid signature type"))?;
+            let signer = crypto::recover_signer_account(
+                &sig.pubkey,
+                &signed_message,
+                Default::default(),
+                sig_type,
+                &sig.signature,
+            )
+            .map_err(|_| from_display("Invalid signature"))?;
+            if !council_members.contains(&signer) {
+                return Err(from_display("Not a council member"));
+            }
+            debug!("Signed by {signer:?}");
+            signers.insert(signer);
+        }
+        let percent = signers.len() * 100 / council_members.len();
+        // At least 7 of 8 members. 6/8 = 75%, 7/8 = 87.5%.
+        let threshold = 80;
+        if percent < threshold {
+            return Err(from_display("Not enough signatures"));
+        }
+        phactory.allow_handover_to = Some(request.measurement);
+        Ok(())
+    }
+}
+
+fn my_measurement() -> Result<Vec<u8>, RpcError> {
+    let my_la_report = {
+        // target_info and reportdata not important, we just need the report metadata
+        let target_info =
+            sgx_api_lite::target_info().or(Err(from_display("Failed to get SGX info")))?;
+        sgx_api_lite::report(&target_info, &[0; 64])
+            .or(Err(from_display("Cannot read server pRuntime info")))?
+    };
+    let mrenclave = {
+        let ias_fields = IasFields {
+            mr_enclave: my_la_report.body.mr_enclave.m,
+            mr_signer: my_la_report.body.mr_signer.m,
+            isv_prod_id: my_la_report.body.isv_prod_id.to_ne_bytes(),
+            isv_svn: my_la_report.body.isv_svn.to_ne_bytes(),
+            report_data: [0; 64],
+            confidence_level: 0,
+        };
+        ias_fields.extend_mrenclave()
+    };
+    Ok(mrenclave)
 }

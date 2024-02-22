@@ -209,6 +209,7 @@ fn rpc_type(method: &str) -> RpcType {
             SaveClusterState => Public,
             LoadClusterState => Private,
             TryUpgradePinkRuntime => Private,
+            AllowHandoverTo => Private,
         },
     }
 }
@@ -254,6 +255,7 @@ fn default_payload_limit_for_method(method: PhactoryAPIMethod) -> ByteUnit {
         SaveClusterState => 1.kibibytes(),
         LoadClusterState => 1.kibibytes(),
         TryUpgradePinkRuntime => 1.kibibytes(),
+        AllowHandoverTo => 64.kibibytes(),
     }
 }
 

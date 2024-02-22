@@ -189,6 +189,10 @@ pub fn validate_ias_report(
 		return Err(Error::OutdatedIASReport);
 	}
 
+	if (report_timestamp - now as i64) >= 3600 * 24 * 7 {
+		return Err(Error::OutdatedIASReport);
+	}
+
 	let commit = &ias_fields.report_data[..32];
 	if commit != user_data_hash {
 		return Err(Error::InvalidUserDataHash);
@@ -269,7 +273,7 @@ mod test {
 	use frame_support::assert_ok;
 
 	pub const ATTESTATION_SAMPLE: &[u8] = include_bytes!("../../sample/ias_attestation.json");
-	pub const ATTESTATION_TIMESTAMP: u64 = 1631441180; // 2021-09-12T18:06:20.402478
+	pub const ATTESTATION_TIMESTAMP: u64 = 1631469980; // 2021-09-12T18:06:20.402478
 	pub const PRUNTIME_HASH: &str = "518422fa769d2d55982015a0e0417c6a8521fdfc7308f5ec18aaa1b6924bd0f300000000815f42f11cf64430c30bab7816ba596a1da0130c3b028b673133a66cf9a3e0e6";
 
 	#[test]
@@ -305,6 +309,29 @@ mod test {
 				&signature,
 				&raw_signing_cert,
 				ATTESTATION_TIMESTAMP + 10000000,
+				false,
+				vec![]
+			),
+			Err(Error::OutdatedIASReport)
+		);
+
+		assert_ok!(validate_ias_report(
+			commit,
+			report,
+			&signature,
+			&raw_signing_cert,
+			ATTESTATION_TIMESTAMP - 3600*24*7 + 1,
+			false,
+			vec![]
+		));
+
+		assert_eq!(
+			validate_ias_report(
+				commit,
+				report,
+				&signature,
+				&raw_signing_cert,
+				ATTESTATION_TIMESTAMP - 3600*24*7,
 				false,
 				vec![]
 			),
