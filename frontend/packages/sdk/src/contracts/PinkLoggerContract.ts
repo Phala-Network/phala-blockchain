@@ -6,14 +6,15 @@ import type { KeyringPair } from '@polkadot/keyring/types'
 import type { Enum, Struct, Text } from '@polkadot/types'
 import type { AccountId } from '@polkadot/types/interfaces'
 import type { Result } from '@polkadot/types-codec'
-import { hexAddPrefix, hexToString, hexToU8a, u8aToHex } from '@polkadot/util'
-import { blake2AsU8a, sr25519Agreement } from '@polkadot/util-crypto'
+import { hexToString, hexToU8a, u8aToHex } from '@polkadot/util'
+import { blake2AsU8a } from '@polkadot/util-crypto'
 import type { OnChainRegistry } from '../OnChainRegistry'
 import { phalaTypes } from '../options'
-import { type CertificateData, generatePair, signCertificate } from '../pruntime/certificate'
+import { type CertificateData, signCertificate } from '../pruntime/certificate'
 import { InkQuerySidevmMessage } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
 import { type pruntime_rpc } from '../pruntime/proto'
+import { WorkerAgreementKey } from '../pruntime/WorkerAgreementKey'
 import type { AbiLike, InkResponse, SystemContract } from '../types'
 import { isPascalCase, snakeToPascalCase } from '../utils/snakeToPascalCase'
 import { ContractInitialError } from './Errors'
@@ -188,10 +189,9 @@ interface ContractExecResult extends Struct {
 
 function sidevmQueryWithReader({ phactory, remotePubkey, address, cert }: SidevmQueryContext) {
   return async function unsafeRunSidevmQuery<T>(sidevmMessage: Record<string, any>): Promise<T> {
-    const [sk, pk] = generatePair()
     const encodedQuery = InkQuerySidevmMessage(address, sidevmMessage)
-    const queryAgreementKey = sr25519Agreement(sk, hexToU8a(hexAddPrefix(remotePubkey)))
-    const response = await pinkQuery(phactory, pk, queryAgreementKey, encodedQuery.toHex(), cert)
+    const agreement = new WorkerAgreementKey(remotePubkey)
+    const response = await pinkQuery(phactory, agreement, encodedQuery.toHex(), cert)
     const inkResponse = phalaTypes.createType<InkResponse>('InkResponse', response)
     if (inkResponse.result.isErr) {
       let error = `[${inkResponse.result.asErr.index}] ${inkResponse.result.asErr.type}`
