@@ -13,13 +13,13 @@ import type { Bytes, Null, Result, Struct, Text, Vec, u8 } from '@polkadot/types
 import type { AccountId, ContractExecResult, EventRecord } from '@polkadot/types/interfaces'
 import type { Codec, IEnum, IKeyringPair, ISubmittableResult, Registry } from '@polkadot/types/types'
 import { BN, BN_ZERO, hexAddPrefix, hexToU8a, isHex } from '@polkadot/util'
-import { sr25519Agreement, sr25519PairFromSeed } from '@polkadot/util-crypto'
 import { from } from 'rxjs'
 import type { OnChainRegistry } from '../OnChainRegistry'
 import { type Provider } from '../providers/types'
 import type { CertificateData } from '../pruntime/certificate'
 import { EncryptedInkCommand, InkQueryMessage, PlainInkCommand } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
+import { WorkerAgreementKey } from '../pruntime/WorkerAgreementKey'
 import type { AbiLike, AnyProvider, FrameSystemAccountInfo } from '../types'
 import assert from '../utils/assert'
 import { BN_MAX_SUPPLY } from '../utils/constants'
@@ -496,17 +496,7 @@ export class PinkContractPromise<
 
     const { cert } = options
 
-    // Generate a keypair for encryption
-    // NOTE: each instance only has a pre-generated pair now, it maybe better to generate a new keypair every time encrypting
-    const seed = hexToU8a(hexAddPrefix(randomHex(32)))
-    const pair = sr25519PairFromSeed(seed)
-    const [sk, pk] = [pair.secretKey, pair.publicKey]
-
-    if (!this.phatRegistry.remotePubkey) {
-      throw new Error("You OnChainRegistry object doesn't setup correctly and no remotePubkey found.")
-    }
-
-    const queryAgreementKey = sr25519Agreement(sk, hexToU8a(hexAddPrefix(this.phatRegistry.remotePubkey)))
+    const agreement = new WorkerAgreementKey(this.phatRegistry.remotePubkey!)
 
     const inkQueryInternal = async (origin: string | AccountId | Uint8Array): Promise<ContractCallOutcome> => {
       if (typeof origin === 'string') {
@@ -524,7 +514,7 @@ export class PinkContractPromise<
         options.transfer,
         options.estimating !== undefined ? !!options.estimating : isEstimating
       )
-      const data = await pinkQuery(this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert)
+      const data = await pinkQuery(this.phatRegistry.phactory, agreement, payload.toHex(), cert)
       const inkResponse = api.createType<InkResponse>('InkResponse', data)
       if (inkResponse.result.isErr) {
         // @FIXME: not sure this is enough as not yet tested

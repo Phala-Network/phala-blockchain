@@ -8,6 +8,8 @@ import { type EvmAccountMappingProvider } from './providers/EvmAccountMappingPro
 import { type KeyringPairProvider } from './providers/KeyringPairProvider'
 import { type UIKeyringProvider } from './providers/UIKeyringProvider'
 
+export type HexString = `0x${string}`
+
 export interface InkQueryOk extends Enum {
   asInkMessageReturn: Vec<u8>
 }
