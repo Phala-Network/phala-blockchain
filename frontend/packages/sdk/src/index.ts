@@ -25,6 +25,8 @@ export * from './factory_functions'
 export * from './utils/fetchMetadata'
 export * from './types'
 export * from './actions/sendPinkQuery'
+export * from './actions/sendPinkCommand'
+export * from './actions/estimateContract'
 
 export const pruntimeRpc = pruntime_rpc
 export type PhactoryAPI = pruntime_rpc.PhactoryAPI

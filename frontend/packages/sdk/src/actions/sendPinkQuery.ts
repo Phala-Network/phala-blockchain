@@ -10,10 +10,10 @@ import { toAbi } from '../utils/abi/toAbi'
 
 export type SendPinkQueryParameters<TArgs = any[]> = {
   address: string
+  provider: AnyProvider
   abi: AbiLike
   functionName: string
   args?: TArgs
-  provider: AnyProvider
 }
 
 export async function sendPinkQuery<TResult extends Codec = Codec>(
