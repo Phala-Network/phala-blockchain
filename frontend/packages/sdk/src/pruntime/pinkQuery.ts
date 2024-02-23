@@ -2,6 +2,7 @@ import { type CodecMap } from '@polkadot/types'
 import { hexAddPrefix, hexToU8a, u8aToHex } from '@polkadot/util'
 import { sr25519Sign } from '@polkadot/util-crypto'
 import { phalaTypes } from '../options'
+import { type InkResponse } from '../types'
 import { decrypt, encrypt } from '../utils/aes-256-gcm'
 import { randomHex } from '../utils/hex'
 import { type CertificateData } from './certificate'
@@ -27,7 +28,7 @@ export async function pinkQuery(
   agreement: WorkerAgreementKey,
   encodedQuery: string,
   { certificate, pubkey, secret }: CertificateData
-) {
+): Promise<InkResponse> {
   // Encrypt the ContractQuery.
   const encryptedData = createEncryptedData(agreement.publicKey, encodedQuery, agreement.agreementKey)
   const encodedEncryptedData = phalaTypes.createType('EncryptedData', encryptedData).toU8a()
@@ -48,6 +49,6 @@ export async function pinkQuery(
   const res = await pruntimeApi.contractQuery(requestData)
 
   const { data: encryptedResult, iv } = phalaTypes.createType<IEncryptedData>('EncryptedData', res.encodedEncryptedData)
-  const data = decrypt(encryptedResult.toString(), agreement.agreementKey, iv)
-  return hexAddPrefix(data)
+  const data = hexAddPrefix(decrypt(encryptedResult.toString(), agreement.agreementKey, iv))
+  return phalaTypes.createType<InkResponse>('InkResponse', data)
 }
