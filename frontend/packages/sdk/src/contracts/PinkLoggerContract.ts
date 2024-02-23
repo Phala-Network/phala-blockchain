@@ -16,6 +16,7 @@ import { pinkQuery } from '../pruntime/pinkQuery'
 import { type pruntime_rpc } from '../pruntime/proto'
 import { WorkerAgreementKey } from '../pruntime/WorkerAgreementKey'
 import type { AbiLike, InkResponse, SystemContract } from '../types'
+import { toAbi } from '../utils/abi/toAbi'
 import { isPascalCase, snakeToPascalCase } from '../utils/snakeToPascalCase'
 import { ContractInitialError } from './Errors'
 import { type PinkContractPromise } from './PinkContract'
@@ -215,7 +216,7 @@ function postProcessLogRecord<TDecodedEvent extends DecodedEvent = DecodedEvent>
 ): SerMessage<TDecodedEvent>[] {
   let abi: Abi | undefined
   if (abiLike) {
-    abi = abiLike instanceof Abi ? abiLike : new Abi(abiLike)
+    abi = toAbi(abiLike)
   }
 
   return messages.map((message) => {
