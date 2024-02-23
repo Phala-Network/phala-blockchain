@@ -6,6 +6,7 @@ import { decrypt, encrypt } from '../utils/aes-256-gcm'
 import { randomHex } from '../utils/hex'
 import { type CertificateData } from './certificate'
 import { pruntime_rpc as pruntimeRpc } from './proto'
+import { type WorkerAgreementKey } from './WorkerAgreementKey'
 
 interface IEncryptedData extends CodecMap {
   data: Uint8Array
@@ -23,20 +24,18 @@ function createEncryptedData(pk: Uint8Array, data: string, agreementKey: Uint8Ar
 
 export async function pinkQuery(
   pruntimeApi: pruntimeRpc.PhactoryAPI,
-  pk: Uint8Array,
-  queryAgreementKey: Uint8Array,
+  agreement: WorkerAgreementKey,
   encodedQuery: string,
   { certificate, pubkey, secret }: CertificateData
 ) {
   // Encrypt the ContractQuery.
-  const encryptedData = createEncryptedData(pk, encodedQuery, queryAgreementKey)
+  const encryptedData = createEncryptedData(agreement.publicKey, encodedQuery, agreement.agreementKey)
   const encodedEncryptedData = phalaTypes.createType('EncryptedData', encryptedData).toU8a()
 
   // Sign the encrypted data.
   const signature: pruntimeRpc.ISignature = {
     signedBy: certificate,
     signatureType: pruntimeRpc.SignatureType.Sr25519,
-    // signature: sr25519Sign(pubkey, secret, encodedEncryptedData),
     signature: sr25519Sign(encodedEncryptedData, { publicKey: pubkey, secretKey: secret }),
   }
 
@@ -49,6 +48,6 @@ export async function pinkQuery(
   const res = await pruntimeApi.contractQuery(requestData)
 
   const { data: encryptedResult, iv } = phalaTypes.createType<IEncryptedData>('EncryptedData', res.encodedEncryptedData)
-  const data = decrypt(encryptedResult.toString(), queryAgreementKey, iv)
+  const data = decrypt(encryptedResult.toString(), agreement.agreementKey, iv)
   return hexAddPrefix(data)
 }
