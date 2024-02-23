@@ -15,7 +15,7 @@ import { InkQuerySidevmMessage } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
 import { type pruntime_rpc } from '../pruntime/proto'
 import { WorkerAgreementKey } from '../pruntime/WorkerAgreementKey'
-import type { AbiLike, InkResponse, SystemContract } from '../types'
+import type { AbiLike, SystemContract } from '../types'
 import { toAbi } from '../utils/abi/toAbi'
 import { isPascalCase, snakeToPascalCase } from '../utils/snakeToPascalCase'
 import { ContractInitialError } from './Errors'
@@ -192,8 +192,7 @@ function sidevmQueryWithReader({ phactory, remotePubkey, address, cert }: Sidevm
   return async function unsafeRunSidevmQuery<T>(sidevmMessage: Record<string, any>): Promise<T> {
     const encodedQuery = InkQuerySidevmMessage(address, sidevmMessage)
     const agreement = new WorkerAgreementKey(remotePubkey)
-    const response = await pinkQuery(phactory, agreement, encodedQuery.toHex(), cert)
-    const inkResponse = phalaTypes.createType<InkResponse>('InkResponse', response)
+    const inkResponse = await pinkQuery(phactory, agreement, encodedQuery.toHex(), cert)
     if (inkResponse.result.isErr) {
       let error = `[${inkResponse.result.asErr.index}] ${inkResponse.result.asErr.type}`
       if (inkResponse.result.asErr.type === 'RuntimeError') {

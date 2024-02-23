@@ -18,7 +18,7 @@ import type { CertificateData } from '../pruntime/certificate'
 import { InkQueryInstantiate } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
 import { WorkerAgreementKey } from '../pruntime/WorkerAgreementKey'
-import type { AbiLike, FrameSystemAccountInfo, InkQueryError, InkResponse } from '../types'
+import type { AbiLike, FrameSystemAccountInfo, InkQueryError } from '../types'
 import { toAbi } from '../utils/abi/toAbi'
 import assert from '../utils/assert'
 import { BN_MAX_SUPPLY } from '../utils/constants'
@@ -326,8 +326,7 @@ export class PinkBlueprintPromise {
         options.deposit,
         options.transfer
       )
-      const rawResponse = await pinkQuery(this.phatRegistry.phactory, agreement, payload.toHex(), cert)
-      const response = phalaTypes.createType<InkResponse>('InkResponse', rawResponse)
+      const response = await pinkQuery(this.phatRegistry.phactory, agreement, payload.toHex(), cert)
       if (response.result.isErr) {
         return phalaTypes.createType<InkQueryError>('InkQueryError', response.result.asErr.toHex())
       }
