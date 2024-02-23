@@ -19,6 +19,7 @@ import { InkQueryInstantiate } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
 import { WorkerAgreementKey } from '../pruntime/WorkerAgreementKey'
 import type { AbiLike, FrameSystemAccountInfo, InkQueryError, InkResponse } from '../types'
+import { toAbi } from '../utils/abi/toAbi'
 import assert from '../utils/assert'
 import { BN_MAX_SUPPLY } from '../utils/constants'
 import { randomHex } from '../utils/hex'
@@ -211,7 +212,7 @@ export class PinkBlueprintPromise {
       throw new Error('Your phatRegistry has not been initialized correctly.')
     }
 
-    this.abi = abi instanceof Abi ? abi : new Abi(abi, api.registry.getChainProperties())
+    this.abi = toAbi(abi, api.registry.getChainProperties())
     this.api = api
     this._decorateMethod = toPromiseMethod
     this.phatRegistry = phatRegistry
