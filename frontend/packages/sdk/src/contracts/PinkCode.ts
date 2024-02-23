@@ -12,6 +12,7 @@ import type { OnChainRegistry } from '../OnChainRegistry'
 import type { Provider } from '../providers/types'
 import type { CertificateData } from '../pruntime/certificate'
 import type { AbiLike } from '../types'
+import { toAbi } from '../utils/abi/toAbi'
 import { PinkBlueprintPromise } from './PinkBlueprint'
 
 export interface PinkCodeSendOptions {
@@ -130,7 +131,7 @@ export class PinkCodePromise {
       throw new Error('Your phatRegistry has not been initialized correctly.')
     }
 
-    this.abi = abi instanceof Abi ? abi : new Abi(abi, api.registry.getChainProperties())
+    this.abi = toAbi(abi, api.registry.getChainProperties())
     this.api = api
     this._decorateMethod = toPromiseMethod
     this.phatRegistry = phatRegistry
