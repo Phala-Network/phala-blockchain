@@ -3,12 +3,15 @@ import type { Bool, Enum, Map, Null, Option, Result, Struct, Vec, u128, u16, u32
 import type { VecFixed } from '@polkadot/types/codec'
 import type { AccountId, Balance } from '@polkadot/types/interfaces'
 import type { ITuple } from '@polkadot/types/types'
+import type { BN } from '@polkadot/util'
 import type { PinkContractPromise, PinkContractQuery, PinkContractTx } from './contracts/PinkContract'
 import { type EvmAccountMappingProvider } from './providers/EvmAccountMappingProvider'
 import { type KeyringPairProvider } from './providers/KeyringPairProvider'
 import { type UIKeyringProvider } from './providers/UIKeyringProvider'
 
 export type HexString = `0x${string}`
+
+export type LooseNumber = number | string | bigint | BN | null
 
 export interface InkQueryOk extends Enum {
   readonly isInkMessageReturn: boolean

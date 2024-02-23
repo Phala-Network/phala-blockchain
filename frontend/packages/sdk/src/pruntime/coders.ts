@@ -3,12 +3,12 @@ import { type AccountId } from '@polkadot/types/interfaces'
 import { BN, BN_ZERO, hexAddPrefix, hexToU8a, stringToHex, u8aToHex } from '@polkadot/util'
 import { sr25519Agreement } from '@polkadot/util-crypto'
 import { phalaTypes } from '../options'
+import { LooseNumber } from '../types'
 import { encrypt } from '../utils/aes-256-gcm'
 import { randomHex } from '../utils/hex'
 import { generatePair } from './certificate'
 
 type ContractAddress = AccountId | string
-type LooseNumber = number | string | bigint | BN | null
 
 function encodeNumber(n?: LooseNumber, defaults = BN_ZERO) {
   if (!n) {
