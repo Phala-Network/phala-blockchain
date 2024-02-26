@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-#[pink::contract(env = PinkEnvironment)]
+#[ink::contract(env = PinkEnvironment)]
 mod sidevm_deployer {
     use alloc::collections::BTreeMap;
     use alloc::string::ToString;

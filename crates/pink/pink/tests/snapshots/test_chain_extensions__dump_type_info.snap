@@ -1,5 +1,5 @@
 ---
-source: crates/pink/pink-extension/tests/test_chain_extensions.rs
+source: crates/pink/pink/tests/test_chain_extensions.rs
 assertion_line: 203
 expression: "type_info_stringify::<Root>()"
 ---

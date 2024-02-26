@@ -18,7 +18,7 @@ scale = { package = "parity-scale-codec", version = "3.6.5", default-features = 
 scale-info = { version = "2.10.0", default-features = false, features = ["derive"], optional = true }
 
 pink = { default-features = false, path = "../../../crates/pink/pink" }
-phat_js = { version = "0.2.0", default-features = false }
+phat_js = { version = "0.3.0", default-features = false }
 pink-json = { version = "0.4", default-features = false }
 sideabi = { path = "./sideabi" }
 
@@ -30,7 +30,7 @@ features = ["ink-as-dependency"]
 
 [dev-dependencies]
 drink = "0.8.0"
-drink-pink-runtime = "1.2.11"
+pink-drink = "0.1.0"
 tracing-subscriber = "0.3.18"
 
 [build-dependencies]

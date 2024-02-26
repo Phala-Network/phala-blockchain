@@ -4,7 +4,7 @@ extern crate alloc;
 
 pub use check_system::*;
 
-#[pink::contract(env = PinkEnvironment)]
+#[ink::contract(env = PinkEnvironment)]
 mod check_system {
     use alloc::vec::Vec;
     use pink::chain_extension::{signing as sig, JsCode, JsValue};
@@ -410,7 +410,7 @@ mod check_system {
     #[cfg(test)]
     mod tests {
         use drink::session::Session;
-        use drink_pink_runtime::{Callable, DeployBundle, PinkRuntime};
+        use pink_drink::{Callable, DeployBundle, PinkRuntime};
         use ink::codegen::TraitCallBuilder;
         use pink::chain_extension::JsValue;
 

@@ -4,7 +4,7 @@ extern crate alloc;
 
 pub use system::System;
 
-#[pink::contract(env = PinkEnvironment)]
+#[ink::contract(env = PinkEnvironment)]
 mod system {
     use alloc::string::String;
     use alloc::vec::Vec;

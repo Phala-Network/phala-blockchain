@@ -1,5 +1,5 @@
 ---
-source: crates/pink/pink-extension/macro/src/contract.rs
+source: crates/pink/pink/macro/src/contract.rs
 assertion_line: 96
 expression: "rustfmt_snippet::rustfmt_token_stream(&output).unwrap()"
 ---

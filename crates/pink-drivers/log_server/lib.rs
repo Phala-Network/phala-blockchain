@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-#[pink::contract]
+#[ink::contract]
 mod contract {
     use pink::system::DriverError as Error;
 

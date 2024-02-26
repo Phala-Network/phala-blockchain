@@ -1,5 +1,5 @@
 ---
-source: crates/pink/pink-extension/macro/src/driver_system.rs
+source: crates/pink/pink/macro/src/driver_system.rs
 assertion_line: 337
 expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
 ---
