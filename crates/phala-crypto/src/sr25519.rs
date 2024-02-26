@@ -1,6 +1,5 @@
 use crate::{ecdh::EcdhKey, CryptoError};
 
-use alloc::{vec, vec::Vec};
 use ring::hkdf;
 pub use schnorrkel::{MINI_SECRET_KEY_LENGTH, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH};
 use sp_core::{sr25519, Pair};
@@ -23,12 +22,10 @@ pub trait Signing {
 pub trait KDF {
     fn derive_sr25519_pair(&self, info: &[&[u8]]) -> Result<sr25519::Pair, CryptoError>;
 
-    fn derive_ecdh_key(&self) -> Result<EcdhKey, CryptoError>;
+    fn derive_ecdh_key(&self) -> EcdhKey;
 }
 
 pub trait Persistence {
-    fn dump_seed(&self) -> Seed;
-
     fn dump_secret_key(&self) -> Sr25519SecretKey;
 
     fn restore_from_seed(seed: &Seed) -> sr25519::Pair;
@@ -56,20 +53,11 @@ const KDF_SALT: [u8; 32] = [
 /// types.
 ///
 /// Refer to https://github.com/briansmith/ring/blob/main/tests/hkdf_tests.rs
-#[derive(Debug, PartialEq)]
-struct My<T: core::fmt::Debug + PartialEq>(T);
+struct My<T>(T);
 
 impl hkdf::KeyType for My<usize> {
     fn len(&self) -> usize {
         self.0
-    }
-}
-
-impl From<hkdf::Okm<'_, My<usize>>> for My<Vec<u8>> {
-    fn from(okm: hkdf::Okm<My<usize>>) -> Self {
-        let mut r = vec![0_u8; okm.len().0];
-        okm.fill(&mut r).unwrap();
-        Self(r)
     }
 }
 
@@ -80,25 +68,21 @@ impl KDF for sr25519::Pair {
         let prk = salt.extract(&self.as_ref().secret.to_bytes());
         let okm = prk
             .expand(info, My(SEED_BYTES))
-            .map_err(|_| CryptoError::HkdfExpandError)?;
+            .or(Err(CryptoError::HkdfExpandError))?;
 
         let mut seed: Seed = [0_u8; SEED_BYTES];
         okm.fill(seed.as_mut())
-            .map_err(|_| CryptoError::HkdfExpandError)?;
+            .or(Err(CryptoError::HkdfExpandError))?;
 
         Ok(sr25519::Pair::from_seed(&seed))
     }
 
-    fn derive_ecdh_key(&self) -> Result<EcdhKey, CryptoError> {
+    fn derive_ecdh_key(&self) -> EcdhKey {
         EcdhKey::from_secret(&self.as_ref().secret.to_bytes())
     }
 }
 
 impl Persistence for sr25519::Pair {
-    fn dump_seed(&self) -> Seed {
-        panic!("No available seed for sr25519 pair");
-    }
-
     fn dump_secret_key(&self) -> Sr25519SecretKey {
         self.as_ref().secret.to_bytes()
     }
@@ -155,7 +139,7 @@ mod test {
             .derive_sr25519_pair(&[&[255], &[255, 255], &[255, 255, 255]])
             .unwrap();
 
-        let ecdh_key = sr25519_key.derive_ecdh_key().unwrap();
+        let ecdh_key = sr25519_key.derive_ecdh_key();
         // this should not panic
         ecdh_key.public();
     }

@@ -8,8 +8,11 @@ serde = { version = "1.0.130", default-features = false, features = ["derive", "
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0", default-features = false }
 scale = { package = "parity-scale-codec", version = "3.6.5", default-features = false }
 
+[dev-dependencies]
+serde_cbor = "0.11.2"
+
 [features]
-default = ["std"]
+default = ["std", "crypto"]
 crypto = ["sp-core/full_crypto"]
 std = [
     "sp-core/std",

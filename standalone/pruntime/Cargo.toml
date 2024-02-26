@@ -36,7 +36,7 @@ phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-clien
 phactory-pal = { path = "../../crates/phactory/pal" }
 phala-allocator = { path = "../../crates/phala-allocator" }
 phala-rocket-middleware = { path = "../../crates/phala-rocket-middleware" }
-phala-types = { path = "../../crates/phala-types", features = ["enable_serde", "sgx"] }
+phala-types = { path = "../../crates/phala-types", features = ["enable_serde", "sgx", "sgx-attestation"] }
 phala-git-revision = { path = "../../crates/phala-git-revision" }
 phala-clap-parsers = { path = "../../crates/phala-clap-parsers" }
 sgx-api-lite = { path = "../../crates/sgx-api-lite" }

@@ -7,4 +7,8 @@ edition = "2021"
 log = "0.4"
 env_logger = "0.10.0"
 tracing-core = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+
+[dev-dependencies]
+rusty-fork = "0.3.0"
+tracing = "0.1"

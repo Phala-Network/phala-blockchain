@@ -8,11 +8,10 @@ use super::{CommitTransaction, Storage};
 use crate::{capi::OCallImpl, types::Hashing};
 use hash_db::Prefix;
 pub use helper::code_exists;
-use phala_trie_storage::BackendTransaction;
 use pink_capi::v1::ocall::OCalls;
 use sp_core::Hasher;
 use sp_state_machine::{
-    DBValue, DefaultError, TrieBackend, TrieBackendBuilder, TrieBackendStorage,
+    BackendTransaction, DBValue, DefaultError, TrieBackend, TrieBackendBuilder, TrieBackendStorage,
 };
 
 type Hash = <Hashing as Hasher>::Out;

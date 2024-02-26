@@ -336,4 +336,39 @@ mod tests {
         );
         insta::assert_display_snapshot!(rustfmt_snippet::rustfmt_token_stream(&stream).unwrap());
     }
+
+    #[test]
+    fn first_arg_must_be_self() {
+        let stream = patch(
+            syn::parse_quote! {
+                #[ink::trait_definition(namespace = "pink_system")]
+                pub trait System {
+                    #[ink(message)]
+                    fn get_driver(name: String) -> Option<AccountId>;
+                }
+            },
+            syn::parse_quote!(),
+            InterfaceType::System,
+        );
+        let err = rustfmt_snippet::rustfmt_token_stream(&stream).unwrap();
+        let expected = "::core::compile_error! { \"First arg must be self\" }\n";
+        assert_eq!(err, expected);
+    }
+
+    #[test]
+    fn not_ident_args_is_not_allowed() {
+        let stream = patch(
+            syn::parse_quote! {
+                pub trait System {
+                    #[ink(message)]
+                    fn get_driver(Foo{name}: Foo);
+                }
+            },
+            syn::parse_quote!(),
+            InterfaceType::System,
+        );
+        let err = rustfmt_snippet::rustfmt_token_stream(&stream).unwrap();
+        let expected = "::core::compile_error! { \"Only ident is allowed\" }\n";
+        assert_eq!(err, expected);
+    }
 }

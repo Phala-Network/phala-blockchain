@@ -54,3 +54,4 @@ std = [
     "reqwest",
     "urlencoding",
 ]
+get_collateral = ["std"]

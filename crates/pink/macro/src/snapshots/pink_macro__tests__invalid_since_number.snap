@@ -1,0 +1,7 @@
+---
+source: crates/pink/macro/src/tests.rs
+assertion_line: 196
+expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
+---
+compile_error! { "Expected a version string with format \"major.minor\"" }
+

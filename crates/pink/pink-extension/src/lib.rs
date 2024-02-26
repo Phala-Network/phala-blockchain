@@ -51,22 +51,6 @@ where
     }
 }
 
-/// A phala-mq message
-#[derive(Encode, Decode, Debug)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub struct Message {
-    pub payload: Vec<u8>,
-    pub topic: Vec<u8>,
-}
-
-/// A phala-mq message with optional encryption key
-#[derive(Encode, Decode, Debug)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub struct OspMessage {
-    pub message: Message,
-    pub remote_pubkey: Option<EcdhPublicKey>,
-}
-
 /// Hook points defined in the runtime.
 #[derive(Encode, Decode, Debug, Clone)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -512,5 +496,32 @@ mod tests {
     #[test]
     fn test_event_topics() {
         insta::assert_debug_snapshot!(super::PinkEvent::event_topic());
+    }
+
+    #[crate::contract(env = PinkEnvironment)]
+    #[pink(inner = ink::contract)]
+    mod test_contract {
+        use crate::PinkEnvironment;
+
+        #[ink(storage)]
+        pub struct Test {
+            flag: String,
+        }
+        impl Test {
+            #[ink(constructor)]
+            pub fn new(flag: String) -> Self {
+                Self { flag }
+            }
+            #[ink(message)]
+            pub fn flag(&self) -> String {
+                self.flag.clone()
+            }
+        }
+
+        #[test]
+        fn it_works() {
+            let contract = Test::new("".into());
+            assert!(contract.flag().is_empty());
+        }
     }
 }

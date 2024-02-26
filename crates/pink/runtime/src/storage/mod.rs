@@ -5,10 +5,11 @@ use crate::{
 };
 use pink_capi::v1::ocall::ExecContext;
 use scale::Encode;
-use sp_state_machine::{backend::AsTrieBackend, Backend as StorageBackend, Ext, OverlayedChanges};
+use sp_state_machine::{
+    backend::AsTrieBackend, Backend as StorageBackend, BackendTransaction, Ext, OverlayedChanges,
+};
 
 pub use external_backend::ExternalStorage;
-use phala_trie_storage::BackendTransaction;
 
 pub trait CommitTransaction: StorageBackend<Hashing> {
     fn commit_transaction(&mut self, root: Hash, transaction: BackendTransaction<Hashing>);
@@ -26,7 +27,7 @@ impl<Backend> Storage<Backend> {
 
 impl<Backend> Storage<Backend>
 where
-    Backend: StorageBackend<Hashing> + CommitTransaction + AsTrieBackend<Hashing>,
+    Backend: StorageBackend<Hashing> + AsTrieBackend<Hashing>,
 {
     /// Executes a specified Runtime code segment, using the Externalities with this
     /// Storage as backend.
@@ -68,7 +69,12 @@ where
             .expect("BUG: mis-paired transaction");
         (rv, effects, overlay)
     }
+}
 
+impl<Backend> Storage<Backend>
+where
+    Backend: StorageBackend<Hashing> + CommitTransaction + AsTrieBackend<Hashing>,
+{
     /// Same as `execute_with`, but commits the storage changes to the backend.
     pub fn execute_mut<R>(
         &mut self,

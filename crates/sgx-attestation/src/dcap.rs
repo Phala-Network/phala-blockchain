@@ -1,4 +1,4 @@
-#[cfg(feature = "std")]
+#[cfg(feature = "get_collateral")]
 pub mod get_collateral;
 
 mod quote;

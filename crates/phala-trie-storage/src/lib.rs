@@ -62,9 +62,9 @@ where
     {
         let mut trie_db = TrieDBMutBuilder::new(&mut mdb, &mut root).build();
         for (key, value) in pairs {
-            if trie_db.insert(key.as_ref(), value.as_ref()).is_err() {
-                panic!("Insert item into trie DB should not fail");
-            }
+            trie_db
+                .insert(key.as_ref(), value.as_ref())
+                .expect("Insert item into trie DB should not fail");
         }
     }
     TrieBackendBuilder::new(mdb, root).build()

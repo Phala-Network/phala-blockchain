@@ -20,7 +20,7 @@ pub struct EncryptedData {
 
 impl EncryptedData {
     pub fn decrypt(&self, key: &ecdh::EcdhKey) -> Result<Vec<u8>, CryptoError> {
-        let sk = ecdh::agree(key, &self.pubkey)?;
+        let sk = ecdh::agree(key, &self.pubkey);
         let mut tmp_data = self.data.clone();
         let msg = aead::decrypt(&self.iv, &sk, &mut tmp_data)?;
         Ok(msg.to_vec())
@@ -32,7 +32,7 @@ impl EncryptedData {
         iv: aead::IV,
         data: &[u8],
     ) -> Result<Self, CryptoError> {
-        let sk = ecdh::agree(key, &remote_pubkey[..])?;
+        let sk = ecdh::agree(key, remote_pubkey);
         let mut data = data.to_vec();
         aead::encrypt(&iv, &sk, &mut data)?;
         Ok(Self {

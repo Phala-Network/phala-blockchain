@@ -1,0 +1,66 @@
+---
+source: crates/pink/macro/src/tests.rs
+assertion_line: 238
+expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
+---
+pub trait ECalls {
+    fn foo(&self, p0: u8, p1: u8) -> u32;
+    fn bar(&mut self, id: Hash) -> bool;
+}
+impl<T: Impl + CrossCallMut> ECalls for T {
+    fn foo(&self, p0: u8, p1: u8) -> u32 {
+        let inputs = (p0, p1);
+        let ret = self.cross_call(1, &inputs.encode());
+        Decode::decode(&mut &ret[..]).expect("Decode failed")
+    }
+    fn bar(&mut self, id: Hash) -> bool {
+        let inputs = (id);
+        let ret = self.cross_call_mut(2, &inputs.encode());
+        Decode::decode(&mut &ret[..]).expect("Decode failed")
+    }
+}
+pub trait ECallsRo {
+    fn foo(&self, p0: u8, p1: u8) -> u32;
+}
+impl<T: Impl> ECallsRo for T {
+    fn foo(&self, p0: u8, p1: u8) -> u32 {
+        let inputs = (p0, p1);
+        let ret = self.cross_call(1, &inputs.encode());
+        Decode::decode(&mut &ret[..]).expect("Decode failed")
+    }
+}
+pub fn dispatch(
+    executor: &mut (impl Executing + ?Sized),
+    srv: &mut (impl ECalls + ?Sized),
+    id: u32,
+    input: &[u8],
+) -> Vec<u8> {
+    match id {
+        1 => {
+            let (p0, p1) = Decode::decode(&mut &input[..]).expect("Failed to decode args");
+            executor.execute(move || srv.foo(p0, p1)).encode()
+        }
+        2 => {
+            let (id) = Decode::decode(&mut &input[..]).expect("Failed to decode args");
+            executor.execute_mut(move || srv.bar(id)).encode()
+        }
+        _ => panic!("Unknown call id {}", id),
+    }
+}
+pub fn id2name(id: u32) -> &'static str {
+    match id {
+        1u32 => "foo",
+        2u32 => "bar",
+        _ => "unknown",
+    }
+}
+pub struct ECallsAvailable;
+impl ECallsAvailable {
+    pub fn foo(version: (u32, u32)) -> bool {
+        version >= (1u32, 0u32)
+    }
+    pub fn bar(version: (u32, u32)) -> bool {
+        version >= (1u32, 0u32)
+    }
+}
+

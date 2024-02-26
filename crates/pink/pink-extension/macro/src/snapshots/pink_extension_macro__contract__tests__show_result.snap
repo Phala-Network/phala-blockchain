@@ -1,0 +1,26 @@
+---
+source: crates/pink/pink-extension/macro/src/contract.rs
+assertion_line: 96
+expression: "rustfmt_snippet::rustfmt_token_stream(&output).unwrap()"
+---
+# [ink :: contract (env = PinkEnvironment)]
+#[ink::contract]
+mod test {
+    #[ink(storage)]
+    pub struct Test {
+        flag: String,
+    }
+    impl Test {
+        #[ink(constructor)]
+        pub fn new() -> Self {
+            Self {
+                flag: String::new(),
+            }
+        }
+        #[ink(message)]
+        pub fn flag(&self) -> String {
+            self.flag.clone()
+        }
+    }
+}
+

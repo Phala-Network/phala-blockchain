@@ -150,13 +150,13 @@ fn patch_or_err(config: TokenStream, input: TokenStream) -> Result<TokenStream> 
 
     let trait_item = patch_call_trait(trait_item);
 
-    let call_impl = gen_call_impl(&call_methods, &trait_item.ident, &impl_for)?;
-    let trait_ro = gen_call_impl_ro(&call_methods, &trait_item.ident, &impl_for)?;
-    let checker = gen_availability_checker(&call_methods, &trait_item.ident)?;
+    let call_impl = gen_call_impl(&call_methods, &trait_item.ident, &impl_for);
+    let trait_ro = gen_call_impl_ro(&call_methods, &trait_item.ident, &impl_for);
+    let checker = gen_availability_checker(&call_methods, &trait_item.ident);
 
-    let exec_dispatcher = gen_exec_dispatcher(&call_methods, &trait_item.ident)?;
+    let exec_dispatcher = gen_exec_dispatcher(&call_methods, &trait_item.ident);
 
-    let id2name = gen_id2name(&call_methods)?;
+    let id2name = gen_id2name(&call_methods);
 
     Ok(parse_quote! {
         #trait_item
@@ -173,7 +173,7 @@ fn patch_or_err(config: TokenStream, input: TokenStream) -> Result<TokenStream> 
     })
 }
 
-fn gen_exec_dispatcher(call_methods: &[Method], trait_name: &Ident) -> Result<TokenStream> {
+fn gen_exec_dispatcher(call_methods: &[Method], trait_name: &Ident) -> TokenStream {
     let mut calls: Vec<TokenStream> = Vec::new();
 
     for method in call_methods {
@@ -195,7 +195,7 @@ fn gen_exec_dispatcher(call_methods: &[Method], trait_name: &Ident) -> Result<To
         });
     }
 
-    Ok(parse_quote! {
+    parse_quote! {
         pub fn dispatch(
             executor: &mut (impl Executing + ?Sized),
             srv: &mut (impl #trait_name + ?Sized),
@@ -207,22 +207,22 @@ fn gen_exec_dispatcher(call_methods: &[Method], trait_name: &Ident) -> Result<To
                 _ => panic!("Unknown call id {}", id),
             }
         }
-    })
+    }
 }
 
-fn gen_id2name(methods: &[Method]) -> Result<TokenStream> {
+fn gen_id2name(methods: &[Method]) -> TokenStream {
     let (ids, names): (Vec<_>, Vec<_>) = methods
         .iter()
         .map(|m| (m.id, Literal::string(&m.method.sig.ident.to_string())))
         .unzip();
-    Ok(parse_quote! {
+    parse_quote! {
         pub fn id2name(id: u32) -> &'static str {
             match id {
                 #(#ids => #names,)*
                 _ => "unknown",
             }
         }
-    })
+    }
 }
 
 fn parse_args(method: &syn::TraitItemMethod) -> Result<Vec<TokenStream>> {
@@ -247,24 +247,18 @@ fn parse_args(method: &syn::TraitItemMethod) -> Result<Vec<TokenStream>> {
         .collect()
 }
 
-fn gen_call_impl(
-    call_methods: &[Method],
-    trait_name: &Ident,
-    impl_for: &Ident,
-) -> Result<TokenStream> {
-    let impl_methods: Result<Vec<TokenStream>> =
-        call_methods.iter().map(gen_call_impl_method).collect();
-    let impl_methods = impl_methods?;
-    Ok(parse_quote! {
+fn gen_call_impl(call_methods: &[Method], trait_name: &Ident, impl_for: &Ident) -> TokenStream {
+    let impl_methods: Vec<TokenStream> = call_methods.iter().map(gen_call_impl_method).collect();
+    parse_quote! {
         impl<T: #impl_for + CrossCallMut> #trait_name for T {
             #(#impl_methods)*
         }
-    })
+    }
 }
 
-fn gen_availability_checker(call_methods: &[Method], trait_name: &Ident) -> Result<TokenStream> {
+fn gen_availability_checker(call_methods: &[Method], trait_name: &Ident) -> TokenStream {
     let checker_name = Ident::new(&format!("{}Available", trait_name), Span::call_site());
-    Ok(template_quote::quote! {
+    template_quote::quote! {
         pub struct #checker_name;
         impl #checker_name {
             #(for method in call_methods) {
@@ -273,28 +267,22 @@ fn gen_availability_checker(call_methods: &[Method], trait_name: &Ident) -> Resu
                 }
             }
         }
-    })
+    }
 }
 
-fn gen_call_impl_ro(
-    call_methods: &[Method],
-    trait_name: &Ident,
-    impl_for: &Ident,
-) -> Result<TokenStream> {
+fn gen_call_impl_ro(call_methods: &[Method], trait_name: &Ident, impl_for: &Ident) -> TokenStream {
     let methods: Vec<_> = call_methods.iter().filter(|m| !is_mut_self(m)).collect();
     let trait_methods: Vec<_> = methods.iter().map(|m| m.method.clone()).collect();
-    let impl_methods: Result<Vec<TokenStream>> =
-        methods.into_iter().map(gen_call_impl_method).collect();
-    let impl_methods = impl_methods?;
+    let impl_methods: Vec<TokenStream> = methods.into_iter().map(gen_call_impl_method).collect();
     let trait_ro = Ident::new(&format!("{trait_name}Ro"), Span::call_site());
-    Ok(parse_quote! {
+    parse_quote! {
         pub trait #trait_ro {
             #(#trait_methods)*
         }
         impl<T: #impl_for> #trait_ro for T {
             #(#impl_methods)*
         }
-    })
+    }
 }
 
 fn is_mut_self(method: &Method) -> bool {
@@ -304,7 +292,7 @@ fn is_mut_self(method: &Method) -> bool {
     }
 }
 
-fn gen_call_impl_method(method: &Method) -> Result<TokenStream> {
+fn gen_call_impl_method(method: &Method) -> TokenStream {
     let sig = method.method.sig.clone();
     let call_id = Literal::u32_unsuffixed(method.id);
     let args = &method.args;
@@ -313,13 +301,13 @@ fn gen_call_impl_method(method: &Method) -> Result<TokenStream> {
     } else {
         Ident::new("cross_call", Span::call_site())
     };
-    Ok(parse_quote! {
+    parse_quote! {
         #sig {
             let inputs = (#(#args),*);
             let ret = self.#cross_fn(#call_id, &inputs.encode());
             Decode::decode(&mut &ret[..]).expect("Decode failed")
         }
-    })
+    }
 }
 
 fn check_redundant_call_id(methods: &[Method]) -> Result<()> {
@@ -367,15 +355,6 @@ fn patch_call_trait(mut input: syn::ItemTrait) -> syn::ItemTrait {
         if let syn::TraitItem::Method(method) = item {
             // Remove the call attribute
             method.attrs.retain(|attr| !attr.is_xcall());
-            // Add &mut self as receiver
-            if !matches!(&method.sig.inputs.first(), Some(syn::FnArg::Receiver(_))) {
-                method.sig.inputs.insert(
-                    0,
-                    parse_quote! {
-                        &mut self
-                    },
-                );
-            }
         }
     }
     input

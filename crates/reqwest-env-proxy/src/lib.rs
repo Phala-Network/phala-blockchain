@@ -36,3 +36,69 @@ impl EnvProxyBuilder for reqwest::blocking::ClientBuilder {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusty_fork::rusty_fork_test;
+
+    #[track_caller]
+    fn assert_proxy_of(domain: &str, expected: Option<&str>) {
+        for fmt_builder in [
+            {
+                let builder = reqwest::ClientBuilder::new().env_proxy(domain);
+                format!("{:?}", builder)
+            },
+            {
+                let builder = reqwest::blocking::ClientBuilder::new().env_proxy(domain);
+                format!("{:?}", builder)
+            },
+        ] {
+            match expected {
+                Some(expected) => assert!(fmt_builder.contains(expected)),
+                None => assert!(!fmt_builder.contains("proxies")),
+            }
+        }
+    }
+
+    rusty_fork_test! {
+        #[test]
+        fn test_empty_proxy() {
+            std::env::remove_var("all_proxy");
+            assert_proxy_of("example.com", None);
+        }
+
+        #[test]
+        fn test_empty_i2p_proxy() {
+            std::env::remove_var("all_proxy");
+            std::env::remove_var("i2p_proxy");
+            assert_proxy_of("example.i2p", None);
+        }
+
+        #[test]
+        fn test_all_proxy() {
+            std::env::set_var("all_proxy", "socks5://127.0.0.1:1234");
+            assert_proxy_of("example.com", Some("socks5://127.0.0.1:1234"));
+        }
+
+        #[test]
+        fn test_i2p_proxy() {
+            std::env::set_var("all_proxy", "socks5://127.0.0.1:1234");
+            std::env::set_var("i2p_proxy", "socks5://127.0.0.1:4321");
+            assert_proxy_of("example.i2p", Some("socks5://127.0.0.1:4321"));
+        }
+
+        #[test]
+        fn test_i2p_proxy_fallback() {
+            std::env::set_var("all_proxy", "socks5://127.0.0.1:1234");
+            std::env::remove_var("i2p_proxy");
+            assert_proxy_of("example.i2p", Some("socks5://127.0.0.1:1234"));
+        }
+
+        #[test]
+        fn test_invalid_proxy() {
+            std::env::set_var("all_proxy", "socks6://127.0.0.1:1234");
+            assert_proxy_of("example.com", None);
+        }
+    }
+}

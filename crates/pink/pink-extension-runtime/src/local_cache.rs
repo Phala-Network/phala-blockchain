@@ -5,7 +5,7 @@
 
 use once_cell::sync::Lazy;
 use pink_extension::CacheOp;
-use sp_core::crypto::AccountId32;
+use sp_core::{crypto::AccountId32, ByteArray};
 use std::{
     borrow::Cow,
     collections::BTreeMap,
@@ -219,11 +219,6 @@ impl LocalCache {
         store.remove(key)
     }
 
-    #[allow(dead_code)]
-    pub fn remove_storage(&mut self, id: &[u8]) {
-        let _ = self.storages.remove(id);
-    }
-
     pub fn apply_quotas<'a>(&mut self, quotas: impl IntoIterator<Item = (&'a [u8], usize)>) {
         for (contract, max_size) in quotas.into_iter() {
             log::trace!(
@@ -254,20 +249,17 @@ fn now() -> u64 {
 }
 
 pub fn apply_cache_op(contract: &AccountId32, op: CacheOp) {
-    with_global_cache(|cache| {
-        let contract: &[u8] = contract.as_ref();
-        match op {
-            CacheOp::Set { key, value } => {
-                let _ = cache.set(contract.into(), key.into(), value.into());
-            }
-            CacheOp::SetExpiration { key, expiration } => {
-                cache.set_expire(contract.into(), key.into(), expiration)
-            }
-            CacheOp::Remove { key } => {
-                let _ = cache.remove(contract, &key);
-            }
+    match op {
+        CacheOp::Set { key, value } => {
+            let _ = set(contract.as_slice(), &key, &value);
         }
-    })
+        CacheOp::SetExpiration { key, expiration } => {
+            set_expiration(contract.as_slice(), &key, expiration);
+        }
+        CacheOp::Remove { key } => {
+            let _ = remove(contract.as_slice(), &key);
+        }
+    }
 }
 
 pub fn set(contract: &[u8], key: &[u8], value: &[u8]) -> Result<(), StorageQuotaExceeded> {
@@ -409,5 +401,45 @@ mod test {
         assert!(store.get(b"k1").is_none());
         assert!(store.get(b"k3").is_none());
         assert_eq!(store.size, 8);
+    }
+
+    #[test]
+    fn cache_op_works() {
+        use pink_extension::CacheOp;
+
+        enable_test_mode();
+
+        let key = b"hello";
+        let value = b"world";
+        let account = AccountId32::from([2u8; 32]);
+
+        apply_quotas([(account.as_slice(), 1024 * 1024 * 20), (&[1u8; 32], 0)]);
+
+        apply_cache_op(
+            &account,
+            CacheOp::Set {
+                key: key.to_vec(),
+                value: value.to_vec(),
+            },
+        );
+        let result = get(account.as_ref(), key);
+        assert_eq!(result.unwrap(), value);
+
+        apply_cache_op(&account, CacheOp::Remove { key: key.to_vec() });
+
+        let result = get(account.as_slice(), key);
+        assert!(result.is_none());
+
+        let result = set(account.as_slice(), key, value);
+        assert!(result.is_ok());
+        apply_cache_op(
+            &account,
+            CacheOp::SetExpiration {
+                key: key.to_vec(),
+                expiration: 0,
+            },
+        );
+        let result = get(account.as_slice(), key);
+        assert!(result.is_none());
     }
 }

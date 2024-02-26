@@ -212,3 +212,102 @@ mod msg_channel {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::traits::{MessageChannel as _, MessagePrepareChannel as _};
+
+    use alloc::vec::Vec;
+    use sp_core::Pair as _;
+    use type_info_stringify::type_info_stringify;
+
+    crate::bind_topic!(TestMessage, b"/test");
+    #[derive(parity_scale_codec::Encode)]
+    struct TestMessage(Vec<u8>);
+
+    #[derive(Clone, Serialize, Deserialize)]
+    struct TestSigner;
+    impl MessageSigner for TestSigner {
+        fn sign(&self, _data: &[u8]) -> Vec<u8> {
+            vec![0u8; 32]
+        }
+    }
+
+    #[test]
+    fn it_works() {
+        env_logger::builder()
+            .filter_level(log::LevelFilter::Info)
+            .is_test(true)
+            .try_init()
+            .ok();
+
+        let mut mq = MessageSendQueue::new();
+        let mut ch =
+            msg_channel::MessageChannel::new(mq.clone(), MessageOrigin::Reserved, TestSigner);
+
+        ch.clone().set_signer(TestSigner);
+        ch.set_dummy(false);
+        ch.push_message(&TestMessage(b"hello".to_vec()));
+
+        assert_eq!(mq.count_messages(), 1);
+
+        let msg = ch.prepare_message(&TestMessage(b"hello".to_vec()));
+        assert_eq!(msg.message.sender, MessageOrigin::Reserved);
+
+        let serde_ch = serde_cbor::to_vec(&ch).unwrap();
+        ch = crate::checkpoint_helper::using_send_mq(&mut mq, move || {
+            serde_cbor::from_reader(&serde_ch[..]).unwrap()
+        });
+        ch.push_message(&TestMessage(b"hello".to_vec()));
+        assert_eq!(mq.count_messages(), 2);
+
+        insta::assert_debug_snapshot!(mq.all_messages_grouped());
+        insta::assert_debug_snapshot!(mq.all_messages());
+        insta::assert_debug_snapshot!(mq.messages(&MessageOrigin::Reserved));
+
+        let mq2 = MessageSendQueue::default();
+        let mut dump_ch = mq.dump_state(&MessageOrigin::Reserved).unwrap();
+        let serde_ch = serde_cbor::to_vec(&dump_ch).unwrap();
+        dump_ch = serde_cbor::from_reader(&serde_ch[..]).unwrap();
+        mq2.load_state(&MessageOrigin::Reserved, dump_ch);
+
+        assert_eq!(mq2.count_messages(), 2);
+        assert_eq!(
+            mq2.messages(&MessageOrigin::Reserved),
+            mq.messages(&MessageOrigin::Reserved)
+        );
+
+        let serde_mq = serde_cbor::to_vec(&mq).unwrap();
+        mq = serde_cbor::from_reader(&serde_mq[..]).unwrap();
+        assert_eq!(mq.count_messages(), 2);
+    }
+
+    #[test]
+    fn test_serde_mq() {
+        env_logger::builder()
+            .filter_level(log::LevelFilter::Debug)
+            .is_test(true)
+            .try_init()
+            .ok();
+        let mut mq = MessageSendQueue::new();
+        let mut ch = msg_channel::MessageChannel::new(
+            mq.clone(),
+            MessageOrigin::Reserved,
+            crate::Sr25519Signer::from(sp_core::sr25519::Pair::from_seed(&[0u8; 32])),
+        );
+        let serde_ch = serde_cbor::to_vec(&ch).unwrap();
+        ch = crate::checkpoint_helper::using_send_mq(&mut mq, move || {
+            serde_cbor::from_reader(&serde_ch[..]).unwrap()
+        });
+        ch.clone().push_message(&TestMessage(b"hello".to_vec()));
+        assert_eq!(mq.count_messages(), 1);
+    }
+
+    #[test]
+    fn dump_type_info() {
+        insta::assert_display_snapshot!(type_info_stringify::<
+            msg_channel::MessageChannel<crate::Sr25519Signer>,
+        >());
+    }
+}

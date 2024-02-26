@@ -1,6 +1,6 @@
 ---
 source: crates/phactory/src/lib.rs
-assertion_line: 367
+assertion_line: 365
 expression: "type_info_stringify::<Phactory<()>>()"
 ---
 Option = enum {
@@ -516,7 +516,7 @@ Option = enum {
 phactory::contracts::pink::Cluster = struct {
     id: primitive_types::H256,
     config: phactory::contracts::pink::ClusterConfig,
-    storage: pink_runner::storage::ClusterStorage,
+    storage: pink_loader::storage::ClusterStorage,
 }
 phactory::contracts::pink::ClusterConfig = struct {
     log_handler: Option<sp_core::crypto::AccountId32>,
@@ -528,7 +528,7 @@ Option = enum {
     [0]None,
     [1]Some(sp_core::crypto::AccountId32)
 }
-pink_runner::storage::ClusterStorage = struct {
+pink_loader::storage::ClusterStorage = struct {
     root: Option<primitive_types::H256>,
 }
 Option = enum {

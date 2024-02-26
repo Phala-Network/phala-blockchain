@@ -11,13 +11,13 @@ use log::info;
 use pallet_contracts::{
     migration::{v11, v12, v13, v14, v15, NoopMigration},
     weights::SubstrateWeight,
-    Config, Frame, Migration, Schedule,
+    Frame, Migration, Schedule,
 };
 use sp_runtime::{traits::IdentityLookup, Perbill};
 
 pub use extension::get_side_effects;
 pub use pink_capi::types::ExecSideEffects;
-pub use pink_extension::{EcdhPublicKey, HookPoint, Message, OspMessage, PinkEvent};
+pub use pink_extension::{EcdhPublicKey, HookPoint, PinkEvent};
 
 type Block = sp_runtime::generic::Block<
     sp_runtime::generic::Header<BlockNumber, Hashing>,
@@ -135,7 +135,7 @@ parameter_types! {
     pub CodeHashLockupDepositPercent: Perbill = Perbill::from_percent(0);
 }
 
-impl Config for PinkRuntime {
+impl pallet_contracts::Config for PinkRuntime {
     type Time = Timestamp;
     type Randomness = Randomness;
     type Currency = Balances;
@@ -175,6 +175,8 @@ impl Config for PinkRuntime {
 
 #[test]
 fn detect_parameter_changes() {
+    use pallet_contracts::Config;
+
     insta::assert_debug_snapshot!((
         <PinkRuntime as frame_system::Config>::BlockWeights::get(),
         <PinkRuntime as Config>::Schedule::get(),
@@ -204,7 +206,21 @@ pub fn on_idle(n: BlockNumber) {
 }
 
 #[test]
-pub fn check_metadata() {
+fn check_metadata() {
+    let (major, minor, _) = this_crate::version_tuple!();
+    let filename = format!("assets/metadata-{major}.{minor}.bin");
+    check_metadata_with_path(&filename).expect("metadata changed");
+}
+
+#[cfg(coverage)]
+#[test]
+fn check_metadata_for_coverage() {
+    let filename = format!("/tmp/pink-runtime-metadata.bin.cov");
+    assert!(check_metadata_with_path(&filename).is_err())
+}
+
+#[cfg(test)]
+fn check_metadata_with_path(path: &str) -> Result<(), String> {
     let storage = crate::storage::in_memory_backend::InMemoryStorage::default();
     let context = pink_capi::v1::ocall::ExecContext {
         block_number: 1,
@@ -213,17 +229,14 @@ pub fn check_metadata() {
     let metadata: Vec<u8> = storage
         .execute_with(&context, || PinkRuntime::metadata().into())
         .0;
-    let (major, minor, _) = this_crate::version_tuple!();
-    let filename = format!("assets/metadata-{major}.{minor}.bin");
-    let old_metadata = std::fs::read(&filename).unwrap_or_default();
+    let old_metadata = std::fs::read(path).unwrap_or_default();
     if metadata != old_metadata {
-        let new_metadata_path = std::env::current_dir()
-            .unwrap()
-            .join(format!("{filename}.new"));
+        let new_metadata_path = std::env::current_dir().unwrap().join(format!("{path}.new"));
         std::fs::write(&new_metadata_path, metadata).unwrap();
-        panic!(
+        return Err(format!(
             "Pink runtime metadata changed. The new metadata is stored at \n {:?}",
             new_metadata_path.display()
-        );
+        ));
     }
+    Ok(())
 }

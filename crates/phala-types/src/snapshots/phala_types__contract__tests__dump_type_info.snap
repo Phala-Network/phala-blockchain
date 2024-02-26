@@ -1,0 +1,159 @@
+---
+source: crates/phala-types/src/contract.rs
+assertion_line: 427
+expression: "type_info_stringify::<TestData>()"
+---
+phala_types::contract::CodeIndex = enum {
+    [0]WasmCode(Vec<u8>)
+}
+phala_types::contract::InkCommand = enum {
+    [0]InkMessage {
+        nonce: bounded_collections::bounded_vec::BoundedVec<u8,S>,
+        message: Vec<u8>,
+        transfer: u128,
+        gas_limit: u64,
+        storage_deposit_limit: Option<u128>,
+    }
+}
+bounded_collections::bounded_vec::BoundedVec = struct {
+    : Vec<u8>,
+}
+Option = enum {
+    [0]None,
+    [1]Some(u128)
+}
+phala_types::contract::messaging::ClusterEvent = enum {
+    [0]DeployCluster {
+        owner: sp_core::crypto::AccountId32,
+        cluster: primitive_types::H256,
+        workers: Vec<phala_types::WorkerIdentity>,
+        deposit: u128,
+        gas_price: u128,
+        deposit_per_item: u128,
+        deposit_per_byte: u128,
+        treasury_account: sp_core::crypto::AccountId32,
+    }
+}
+sp_core::crypto::AccountId32 = struct {
+    : [u8; 32],
+}
+primitive_types::H256 = struct {
+    : [u8; 32],
+}
+phala_types::WorkerIdentity = struct {
+    pubkey: sp_core::sr25519::Public,
+    ecdh_pubkey: sp_core::sr25519::Public,
+}
+sp_core::sr25519::Public = struct {
+    : [u8; 32],
+}
+phala_types::contract::messaging::ClusterOperation = enum {
+    [0]DispatchKeys(phala_types::contract::messaging::BatchDispatchClusterKeyEvent)
+    [1]DestroyCluster(primitive_types::H256)
+    [2]UploadResource {
+        origin: sp_core::crypto::AccountId32,
+        cluster_id: primitive_types::H256,
+        resource_type: phala_types::contract::messaging::ResourceType,
+        resource_data: Vec<u8>,
+    }
+    [3]Deposit {
+        cluster_id: primitive_types::H256,
+        account: sp_core::crypto::AccountId32,
+        amount: u128,
+    }
+    [4]RemoveWorker {
+        cluster_id: primitive_types::H256,
+        worker: sp_core::sr25519::Public,
+    }
+}
+phala_types::contract::messaging::BatchDispatchClusterKeyEvent = struct {
+    secret_keys: BTreeMap<sp_core::sr25519::Public,phala_types::messaging::EncryptedKey>,
+    cluster: primitive_types::H256,
+    owner: sp_core::crypto::AccountId32,
+    deposit: u128,
+    gas_price: u128,
+    deposit_per_item: u128,
+    deposit_per_byte: u128,
+    treasury_account: sp_core::crypto::AccountId32,
+}
+BTreeMap = struct {
+    : Vec<(sp_core::sr25519::Public, phala_types::messaging::EncryptedKey)>,
+}
+phala_types::messaging::EncryptedKey = struct {
+    ecdh_pubkey: sp_core::sr25519::Public,
+    encrypted_key: Vec<u8>,
+    iv: [u8; 12],
+}
+phala_types::contract::messaging::ResourceType = enum {
+    [0]InkCode,
+    [1]SidevmCode,
+    [2]IndeterministicInkCode,
+}
+phala_types::contract::messaging::WorkerClusterReport = enum {
+    [0]ClusterDeployed {
+        id: primitive_types::H256,
+        pubkey: sp_core::sr25519::Public,
+    }
+    [1]ClusterDeploymentFailed {
+        id: primitive_types::H256,
+    }
+}
+phala_types::contract::ClusterInfo = struct {
+    owner: sp_core::crypto::AccountId32,
+    permission: phala_types::contract::ClusterPermission<sp_core::crypto::AccountId32>,
+    system_contract: primitive_types::H256,
+    gas_price: u128,
+    deposit_per_item: u128,
+    deposit_per_byte: u128,
+}
+phala_types::contract::ClusterPermission = enum {
+    [0]Public,
+    [1]OnlyOwner(sp_core::crypto::AccountId32)
+}
+phala_types::contract::messaging::ContractOperation = enum {
+    [0]InstantiateCode {
+        contract_info: phala_types::contract::ContractInfo<Vec<u8>,sp_core::crypto::AccountId32>,
+        transfer: u128,
+        gas_limit: u64,
+        storage_deposit_limit: Option<u128>,
+    }
+}
+phala_types::contract::ContractInfo = struct {
+    deployer: sp_core::crypto::AccountId32,
+    code_index: phala_types::contract::CodeIndex<Vec<u8>>,
+    salt: Vec<u8>,
+    cluster_id: primitive_types::H256,
+    instantiate_data: Vec<u8>,
+}
+phala_types::contract::ContractQuery = struct {
+    head: phala_types::contract::ContractQueryHead,
+    data: Vec<u8>,
+}
+phala_types::contract::ContractQueryHead = struct {
+    id: primitive_types::H256,
+    nonce: [u8; 32],
+}
+phala_types::contract::ContractQueryResponse = struct {
+    nonce: [u8; 32],
+    result: Vec<u8>,
+}
+phala_types::contract::ContractQueryError = enum {
+    [0]InvalidSignature,
+    [1]ContractNotFound,
+    [2]DecodeError,
+    [3]OtherError(String)
+}
+phala_types::contract::tests::TestData = struct {
+    code_index: phala_types::contract::CodeIndex<Vec<u8>>,
+    ink_command: phala_types::contract::InkCommand,
+    cluster_event: phala_types::contract::messaging::ClusterEvent,
+    cluster_operation: phala_types::contract::messaging::ClusterOperation<sp_core::crypto::AccountId32>,
+    res_type: phala_types::contract::messaging::ResourceType,
+    cluster_report: phala_types::contract::messaging::WorkerClusterReport,
+    cluster_info: phala_types::contract::ClusterInfo<sp_core::crypto::AccountId32>,
+    contract_operation: phala_types::contract::messaging::ContractOperation<Vec<u8>,sp_core::crypto::AccountId32>,
+    query: phala_types::contract::ContractQuery<Vec<u8>>,
+    query_response: phala_types::contract::ContractQueryResponse<Vec<u8>>,
+    query_error: phala_types::contract::ContractQueryError,
+}
+

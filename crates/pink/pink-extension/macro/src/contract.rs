@@ -60,3 +60,98 @@ fn patch_or_err(input: TokenStream2, config: TokenStream2) -> Result<TokenStream
         #module
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works_with_inner() {
+        let config: TokenStream2 = syn::parse_quote!(env = PinkEnvironment);
+        let body: TokenStream2 = syn::parse_quote! {
+            #[ink::contract]
+            #[pink(inner = ink::contract)]
+            mod test {
+                #[ink(storage)]
+                pub struct Test {
+                    flag: String,
+                }
+
+                impl Test {
+                    #[ink(constructor)]
+                    pub fn new() -> Self {
+                        Self {
+                            flag: String::new(),
+                        }
+                    }
+
+                    #[ink(message)]
+                    pub fn flag(&self) -> String {
+                        self.flag.clone()
+                    }
+                }
+            }
+        };
+        let output = patch(body, config);
+        insta::assert_snapshot!(rustfmt_snippet::rustfmt_token_stream(&output).unwrap());
+    }
+
+    #[test]
+    fn it_works_without_inner() {
+        let config: TokenStream2 = syn::parse_quote!(env = PinkEnvironment);
+        let body: TokenStream2 = syn::parse_quote! {
+            #[ink::contract]
+            mod test {
+                #[ink(storage)]
+                pub struct Test {
+                    flag: String,
+                }
+                impl Test {
+                    #[ink(constructor)]
+                    pub fn new() -> Self {
+                        Self {
+                            flag: String::new(),
+                        }
+                    }
+                    #[ink(message)]
+                    pub fn flag(&self) -> String {
+                        self.flag.clone()
+                    }
+                }
+            }
+        };
+        let output = patch(body, config);
+        insta::assert_snapshot!(rustfmt_snippet::rustfmt_token_stream(&output).unwrap());
+    }
+
+    #[test]
+    fn test_invalid_config() {
+        let config: TokenStream2 = syn::parse_quote!(env = PinkEnvironment);
+        let body: TokenStream2 = syn::parse_quote! {
+            #[pink(inner = ink::contract;)]
+            mod test {
+                #[ink(storage)]
+                pub struct Test {
+                    flag: String,
+                }
+                impl Test {
+                    #[ink(constructor)]
+                    pub fn new() -> Self {
+                        Self {
+                            flag: String::new(),
+                        }
+                    }
+                    #[ink(message)]
+                    pub fn flag(&self) -> String {
+                        self.flag.clone()
+                    }
+                }
+            }
+        };
+        let output = patch(body, config);
+        assert_eq!(
+            rustfmt_snippet::rustfmt_token_stream(&output).unwrap(),
+            "::core::compile_error! { \"expected `,`\" }\n"
+        );
+    }
+}
