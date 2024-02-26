@@ -1,3 +1,4 @@
+use core::fmt;
 use phactory_api::{
     blocks::{BlockHeader, StorageProof},
     pruntime_client,
@@ -15,6 +16,8 @@ use subxt::rpc::types::ChainBlockResponse;
 
 use codec::{Decode, Encode};
 
+use crate::headers_cache::BlockInfo;
+
 pub type PrClient = pruntime_client::PRuntimeClient;
 pub type SrSigner = phaxt::PairSigner;
 
@@ -25,8 +28,8 @@ pub type Hash = sp_core::H256;
 pub type Header = sp_runtime::generic::Header<BlockNumber, sp_runtime::traits::BlakeTwo256>;
 pub type Block = SignedBlock<Header, OpaqueExtrinsic>;
 pub type UnsigedBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
-// API: notify
 
+// API: notify
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NotifyReq {
     pub headernum: BlockNumber,
@@ -41,6 +44,28 @@ pub mod utils {
     use phaxt::subxt::rpc::types::ReadProof;
     pub fn raw_proof<T>(read_proof: ReadProof<T>) -> StorageProof {
         read_proof.proof.into_iter().map(|p| p.0).collect()
+    }
+}
+
+pub enum SyncOperation {
+    RelaychainHeader,
+    CachedRelaychainHeader(Vec<BlockInfo>),
+    ParachainHeader((u32, Vec<Vec<u8>>)),
+    Block,
+    ReachedChainTip,
+}
+
+impl fmt::Display for SyncOperation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SyncOperation::RelaychainHeader => write!(f, "RelaychainHeader"),
+            SyncOperation::CachedRelaychainHeader(cached_headers) =>
+                write!(f, "RelaychainHeader with {} cached headers", cached_headers.len()),
+            SyncOperation::ParachainHeader((para_number, _)) =>
+                write!(f, "ParachainHeader to block #{}", para_number),
+            SyncOperation::Block => write!(f, "Block"),
+            SyncOperation::ReachedChainTip => write!(f, "ReachedChainTip"),
+        }
     }
 }
 
