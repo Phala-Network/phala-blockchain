@@ -1,6 +1,6 @@
 ---
 source: crates/pink/macro/src/tests.rs
-assertion_line: 24
+assertion_line: 25
 expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
 ---
 pub trait ECalls {

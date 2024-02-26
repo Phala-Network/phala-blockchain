@@ -1,0 +1,28 @@
+---
+source: crates/phala-mq/src/send_queue.rs
+assertion_line: 283
+expression: "type_info_stringify::<msg_channel::MessageChannel<crate::Sr25519Signer>>()"
+---
+phala_mq::signer::signers::Sr25519Signer = struct {
+}
+phala_mq::types::MessageOrigin = enum {
+    [0]Pallet(Vec<u8>)
+    [1]Contract(primitive_types::H256)
+    [2]Worker(sp_core::sr25519::Public)
+    [3]AccountId(primitive_types::H256)
+    [4]MultiLocation(Vec<u8>)
+    [5]Gatekeeper,
+    [6]Cluster(primitive_types::H256)
+    [255]Reserved,
+}
+primitive_types::H256 = struct {
+    : [u8; 32],
+}
+sp_core::sr25519::Public = struct {
+    : [u8; 32],
+}
+phala_mq::send_queue::msg_channel::MessageChannel = struct {
+    sender: phala_mq::types::MessageOrigin,
+    signer: phala_mq::signer::signers::Sr25519Signer,
+}
+

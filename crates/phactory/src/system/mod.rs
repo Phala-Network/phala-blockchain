@@ -1285,10 +1285,7 @@ impl<Platform: pal::Platform> System<Platform> {
         encrypted_key: &[u8],
         iv: &AeadIV,
     ) -> sr25519::Pair {
-        let my_ecdh_key = self
-            .identity_key
-            .derive_ecdh_key()
-            .expect("Should never failed with valid identity key; qed.");
+        let my_ecdh_key = self.identity_key.derive_ecdh_key();
         let secret =
             key_share::decrypt_secret_from(&my_ecdh_key, &ecdh_pubkey.0, encrypted_key, iv)
                 .expect("Failed to decrypt dispatched key");
@@ -1696,9 +1693,7 @@ fn apply_instantiating_events(
     for (deployer, address) in instantiated_events {
         let contract_id = ContractId::from(address.as_ref());
         let contract_key = get_contract_key(&cluster.key(), &contract_id);
-        let ecdh_key = contract_key
-            .derive_ecdh_key()
-            .expect("Derive ecdh_key should not fail");
+        let ecdh_key = contract_key.derive_ecdh_key();
         let result = install_contract(
             contracts,
             address,

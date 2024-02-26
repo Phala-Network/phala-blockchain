@@ -33,7 +33,7 @@ pub mod messaging {
     pub use phala_mq::types::*;
 
     // TODO.kevin: reuse the Payload in secret_channel.rs.
-    #[derive(Encode, Decode, Debug, TypeInfo)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
     pub enum CommandPayload<T> {
         Plain(T),
     }
@@ -42,7 +42,7 @@ pub mod messaging {
     pub type U64F64Bits = u128;
 
     // Messages: System
-    #[derive(Encode, Decode, TypeInfo)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
     pub struct WorkerEventWithKey {
         pub pubkey: WorkerPublicKey,
         pub event: WorkerEvent,
@@ -58,12 +58,12 @@ pub mod messaging {
         }
     }
 
-    #[derive(Encode, Decode, Debug, TypeInfo)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
     pub struct WorkerInfo {
         pub confidence_level: u8,
     }
 
-    #[derive(Encode, Decode, Debug, TypeInfo)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
     pub enum WorkerEvent {
         /// pallet-registry --> worker
         ///  Indicate a worker register succeeded.
@@ -98,7 +98,7 @@ pub mod messaging {
     }
 
     bind_topic!(SystemEvent, b"phala/system/event");
-    #[derive(Encode, Decode, Debug, TypeInfo)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
     pub enum SystemEvent {
         WorkerEvent(WorkerEventWithKey),
         HeartbeatChallenge(HeartbeatChallenge),
@@ -110,14 +110,14 @@ pub mod messaging {
         }
     }
 
-    #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq, TypeInfo)]
+    #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
     pub struct HeartbeatChallenge {
         pub seed: U256,
         pub online_target: U256,
     }
 
     bind_topic!(WorkingReportEvent, b"phala/mining/report");
-    #[derive(Encode, Decode, Clone, Debug, TypeInfo)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
     pub enum WorkingReportEvent {
         Heartbeat {
             /// The computing session id.
@@ -432,8 +432,7 @@ pub mod messaging {
     }
 }
 
-// Types used in storage
-
+#[cfg(feature = "sgx-attestation")]
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub enum AttestationReport {
     SgxIas {
@@ -447,6 +446,7 @@ pub enum AttestationReport {
     },
 }
 
+#[cfg(feature = "sgx-attestation")]
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub enum Collateral {
     SgxV30(sgx_attestation::dcap::SgxV30QuoteCollateral),
@@ -474,7 +474,7 @@ pub enum WorkerStateEnum<BlockNumber> {
     Stopping,
 }
 
-#[derive(Encode, Decode, Debug, Default, Clone, TypeInfo)]
+#[derive(Encode, Decode, PartialEq, Eq, Debug, Clone, TypeInfo)]
 pub struct WorkerInfo<BlockNumber> {
     // identity
     pub machine_id: Vec<u8>,
@@ -490,19 +490,19 @@ pub struct WorkerInfo<BlockNumber> {
     pub runtime_version: u32,
 }
 
-#[derive(Encode, Decode, Default, TypeInfo)]
+#[derive(Encode, Decode, PartialEq, Eq, Debug, Clone, Default, TypeInfo)]
 pub struct StashInfo<AccountId: Default> {
     pub controller: AccountId,
     pub payout_prefs: PayoutPrefs<AccountId>,
 }
 
-#[derive(Encode, Decode, Default, TypeInfo)]
+#[derive(Encode, Decode, PartialEq, Eq, Debug, Clone, Default, TypeInfo)]
 pub struct PayoutPrefs<AccountId: Default> {
     pub commission: u32,
     pub target: AccountId,
 }
 
-#[derive(Encode, Decode, Debug, Default, Clone, TypeInfo)]
+#[derive(Encode, Decode, PartialEq, Eq, Debug, Clone, TypeInfo)]
 pub struct Score {
     pub overall_score: u32,
     pub features: Vec<u32>,
@@ -602,13 +602,13 @@ pub struct WorkerEndpointPayload {
     pub signing_time: u64,
 }
 
-#[derive(Encode, Decode, Debug, Default, TypeInfo)]
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, Default, TypeInfo)]
 pub struct RoundInfo<BlockNumber> {
     pub round: u32,
     pub start_block: BlockNumber,
 }
 
-#[derive(Encode, Decode, Debug, Default, TypeInfo)]
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, Default, TypeInfo)]
 pub struct StashWorkerStats<Balance> {
     pub slash: Balance,
     pub compute_received: Balance,
@@ -663,5 +663,291 @@ pub fn wrap_content_to_sign(data: &[u8], sigtype: SignedContentType) -> Cow<[u8]
             wrapped.extend_from_slice(data);
             wrapped.into()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use codec::{Decode, Encode};
+    use scale_info::TypeInfo;
+    use sp_core::sr25519::Public;
+
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+    struct TestData {
+        command_payload: messaging::CommandPayload<()>,
+        worker_event_with_key: messaging::WorkerEventWithKey,
+        system_event: messaging::SystemEvent,
+        chanllenge: messaging::HeartbeatChallenge,
+        worker_report_event: messaging::WorkingReportEvent,
+        worker_info_update_event: messaging::WorkingInfoUpdateEvent<u32>,
+        sette_info: messaging::SettleInfo,
+        launch_first_gatekeeper: messaging::GatekeeperLaunch,
+        launch_master_pubkey_on_chain: messaging::GatekeeperLaunch,
+        launch_rotate_master_key: messaging::GatekeeperLaunch,
+        launch_master_pubkey_rotated: messaging::GatekeeperLaunch,
+        new_gatekeeper_event: messaging::NewGatekeeperEvent,
+        remove_gatekeeper_event: messaging::RemoveGatekeeperEvent,
+        master_pubkey_event: messaging::MasterPubkeyEvent,
+        rotate_master_key_event: messaging::RotateMasterKeyEvent,
+        gatekeeper_registered: messaging::GatekeeperChange,
+        gatekeeper_unregistered: messaging::GatekeeperChange,
+        key_distribution: messaging::KeyDistribution<u32>,
+        encrypted_key: messaging::EncryptedKey,
+        dispatch_master_key_event: messaging::DispatchMasterKeyEvent,
+        dispatch_master_key_history_event: messaging::DispatchMasterKeyHistoryEvent<u32>,
+        batch_rotate_master_key_event: messaging::BatchRotateMasterKeyEvent,
+        gatekeeper_event: messaging::GatekeeperEvent,
+        random_number_event: messaging::RandomNumberEvent,
+        tokenomic_parameters: messaging::TokenomicParameters,
+        worker_state_enum: WorkerStateEnum<u32>,
+        worker_info: WorkerInfo<u32>,
+        challenge_handler_info: ChallengeHandlerInfo<u32>,
+        encrypted_worker_key: EncryptedWorkerKey,
+        worker_registration_info: WorkerRegistrationInfo<u32>,
+        worker_registration_info_v2: WorkerRegistrationInfoV2<u32>,
+        versioned_worker_endpoints: VersionedWorkerEndpoints,
+        worker_endpoint_payload: WorkerEndpointPayload,
+        round_info: RoundInfo<u32>,
+        slash_worker_stats: StashWorkerStats<u32>,
+        round_stats: RoundStats,
+        worker_stats_delta: WorkerStatsDelta,
+        payout_reason: PayoutReason,
+        slash_info: StashInfo<u32>,
+    }
+
+    #[test]
+    fn test_codecs() {
+        let data = TestData {
+            command_payload: messaging::CommandPayload::Plain(()),
+            worker_event_with_key: messaging::WorkerEventWithKey {
+                pubkey: Public([0u8; 32]),
+                event: messaging::WorkerEvent::Stopped,
+            },
+            system_event: messaging::SystemEvent::new_worker_event(
+                Public([0u8; 32]),
+                messaging::WorkerEvent::Stopped,
+            ),
+            chanllenge: messaging::HeartbeatChallenge {
+                seed: sp_core::U256::zero(),
+                online_target: sp_core::U256::zero(),
+            },
+            worker_report_event: messaging::WorkingReportEvent::Heartbeat {
+                session_id: 0,
+                challenge_block: 0,
+                challenge_time: 0,
+                iterations: 0,
+            },
+            worker_info_update_event: messaging::WorkingInfoUpdateEvent::new(0, 0),
+            sette_info: messaging::SettleInfo {
+                pubkey: Public([0u8; 32]),
+                v: 0,
+                payout: 0,
+                treasury: 0,
+            },
+            launch_first_gatekeeper: messaging::GatekeeperLaunch::first_gatekeeper(
+                Public([0u8; 32]),
+                Public([0u8; 32]),
+            ),
+            launch_master_pubkey_on_chain: messaging::GatekeeperLaunch::master_pubkey_on_chain(
+                Public([0u8; 32]),
+            ),
+            launch_rotate_master_key: messaging::GatekeeperLaunch::rotate_master_key(0, vec![]),
+            launch_master_pubkey_rotated: messaging::GatekeeperLaunch::master_pubkey_rotated(
+                Public([0u8; 32]),
+            ),
+            new_gatekeeper_event: messaging::NewGatekeeperEvent {
+                pubkey: Public([0u8; 32]),
+                ecdh_pubkey: Public([0u8; 32]),
+            },
+            remove_gatekeeper_event: messaging::RemoveGatekeeperEvent {
+                pubkey: Public([0u8; 32]),
+            },
+            master_pubkey_event: messaging::MasterPubkeyEvent {
+                master_pubkey: Public([0u8; 32]),
+            },
+            rotate_master_key_event: messaging::RotateMasterKeyEvent {
+                rotation_id: 0,
+                gk_identities: vec![],
+            },
+            gatekeeper_registered: messaging::GatekeeperChange::gatekeeper_registered(
+                Public([0u8; 32]),
+                Public([0u8; 32]),
+            ),
+            gatekeeper_unregistered: messaging::GatekeeperChange::gatekeeper_unregistered(Public(
+                [0u8; 32],
+            )),
+            key_distribution: messaging::KeyDistribution::master_key_distribution(
+                Public([0u8; 32]),
+                Public([0u8; 32]),
+                vec![],
+                [0u8; 12],
+            ),
+            encrypted_key: messaging::EncryptedKey {
+                ecdh_pubkey: Public([0u8; 32]),
+                encrypted_key: vec![],
+                iv: [0u8; 12],
+            },
+            dispatch_master_key_event: messaging::DispatchMasterKeyEvent {
+                dest: Public([0u8; 32]),
+                ecdh_pubkey: Public([0u8; 32]),
+                encrypted_master_key: vec![],
+                iv: [0u8; 12],
+            },
+            dispatch_master_key_history_event: messaging::DispatchMasterKeyHistoryEvent {
+                dest: Public([0u8; 32]),
+                encrypted_master_key_history: vec![],
+            },
+            batch_rotate_master_key_event: messaging::BatchRotateMasterKeyEvent {
+                rotation_id: 0,
+                secret_keys: Default::default(),
+                sender: Public([0u8; 32]),
+                sig: vec![],
+            },
+            gatekeeper_event: messaging::GatekeeperEvent::new_random_number(
+                0, [0u8; 32], [0u8; 32],
+            ),
+            random_number_event: messaging::RandomNumberEvent {
+                block_number: 0,
+                random_number: [0u8; 32],
+                last_random_number: [0u8; 32],
+            },
+            tokenomic_parameters: messaging::TokenomicParameters {
+                pha_rate: 0,
+                rho: 0,
+                budget_per_block: 0,
+                v_max: 0,
+                cost_k: 0,
+                cost_b: 0,
+                slash_rate: 0,
+                treasury_ratio: 0,
+                heartbeat_window: 0,
+                rig_k: 0,
+                rig_b: 0,
+                re: 0,
+                k: 0,
+                kappa: 0,
+            },
+            worker_state_enum: WorkerStateEnum::Empty,
+            worker_info: WorkerInfo {
+                machine_id: Default::default(),
+                pubkey: Default::default(),
+                last_updated: 0,
+                state: Default::default(),
+                score: Default::default(),
+                attestation_provider: Default::default(),
+                confidence_level: 0,
+                runtime_version: 0,
+            },
+            challenge_handler_info: ChallengeHandlerInfo {
+                challenge: HandoverChallenge {
+                    sgx_target_info: Default::default(),
+                    block_number: 0,
+                    now: 0,
+                    dev_mode: false,
+                    nonce: Default::default(),
+                },
+                sgx_local_report: Default::default(),
+                ecdh_pubkey: Public([0u8; 32]),
+            },
+            encrypted_worker_key: EncryptedWorkerKey {
+                genesis_block_hash: Default::default(),
+                para_id: 0,
+                dev_mode: false,
+                encrypted_key: messaging::EncryptedKey {
+                    ecdh_pubkey: Public([0u8; 32]),
+                    encrypted_key: vec![],
+                    iv: [0u8; 12],
+                },
+            },
+            worker_registration_info: WorkerRegistrationInfo {
+                version: 0,
+                machine_id: Default::default(),
+                pubkey: Public([0u8; 32]),
+                ecdh_pubkey: Public([0u8; 32]),
+                genesis_block_hash: Default::default(),
+                features: Default::default(),
+                operator: Default::default(),
+            },
+            worker_registration_info_v2: WorkerRegistrationInfoV2 {
+                version: 0,
+                machine_id: Default::default(),
+                pubkey: Public([0u8; 32]),
+                ecdh_pubkey: Public([0u8; 32]),
+                genesis_block_hash: Default::default(),
+                features: Default::default(),
+                operator: Default::default(),
+                para_id: 0,
+                max_consensus_version: 0,
+            },
+            versioned_worker_endpoints: VersionedWorkerEndpoints::V1(vec![]),
+            worker_endpoint_payload: WorkerEndpointPayload {
+                pubkey: Public([0u8; 32]),
+                versioned_endpoints: VersionedWorkerEndpoints::V1(vec![]),
+                signing_time: 0,
+            },
+            round_info: RoundInfo {
+                round: 0,
+                start_block: 0,
+            },
+            slash_worker_stats: StashWorkerStats {
+                slash: 0,
+                compute_received: 0,
+                online_received: 0,
+            },
+            round_stats: RoundStats {
+                round: 0,
+                online_workers: 0,
+                compute_workers: 0,
+                frac_target_online_reward: 0,
+                total_power: 0,
+                frac_target_compute_reward: 0,
+            },
+            worker_stats_delta: WorkerStatsDelta {
+                num_worker: 0,
+                num_power: 0,
+            },
+            payout_reason: PayoutReason::OnlineReward,
+            slash_info: StashInfo::default(),
+        };
+        let cloned = data.clone();
+        let encoded = data.encode();
+        let decoded = TestData::decode(&mut &encoded[..]).unwrap();
+
+        let event = messaging::WorkingInfoUpdateEvent::new(0, 0);
+        assert!(event.is_empty());
+
+        insta::assert_debug_snapshot!(decoded);
+
+        assert_eq!(cloned, decoded);
+        let rotate = messaging::BatchRotateMasterKeyEvent {
+            rotation_id: 0,
+            secret_keys: Default::default(),
+            sender: Public([0u8; 32]),
+            sig: Default::default(),
+        };
+        assert_eq!(
+            rotate.data_be_signed(),
+            vec![
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ]
+        );
+    }
+
+    #[test]
+    fn dump_type_info() {
+        use type_info_stringify::type_info_stringify;
+        insta::assert_display_snapshot!(type_info_stringify::<TestData>());
+    }
+
+    #[test]
+    fn test_wrap_content_to_sign() {
+        let data = vec![1, 2, 3];
+        let wrapped = wrap_content_to_sign(&data, SignedContentType::MqMessage);
+        assert_eq!(wrapped, data);
+
+        let wrapped = wrap_content_to_sign(&data, SignedContentType::RpcResponse);
+        assert_eq!(wrapped, vec![0xff, 1, 1, 2, 3]);
     }
 }

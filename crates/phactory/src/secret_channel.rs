@@ -252,6 +252,6 @@ pub(crate) mod ecdh_serde {
         D: Deserializer<'de>,
     {
         let secret = more::scale_bytes::deserialize(deserializer)?;
-        EcdhKey::from_secret(&secret).map_err(|_| serde::de::Error::custom("invalid ECDH key"))
+        Ok(EcdhKey::from_secret(&secret))
     }
 }

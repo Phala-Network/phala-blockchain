@@ -166,8 +166,7 @@ async fn main() {
 
             let privkey = hex::decode(privkey).expect("Failed to decode hex key");
             let pair =
-                ecdh::EcdhKey::create(privkey.as_slice().try_into().expect("Invalid key length"))
-                    .unwrap();
+                ecdh::EcdhKey::create(&privkey.as_slice().try_into().expect("Invalid key length"));
             println!("Pubkey: {}", hex::encode(pair.public()));
             println!("Privkey: {}", hex::encode(pair.secret()));
         }

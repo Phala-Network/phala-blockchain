@@ -2,41 +2,22 @@
 
 use core::fmt::Arguments;
 pub use log::Level;
-use log::{Log, Metadata, Record};
-
-/// A logger working inside a Pink contract.
-struct Logger;
-
-impl Log for Logger {
-    fn enabled(&self, _metadata: &Metadata) -> bool {
-        true
-    }
-
-    fn log(&self, record: &Record) {
-        if self.enabled(record.metadata()) {
-            let message = alloc::format!("{}", record.args());
-            let level = match record.level() {
-                Level::Error => 1,
-                Level::Warn => 2,
-                Level::Info => 3,
-                Level::Debug => 4,
-                Level::Trace => 5,
-            };
-            crate::ext().log(level, &message);
-        }
-    }
-
-    fn flush(&self) {}
-}
 
 pub fn log(level: Level, args: Arguments<'_>) {
-    let record = Record::builder().level(level).args(args).build();
-    Logger.log(&record);
+    let message = alloc::format!("{}", args);
+    let level = match level {
+        Level::Error => 1,
+        Level::Warn => 2,
+        Level::Info => 3,
+        Level::Debug => 4,
+        Level::Trace => 5,
+    };
+    crate::ext().log(level, &message);
 }
 
 /// The `log!` macro allows you to log messages with specific logging levels in pink contract.
 ///
-/// It is a flexible macro that uses a provided log level (trace, debug, info, warn, error), 
+/// It is a flexible macro that uses a provided log level (trace, debug, info, warn, error),
 /// followed by a format string and an optional list of arguments to generate the final log message.
 #[macro_export]
 macro_rules! log {
@@ -57,8 +38,8 @@ macro_rules! warn {
 
 /// Macro `info!` logs messages at the Info level in pink contract.
 ///
-/// This macro is used to log information that would be helpful to understand the general flow 
-/// of the system's execution. It is similar to `log::info`, but it is specifically designed 
+/// This macro is used to log information that would be helpful to understand the general flow
+/// of the system's execution. It is similar to `log::info`, but it is specifically designed
 /// to work within the pink contract environment.
 ///
 /// # Examples
@@ -72,7 +53,7 @@ macro_rules! warn {
 /// pink::info!("The answer is {}.", answer);
 /// ```
 ///
-/// The above example would log "This is an information message." and 
+/// The above example would log "This is an information message." and
 /// "The answer is 42." at the Info level.
 #[macro_export(local_inner_macros)]
 macro_rules! info {

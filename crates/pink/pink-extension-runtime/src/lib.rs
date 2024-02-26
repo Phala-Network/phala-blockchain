@@ -410,3 +410,110 @@ impl<W: std::io::Write> std::io::Write for LimitedWriter<W> {
         self.writer.flush()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use pink_extension::chain_extension::HttpRequest;
+
+    #[test]
+    fn default_impl_works() {
+        use mock_ext::MockExtension;
+        use pink_extension::chain_extension::PinkExtBackend;
+
+        let mock = MockExtension;
+        let ext = DefaultPinkExtension::<_, String>::new(&mock);
+
+        let key = b"key";
+        let value = b"value";
+        assert!(ext
+            .cache_set(Cow::Borrowed(key), Cow::Borrowed(value))
+            .is_ok());
+        assert!(ext.cache_set_expiration(Cow::Borrowed(key), 100).is_ok());
+        assert!(ext.cache_get(Cow::Borrowed(key)).is_ok());
+        assert!(ext.cache_remove(Cow::Borrowed(key)).is_ok());
+
+        ext.log(1, "error".into()).unwrap();
+        ext.log(2, "warn".into()).unwrap();
+        ext.log(3, "info".into()).unwrap();
+        ext.log(4, "debug".into()).unwrap();
+        ext.log(5, "trace".into()).unwrap();
+        ext.log(6, "unknown".into()).unwrap();
+
+        assert!(ext.is_in_transaction().is_ok());
+        assert!(ext.system_contract_id().is_err());
+        assert!(ext.balance_of([0u8; 32].into()).is_ok());
+        assert!(ext.worker_pubkey().is_ok());
+        assert!(ext.code_exists(Default::default(), false).is_ok());
+        assert!(ext.import_latest_system_code([0u8; 32].into()).is_ok());
+        assert!(ext.runtime_version().is_ok());
+        assert!(ext.current_event_chain_head().is_ok());
+    }
+
+    #[test]
+    fn test_too_large_batch_http_req() {
+        let requests = (0..10)
+            .map(|_| HttpRequest {
+                url: "https://www.google.com".into(),
+                method: "GET".into(),
+                headers: vec![],
+                body: vec![],
+            })
+            .collect::<Vec<_>>();
+        let responses = batch_http_request(requests, 10 * 1000);
+        assert!(responses.is_err());
+    }
+
+    #[cfg(coverage)]
+    #[tokio::test]
+    async fn test_http_req() {
+        let response = tokio::task::spawn_blocking(|| {
+            http_request(
+                HttpRequest {
+                    url: "https://httpbin.org/get".into(),
+                    method: "GET".into(),
+                    headers: vec![("X-Foo".to_string(), "bar".to_string())],
+                    body: vec![],
+                },
+                1000 * 10,
+            )
+        })
+        .await;
+        assert!(response.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_http_req_net_error() {
+        let response = tokio::task::spawn_blocking(|| {
+            http_request(
+                HttpRequest {
+                    url: "http://127.0.0.1:54321/get".into(),
+                    method: "GET".into(),
+                    headers: vec![],
+                    body: vec![],
+                },
+                1000 * 10,
+            )
+        })
+        .await;
+        assert_eq!(response.unwrap().unwrap().status_code, 523);
+    }
+
+    #[tokio::test]
+    async fn test_http_req_zero_timeout() {
+        let response = tokio::task::spawn_blocking(|| {
+            http_request(
+                HttpRequest {
+                    url: "https://httpbin.org/get".into(),
+                    method: "GET".into(),
+                    headers: vec![],
+                    body: vec![],
+                },
+                0,
+            )
+        })
+        .await;
+        assert!(response.unwrap().is_err());
+    }
+}

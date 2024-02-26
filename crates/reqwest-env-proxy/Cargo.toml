@@ -7,7 +7,10 @@ license = "Apache-2.0"
 repository = ""
 
 [dependencies]
-reqwest = { version = "0.11.11", default-features = false, features = [] }
+reqwest = { version = "0.11.11", default-features = false, features = ["socks"] }
+
+[dev-dependencies]
+rusty-fork = "0.3.0"
 
 [features]
 default = ["blocking"]

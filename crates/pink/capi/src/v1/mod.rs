@@ -181,6 +181,30 @@ pub mod ecall {
         #[xcall(id = 24, since = "1.2")]
         fn on_idle(&mut self, block_number: BlockNumber);
     }
+
+    #[test]
+    fn coverage() {
+        dbg!(TransactionArguments {
+            origin: [0u8; 32].into(),
+            transfer: 0,
+            gas_limit: 0,
+            gas_free: false,
+            storage_deposit_limit: None,
+            deposit: 0,
+        }
+        .clone());
+        dbg!(ClusterSetupConfig {
+            cluster_id: [0u8; 32].into(),
+            owner: [0u8; 32].into(),
+            deposit: 0,
+            gas_price: 0,
+            deposit_per_item: 0,
+            deposit_per_byte: 0,
+            treasury_account: [0u8; 32].into(),
+            system_code: vec![],
+        }
+        .clone());
+    }
 }
 
 pub mod ocall {
@@ -196,7 +220,7 @@ pub mod ocall {
     pub type StorageChanges = Vec<(Vec<u8>, (Vec<u8>, i32))>;
 
     /// Information about the current execution context.
-    #[derive(Decode, Encode, Clone, Debug, Default)]
+    #[derive(Decode, Encode, Clone, Default)]
     pub struct ExecContext {
         /// The execution mode.
         pub mode: ExecutionMode,
@@ -206,22 +230,6 @@ pub mod ocall {
         pub now_ms: u64,
         /// The request ID if the current execution is triggered by a RPC request.
         pub req_id: Option<u64>,
-    }
-
-    impl ExecContext {
-        pub fn new(
-            mode: ExecutionMode,
-            block_number: BlockNumber,
-            now_ms: u64,
-            req_id: Option<u64>,
-        ) -> Self {
-            Self {
-                mode,
-                block_number,
-                now_ms,
-                req_id,
-            }
-        }
     }
 
     /// The trait that defines the interface provided by the Pink runtime to the host for outwards bound calls.
@@ -323,4 +331,19 @@ pub mod ocall {
         #[xcall(id = 20)]
         fn origin(&self) -> Option<AccountId>;
     }
+}
+
+#[test]
+fn coverage_ctypes() {
+    #[derive(Debug, Default, Clone)]
+    struct Test {
+        _fsid_t: types::__fsid_t,
+        _imaxdiv_t: types::imaxdiv_t,
+        _max_align_t: types::max_align_t,
+        _ocalls_t: types::ocalls_t,
+        _config_t: types::config_t,
+        _ecalls_t: types::ecalls_t,
+    }
+
+    dbg!(Test::default().clone());
 }

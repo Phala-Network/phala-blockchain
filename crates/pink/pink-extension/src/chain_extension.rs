@@ -70,7 +70,7 @@ impl_codable_error_for!(StorageQuotaExceeded);
 
 pub struct EncodeOutput<T>(pub T);
 
-pub trait EncodeOutputFallbask {
+pub trait EncodeOutputFallback {
     fn encode(self) -> (u32, Vec<u8>);
 }
 
@@ -83,7 +83,7 @@ impl<T: scale::Encode, E: CodableError> EncodeOutput<Result<T, E>> {
     }
 }
 
-impl<T: scale::Encode> EncodeOutputFallbask for EncodeOutput<T> {
+impl<T: scale::Encode> EncodeOutputFallback for EncodeOutput<T> {
     fn encode(self) -> (u32, Vec<u8>) {
         (0, self.0.encode())
     }
@@ -665,7 +665,7 @@ pub trait PinkExt {
     /// - [setTimeout/setInterval](https://developer.mozilla.org/en-US/docs/Web/API/setTimeout)
     /// - [Streams](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API)
     /// - [URL](https://developer.mozilla.org/en-US/docs/Web/API/URL)
-    /// - [TextEncoder/Decoder](https://developer.mozilla.org/zh-CN/docs/Web/API/TextEncoder) - 
+    /// - [TextEncoder/Decoder](https://developer.mozilla.org/zh-CN/docs/Web/API/TextEncoder) -
     ///   Note that this implementation is incomplete. It only supports utf8 encoding/decoding.
     ///   Additional polyfills may be necessary for other requirements.
     /// - [fetch](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch)

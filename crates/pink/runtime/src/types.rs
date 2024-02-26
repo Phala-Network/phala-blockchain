@@ -66,5 +66,8 @@ fn test_decode_and_verify_event_chain() {
         assert!(event.header.parent_hash == parent_hash);
         assert!(event.header.body_hash == body_hash);
         parent_hash = header_hash;
+
+        // For cov
+        assert!(!format!("{:?}", event.clone()).is_empty());
     }
 }

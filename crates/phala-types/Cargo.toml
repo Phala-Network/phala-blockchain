@@ -13,7 +13,12 @@ sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "re
 
 phala-mq = { path = "../../crates/phala-mq", default-features = false }
 prpc = { path = "../../crates/prpc", default-features = false }
-sgx-attestation = { path = "../sgx-attestation", default-features = false }
+sgx-attestation = { path = "../sgx-attestation", default-features = false, optional = true }
+
+[dev-dependencies]
+insta = "1.34.0"
+type-info-stringify = { path = "../type-info-stringify" }
+hex-literal = "*"
 
 [features]
 default = ["std", "enable_serde"]
@@ -23,16 +28,8 @@ std = [
 	"codec/std",
 	"full_crypto",
 	"sp-core/std",
-	"sgx-attestation/std",
+	"sgx-attestation?/std",
 ]
-enable_serde = [
-	"serde/derive",
-	"serde/alloc",
-	"scale-info/serde",
-]
-sgx = [
-	"full_crypto",
-]
-full_crypto = [
-	"sp-core/full_crypto",
-]
+enable_serde = ["serde/derive", "serde/alloc", "scale-info/serde"]
+sgx = ["full_crypto"]
+full_crypto = ["sp-core/full_crypto"]

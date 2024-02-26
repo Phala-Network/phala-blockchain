@@ -38,7 +38,9 @@ pub struct HttpResponse {
     pub body: Vec<u8>,
 }
 
-#[derive(scale::Encode, scale::Decode, TryFromPrimitive, IntoPrimitive, Clone, Copy, Debug)]
+#[derive(
+    scale::Encode, scale::Decode, TryFromPrimitive, IntoPrimitive, Clone, Copy, Debug, PartialEq, Eq,
+)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 #[repr(u32)]
 pub enum HttpRequestError {

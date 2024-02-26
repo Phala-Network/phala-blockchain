@@ -73,18 +73,22 @@ impl Subscriber for SanitizedSubscriber {
     }
 }
 
-pub fn init_subscriber(sanitized: bool) {
+fn fmt_subscriber() -> EnvFilterSubscriber {
     let builder = FmtSubscriber::builder();
     let filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
         .from_env_lossy();
     let ansi = crate::get_env("RUST_LOG_ANSI_COLOR", false);
-    let sanitized = crate::get_env("RUST_LOG_SANITIZED", sanitized);
     let builder = builder
         .with_env_filter(filter)
         .with_ansi(ansi)
         .with_writer(std::io::stderr as fn() -> Stderr);
-    let subscriber = builder.finish();
+    builder.finish()
+}
+
+pub fn init_subscriber(sanitized: bool) {
+    let subscriber = fmt_subscriber();
+    let sanitized = crate::get_env("RUST_LOG_SANITIZED", sanitized);
     if sanitized {
         SanitizedSubscriber(subscriber)
             .try_init()
@@ -93,5 +97,26 @@ pub fn init_subscriber(sanitized: bool) {
         subscriber
             .try_init()
             .expect("Failed to init tracing subscriber");
+    }
+}
+
+#[test]
+fn show_log() {
+    use tracing::{info, info_span};
+
+    init_subscriber(true);
+
+    {
+        let span0 = info_span!("span0");
+        let span1 = info_span!("span1", foo = tracing::field::Empty);
+
+        span1.follows_from(&span0);
+
+        let _entered = span1.enter();
+        let current_span = tracing::Span::current();
+        current_span.record("foo", "baz");
+        let _guard = current_span.enter();
+
+        info!("hello");
     }
 }

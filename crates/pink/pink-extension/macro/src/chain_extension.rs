@@ -1,26 +1,9 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::{parse::Parse, Result, Type};
+use syn::{Result, Type};
 use unzip3::Unzip3 as _;
 
 use ink_ir::ChainExtension;
-
-#[derive(Debug, PartialEq, Eq)]
-struct MetaNameValue {
-    name: syn::Ident,
-    eq_token: syn::token::Eq,
-    value: syn::Path,
-}
-
-impl Parse for MetaNameValue {
-    fn parse(input: syn::parse::ParseStream) -> Result<Self> {
-        Ok(Self {
-            name: input.parse()?,
-            eq_token: input.parse()?,
-            value: input.parse()?,
-        })
-    }
-}
 
 pub(crate) fn patch(input: TokenStream2) -> TokenStream2 {
     match patch_chain_extension_or_err(input) {
@@ -148,7 +131,7 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
                     match $func_id {
                         #(
                             #ids => {
-                                use $crate::chain_extension::EncodeOutputFallbask as _;
+                                use $crate::chain_extension::EncodeOutputFallback as _;
                                 let (#(#args),*) = $env.read_as_unbounded($env.in_len())?;
                                 let output = $handler.#names(#(#args),*)?;
                                 Some($crate::chain_extension::EncodeOutput(output).encode())
@@ -166,7 +149,7 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
         let mut mod_item: syn::ItemMod = syn::parse_quote! {
             pub mod mock {
                 use super::*;
-                use super::test::MockExtension;
+                use super::test::MockExtensionFn;
             }
         };
         let mut reg_expressions: Vec<TokenStream2> = Default::default();
@@ -211,26 +194,34 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
                 .collect();
             let output = m.sig().output.clone();
             mod_item
-            .content
-            .as_mut()
-            .unwrap()
-            .1
-            .push(syn::parse_quote! {
-                pub fn #fname(mut call: impl FnMut(#(#input_types),*) #output + 'static) {
-                    ink::env::test::register_chain_extension(
-                        MockExtension::<_, _, _, #id>::new(
-                            move |(#(#input_args),*): (#(#input_types_cow),*)| call(#(#input_args_asref),*)
-                        ),
-                    );
-                }
-            });
+                .content
+                .as_mut()
+                .unwrap()
+                .1
+                .push(syn::parse_quote! {
+                    pub fn #fname(mut call: impl FnMut(#(#input_types),*) #output + 'static) {
+                        ink::env::test::register_chain_extension(
+                            MockExtensionFn::<_, _, #id>::new(
+                                move |(#(#input_args),*): (#(#input_types_cow),*)| {
+                                    use crate::chain_extension::EncodeOutputFallback as _;
+                                    let output = call(#(#input_args_asref),*);
+                                    crate::chain_extension::EncodeOutput(output).encode()
+                                }
+                            ),
+                        );
+                    }
+                });
             reg_expressions.push(syn::parse_quote! {
-            ink::env::test::register_chain_extension(
-                MockExtension::<_, _, _, #id>::new(
-                    move |(#(#input_args),*): (#(#input_types_cow),*)| ext_impl.#origin_fname(#(#input_args),*).unwrap()
-                ),
-            );
-        });
+                ink::env::test::register_chain_extension(
+                    MockExtensionFn::<_, _, #id>::new(
+                        move |(#(#input_args),*): (#(#input_types_cow),*)| {
+                            use crate::chain_extension::EncodeOutputFallback as _;
+                            let output = ext_impl.#origin_fname(#(#input_args),*).unwrap();
+                            crate::chain_extension::EncodeOutput(output).encode()
+                        }
+                    ),
+                );
+            });
         }
 
         let backend_trait_ident = &backend_trait.ident;

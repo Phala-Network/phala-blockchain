@@ -468,7 +468,7 @@ impl TxManager {
                 let e = e.encode();
                 match SubxtDispatchError::decode_from(&e, api.metadata())? {
                     SubxtDispatchError::Module(e) => {
-                        anyhow::bail!("{:?}", &e);
+                        anyhow::bail!("{}", &e);
                     }
                     _ => {
                         anyhow::bail!("NotAModuleError: {:?}", &e);

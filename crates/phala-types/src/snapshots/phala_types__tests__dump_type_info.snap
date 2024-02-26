@@ -1,0 +1,321 @@
+---
+source: crates/phala-types/src/lib.rs
+assertion_line: 929
+expression: "type_info_stringify::<TestData>()"
+---
+phala_types::messaging::CommandPayload = enum {
+    [0]Plain(())
+}
+phala_types::messaging::WorkerEventWithKey = struct {
+    pubkey: sp_core::sr25519::Public,
+    event: phala_types::messaging::WorkerEvent,
+}
+sp_core::sr25519::Public = struct {
+    : [u8; 32],
+}
+phala_types::messaging::WorkerEvent = enum {
+    [0]Registered(phala_types::messaging::WorkerInfo)
+    [1]BenchStart {
+        duration: u32,
+    }
+    [2]BenchScore(u32)
+    [3]Started {
+        session_id: u32,
+        init_v: u128,
+        init_p: u32,
+    }
+    [4]Stopped,
+    [5]EnterUnresponsive,
+    [6]ExitUnresponsive,
+}
+phala_types::messaging::WorkerInfo = struct {
+    confidence_level: u8,
+}
+phala_types::messaging::SystemEvent = enum {
+    [0]WorkerEvent(phala_types::messaging::WorkerEventWithKey)
+    [1]HeartbeatChallenge(phala_types::messaging::HeartbeatChallenge)
+}
+phala_types::messaging::HeartbeatChallenge = struct {
+    seed: primitive_types::U256,
+    online_target: primitive_types::U256,
+}
+primitive_types::U256 = struct {
+    : [u64; 4],
+}
+phala_types::messaging::WorkingReportEvent = enum {
+    [0]Heartbeat {
+        session_id: u32,
+        challenge_block: u32,
+        challenge_time: u64,
+        iterations: u64,
+    }
+    [1]HeartbeatV2 {
+        session_id: u32,
+        challenge_block: u32,
+        challenge_time: u64,
+        iterations: u64,
+        n_clusters: u32,
+        n_contracts: u32,
+    }
+}
+phala_types::messaging::WorkingInfoUpdateEvent = struct {
+    block_number: u32,
+    timestamp_ms: u64,
+    offline: Vec<sp_core::sr25519::Public>,
+    recovered_to_online: Vec<sp_core::sr25519::Public>,
+    settle: Vec<phala_types::messaging::SettleInfo>,
+}
+phala_types::messaging::SettleInfo = struct {
+    pubkey: sp_core::sr25519::Public,
+    v: u128,
+    payout: u128,
+    treasury: u128,
+}
+phala_types::messaging::GatekeeperLaunch = enum {
+    [0]FirstGatekeeper(phala_types::messaging::NewGatekeeperEvent)
+    [1]MasterPubkeyOnChain(phala_types::messaging::MasterPubkeyEvent)
+    [2]RotateMasterKey(phala_types::messaging::RotateMasterKeyEvent)
+    [3]MasterPubkeyRotated(phala_types::messaging::MasterPubkeyEvent)
+}
+phala_types::messaging::NewGatekeeperEvent = struct {
+    pubkey: sp_core::sr25519::Public,
+    ecdh_pubkey: sp_core::sr25519::Public,
+}
+phala_types::messaging::MasterPubkeyEvent = struct {
+    master_pubkey: sp_core::sr25519::Public,
+}
+phala_types::messaging::RotateMasterKeyEvent = struct {
+    rotation_id: u64,
+    gk_identities: Vec<phala_types::WorkerIdentity>,
+}
+phala_types::WorkerIdentity = struct {
+    pubkey: sp_core::sr25519::Public,
+    ecdh_pubkey: sp_core::sr25519::Public,
+}
+phala_types::messaging::RemoveGatekeeperEvent = struct {
+    pubkey: sp_core::sr25519::Public,
+}
+phala_types::messaging::GatekeeperChange = enum {
+    [0]Registered(phala_types::messaging::NewGatekeeperEvent)
+    [1]Unregistered(phala_types::messaging::RemoveGatekeeperEvent)
+}
+phala_types::messaging::KeyDistribution = enum {
+    [0]MasterKeyDistribution(phala_types::messaging::DispatchMasterKeyEvent)
+    [1]MasterKeyRotation(phala_types::messaging::BatchRotateMasterKeyEvent)
+    [2]MasterKeyHistory(phala_types::messaging::DispatchMasterKeyHistoryEvent<u32>)
+}
+phala_types::messaging::DispatchMasterKeyEvent = struct {
+    dest: sp_core::sr25519::Public,
+    ecdh_pubkey: sp_core::sr25519::Public,
+    encrypted_master_key: Vec<u8>,
+    iv: [u8; 12],
+}
+phala_types::messaging::BatchRotateMasterKeyEvent = struct {
+    rotation_id: u64,
+    secret_keys: BTreeMap<sp_core::sr25519::Public,phala_types::messaging::EncryptedKey>,
+    sender: sp_core::sr25519::Public,
+    sig: Vec<u8>,
+}
+BTreeMap = struct {
+    : Vec<(sp_core::sr25519::Public, phala_types::messaging::EncryptedKey)>,
+}
+phala_types::messaging::EncryptedKey = struct {
+    ecdh_pubkey: sp_core::sr25519::Public,
+    encrypted_key: Vec<u8>,
+    iv: [u8; 12],
+}
+phala_types::messaging::DispatchMasterKeyHistoryEvent = struct {
+    dest: sp_core::sr25519::Public,
+    encrypted_master_key_history: Vec<(u64, u32, phala_types::messaging::EncryptedKey)>,
+}
+phala_types::messaging::GatekeeperEvent = enum {
+    [0]NewRandomNumber(phala_types::messaging::RandomNumberEvent)
+    [1]TokenomicParametersChanged(phala_types::messaging::TokenomicParameters)
+    [2]_RepairV,
+    [3]_PhalaLaunched,
+    [4]_UnrespFix,
+}
+phala_types::messaging::RandomNumberEvent = struct {
+    block_number: u32,
+    random_number: [u8; 32],
+    last_random_number: [u8; 32],
+}
+phala_types::messaging::TokenomicParameters = struct {
+    pha_rate: u128,
+    rho: u128,
+    budget_per_block: u128,
+    v_max: u128,
+    cost_k: u128,
+    cost_b: u128,
+    slash_rate: u128,
+    treasury_ratio: u128,
+    heartbeat_window: u32,
+    rig_k: u128,
+    rig_b: u128,
+    re: u128,
+    k: u128,
+    kappa: u128,
+}
+phala_types::WorkerStateEnum = enum {
+    [0]Empty,
+    [1]Free,
+    [2]Gatekeeper,
+    [3]Pending,
+    [4]Computing(u32)
+    [5]Stopping,
+}
+phala_types::WorkerInfo = struct {
+    machine_id: Vec<u8>,
+    pubkey: Vec<u8>,
+    last_updated: u64,
+    state: phala_types::WorkerStateEnum<u32>,
+    score: Option<phala_types::Score>,
+    attestation_provider: Option<phala_types::AttestationProvider>,
+    confidence_level: u8,
+    runtime_version: u32,
+}
+Option = enum {
+    [0]None,
+    [1]Some(phala_types::Score)
+}
+phala_types::Score = struct {
+    overall_score: u32,
+    features: Vec<u32>,
+}
+Option = enum {
+    [0]None,
+    [1]Some(phala_types::AttestationProvider)
+}
+phala_types::AttestationProvider = enum {
+    [0]Root,
+    [1]Ias,
+    [2]Dcap,
+}
+phala_types::ChallengeHandlerInfo = struct {
+    challenge: phala_types::HandoverChallenge<u32>,
+    sgx_local_report: Vec<u8>,
+    ecdh_pubkey: sp_core::sr25519::Public,
+}
+phala_types::HandoverChallenge = struct {
+    sgx_target_info: Vec<u8>,
+    block_number: u32,
+    now: u64,
+    dev_mode: bool,
+    nonce: [u8; 32],
+}
+phala_types::EncryptedWorkerKey = struct {
+    genesis_block_hash: primitive_types::H256,
+    para_id: u32,
+    dev_mode: bool,
+    encrypted_key: phala_types::messaging::EncryptedKey,
+}
+primitive_types::H256 = struct {
+    : [u8; 32],
+}
+phala_types::WorkerRegistrationInfo = struct {
+    version: u32,
+    machine_id: Vec<u8>,
+    pubkey: sp_core::sr25519::Public,
+    ecdh_pubkey: sp_core::sr25519::Public,
+    genesis_block_hash: primitive_types::H256,
+    features: Vec<u32>,
+    operator: Option<u32>,
+}
+Option = enum {
+    [0]None,
+    [1]Some(u32)
+}
+phala_types::WorkerRegistrationInfoV2 = struct {
+    version: u32,
+    machine_id: Vec<u8>,
+    pubkey: sp_core::sr25519::Public,
+    ecdh_pubkey: sp_core::sr25519::Public,
+    genesis_block_hash: primitive_types::H256,
+    features: Vec<u32>,
+    operator: Option<u32>,
+    para_id: u32,
+    max_consensus_version: u32,
+}
+phala_types::VersionedWorkerEndpoints = enum {
+    [0]V1(Vec<String>)
+}
+phala_types::WorkerEndpointPayload = struct {
+    pubkey: sp_core::sr25519::Public,
+    versioned_endpoints: phala_types::VersionedWorkerEndpoints,
+    signing_time: u64,
+}
+phala_types::RoundInfo = struct {
+    round: u32,
+    start_block: u32,
+}
+phala_types::StashWorkerStats = struct {
+    slash: u32,
+    compute_received: u32,
+    online_received: u32,
+}
+phala_types::RoundStats = struct {
+    round: u32,
+    online_workers: u32,
+    compute_workers: u32,
+    frac_target_online_reward: u32,
+    total_power: u32,
+    frac_target_compute_reward: u32,
+}
+phala_types::WorkerStatsDelta = struct {
+    num_worker: i32,
+    num_power: i32,
+}
+phala_types::PayoutReason = enum {
+    [0]OnlineReward,
+    [1]ComputeReward,
+}
+phala_types::StashInfo = struct {
+    controller: u32,
+    payout_prefs: phala_types::PayoutPrefs<u32>,
+}
+phala_types::PayoutPrefs = struct {
+    commission: u32,
+    target: u32,
+}
+phala_types::tests::TestData = struct {
+    command_payload: phala_types::messaging::CommandPayload<()>,
+    worker_event_with_key: phala_types::messaging::WorkerEventWithKey,
+    system_event: phala_types::messaging::SystemEvent,
+    chanllenge: phala_types::messaging::HeartbeatChallenge,
+    worker_report_event: phala_types::messaging::WorkingReportEvent,
+    worker_info_update_event: phala_types::messaging::WorkingInfoUpdateEvent<u32>,
+    sette_info: phala_types::messaging::SettleInfo,
+    launch_first_gatekeeper: phala_types::messaging::GatekeeperLaunch,
+    launch_master_pubkey_on_chain: phala_types::messaging::GatekeeperLaunch,
+    launch_rotate_master_key: phala_types::messaging::GatekeeperLaunch,
+    launch_master_pubkey_rotated: phala_types::messaging::GatekeeperLaunch,
+    new_gatekeeper_event: phala_types::messaging::NewGatekeeperEvent,
+    remove_gatekeeper_event: phala_types::messaging::RemoveGatekeeperEvent,
+    master_pubkey_event: phala_types::messaging::MasterPubkeyEvent,
+    rotate_master_key_event: phala_types::messaging::RotateMasterKeyEvent,
+    gatekeeper_registered: phala_types::messaging::GatekeeperChange,
+    gatekeeper_unregistered: phala_types::messaging::GatekeeperChange,
+    key_distribution: phala_types::messaging::KeyDistribution<u32>,
+    encrypted_key: phala_types::messaging::EncryptedKey,
+    dispatch_master_key_event: phala_types::messaging::DispatchMasterKeyEvent,
+    dispatch_master_key_history_event: phala_types::messaging::DispatchMasterKeyHistoryEvent<u32>,
+    batch_rotate_master_key_event: phala_types::messaging::BatchRotateMasterKeyEvent,
+    gatekeeper_event: phala_types::messaging::GatekeeperEvent,
+    random_number_event: phala_types::messaging::RandomNumberEvent,
+    tokenomic_parameters: phala_types::messaging::TokenomicParameters,
+    worker_state_enum: phala_types::WorkerStateEnum<u32>,
+    worker_info: phala_types::WorkerInfo<u32>,
+    challenge_handler_info: phala_types::ChallengeHandlerInfo<u32>,
+    encrypted_worker_key: phala_types::EncryptedWorkerKey,
+    worker_registration_info: phala_types::WorkerRegistrationInfo<u32>,
+    worker_registration_info_v2: phala_types::WorkerRegistrationInfoV2<u32>,
+    versioned_worker_endpoints: phala_types::VersionedWorkerEndpoints,
+    worker_endpoint_payload: phala_types::WorkerEndpointPayload,
+    round_info: phala_types::RoundInfo<u32>,
+    slash_worker_stats: phala_types::StashWorkerStats<u32>,
+    round_stats: phala_types::RoundStats,
+    worker_stats_delta: phala_types::WorkerStatsDelta,
+    payout_reason: phala_types::PayoutReason,
+    slash_info: phala_types::StashInfo<u32>,
+}
+
