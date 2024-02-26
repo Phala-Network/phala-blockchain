@@ -1,7 +1,8 @@
 use proc_macro::TokenStream;
 
 mod macro_xcall;
-#[cfg(test)]
+
+#[cfg(all(test, target_arch = "x86_64", target_os = "linux"))]
 mod tests;
 
 #[proc_macro_attribute]

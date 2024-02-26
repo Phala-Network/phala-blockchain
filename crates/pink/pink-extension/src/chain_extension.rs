@@ -72,7 +72,7 @@ impl_codable_error_for!(StorageQuotaExceeded);
 
 pub struct EncodeOutput<T>(pub T);
 
-pub trait EncodeOutputFallbask {
+pub trait EncodeOutputFallback {
     fn encode(self) -> (u32, Vec<u8>);
 }
 
@@ -85,7 +85,7 @@ impl<T: scale::Encode, E: CodableError> EncodeOutput<Result<T, E>> {
     }
 }
 
-impl<T: scale::Encode> EncodeOutputFallbask for EncodeOutput<T> {
+impl<T: scale::Encode> EncodeOutputFallback for EncodeOutput<T> {
     fn encode(self) -> (u32, Vec<u8>) {
         (0, self.0.encode())
     }

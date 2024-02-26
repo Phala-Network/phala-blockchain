@@ -33,3 +33,13 @@ impl log::Log for SanitizedLogger {
         self.0.flush()
     }
 }
+
+#[test]
+fn flush_works() {
+    use log::Log as _;
+
+    let env = env_logger::Env::default().default_filter_or("info");
+    let mut builder = env_logger::Builder::from_env(env);
+    let logger = SanitizedLogger(builder.build());
+    logger.flush();
+}

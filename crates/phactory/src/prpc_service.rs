@@ -1050,9 +1050,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             hex::encode(receiver),
             block_number,
         );
-        let key = ecdh::agree(&system.ecdh_key, &receiver).or(Err(from_display(
-            "Failed to derive ECDH key for cluster state",
-        )))?;
+        let key = ecdh::agree(&system.ecdh_key, &receiver.0);
         let key128 = derive_key_for_cluster_state(&key);
         let nonce = rand::thread_rng().gen();
         let dir = public_data_dir(&self.args.storage_path);
@@ -1103,9 +1101,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             )));
         }
 
-        let key = ecdh::agree(&system.ecdh_key, &pubkey).or(Err(from_display(
-            "Failed to derive ECDH key for cluster state",
-        )))?;
+        let key = ecdh::agree(&system.ecdh_key, &pubkey);
         let key128 = derive_key_for_cluster_state(&key);
         let mut dec_reader = aead::stream::new_aes128gcm_reader(key128, &mut reader);
 
@@ -1752,9 +1748,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
 
         // generate and save tmp key only for key handover encryption
         let handover_key = crate::new_sr25519_key();
-        let handover_ecdh_key = handover_key
-            .derive_ecdh_key()
-            .expect("should never fail with valid key; qed.");
+        let handover_ecdh_key = handover_key.derive_ecdh_key();
         let ecdh_pubkey = phala_types::EcdhPublicKey(handover_ecdh_key.public());
         phactory.handover_ecdh_key = Some(handover_ecdh_key);
 
@@ -1862,7 +1856,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         _request: (),
     ) -> RpcResult<pb::DcapHandoverChallenge> {
-        let ntp_time_secs = crate::nts::nts_get_time_secs()
+        let ntp_servers = self
+            .lock_phactory(false, true)?
+            .runtime_state()?
+            .chain_storage
+            .trusted_ntp_servers();
+        let ntp_time_secs = crate::nts::nts_get_time_secs(&ntp_servers)
             .await
             .map_err(from_display)?;
         let mut phactory = self.lock_phactory(false, true)?;
@@ -1886,7 +1885,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     ) -> RpcResult<pb::DcapHandoverWorkerKey> {
         const CLIENT_TIMEOUT_SECS: u64 = 60;
 
-        let ntp_now = crate::nts::nts_get_time_secs()
+        let ntp_servers = self
+            .lock_phactory(false, true)?
+            .runtime_state()?
+            .chain_storage
+            .trusted_ntp_servers();
+        let ntp_now = crate::nts::nts_get_time_secs(&ntp_servers)
             .await
             .map_err(from_display)?;
         let mut phactory = self.lock_phactory(false, true)?;
@@ -1984,9 +1988,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
 
         // generate and save tmp key only for key handover encryption
         let handover_key = crate::new_sr25519_key();
-        let handover_ecdh_key = handover_key
-            .derive_ecdh_key()
-            .expect("should never fail with valid key; qed.");
+        let handover_ecdh_key = handover_key.derive_ecdh_key();
         let ecdh_pubkey = phala_types::EcdhPublicKey(handover_ecdh_key.public());
         phactory.handover_ecdh_key = Some(handover_ecdh_key);
 

@@ -95,4 +95,23 @@ mod allocator {
             DEALLOC_FUNC(ptr, layout.size(), layout.align())
         }
     }
+
+    #[test]
+    fn can_set_ocalls() {
+        let ocalls = v1::ocalls_t {
+            ocall: Some(super::_default_ocall),
+            alloc: Some(system_alloc),
+            dealloc: Some(system_dealloc),
+        };
+        assert!(super::set_ocall_fn(ocalls).is_ok());
+        // can allocate
+        let _ = vec![1, 2, 3];
+    }
+}
+
+#[test]
+#[should_panic]
+fn default_ocall_should_panic() {
+    let ocall = OCallImpl;
+    ocall.cross_call(0, &[]);
 }

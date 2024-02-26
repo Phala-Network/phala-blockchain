@@ -24,24 +24,11 @@ pub fn wasm_info(data: &[u8]) -> Result<WasmInfo, ParseError> {
 
     for payload in parser.parse_all(data) {
         match payload? {
-            Payload::Version { .. } => {}
-            Payload::TypeSection(_) => {}
-            Payload::ImportSection(_) => {}
-            Payload::FunctionSection(_) => {}
-            Payload::TableSection(_) => {}
-            Payload::MemorySection(_) => {}
-            Payload::TagSection(_) => {}
-            Payload::GlobalSection(_) => {}
-            Payload::ExportSection(_) => {}
-            Payload::StartSection { .. } => {}
-            Payload::ElementSection(_) => {}
-            Payload::DataCountSection { .. } => {}
             Payload::DataSection(data) => {
                 for entry in data {
                     stats.const_data_size += entry?.data.len();
                 }
             }
-            Payload::CodeSectionStart { .. } => {}
             Payload::CodeSectionEntry(body) => {
                 stats.num_functions += 1;
                 let mut reader = body.get_operators_reader()?;
@@ -50,23 +37,20 @@ pub fn wasm_info(data: &[u8]) -> Result<WasmInfo, ParseError> {
                     stats.num_instructions += 1;
                 }
             }
-            Payload::ModuleSection { .. } => {}
-            Payload::InstanceSection(_) => {}
-            Payload::CoreTypeSection(_) => {}
-            Payload::ComponentSection { .. } => {}
-            Payload::ComponentInstanceSection(_) => {}
-            Payload::ComponentAliasSection(_) => {}
-            Payload::ComponentTypeSection(_) => {}
-            Payload::ComponentCanonicalSection(_) => {}
-            Payload::ComponentStartSection { .. } => {}
-            Payload::ComponentImportSection(_) => {}
-            Payload::ComponentExportSection(_) => {}
-            Payload::CustomSection(_) => {}
-            Payload::UnknownSection { .. } => {}
             Payload::End(_) => {
                 break;
             }
+            _ => {}
         }
     }
     Ok(stats)
+}
+
+#[test]
+fn test_invalid_wasm() {
+    let wasm = b"foo";
+    let info = wasm_info(wasm);
+    assert!(info.is_err());
+    let err = dbg!(info.err());
+    println!("{}", err.unwrap());
 }

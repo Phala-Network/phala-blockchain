@@ -22,7 +22,7 @@ pub fn generate_iv(nonce: &[u8]) -> IV {
 
 fn load_key(raw: &[u8]) -> Result<AeadKey, CryptoError> {
     let unbound_key =
-        UnboundKey::new(&ring::aead::AES_256_GCM, raw).map_err(|_| CryptoError::AeadInvalidKey)?;
+        UnboundKey::new(&ring::aead::AES_256_GCM, raw).or(Err(CryptoError::AeadInvalidKey))?;
     Ok(AeadKey(LessSafeKey::new(unbound_key)))
 }
 
@@ -33,7 +33,7 @@ pub fn encrypt(iv: &IV, secret: &[u8], in_out: &mut Vec<u8>) -> Result<(), Crypt
 
     key.0
         .seal_in_place_append_tag(nonce, ring::aead::Aad::empty(), in_out)
-        .map_err(|_| CryptoError::AeadEncryptError)?;
+        .or(Err(CryptoError::AeadEncryptError))?;
     Ok(())
 }
 
@@ -50,7 +50,7 @@ pub fn decrypt<'in_out>(
 
     key.0
         .open_in_place(nonce, ring::aead::Aad::empty(), in_out)
-        .map_err(|_| CryptoError::AeadDecryptError)
+        .or(Err(CryptoError::AeadDecryptError))
 }
 
 #[cfg(test)]
@@ -62,7 +62,7 @@ mod test {
         let mut nonce_vec = [0_u8; IV_BYTES];
         let rand = ring::rand::SystemRandom::new();
         rand.fill(&mut nonce_vec).unwrap();
-        nonce_vec
+        generate_iv(nonce_vec.as_ref())
     }
 
     #[test]
@@ -78,5 +78,25 @@ mod test {
         let decrypted_messgae = decrypt(&iv, &secret, &mut encrypted_message[..]).unwrap();
 
         assert_eq!(decrypted_messgae, message);
+    }
+
+    #[test]
+    fn can_not_encrypt_with_bad_key() {
+        let iv = generate_random_iv();
+        let secret = [233_u8; 31];
+        let mut message = vec![233_u8; 64];
+        let result = encrypt(&iv, &secret, &mut message);
+        println!("{:?}", result);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn can_not_decrypt_with_bad_key() {
+        let iv = generate_random_iv();
+        let secret = [233_u8; 32];
+        let mut message = vec![233_u8; 64];
+
+        encrypt(&iv, &secret, &mut message).unwrap();
+        assert!(decrypt(&iv, &secret[..31], &mut message[..]).is_err());
     }
 }

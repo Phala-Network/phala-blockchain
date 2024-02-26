@@ -96,11 +96,7 @@ impl MessageDispatcher {
                 if let Err(error) = receiver.send((sn, message.clone())) {
                     use crate::simple_mpsc::SendError::*;
                     match error {
-                        ReceiverGone => {
-                            let dst = String::from_utf8_lossy(message.destination.path());
-                            tracing::warn!(%dst, "ReceiverGone");
-                            false
-                        }
+                        ReceiverGone => false,
                     }
                 } else {
                     count += 1;
@@ -137,11 +133,8 @@ impl TypedReceiveError {
     pub fn is_sender_gone(&self) -> bool {
         matches!(self, Self::SenderGone)
     }
-}
-
-impl From<CodecError> for TypedReceiveError {
-    fn from(e: CodecError) -> Self {
-        Self::CodecError(e)
+    pub fn is_codec_error(&self) -> bool {
+        matches!(self, Self::CodecError(_))
     }
 }
 
@@ -302,4 +295,122 @@ macro_rules! select_ignore_errors {
             )+
         }
     }}
+}
+
+#[cfg(test)]
+mod tests {
+    use parity_scale_codec::{Decode, Encode};
+
+    use crate::bind_topic;
+
+    use super::*;
+
+    #[test]
+    fn can_subscribe_message() {
+        let mut dispatcher = MessageDispatcher::new();
+        let mut rx = dispatcher.subscribe("test");
+        dispatcher.dispatch(Message::new(
+            MessageOrigin::Gatekeeper,
+            "test",
+            b"hello".to_vec(),
+        ));
+        assert!(matches!(rx.try_next(), Ok(Some(_))));
+    }
+
+    #[test]
+    fn can_subscribe_bound_message() {
+        bind_topic!(TestMessage, b"topic0");
+        #[derive(Decode, Encode)]
+        struct TestMessage {
+            pub value: u32,
+        }
+        let mut dispatcher = MessageDispatcher::new();
+        let mut typed_rx = dispatcher.subscribe_bound::<TestMessage>();
+
+        drop(dispatcher.subscribe_bound::<TestMessage>());
+
+        for _ in 0..2 {
+            dispatcher.dispatch(Message::new(
+                MessageOrigin::Gatekeeper,
+                "topic0",
+                TestMessage { value: 42 }.encode(),
+            ));
+        }
+
+        assert_eq!(typed_rx.peek_ind().unwrap(), Some(0));
+        assert!(matches!(
+            typed_rx.try_next(),
+            Ok(Some((
+                _,
+                TestMessage { value: 42 },
+                MessageOrigin::Gatekeeper
+            )))
+        ));
+
+        assert_eq!(typed_rx.peek_ind().unwrap(), Some(1));
+        dispatcher.reset_local_index();
+        dispatcher.clear();
+
+        assert_eq!(typed_rx.peek_ind().unwrap(), None);
+        assert!(typed_rx.try_next().unwrap().is_none());
+
+        drop(dispatcher);
+        let err = typed_rx.peek_ind().unwrap_err();
+        assert_eq!(format!("{err},{err:?}"), "All senders of the channel have gone,SenderGone");
+        let err = typed_rx.try_next().err().unwrap();
+        assert!(err.is_sender_gone());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_malformed_gk_message() {
+        bind_topic!(TestMessage, b"topic0");
+        #[derive(Decode, Encode)]
+        struct TestMessage {
+            value: u32,
+        }
+        let mut dispatcher = MessageDispatcher::new();
+        let mut typed_rx = dispatcher.subscribe_bound::<TestMessage>();
+        dispatcher.dispatch(Message::new(
+            MessageOrigin::Gatekeeper,
+            "topic0",
+            42_u8.encode(),
+        ));
+        dispatcher.dispatch(Message::new(
+            MessageOrigin::Gatekeeper,
+            "topic0",
+            TestMessage { value: 42 }.encode(),
+        ));
+        let _ = typed_rx.try_next();
+    }
+
+    #[test]
+    fn test_malformed_message() {
+        bind_topic!(TestMessage, b"topic0");
+        #[derive(Decode, Encode)]
+        struct TestMessage {
+            value: u32,
+        }
+        let mut dispatcher = MessageDispatcher::new();
+        let typed_rx = dispatcher.subscribe_bound::<TestMessage>();
+        dispatcher.dispatch(Message::new(
+            MessageOrigin::Reserved,
+            "topic0",
+            42_u8.encode(),
+        ));
+        dispatcher.dispatch(Message::new(
+            MessageOrigin::Reserved,
+            "topic0",
+            TestMessage { value: 42 }.encode(),
+        ));
+        let err = typed_rx.clone().try_next().err().unwrap();
+        assert!(!err.is_sender_gone());
+        assert!(err.is_codec_error());
+    }
+
+    #[test]
+    fn typeinfo_works() {
+        use type_info_stringify::type_info_stringify;
+        insta::assert_display_snapshot!(type_info_stringify::<TypedReceiver::<u32>>());
+    }
 }

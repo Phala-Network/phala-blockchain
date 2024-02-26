@@ -1,0 +1,45 @@
+---
+source: crates/phala-mq/src/types.rs
+assertion_line: 450
+expression: "type_info_stringify::type_info_stringify::<TestSuite>()"
+---
+phala_mq::types::MessageOrigin = enum {
+    [0]Pallet(Vec<u8>)
+    [1]Contract(primitive_types::H256)
+    [2]Worker(sp_core::sr25519::Public)
+    [3]AccountId(primitive_types::H256)
+    [4]MultiLocation(Vec<u8>)
+    [5]Gatekeeper,
+    [6]Cluster(primitive_types::H256)
+    [255]Reserved,
+}
+primitive_types::H256 = struct {
+    : [u8; 32],
+}
+sp_core::sr25519::Public = struct {
+    : [u8; 32],
+}
+phala_mq::types::SignedMessage = struct {
+    message: phala_mq::types::Message,
+    sequence: u64,
+    signature: Vec<u8>,
+}
+phala_mq::types::Message = struct {
+    sender: phala_mq::types::MessageOrigin,
+    destination: phala_mq::types::Topic,
+    payload: Vec<u8>,
+}
+phala_mq::types::Topic = struct {
+    : Vec<u8>,
+}
+phala_mq::types::SigningMessage = struct {
+    message: phala_mq::types::Message,
+    signer: (),
+}
+phala_mq::types::test::TestSuite = struct {
+    origin: phala_mq::types::MessageOrigin,
+    signed_message: phala_mq::types::SignedMessage,
+    signing_message: phala_mq::types::SigningMessage<()>,
+    topic: phala_mq::types::Topic,
+}
+

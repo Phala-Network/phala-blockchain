@@ -66,9 +66,8 @@ members = [
 	"crates/phala-clap-parsers",
 	"crates/phala-wasmer-tunables",
 	"crates/phala-rocket-middleware",
-	"crates/pink/runner",
+	"crates/pink/loader",
 	"crates/pink/runtime",
-	"crates/pink/runtime/unittests",
 	"crates/pink/capi",
 	"crates/pink/macro",
 	"crates/pink/pink-types",
@@ -119,3 +118,6 @@ pink-extension-runtime = { path = "crates/pink/pink-extension-runtime" }
 aes-gcm = { git = "https://github.com/kvinwang/AEADs.git", branch = "subtle-v2.5"}
 crypto-mac = { git = "https://github.com/kvinwang/rust-crypto-traits.git", branch = "subtle-v2.5" }
 universal-hash = { git = "https://github.com/kvinwang/rust-crypto-traits.git", branch = "subtle-v2.5" }
+
+[patch."https://github.com/paritytech/polkadot-sdk.git"]
+sc-consensus-grandpa = { git = "https://github.com/Phala-Network/polkadot-sdk.git", branch = "phala-patch-polkadot-v1.5.0" }

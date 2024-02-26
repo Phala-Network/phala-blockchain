@@ -1,0 +1,144 @@
+---
+source: crates/pink/pink-extension/tests/test_chain_extensions.rs
+assertion_line: 203
+expression: "type_info_stringify::<Root>()"
+---
+pink_extension::chain_extension::http_request::HttpRequest = struct {
+    url: String,
+    method: String,
+    headers: Vec<(String, String)>,
+    body: Vec<u8>,
+}
+pink_extension::chain_extension::http_request::HttpResponse = struct {
+    status_code: u16,
+    reason_phrase: String,
+    headers: Vec<(String, String)>,
+    body: Vec<u8>,
+}
+pink_extension::chain_extension::http_request::HttpRequestError = enum {
+    [0]InvalidUrl,
+    [1]InvalidMethod,
+    [2]InvalidHeaderName,
+    [3]InvalidHeaderValue,
+    [4]FailedToCreateClient,
+    [5]Timeout,
+    [6]NotAllowed,
+    [7]TooManyRequests,
+    [8]NetworkError,
+    [9]ResponseTooLarge,
+}
+pink_extension::chain_extension::StorageQuotaExceeded = struct {
+}
+pink_extension::chain_extension::ErrorCode = struct {
+    : u32,
+}
+pink_types::js::JsCode = enum {
+    [0]Source(String)
+    [1]Bytecode(Vec<u8>)
+}
+pink_types::js::JsValue = enum {
+    [0]Undefined,
+    [1]Null,
+    [2]String(String)
+    [3]Bytes(Vec<u8>)
+    [4]Other(String)
+    [5]Exception(String)
+}
+pink_extension::PinkEvent = enum {
+    [2]SetHook {
+        hook: pink_extension::HookPoint,
+        contract: ink_primitives::types::AccountId,
+        selector: u32,
+        gas_limit: u64,
+    }
+    [3]DeploySidevmTo {
+        contract: ink_primitives::types::AccountId,
+        code_hash: [u8; 32],
+    }
+    [4]SidevmMessage(Vec<u8>)
+    [5]CacheOp(pink_extension::CacheOp)
+    [6]StopSidevm,
+    [7]ForceStopSidevm {
+        contract: ink_primitives::types::AccountId,
+    }
+    [8]SetLogHandler(ink_primitives::types::AccountId)
+    [9]SetContractWeight {
+        contract: ink_primitives::types::AccountId,
+        weight: u32,
+    }
+    [10]UpgradeRuntimeTo {
+        version: (u32, u32),
+    }
+    [11]SidevmOperation(pink_extension::SidevmOperation)
+    [12]SetJsRuntime([u8; 32])
+}
+pink_extension::HookPoint = enum {
+    [0]OnBlockEnd,
+}
+ink_primitives::types::AccountId = struct {
+    : [u8; 32],
+}
+pink_extension::CacheOp = enum {
+    [0]Set {
+        key: Vec<u8>,
+        value: Vec<u8>,
+    }
+    [1]SetExpiration {
+        key: Vec<u8>,
+        expiration: u64,
+    }
+    [2]Remove {
+        key: Vec<u8>,
+    }
+}
+pink_extension::SidevmOperation = enum {
+    [0]Start {
+        contract: ink_primitives::types::AccountId,
+        code_hash: [u8; 32],
+        workers: pink_extension::Workers,
+        config: pink_extension::SidevmConfig,
+    }
+    [1]SetDeadline {
+        contract: ink_primitives::types::AccountId,
+        deadline: u32,
+    }
+}
+pink_extension::Workers = enum {
+    [0]All,
+    [1]List(Vec<[u8; 32]>)
+}
+pink_extension::SidevmConfig = struct {
+    max_code_size: u32,
+    max_memory_pages: u32,
+    vital_capacity: u64,
+    deadline: u32,
+}
+pink_extension::system::Error = enum {
+    [0]PermisionDenied,
+    [1]DriverNotFound,
+    [2]CodeNotFound,
+    [3]ConditionNotMet,
+}
+pink_extension::system::DriverError = enum {
+    [0]Other(String)
+    [1]SystemError(pink_extension::system::Error)
+    [2]BadOrigin,
+}
+pink_extension::system::CodeType = enum {
+    [0]Ink,
+    [1]Sidevm,
+}
+test_chain_extensions::Root = struct {
+    _http_request: pink_extension::chain_extension::http_request::HttpRequest,
+    _http_response: pink_extension::chain_extension::http_request::HttpResponse,
+    _http_error: pink_extension::chain_extension::http_request::HttpRequestError,
+    _quota_error: pink_extension::chain_extension::StorageQuotaExceeded,
+    _error_code: pink_extension::chain_extension::ErrorCode,
+    _js_code: pink_types::js::JsCode,
+    _js_value: pink_types::js::JsValue,
+    _pink_event: pink_extension::PinkEvent,
+    _system_err: pink_extension::system::Error,
+    _driver_err: pink_extension::system::DriverError,
+    _code_type: pink_extension::system::CodeType,
+}
+

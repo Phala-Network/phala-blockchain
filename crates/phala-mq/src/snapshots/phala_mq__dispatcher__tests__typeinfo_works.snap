@@ -1,0 +1,13 @@
+---
+source: crates/phala-mq/src/dispatcher.rs
+assertion_line: 403
+expression: "type_info_stringify::<TypedReceiver<u32>>()"
+---
+phala_mq::dispatcher::ReceiverTypeInfo = struct {
+    inner: (),
+    topic: Vec<u8>,
+}
+phala_mq::dispatcher::TypedReceiver = struct {
+    queue: phala_mq::dispatcher::ReceiverTypeInfo,
+}
+

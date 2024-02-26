@@ -27,9 +27,7 @@ impl<T> Channel<T> {
 type ArcCh<T> = Arc<Mutex<Channel<T>>>;
 pub struct Sender<T>(ArcCh<T>);
 
-#[derive(Display, Debug)]
 pub enum SendError {
-    #[display(fmt = "The receiver of the channel has gone")]
     ReceiverGone,
 }
 
@@ -91,10 +89,6 @@ impl<T> Receiver<T> {
     pub fn drain(&mut self) -> impl Iterator<Item = T> {
         let mut ch = self.0.lock();
         ch.deque.drain(..).collect::<Vec<_>>().into_iter()
-    }
-
-    pub fn clear(&mut self) {
-        let _ = self.0.lock().deque.drain(..);
     }
 }
 

@@ -242,11 +242,10 @@ impl Message {
     }
 
     pub fn decode<T: Decode>(&self) -> Option<DecodedMessage<T>> {
-        let payload = Decode::decode(&mut &self.payload[..]).ok()?;
         Some(DecodedMessage {
             sender: self.sender.clone(),
             destination: self.destination.clone(),
-            payload,
+            payload: self.decode_payload()?,
         })
     }
 }
@@ -286,7 +285,7 @@ impl<'a> MessageToBeSigned<'a> {
     }
 }
 
-#[derive(Encode, Decode, Debug, Clone, Serialize, Deserialize)]
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SigningMessage<Signer> {
     pub message: Message,
     pub signer: Signer,
@@ -304,5 +303,174 @@ impl<Signer: MessageSigner> SigningMessage<Signer> {
             sequence,
             signature,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use core::convert::TryInto;
+
+    use crate::Sr25519Signer;
+
+    use super::*;
+
+    #[test]
+    fn test_topic() {
+        let topic = Topic::new(*b"topic");
+        assert!(topic.is_valid());
+        assert!(topic.is_offchain());
+        assert_eq!(topic.path(), b"topic");
+
+        let topic = Topic::new(*b"^topic");
+        assert!(topic.is_valid());
+        assert!(!topic.is_offchain());
+
+        let topic = Topic::new(*b"");
+        assert!(!topic.is_valid());
+        assert!(!topic.is_offchain());
+
+        println!("topic: {topic:?}");
+    }
+
+    #[test]
+    fn test_origin() {
+        use sp_core::sr25519::Public;
+
+        let origin = MessageOrigin::Pallet(b"pallet".to_vec());
+        assert!(origin.is_pallet());
+        assert!(!origin.is_offchain());
+        assert!(origin.account().is_err());
+        assert!(!origin.is_gatekeeper());
+        assert!(origin.always_well_formed());
+
+        let origin = MessageOrigin::AccountId(AccountId::default());
+        assert!(!origin.is_pallet());
+        assert!(!origin.is_offchain());
+        assert!(origin.account().is_ok());
+
+        assert!(MessageOrigin::Gatekeeper.always_well_formed());
+        assert!(MessageOrigin::Worker(Public(Default::default())).always_well_formed());
+        assert!(!MessageOrigin::Contract(Default::default()).always_well_formed());
+    }
+
+    #[test]
+    fn test_topic_of_tuple() {
+        assert_eq!(<() as BindTopic>::topic(), b"");
+    }
+
+    #[test]
+    fn test_topic_convert() {
+        let topic = Topic::new(*b"topic");
+        let path: Path = topic.into();
+        assert_eq!(path, b"topic");
+        let topic: Topic = path.into();
+        assert_eq!(topic, Topic::new(*b"topic"));
+    }
+
+    #[test]
+    fn test_message_signing() {
+        use sp_core::sr25519::{Pair, Signature};
+        use sp_core::Pair as _;
+        let pair = Pair::from_seed(b"12345678901234567890123456789012");
+        let pubkey = pair.public();
+        let signer = Sr25519Signer::from(pair);
+        let message = Message::new(MessageOrigin::Gatekeeper, *b"topic", b"payload".to_vec());
+        let signing_message = SigningMessage { message, signer };
+        let signed_message = signing_message.sign(0);
+        assert_eq!(signed_message.message.payload, b"payload");
+        assert_eq!(signed_message.sequence, 0);
+        let signed_payload = signed_message.data_be_signed();
+        assert!(Pair::verify(
+            &Signature(signed_message.signature.try_into().unwrap()),
+            signed_payload,
+            &pubkey
+        ));
+    }
+
+    #[test]
+    fn test_message_decode() {
+        let payload = "payload".encode();
+        let message = Message::new(MessageOrigin::Gatekeeper, *b"topic", payload);
+        let decoded_message = message.decode::<String>().unwrap();
+        assert_eq!(decoded_message.payload, "payload");
+    }
+
+    #[test]
+    fn test_hash_of_origin() {
+        use std::collections::HashMap;
+        let origin = MessageOrigin::Pallet(b"pallet".to_vec());
+        let mut map = HashMap::<MessageOrigin, ()>::new();
+        map.insert(origin.clone(), ());
+        assert!(map.contains_key(&origin));
+    }
+
+    #[test]
+    fn bind_topic_works() {
+        bind_topic!(Foo<T>, b"foo");
+        struct Foo<T>(Option<T>);
+        bind_topic!(Bar, b"bar");
+        struct Bar;
+
+        assert_eq!(Foo::<u32>::topic(), b"foo");
+        assert_eq!(Foo::<u64>::topic(), b"foo");
+        assert_eq!(Bar::topic(), b"bar");
+    }
+
+    #[test]
+    fn test_codecs() {
+        #[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+        struct TestSuite {
+            origin: MessageOrigin,
+            signed_message: SignedMessage,
+            signing_message: SigningMessage<()>,
+            topic: Topic,
+        }
+
+        let suite = TestSuite {
+            origin: MessageOrigin::Reserved,
+            signed_message: SignedMessage {
+                message: Message::new(MessageOrigin::Reserved, *b"topic", vec![]),
+                sequence: 0,
+                signature: vec![],
+            },
+            signing_message: SigningMessage {
+                message: Message::new(MessageOrigin::Reserved, *b"topic", vec![]),
+                signer: (),
+            },
+            topic: Topic::new(*b"topic"),
+        };
+        let cloned = suite.clone();
+        let encoded = Encode::encode(&cloned);
+        let decoded = TestSuite::decode(&mut &encoded[..]).unwrap();
+        assert_eq!(decoded, suite);
+        let serialized = serde_cbor::to_vec(&cloned).unwrap();
+        let deserialzed: TestSuite = serde_cbor::from_slice(&serialized[..]).unwrap();
+        assert_eq!(deserialzed, suite);
+
+        insta::assert_display_snapshot!(type_info_stringify::type_info_stringify::<TestSuite>())
+    }
+
+    #[test]
+    fn test_display_message_origin() {
+        assert_eq!(
+            format!("{}", MessageOrigin::Pallet(b"test".to_vec())),
+            "Pallet(\"test\")"
+        );
+        assert_eq!(format!("{}", MessageOrigin::Gatekeeper), "Gatekeeper");
+        assert_eq!(
+            format!("{}", MessageOrigin::AccountId([0u8; 32].into())),
+            "AccountId(0000000000000000000000000000000000000000000000000000000000000000)"
+        );
+        assert_eq!(format!("{}", MessageOrigin::Contract([0u8; 32].into())), "Contract(0000000000000000000000000000000000000000000000000000000000000000)");
+        assert_eq!(
+            format!(
+                "{}",
+                MessageOrigin::Worker(sp_core::sr25519::Public([0u8; 32]))
+            ),
+            "Worker(0000000000000000000000000000000000000000000000000000000000000000)"
+        );
+        assert_eq!(format!("{}", MessageOrigin::MultiLocation(vec![0u8])), "MultiLocation(00)");
+        assert_eq!(format!("{}", MessageOrigin::Cluster([0u8; 32].into())), "Cluster(0000000000000000000000000000000000000000000000000000000000000000)");
+        assert_eq!(format!("{}", MessageOrigin::Reserved), "Reserved");
     }
 }

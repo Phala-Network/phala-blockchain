@@ -114,4 +114,12 @@ pub mod oids {
     pub const CONFIGURATION: OID = oid("1.2.840.113741.1.13.1.7");
     pub const PCESVN: OID = oid("1.2.840.113741.1.13.1.2.17");
     pub const CPUSVN: OID = oid("1.2.840.113741.1.13.1.2.18");
+
+    #[test]
+    fn const_oid_works() {
+        assert_eq!(
+            SGX_EXTENSION.as_bytes(),
+            oid("1.2.840.113741.1.13.1").as_bytes()
+        );
+    }
 }

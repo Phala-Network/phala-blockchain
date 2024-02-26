@@ -34,7 +34,7 @@ log = { version = "0.4.14", default-features = false }
 
 pallet-balances = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0", default-features = false }
 
-phala-types = { path = "../../crates/phala-types", default-features = false, features = ["enable_serde"] }
+phala-types = { path = "../../crates/phala-types", default-features = false, features = ["enable_serde", "sgx-attestation"] }
 chrono = { version = "0.4.22", default-features = false }
 hex = { version = "0.4", default-features = false }
 hex-literal = "0.4.1"

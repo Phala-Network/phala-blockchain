@@ -241,9 +241,7 @@ impl PersistentRuntimeData {
         info!("Identity pubkey: {:?}", hex::encode(identity_sk.public()));
 
         // derive ecdh key
-        let ecdh_key = identity_sk
-            .derive_ecdh_key()
-            .expect("Unable to derive ecdh key");
+        let ecdh_key = identity_sk.derive_ecdh_key();
         info!("ECDH pubkey: {:?}", hex::encode(ecdh_key.public()));
         (identity_sk, ecdh_key)
     }

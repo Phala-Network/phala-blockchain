@@ -25,10 +25,15 @@ sp-state-machine = { git = "https://github.com/paritytech/polkadot-sdk.git", bra
 sp-externalities = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0" }
 sp-trie = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0" }
 
-scale = { package = "parity-scale-codec", version = "3.6.5", default-features = false, features = ["derive"] }
-scale-info = { version = "2.10.0", default-features = false, features = ["derive", "serde", "decode"] }
+scale = { package = "parity-scale-codec", version = "3.6.5", default-features = false, features = [
+    "derive",
+] }
+scale-info = { version = "2.10.0", default-features = false, features = [
+    "derive",
+    "serde",
+    "decode",
+] }
 
-phala-trie-storage = { path = "../../phala-trie-storage" }
 phala-types = { path = "../../phala-types" }
 phala-crypto = { path = "../../phala-crypto" }
 pink-extension = { path = "../pink-extension" }
@@ -43,7 +48,15 @@ phala-wasm-checker = { path = "../../phala-wasm-checker" }
 [dev-dependencies]
 insta = "1.7.2"
 hex-literal = "0.4.1"
-this-crate = { path = "../../this-crate" }
+this-crate = "0.1"
+env_logger = "0.11"
+environmental = "1"
+assert_matches = "1"
+serde = { version = "1.0.130", features = ["derive"] }
+im = { version = "15", features = ["serde"] }
+rusty-fork = "0.3.0"
+ink = "4"
+check_system = { path = "../../../e2e/contracts/check_system", features = ["ink-as-dependency"] }
 
 [features]
 default = ["allocator"]

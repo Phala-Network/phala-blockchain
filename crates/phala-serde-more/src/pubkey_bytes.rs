@@ -9,3 +9,25 @@ pub fn deserialize<'de, De: Deserializer<'de>>(der: De) -> Result<sr25519::Publi
     let bytes = Deserialize::deserialize(der)?;
     Ok(sr25519::Public(bytes))
 }
+
+#[test]
+fn it_works() {
+    use sp_core::Encode;
+
+    #[derive(Serialize, Deserialize)]
+    struct TestData {
+        #[serde(with = "crate::pubkey_bytes")]
+        key: sr25519::Public,
+    }
+
+    let data = TestData {
+        key: sr25519::Public([0u8; 32]),
+    };
+
+    let serialized = serde_cbor::to_vec(&data).unwrap();
+    let deserialized = serde_cbor::from_slice::<TestData>(&serialized).unwrap();
+    assert_eq!(deserialized.key, data.key);
+
+    assert!(serde_cbor::from_slice::<TestData>(&[]).is_err());
+    assert!(serde_cbor::from_slice::<TestData>(&b"foo".encode()).is_err());
+}

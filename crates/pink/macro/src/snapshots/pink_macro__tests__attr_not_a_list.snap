@@ -1,0 +1,7 @@
+---
+source: crates/pink/macro/src/tests.rs
+assertion_line: 39
+expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
+---
+compile_error! { "call attribute must be a list" }
+

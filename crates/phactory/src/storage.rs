@@ -12,13 +12,8 @@ impl BlockValidator for LightValidation<chain::Runtime> {
         ancestry_proof: Vec<chain::Header>,
         grandpa_proof: Vec<u8>,
     ) -> Result<()> {
-        self.submit_finalized_headers(
-            bridge_id,
-            header,
-            ancestry_proof,
-            grandpa_proof,
-        )
-        .map_err(|e| SyncError::HeaderValidateFailed(e.to_string()))
+        self.submit_finalized_headers(bridge_id, header, ancestry_proof, grandpa_proof)
+            .map_err(|e| SyncError::HeaderValidateFailed(e.to_string()))
     }
 
     fn validate_storage_proof(
@@ -175,6 +170,10 @@ mod storage_ext {
             worker: &phala_types::WorkerPublicKey,
         ) -> Option<ContractClusterId> {
             self.execute_with(|| pallet_phat::ClusterByWorkers::<chain::Runtime>::get(worker))
+        }
+
+        pub(crate) fn trusted_ntp_servers(&self) -> Vec<String> {
+            self.execute_with(pallet_registry::TrustedNtpServers::<chain::Runtime>::get)
         }
     }
 }

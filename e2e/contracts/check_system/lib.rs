@@ -5,11 +5,13 @@ extern crate alloc;
 
 use pink_extension as pink;
 
+pub use check_system::*;
+
 #[pink::contract(env = PinkEnvironment)]
 mod check_system {
     use super::pink;
     use alloc::vec::Vec;
-    use pink::chain_extension::{JsCode, JsValue};
+    use pink::chain_extension::{signing as sig, JsCode, JsValue};
     use pink::system::{ContractDeposit, DriverError, Result, SystemRef};
     use pink::types::sgx::AttestationType;
     use pink::{PinkEnvironment, WorkerId};
@@ -37,6 +39,19 @@ mod check_system {
                 on_block_end_called: false,
                 flag: String::new(),
             }
+        }
+
+        #[ink(constructor)]
+        pub fn init_fail() -> Result<Self, ()> {
+            pink::info!("init_fail");
+            ink::env::debug_println!("init_fail");
+            Err(())
+        }
+
+        #[ink(constructor)]
+        pub fn init_panic() -> Self {
+            pink::info!("panic in constructor");
+            panic!("panic in constructor")
         }
 
         #[ink(message)]
@@ -89,8 +104,18 @@ mod check_system {
         }
 
         #[ink(message)]
+        pub fn cache_set_expiration(&self, key: Vec<u8>, value: u64) {
+            pink::ext().cache_set_expiration(&key, value)
+        }
+
+        #[ink(message)]
         pub fn cache_get(&self, key: Vec<u8>) -> Option<Vec<u8>> {
             pink::ext().cache_get(&key)
+        }
+
+        #[ink(message)]
+        pub fn cache_remove(&self, key: Vec<u8>) -> Option<Vec<u8>> {
+            pink::ext().cache_remove(&key)
         }
 
         #[ink(message)]
@@ -136,8 +161,12 @@ mod check_system {
         }
 
         #[ink(message)]
-        pub fn batch_http_get(&self, urls: Vec<String>, timeout_ms: u64) -> Vec<(u16, String)> {
-            pink::ext()
+        pub fn batch_http_get(
+            &self,
+            urls: Vec<String>,
+            timeout_ms: u64,
+        ) -> Result<Vec<(u16, String)>, String> {
+            let responses = pink::ext()
                 .batch_http_request(
                     urls.into_iter()
                         .map(|url| pink::chain_extension::HttpRequest {
@@ -149,7 +178,7 @@ mod check_system {
                         .collect(),
                     timeout_ms,
                 )
-                .unwrap()
+                .map_err(|err| alloc::format!("{err:?}"))?
                 .into_iter()
                 .map(|result| match result {
                     Ok(response) => (
@@ -158,8 +187,10 @@ mod check_system {
                     ),
                     Err(err) => (524, alloc::format!("Error: {err:?}")),
                 })
-                .collect()
+                .collect();
+            Ok(responses)
         }
+
         #[ink(message)]
         pub fn http_get(&self, url: String) -> (u16, String) {
             let response = pink::ext().http_request(pink::chain_extension::HttpRequest {
@@ -238,7 +269,7 @@ mod check_system {
             let request = match action.as_str() {
                 "ping" => Request::Ping,
                 "callback" => Request::Callback {
-                    call_data: ink::selector_bytes!("sidevm_callbak").to_vec(),
+                    call_data: ink::selector_bytes!("sidevm_callback").to_vec(),
                 },
                 _ => return Err("Invalid action".into()),
             };
@@ -247,7 +278,7 @@ mod check_system {
         }
 
         #[ink(message)]
-        pub fn sidevm_callbak(&self) -> u8 {
+        pub fn sidevm_callback(&self) -> u8 {
             42
         }
 
@@ -268,6 +299,106 @@ mod check_system {
         #[ink(message)]
         pub fn pink_eval_js(&self, script: String, args: Vec<String>) -> JsValue {
             pink::ext().js_eval(alloc::vec![JsCode::Source(script)], args)
+        }
+
+        #[ink(message)]
+        pub fn direct_balance_of(&self, address: AccountId) -> (Balance, Balance) {
+            pink::ext().balance_of(address)
+        }
+
+        #[ink(message)]
+        pub fn free_balance_of(&self, address: AccountId) -> Balance {
+            pink::system::SystemRef::instance().free_balance_of(address)
+        }
+
+        #[ink(message)]
+        pub fn total_balance_of(&self, address: AccountId) -> Balance {
+            pink::system::SystemRef::instance().total_balance_of(address)
+        }
+
+        #[ink(message)]
+        pub fn sr25519_derive_key(&self, salt: Vec<u8>) -> Vec<u8> {
+            sig::derive_sr25519_key(&salt)
+        }
+
+        #[ink(message)]
+        pub fn sr25519_get_public_key(&self, key: Vec<u8>) -> Vec<u8> {
+            sig::get_public_key(&key, sig::SigType::Sr25519)
+        }
+
+        #[ink(message)]
+        pub fn sr25519_sign(&self, message: Vec<u8>, key: Vec<u8>) -> Vec<u8> {
+            sig::sign(&message, &key, sig::SigType::Sr25519)
+        }
+
+        #[ink(message)]
+        pub fn sr25519_verify(
+            &self,
+            message: Vec<u8>,
+            pubkey: Vec<u8>,
+            signature: Vec<u8>,
+        ) -> bool {
+            sig::verify(&message, &pubkey, &signature, sig::SigType::Sr25519)
+        }
+
+        #[ink(message)]
+        pub fn getrandom(&self, len: u8) -> Vec<u8> {
+            pink::ext().getrandom(len)
+        }
+
+        #[ink(message)]
+        pub fn is_in_transaction(&self) -> bool {
+            pink::ext().is_in_transaction()
+        }
+
+        #[ink(message)]
+        pub fn ecdsa_sign_prehashed(&self, key: Vec<u8>, message_hash: [u8; 32]) -> [u8; 65] {
+            sig::ecdsa_sign_prehashed(&key, message_hash)
+        }
+
+        #[ink(message)]
+        pub fn ecdsa_verify_prehashed(
+            &self,
+            signature: [u8; 65],
+            message_hash: [u8; 32],
+            pubkey: [u8; 33],
+        ) -> bool {
+            sig::ecdsa_verify_prehashed(signature, message_hash, pubkey)
+        }
+
+        #[ink(message)]
+        pub fn timestamp(&self) -> u64 {
+            pink::ext().untrusted_millis_since_unix_epoch()
+        }
+
+        #[ink(message)]
+        pub fn worker_pubkey(&self) -> [u8; 32] {
+            pink::ext().worker_pubkey()
+        }
+
+        #[ink(message)]
+        pub fn code_exists(&self, code_hash: [u8; 32], is_sidevm: bool) -> bool {
+            pink::ext().code_exists(code_hash, is_sidevm)
+        }
+
+        #[ink(message)]
+        pub fn event_chain_head(&self) -> u64 {
+            pink::ext().current_event_chain_head().0
+        }
+
+        #[ink(message)]
+        pub fn call_chain_ext(&self, ext_id: u32) {
+            ::ink::env::chain_extension::ChainExtensionMethod::build(ext_id)
+                .input::<()>()
+                .output::<(), false>()
+                .ignore_error_code()
+                .call(&());
+        }
+
+        #[ink(message)]
+        pub fn log(&self, msg: String) {
+            pink::info!("{msg}");
+            ink::env::debug_println!("{msg}");
         }
 
         #[ink(message)]

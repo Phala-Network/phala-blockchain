@@ -12,7 +12,7 @@ debug-assertions = false
 overflow-checks = false
 
 [dependencies]
-ink = { version = "4", default-features = false, features = ["static-buffer-512K"] }
+ink = { version = "4", default-features = false }
 
 scale = { package = "parity-scale-codec", version = "3.6.5", default-features = false, features = ["derive"] }
 scale-info = { version = "2.10.0", default-features = false, features = ["derive"], optional = true }
@@ -60,4 +60,4 @@ std = [
 ink-as-dependency = []
 
 [patch.crates-io]
-ink = { git = "https://github.com/kvinwang/ink", branch = "config-buffer-4.3.0" }
+ink = { git = "https://github.com/kvinwang/ink", branch = "v430-big-buffer" }
