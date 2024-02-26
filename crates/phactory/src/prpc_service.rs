@@ -1844,7 +1844,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         _request: (),
     ) -> RpcResult<pb::DcapHandoverChallenge> {
-        let ntp_time_secs = crate::nts::nts_get_time_secs()
+        let ntp_servers = self
+            .lock_phactory(false, true)?
+            .runtime_state()?
+            .chain_storage
+            .trusted_ntp_servers();
+        let ntp_time_secs = crate::nts::nts_get_time_secs(&ntp_servers)
             .await
             .map_err(from_display)?;
         let mut phactory = self.lock_phactory(false, true)?;
@@ -1868,7 +1873,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     ) -> RpcResult<pb::DcapHandoverWorkerKey> {
         const CLIENT_TIMEOUT_SECS: u64 = 60;
 
-        let ntp_now = crate::nts::nts_get_time_secs()
+        let ntp_servers = self
+            .lock_phactory(false, true)?
+            .runtime_state()?
+            .chain_storage
+            .trusted_ntp_servers();
+        let ntp_now = crate::nts::nts_get_time_secs(&ntp_servers)
             .await
             .map_err(from_display)?;
         let mut phactory = self.lock_phactory(false, true)?;

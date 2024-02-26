@@ -15,10 +15,17 @@ const TRUSTED_NTS_SERVERS: &[&str] = &[
 ];
 
 /// Get time from NTS servers
-pub(crate) async fn nts_get_time_secs() -> Result<u64> {
+pub(crate) async fn nts_get_time_secs(servers: &[String]) -> Result<u64> {
+    const TIMEOUT_SECS: u64 = 5;
     let mut futures = Vec::new();
-    for server in TRUSTED_NTS_SERVERS.iter() {
-        futures.push(get_time_timeout(server, 5));
+    if servers.is_empty() {
+        for server in TRUSTED_NTS_SERVERS.iter() {
+            futures.push(get_time_timeout(server, TIMEOUT_SECS));
+        }
+    } else {
+        for server in servers.iter() {
+            futures.push(get_time_timeout(server, TIMEOUT_SECS));
+        }
     }
     info!("Requesting time from {} servers", futures.len());
     let results = futures::future::join_all(futures)
