@@ -111,5 +111,13 @@ sp-runtime-interface = { git = "https://github.com/paritytech/polkadot-sdk.git",
 pink-extension = { path = "crates/pink/pink-extension" }
 pink-extension-runtime = { path = "crates/pink/pink-extension-runtime" }
 
+# The substrate dependencies use old version of crypto crates. Some of them, listed below, hard require subtle=v2.4
+# but latest rustls requires subtle v2.5 which cause it conflict. Ideally, substrate should upgrade it's dependencies
+# to latest version.
+# Here we patch the old crates to use subtle v2.5 as a workaround.
+aes-gcm = { git = "https://github.com/kvinwang/AEADs.git", branch = "subtle-v2.5"}
+crypto-mac = { git = "https://github.com/kvinwang/rust-crypto-traits.git", branch = "subtle-v2.5" }
+universal-hash = { git = "https://github.com/kvinwang/rust-crypto-traits.git", branch = "subtle-v2.5" }
+
 [patch."https://github.com/paritytech/polkadot-sdk.git"]
 sc-consensus-grandpa = { git = "https://github.com/Phala-Network/polkadot-sdk.git", branch = "phala-patch-polkadot-v1.5.0" }

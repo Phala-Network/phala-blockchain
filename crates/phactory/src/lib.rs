@@ -28,7 +28,7 @@ use crate::{
     light_validation::LightValidation,
 };
 use phactory_api::contracts::QueryError;
-use phala_types::contract::ContractQueryError;
+use phala_types::{contract::ContractQueryError, DcapHandoverChallenge};
 use sidevm_env::messages::{QueryError as SidevmQueryError, QueryResponse};
 use std::{
     borrow::Cow,
@@ -88,6 +88,7 @@ pub mod contracts;
 mod cryptography;
 mod im_helpers;
 mod light_validation;
+mod nts;
 mod prpc_service;
 mod secret_channel;
 mod storage;
@@ -282,6 +283,10 @@ pub struct Phactory<Platform> {
 
     #[codec(skip)]
     #[serde(skip)]
+    dcap_handover_last_challenge: Option<DcapHandoverChallenge<chain::BlockNumber>>,
+
+    #[codec(skip)]
+    #[serde(skip)]
     #[serde(default = "Instant::now")]
     last_checkpoint: Instant,
 
@@ -394,6 +399,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             signed_endpoints: None,
             handover_ecdh_key: None,
             handover_last_challenge: None,
+            dcap_handover_last_challenge: None,
             last_checkpoint: Instant::now(),
             query_scheduler: Default::default(),
             netconfig: Default::default(),
