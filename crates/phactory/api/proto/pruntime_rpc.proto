@@ -1,0 +1,765 @@
+
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+package pruntime_rpc;
+
+// The Phactory Runtime service definition.
+service PhactoryAPI {
+  // Get basic information about Phactory state.
+  rpc GetInfo (google.protobuf.Empty) returns (PhactoryInfo) {}
+
+  // Sync the parent chain header
+  rpc SyncHeader (HeadersToSync) returns (SyncedTo) {}
+
+  // Sync the parachain header
+  rpc SyncParaHeader (ParaHeadersToSync) returns (SyncedTo) {}
+
+  // Sync a combined batch of relaychain & parachain headers
+  // NOTE:
+  //   - The two latest headers MUST be aligned with each other by the `Para.Heads` read from the relaychain storage.
+  //   - The operation is not guarenteed to be atomical. If the parachain header is rejected, the already synced relaychain
+  //     headers will keep it's progress.
+  rpc SyncCombinedHeaders (CombinedHeadersToSync) returns (HeadersSyncedTo) {}
+
+  // Dispatch blocks (Sync storage changes)
+  rpc DispatchBlocks (Blocks) returns (SyncedTo) {}
+
+  // Init the Phactory runtime
+  rpc InitRuntime (InitRuntimeRequest) returns (InitRuntimeResponse) {}
+
+  // Get the cached Phactory runtime init response
+  rpc GetRuntimeInfo (GetRuntimeInfoRequest) returns (InitRuntimeResponse) {}
+
+  // Get pending egress messages
+  rpc GetEgressMessages (google.protobuf.Empty) returns (GetEgressMessagesResponse) {}
+
+  // Send a query to a contract
+  rpc ContractQuery (ContractQueryRequest) returns (ContractQueryResponse) {}
+
+  // Get given worker's state from a GK.
+  rpc GetWorkerState (GetWorkerStateRequest) returns (WorkerState) {}
+
+  // Init the endpoint
+  rpc AddEndpoint (AddEndpointRequest) returns (GetEndpointResponse) {}
+
+  // Refresh the endpoint signing time
+  rpc RefreshEndpointSigningTime (google.protobuf.Empty) returns (GetEndpointResponse) {}
+
+  // Get endpoint info
+  rpc GetEndpointInfo (google.protobuf.Empty) returns (GetEndpointResponse) {}
+
+  // Sign the given endpoint info
+  rpc SignEndpointInfo (SignEndpointsRequest) returns (GetEndpointResponse) {}
+
+  // Get prouter private key
+  rpc DerivePhalaI2pKey (google.protobuf.Empty) returns (DerivePhalaI2pKeyResponse) {}
+
+  // A echo rpc to measure network RTT.
+  rpc Echo (EchoMessage) returns (EchoMessage) {}
+
+  // Key Handover Server: Get challenge for worker key handover from another pRuntime
+  rpc HandoverCreateChallenge (google.protobuf.Empty) returns (HandoverChallenge) {}
+
+  // Key Handover Server: Get worker key with RA report on challenge from another pRuntime
+  rpc HandoverStart (HandoverChallengeResponse) returns (HandoverWorkerKey) {}
+
+  // Key Handover Client: Process HandoverChallenge and return RA report
+  rpc HandoverAcceptChallenge (HandoverChallenge) returns (HandoverChallengeResponse) {}
+
+  // Key Handover Client: Receive encrypted worker key
+  rpc HandoverReceive (HandoverWorkerKey) returns (google.protobuf.Empty) {}
+
+  // Dcap Key Handover Server: Get challenge for worker key handover from another pRuntime
+  rpc DcapHandoverCreateChallenge (google.protobuf.Empty) returns (DcapHandoverChallenge) {}
+
+  // Dcap Key Handover Server: Get worker key with RA report on challenge from another pRuntime
+  rpc DcapHandoverStart (DcapHandoverChallengeResponse) returns (DcapHandoverWorkerKey) {}
+
+  // Dcap Key Handover Client: Process DcapHandoverChallenge and return LA report
+  rpc DcapHandoverAcceptChallenge (DcapHandoverChallenge) returns (DcapHandoverChallengeResponse) {}
+
+  // Dcap Key Handover Client: Receive encrypted worker key
+  rpc DcapHandoverReceive (DcapHandoverWorkerKey) returns (google.protobuf.Empty) {}
+
+  // Config the pRuntime's network (currently, SOCKS5 proxy only)
+  rpc ConfigNetwork (NetworkConfig) returns (google.protobuf.Empty) {}
+
+  // Fetch resource from the internet.
+  rpc HttpFetch (HttpRequest) returns (HttpResponse) {}
+
+  // Get basic information about given contract
+  rpc GetContractInfo (GetContractInfoRequest) returns (GetContractInfoResponse) {}
+
+  // Get basic information about clusters
+  rpc GetClusterInfo (google.protobuf.Empty) returns (GetClusterInfoResponse) {}
+
+  // Upload sidevm code to given contract. An ink contract can deploy a placeholder sidevm
+  // instance without upload the code via the blockchain and then upload the code via this
+  // RPC later.
+  rpc UploadSidevmCode (SidevmCode) returns (google.protobuf.Empty) {}
+
+  // Calculate contract id with given deployment parameters
+  rpc CalculateContractId (ContractParameters) returns (ContractId) {}
+
+  // Get network configuration
+  rpc GetNetworkConfig (google.protobuf.Empty) returns (NetworkConfigResponse) {}
+
+  // Load given chain state into the pruntime
+  rpc LoadChainState (ChainState) returns (google.protobuf.Empty) {}
+
+  // Stop and optionally remove checkpoints
+  rpc Stop (StopOptions) returns (google.protobuf.Empty) {}
+
+  // Partially load values into the pruntime's chain storage.
+  rpc LoadStorageProof (StorageProof) returns (google.protobuf.Empty) {}
+
+  // Take checkpoint. Returns the current block number of the saved state.
+  rpc TakeCheckpoint (google.protobuf.Empty) returns (SyncedTo) {}
+
+  // Get networks statistics for contracts
+  rpc Statistics (StatisticsReqeust) returns (StatisticsResponse) {}
+
+  // Generage a request to send to anthor worker in the same cluster to get the cluster state.
+  rpc GenerateClusterStateRequest (google.protobuf.Empty) returns (SaveClusterStateArguments) {}
+
+  // Save the current cluster state to filesystem
+  rpc SaveClusterState (SaveClusterStateArguments) returns (SaveClusterStateResponse) {}
+
+  // Load the cluster state from filesystem
+  rpc LoadClusterState (SaveClusterStateResponse) returns (google.protobuf.Empty) {}
+
+  // Load the cluster state from filesystem
+  rpc TryUpgradePinkRuntime (PinkRuntimeVersion) returns (google.protobuf.Empty) {}
+}
+
+// Basic information about a Phactory instance.
+message PhactoryInfo {
+  // Whether the init_runtime has been called successfully.
+  bool initialized = 1;
+  // Whether the worker has been registered on-chain. (Deprecated, use .system.registered instead)
+  bool registered = 2;
+  // Genesis block header hash passed in by init_runtime.
+  optional string genesis_block_hash = 4;
+  // Public key of the worker. (Deprecated, use .system.public_key instead)
+  optional string public_key = 5;
+  // ECDH public key of the worker. (Deprecated, use .system.ecdh_public_key instead)
+  optional string ecdh_public_key = 6;
+  // The relaychain/solochain header number synchronized to.
+  uint32 headernum = 7;
+  // The parachain header number synchronized to. (parachain mode only)
+  uint32 para_headernum = 8;
+  // The changes block number synchronized to.
+  uint32 blocknum = 9;
+  // Current chain storage's state root.
+  string state_root = 10;
+  // Whether the worker is running in dev mode.
+  bool dev_mode = 11;
+  // The number of mq messages in the egress queue.
+  uint64 pending_messages = 12;
+  // Local estimated benchmark score.
+  uint64 score = 13;
+  // Status of gatekeeper. (Deprecated, use .system.gatekeeper instead)
+  GatekeeperStatus gatekeeper = 14;
+  // The App version
+  string version = 15;
+  // The git commit hash which this binary was built from
+  string git_revision = 16;
+  // The heap memory usage of the enclave.
+  MemoryUsage memory_usage = 18;
+  // Some relay chain header synced, waiting for parachain headers.
+  bool waiting_for_paraheaders = 21;
+  // System info
+  SystemInfo system = 23;
+  // Whether the pruntime support to load state from arbitrary block.
+  bool can_load_chain_state = 24;
+  // Safe mode level
+  uint32 safe_mode_level = 25;
+  // The timestamp of current block in milliseconds.
+  uint64 current_block_time = 26;
+  // The max pink runtime version can be deployed in this version of pruntime.
+  string max_supported_pink_runtime_version = 27;
+  // The supported attestation methods
+  repeated string supported_attestation_methods = 28;
+  // The number of live sidevm instances.
+  uint32 live_sidevm_instances = 29;
+}
+
+// Basic information for the initialized runtime
+message SystemInfo {
+  // Whether the worker has been registered on-chain.
+  bool registered = 1;
+  // Public key of the worker.
+  string public_key = 2;
+  // ECDH public key of the worker.
+  string ecdh_public_key = 3;
+  // Status of gatekeeper
+  GatekeeperStatus gatekeeper = 4;
+  // The number of clusters created
+  uint64 number_of_clusters = 5;
+  // The number of contracts deployed
+  uint64 number_of_contracts = 6;
+  // The max supported consensus version used of this version of pRuntime
+  uint32 max_supported_consensus_version = 7;
+  // The block that the pruntime loaded the genesis state from.
+  uint32 genesis_block = 8;
+}
+
+enum GatekeeperRole {
+  None = 0;
+  Dummy = 1;
+  Active = 2;
+}
+
+message GatekeeperStatus {
+  // The Gatekeeper role of the worker.
+  GatekeeperRole role = 1;
+  // The master public key, empty if not a Gatekeeper
+  string master_public_key = 2;
+}
+
+message MemoryUsage {
+  // The current heap usage of Rust codes.
+  uint64 rust_used = 1;
+  // The peak heap usage of Rust codes.
+  uint64 rust_peak_used = 2;
+  // The entire peak heap memory usage of the enclave.
+  uint64 total_peak_used = 3;
+  // The memory left.
+  uint64 free = 4;
+  // The peak heap usage of Rust codes in a recent short-term.
+  uint64 rust_spike = 5;
+}
+
+// Response to SyncHeader & SyncParaHeader.
+message SyncedTo {
+  // The final actual block number synced to.
+  uint32 synced_to = 1;
+}
+
+// Request parameters for SyncHeader.
+message HeadersToSync {
+  // The relaychain headers to be synced.
+  // @codec scale crate::blocks::HeadersToSync
+  bytes encoded_headers = 1;
+  // @codec scale crate::blocks::AuthoritySetChange
+  optional bytes encoded_authority_set_change = 2;
+}
+
+// Request parameters for SyncParaHeader.
+message ParaHeadersToSync {
+  // The parachain headers to be synced.
+  // @codec scale crate::blocks::Headers
+  bytes encoded_headers = 1;
+  // aka StorageProof
+  repeated bytes proof = 2;
+}
+
+// Request parameters for SyncCombinedHeaders.
+message CombinedHeadersToSync {
+  // The relaychain headers to be synced.
+  // @codec scale crate::blocks::HeadersToSync
+  bytes encoded_relaychain_headers = 1;
+  // @codec scale crate::blocks::AuthoritySetChange
+  optional bytes authority_set_change = 2;
+  // The parachain headers to be synced.
+  // @codec scale crate::blocks::Headers
+  bytes encoded_parachain_headers = 3;
+  // aka StorageProof
+  repeated bytes proof = 4;
+}
+
+// Response to SyncCombinedHeaders.
+message HeadersSyncedTo {
+  uint32 relaychain_synced_to = 1;
+  uint32 parachain_synced_to = 2;
+}
+
+// Request parameters for DispatchBlocks.
+message Blocks {
+  // The blocks to be synced.
+  // @codec scale Vec<crate::blocks::BlockHeaderWithChanges>
+  bytes encoded_blocks = 1;
+}
+
+// Request parameters for InitRuntime.
+message InitRuntimeRequest {
+  // Retired
+  // Skip the remote attestation report.
+  bool skip_ra = 1;
+  // Genesis block infomation for light validation.
+  // @codec scale crate::blocks::GenesisBlockInfo
+  bytes encoded_genesis_info = 2;
+  // Worker identity key for dev mode.
+  optional bytes debug_set_key = 3;
+  // The parachain's genesis storage state.
+  // @codec scale crate::blocks::StorageState
+  bytes encoded_genesis_state = 4;
+  // The operator of of this worker, which has the permission to bind it's miner.
+  // @codec scale chain::AccountId
+  optional bytes encoded_operator = 5;
+  // Init the runtime for parachain.
+  bool is_parachain = 6;
+  // Attestation provider;
+  // @codec scale phala_types::AttestationProvider
+  optional bytes attestation_provider = 7;
+}
+
+// Request parameters for GetRuntimeInfo.
+message GetRuntimeInfoRequest {
+  // Force to refresh the RA report.
+  bool force_refresh_ra = 1;
+  // Reset the operator of of this worker.
+  // @codec scale chain::AccountId
+  optional bytes encoded_operator = 2;
+}
+
+message InitRuntimeResponse {
+  // @codec scale phala_types::WorkerRegistrationInfoV2<chain::AccountId>
+  bytes encoded_runtime_info = 1;
+  // The hash of the first synced relaychain header.
+  // @codec scale chain::Hash
+  bytes encoded_genesis_block_hash = 2;
+  // The worker's public key.
+  // @codec scale phala_types::WorkerPublicKey
+  bytes encoded_public_key = 3;
+  // @codec scale phala_types::EcdhPublicKey
+  bytes encoded_ecdh_public_key = 4;
+  // The sgx attestation
+  optional Attestation attestation = 5;
+}
+
+message Attestation {
+  int32 version = 1;
+  string provider = 2;
+  AttestationReport payload = 3; // Retired
+  bytes encoded_report = 5;
+  uint64 timestamp = 4;
+}
+
+// Retired
+message AttestationReport {
+  string report = 1;
+  bytes signature = 2;
+  bytes signing_cert = 3;
+}
+
+// Response for GetEgressMessages
+message GetEgressMessagesResponse {
+  // @codec scale EgressMessages
+  bytes encoded_messages = 1;
+}
+
+// Request parameters for ContractQuery
+message ContractQueryRequest {
+  // The query data.
+  // @codec scale crate::crypto::EncryptedData
+  bytes encoded_encrypted_data = 1;
+
+  // The signature infomation
+  Signature signature = 2;
+}
+
+message Signature {
+  // The certificate of the signer
+  Certificate signed_by = 1;
+  // The signature type
+  SignatureType signature_type = 2;
+  // The signature of the data
+  bytes signature = 3;
+}
+
+message Certificate {
+  // The body of the certificate
+  // @codec scale crate::crypto::CertificateBody
+  bytes encoded_body = 1;
+  // An optinal signature of the body signed by a parent certificate.
+  // @boxed
+  Signature signature = 2;
+}
+
+// Supported signature types.
+//
+// Each signature type also has its corresponding "WrapBytes" version as defined in Polkadot.js:
+//   https://github.com/polkadot-js/extension/blob/e4ce268b1cad5e39e75a2195e3aa6d0344de7745/packages/extension-dapp/src/wrapBytes.ts
+// In wrapped version, the message will have tags wrapped around the actual message
+// (`<Bytes>{msg}</Bytes>`). This was introduced in Polkadot.js to reduce the risk it's abused to
+// sign regular transaction. However, we have to support it as well because it's the only message
+// format the Polkadot.js Extension can sign.
+enum SignatureType {
+  Ed25519 = 0;
+  Sr25519 = 1;
+  Ecdsa = 2;
+  Ed25519WrapBytes = 3;
+  Sr25519WrapBytes = 4;
+  EcdsaWrapBytes = 5;
+  Eip712 = 6;
+  EvmEcdsa = 7;
+  EvmEcdsaWrapBytes = 8;
+}
+
+message ContractQueryResponse {
+  // The query result.
+  // @codec scale crate::crypto::EncryptedData
+  bytes encoded_encrypted_data = 1;
+}
+
+// Request parameters for GetWorkerState
+message GetWorkerStateRequest {
+  // The worker's public key.
+  bytes public_key = 1;
+}
+
+message WorkerStat {
+  uint32 last_heartbeat_for_block = 1;
+  uint32 last_heartbeat_at_block = 2;
+  ResponsiveEvent last_gk_responsive_event = 3;
+  uint32 last_gk_responsive_event_at_block = 4;
+}
+
+// Response for GetWorkerState
+message WorkerState {
+  bool registered = 1;
+  bool unresponsive = 2;
+  BenchState bench_state = 3;
+  WorkingState working_state = 4;
+  repeated uint32 waiting_heartbeats = 5;
+  TokenomicInfo tokenomic_info = 10;
+  WorkerStat stat = 11;
+}
+
+message HandoverChallenge {
+  // @codec scale phala_types::HandoverChallenge<chain::BlockNumber>
+  bytes encoded_challenge = 1;
+}
+
+message HandoverChallengeResponse {
+  // @codec scale phala_types::ChallengeHandlerInfo<chain::BlockNumber>
+  bytes encoded_challenge_handler = 1;
+  // The sgx attestation on the challenge handler hash
+  Attestation attestation = 2;
+}
+
+message HandoverWorkerKey {
+  // @codec scale phala_types::EncryptedWorkerKey
+  bytes encoded_worker_key = 1;
+  // The sgx attestation on the encrypted worker key hash
+  Attestation attestation = 2;
+}
+
+message DcapHandoverChallenge {
+  // @codec scale phala_types::DcapHandoverChallenge<chain::BlockNumber>
+  bytes encoded_challenge = 1;
+}
+
+message DcapHandoverChallengeResponse {
+  // @codec scale phala_types::DcapChallengeHandlerInfo<chain::BlockNumber>
+  bytes encoded_challenge_handler = 1;
+  // The sgx local attestation report of the client
+  bytes la_report = 2;
+}
+
+message DcapHandoverWorkerKey {
+  // @codec scale phala_types::EncryptedWorkerKey
+  bytes encoded_worker_key = 1;
+  // The sgx local attestation report
+  bytes la_report = 2;
+}
+
+message BenchState {
+  uint32 start_block = 1;
+  uint64 start_time = 2;
+  uint32 duration = 4;
+}
+
+message WorkingState {
+  uint32 session_id = 1;
+  bool paused = 2;
+  uint64 start_time = 3;
+}
+
+message EchoMessage {
+  bytes echo_msg = 1;
+}
+
+enum ResponsiveEvent {
+  NoEvent = 0;
+  EnterUnresponsive = 1;
+  ExitUnresponsive = 2;
+}
+
+message AddEndpointRequest {
+  // @codec scale crate::endpoints::EndpointType
+  bytes encoded_endpoint_type = 1;
+  string endpoint = 2;
+}
+
+message GetEndpointResponse {
+  // @codec scale phala_types::WorkerEndpointPayload
+  optional bytes encoded_endpoint_payload = 1;
+  optional bytes signature = 2;
+}
+
+message SignEndpointsRequest {
+  // @codec scale Vec<String>
+  bytes encoded_endpoints = 1;
+}
+
+message DerivePhalaI2pKeyResponse {
+  bytes phala_i2p_key = 1;
+}
+
+message TokenomicStat {
+  string last_payout = 1;
+  uint32 last_payout_at_block = 2;
+  string total_payout = 3;
+  uint32 total_payout_count = 4;
+  string last_slash = 5;
+  uint32 last_slash_at_block = 6;
+  string total_slash = 7;
+  uint32 total_slash_count = 8;
+}
+
+message TokenomicInfo {
+  reserved 3;
+
+  string v = 1;
+  string v_init = 2;
+  string v_deductible = 19;
+  string share = 20;
+  uint64 v_update_at = 4;
+  uint32 v_update_block = 5;
+  uint64 iteration_last = 6;
+  uint64 challenge_time_last = 7;
+  string p_bench = 8;
+  string p_instant = 9;
+  uint32 confidence_level = 10;
+
+  TokenomicStat stat = 21;
+  // next: 22
+}
+
+// Network config
+message NetworkConfigResponse {
+  // The public rpc port with ACL enabled. This is the port serving contract queries.
+  optional uint32 public_rpc_port = 1;
+  // The current config set by The RPC ConfigNetwork. Nil if the ConfigNetwork hasn't been called.
+  optional NetworkConfig config = 2;
+}
+
+// Parameters for the RPC ConfigNetwork
+message NetworkConfig {
+  // The SOCKS5 proxy for outbound tcp connections.
+  string all_proxy = 2;
+  // The SOCKS5 proxy for outbound tcp connections to a i2p address.
+  string i2p_proxy = 3;
+}
+
+message HttpHeader {
+  string name = 1;
+  string value = 2;
+}
+
+// Parameters for the RPC HttpFetch
+message HttpRequest {
+  // The destination URL to request to
+  string url = 1;
+  // The HTTP method
+  string method = 2;
+  // A list of raw headers
+  repeated HttpHeader headers = 3;
+  // The body payload
+  bytes body = 4;
+}
+
+// Return type for HttpFetch
+message HttpResponse {
+  // The HTTP status code
+  uint32 status_code = 1;
+  // A list of raw headers
+  repeated HttpHeader headers = 2;
+  // The body payload
+  bytes body = 3;
+}
+
+// Parameters for RPC GetContractInfo
+message GetContractInfoRequest {
+  // The ids of contracts to query about. Leave empty to query all.
+  repeated string contracts = 1;
+}
+
+// Response for RPC GetContractInfo
+message GetContractInfoResponse {
+  // A list of contract informations
+  repeated ContractInfo contracts = 1;
+}
+
+// Infomation about a contract
+message ContractInfo {
+  // The contract id
+  string id = 1;
+  // The blake2 256 hash of the contract
+  string code_hash = 2;
+  // The scheduling weight
+  uint32 weight = 3;
+  // Infomation about it's sidevm if exists
+  SidevmInfo sidevm = 4;
+}
+
+// Infomation about a sidevm
+message SidevmInfo {
+  // Sidevm state. running/stopped
+  string state = 1;
+  // The blake2 256 hash of the current running sidevm.
+  string code_hash = 2;
+  // The start time of the instance.
+  string start_time = 3;
+  // The latest stop reason if stopped
+  string stop_reason = 4;
+  // The max memory pages configuration
+  uint32 max_memory_pages = 5;
+  // The vital_capacity configuration
+  uint64 vital_capacity = 6;
+  // Run until the given block number
+  uint32 deadline = 7;
+  // The max code size configuration
+  uint32 max_code_size = 8;
+}
+
+// Response to GetClusters
+message GetClusterInfoResponse {
+  ClusterInfo info = 1;
+}
+
+// Information about a cluster
+message ClusterInfo {
+  // The cluster id.
+  string id = 1;
+  // The version of the current contract execution engine
+  string runtime_version = 2;
+  // The state root of it's storage.
+  string state_root = 3;
+  // The address of the system contract.
+  string system_contract = 5;
+  // The address of the log server.
+  string logger_contract = 6;
+  // Number of contracts deployed
+  uint64 number_of_contracts = 7;
+  // The Js Runtime code hash
+  string js_runtime = 8;
+}
+
+// Sidevm code
+message SidevmCode {
+  // The target contract_id
+  bytes contract = 1;
+  // The code
+  bytes code = 2;
+}
+
+message ContractParameters {
+  string deployer = 1;
+  string cluster_id = 2;
+  string code_hash = 3;
+  string salt = 4;
+}
+
+message ContractId {
+  string id = 1;
+}
+
+message ChainState {
+  uint32 block_number = 1;
+  // @codec scale crate::blocks::StorageState
+  bytes encoded_state = 2;
+}
+
+message StopOptions {
+  // Remove checkpoints before stop
+  bool remove_checkpoints = 1;
+}
+
+message StorageProof {
+  repeated bytes proof = 1;
+}
+
+// Used to specify the contracts addresses for which statistics should be returned.
+message StatisticsReqeust {
+  // A list of contract addresses that to be queried.
+  repeated string contracts = 1;
+  // Query for all contracts.
+  bool all = 2;
+}
+
+// The statistics that are returned by the RPC service.
+message StatisticsResponse {
+  // The number of seconds the worker has been running.
+  // The counters are reset to zero on each restart.
+  uint64 uptime = 1;
+  // Number of serving cores available to the worker.
+  uint32 cores = 2;
+  // Statistics for contract queries.
+  QueryStats query = 3;
+  // Statistics for HTTP egress made by ink contracts.
+  HttpEgressStats http_egress = 4;
+}
+
+// Statistics for queries.
+message QueryStats {
+  // Overall query statistics.
+  QueryCounters global = 1;
+  // Statistics of query for each contract.
+  map<string, QueryCounters> by_contract = 2;
+}
+
+// Counters for queries.
+message QueryCounters {
+  // Total number of queries.
+  uint64 total = 1;
+  // The number of dropped queries.
+  uint64 dropped = 2;
+  // The served time in milliseconds.
+  uint64 time = 3;
+}
+
+// HTTP egress statistics for contracts.
+message HttpEgressStats {
+  // Overall HTTP egress statistics.
+  HttpCounters global = 1;
+  // HTTP egress statistics for each contract.
+  map<string, HttpCounters> by_contract = 2;
+}
+
+// Counters for HTTP egress.
+message HttpCounters {
+  // The number of HTTP requests sent.
+  uint64 requests = 1;
+  // The number of failed HTTP requests.
+  uint64 failures = 2;
+  // The number of HTTP requests for each status code.
+  map<uint32, uint64> by_status_code = 3;
+}
+
+message SaveClusterStateArguments {
+  // The pubkey for the worker to receive the state.
+  string receiver = 1;
+  // The state must later than this block number.
+  uint32 min_block_number = 2;
+  // Signature to ensure the request is from the dest worker.
+  string signature = 3;
+}
+
+message SaveClusterStateResponse {
+  // The block number of the saved state.
+  uint32 block_number = 1;
+  // The filename to download the state.
+  string filename = 2;
+}
+
+message PinkRuntimeVersion {
+  // The major version of the pink runtime
+  uint32 major = 1;
+  // The minor version of the pink runtime
+  uint32 minor = 2;
+}
