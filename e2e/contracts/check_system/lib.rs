@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate alloc;
 
-pub use check_system::*;
+pub use crate::check_system::*;
 
 #[ink::contract(env = PinkEnvironment)]
 mod check_system {
@@ -447,9 +447,9 @@ mod check_system {
     #[cfg(test)]
     mod tests {
         use drink::session::Session;
-        use pink_drink::{Callable, DeployBundle, PinkRuntime};
         use ink::codegen::TraitCallBuilder;
         use pink::chain_extension::JsValue;
+        use pink_drink::{Callable, DeployBundle, PinkRuntime};
 
         use super::CheckSystemRef;
 

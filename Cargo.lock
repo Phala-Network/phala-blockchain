@@ -10467,7 +10467,7 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "pink"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "dlmalloc",
  "hex",
@@ -10501,7 +10501,7 @@ dependencies = [
 
 [[package]]
 name = "pink-chain-extension"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "futures",
  "getrandom 0.2.12",
@@ -10661,7 +10661,7 @@ dependencies = [
 
 [[package]]
 name = "pink-types"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "parity-scale-codec",
  "scale-info",

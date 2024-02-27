@@ -1,6 +1,6 @@
 [package]
 name = "pink-types"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Phala's ink! for writing phat contracts"
 license = "Apache-2.0"

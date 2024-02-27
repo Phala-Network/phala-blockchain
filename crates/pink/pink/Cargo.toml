@@ -1,6 +1,6 @@
 [package]
 name = "pink"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2018"
 description = "Phala's ink! for writing phat contracts"
 license = "Apache-2.0"
@@ -17,7 +17,7 @@ this-crate = { version = "0.1", path = "../../this-crate" }
 num_enum = { version = "0.6", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 hex = { version = "0.4", default-features = false, features = ["alloc"] }
-pink-types = { version = "0.1", path = "../pink-types", default-features = false }
+pink-types = { version = "0.1.2", path = "../pink-types", default-features = false }
 
 [dev-dependencies]
 pink-chain-extension = { default-features = false, path = "../chain-extension" }

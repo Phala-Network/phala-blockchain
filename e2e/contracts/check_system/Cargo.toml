@@ -34,7 +34,7 @@ features = ["ink-as-dependency"]
 
 [dev-dependencies]
 drink = "0.8.0"
-pink-drink = "0.1.1-dev.1"
+pink-drink = "0.1.1"
 tracing-subscriber = "0.3.18"
 
 [build-dependencies]
