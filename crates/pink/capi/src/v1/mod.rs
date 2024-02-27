@@ -210,12 +210,15 @@ pub mod ecall {
 pub mod ocall {
     use super::{CrossCallMut, Executing, OCall};
     use crate::types::{AccountId, BlockNumber, ExecSideEffects, ExecutionMode, Hash};
-    pub use pink::chain_extension::{JsCode, JsValue};
     use pink_runtime_macro::cross_call;
     use scale::{Decode, Encode};
 
-    pub use pink::chain_extension::{
-        BatchHttpResult, HttpRequest, HttpRequestError, HttpResponse, StorageQuotaExceeded,
+    pub use pink::{
+        chain_extension::{
+            BatchHttpResult, HttpRequest, HttpRequestError, HttpResponse, JsCode, JsValue,
+            StorageQuotaExceeded,
+        },
+        types::sgx::SgxQuote,
     };
     pub type StorageChanges = Vec<(Vec<u8>, (Vec<u8>, i32))>;
 
@@ -330,6 +333,10 @@ pub mod ocall {
         /// Get the origin of the transaction (if available).
         #[xcall(id = 20)]
         fn origin(&self) -> Option<AccountId>;
+
+        /// Returns the SGX quote of the worker.
+        #[xcall(id = 21)]
+        fn worker_sgx_quote(&self) -> Option<SgxQuote>;
     }
 }
 

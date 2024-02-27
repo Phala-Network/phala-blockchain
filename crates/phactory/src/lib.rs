@@ -660,6 +660,7 @@ impl<P: pal::Platform> Phactory<P> {
                     .expect("runtime state always exists here")
                     .chain_storage,
                 self.sidevm_spawner.event_tx(),
+                self.attestation_provider,
             );
         let pink_runtime_version = self
             .cluster_runtime_version()

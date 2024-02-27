@@ -212,7 +212,7 @@ pub fn get_raw_pool_by_pid(db: WrappedDb, pid: u64) -> Result<Option<VertexPrope
     }
     .into();
     let v: Vec<VertexProperties> = db.get_all_vertex_properties(q)?;
-    let v = v.get(0);
+    let v = v.first();
     match v {
         Some(v) => Ok(Some(v.clone())),
         None => Ok(None),
@@ -325,7 +325,6 @@ pub fn update_pool(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
             let p = get_raw_pool_by_pid(db.clone(), pid)?;
             let Some(v) = p else {
                 anyhow::bail!("Pool not found!")
-
             };
             let id = v.vertex.id;
             let uq: VertexQuery = SpecificVertexQuery { ids: vec![id] }.into();
@@ -556,7 +555,7 @@ pub fn update_worker(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
 
             let v = SpecificVertexQuery { ids }.into();
             let v = db.get_all_vertex_properties(v)?;
-            let v = v.get(0).context("Worker is not attached to a pool!")?;
+            let v = v.first().context("Worker is not attached to a pool!")?;
             let current_pool: Pool = v.clone().into();
 
             if current_pool.pid != pid {

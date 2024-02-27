@@ -1966,13 +1966,16 @@ dependencies = [
 name = "check_system"
 version = "0.1.0"
 dependencies = [
+ "hex",
  "indeterministic_functions",
  "ink",
  "parity-scale-codec",
  "phat_js",
  "pink",
  "pink-json",
+ "rustls-pki-types 0.2.1",
  "scale-info",
+ "sgx-attestation",
  "sideabi",
  "sp-core 25.0.0",
 ]
@@ -9729,6 +9732,7 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "sgx-api-lite",
+ "sgx-attestation",
  "sidevm-env",
  "sidevm-host-runtime",
  "sp-application-crypto",
@@ -10196,6 +10200,7 @@ dependencies = [
  "insta",
  "parity-scale-codec",
  "phala-mq",
+ "pink-types",
  "prpc",
  "scale-info",
  "serde",
@@ -10462,7 +10467,7 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "pink"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "dlmalloc",
  "hex",
@@ -10496,7 +10501,7 @@ dependencies = [
 
 [[package]]
 name = "pink-chain-extension"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "futures",
  "getrandom 0.2.12",
@@ -10656,7 +10661,7 @@ dependencies = [
 
 [[package]]
 name = "pink-types"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -14185,18 +14190,22 @@ dependencies = [
  "chrono",
  "const-oid",
  "der 0.7.8",
+ "futures",
  "hex",
  "insta",
  "log",
  "parity-scale-codec",
  "pem 3.0.2",
  "pink-json",
+ "pink-types",
  "reqwest",
+ "reqwest-env-proxy",
  "ring 0.16.20",
  "rustls-webpki 0.102.0-alpha.3",
  "scale-info",
  "serde",
  "serde_json",
+ "tracing",
  "urlencoding",
  "x509-cert",
 ]

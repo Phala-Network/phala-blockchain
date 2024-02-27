@@ -14,7 +14,7 @@ use pink_capi::{
         ecall::{ClusterSetupConfig, ECalls, TransactionArguments},
         ocall::{
             BatchHttpResult, ExecContext, HttpRequest, HttpRequestError, HttpResponse, JsCode,
-            JsValue, OCalls, StorageChanges,
+            JsValue, OCalls, SgxQuote, StorageChanges,
         },
         CrossCall, CrossCallMut, ECall,
     },
@@ -364,6 +364,10 @@ impl OCalls for Exec<'_> {
     }
 
     fn origin(&self) -> Option<AccountId> {
+        None
+    }
+
+    fn worker_sgx_quote(&self) -> Option<SgxQuote> {
         None
     }
 }

@@ -1,5 +1,6 @@
 pub use pallet::*;
 
+#[allow(unused_imports)]
 #[frame_support::pallet]
 pub mod pallet {
     use frame_support::pallet_prelude::{ValueQuery, *};

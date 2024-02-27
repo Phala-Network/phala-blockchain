@@ -1,5 +1,4 @@
 mod api_server;
-mod ias;
 mod pal_gramine;
 mod runtime;
 

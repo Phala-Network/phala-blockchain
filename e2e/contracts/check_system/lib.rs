@@ -1,19 +1,26 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
+#[macro_use]
 extern crate alloc;
 
-pub use check_system::*;
+pub use crate::check_system::*;
 
 #[ink::contract(env = PinkEnvironment)]
 mod check_system {
     use alloc::vec::Vec;
     use pink::chain_extension::{signing as sig, JsCode, JsValue};
     use pink::system::{ContractDeposit, DriverError, Result, SystemRef};
+    use pink::types::sgx::AttestationType;
     use pink::{PinkEnvironment, WorkerId};
 
     use alloc::string::{String, ToString};
     use indeterministic_functions::Usd;
     use phat_js as js;
+
+    use sgx_attestation::dcap::{Quote, SgxV30QuoteCollateral as Collateral};
+    use sgx_attestation::SgxQuote;
+
+    type RawQuote = Vec<u8>;
 
     #[ink(storage)]
     pub struct CheckSystem {
@@ -259,7 +266,7 @@ mod check_system {
             let request = match action.as_str() {
                 "ping" => Request::Ping,
                 "callback" => Request::Callback {
-                    call_data: ink::selector_bytes!("sidevm_callbak").to_vec(),
+                    call_data: ink::selector_bytes!("sidevm_callback").to_vec(),
                 },
                 _ => return Err("Invalid action".into()),
             };
@@ -268,7 +275,7 @@ mod check_system {
         }
 
         #[ink(message)]
-        pub fn sidevm_callbak(&self) -> u8 {
+        pub fn sidevm_callback(&self) -> u8 {
             42
         }
 
@@ -390,6 +397,36 @@ mod check_system {
             pink::info!("{msg}");
             ink::env::debug_println!("{msg}");
         }
+
+        #[ink(message)]
+        pub fn get_worker_dcap_report(&self, pccs_url: String) -> Option<(RawQuote, Collateral)> {
+            use scale::Decode;
+
+            let Some(SgxQuote {
+                quote,
+                attestation_type: AttestationType::Dcap,
+            }) = pink::ext().worker_sgx_quote()
+            else {
+                pink::warn!("Failed to get worker dcap quote");
+                return None;
+            };
+            let decoded_quote = Quote::decode(&mut &quote[..]).expect("Failed to decode quote");
+            let fmspc = decoded_quote
+                .fmspc()
+                .expect("Failed to get fmspc, invalid quote");
+
+            let js_get_collateral = include_str!("getCollateral.js").into();
+            let args = vec![pccs_url, hex::encode(fmspc)];
+            let result = pink::ext().js_eval(alloc::vec![JsCode::Source(js_get_collateral)], args);
+
+            let JsValue::Bytes(collateral) = result else {
+                pink::warn!("Failed to get collateral");
+                return None;
+            };
+            let collateral =
+                Collateral::decode(&mut &collateral[..]).expect("Failed to decode collateral");
+            Some((quote, collateral))
+        }
     }
 
     impl ContractDeposit for CheckSystem {
@@ -410,9 +447,9 @@ mod check_system {
     #[cfg(test)]
     mod tests {
         use drink::session::Session;
-        use pink_drink::{Callable, DeployBundle, PinkRuntime};
         use ink::codegen::TraitCallBuilder;
         use pink::chain_extension::JsValue;
+        use pink_drink::{Callable, DeployBundle, PinkRuntime};
 
         use super::CheckSystemRef;
 
@@ -420,8 +457,7 @@ mod check_system {
         enum BundleProvider {}
 
         #[test]
-        fn it_works() -> Result<(), Box<dyn std::error::Error>> {
-            tracing_subscriber::fmt::init();
+        fn test_eval_js() -> Result<(), Box<dyn std::error::Error>> {
             let mut session = Session::<PinkRuntime>::new()?;
             let mut checker = CheckSystemRef::default()
                 .deploy_bundle(&BundleProvider::local()?, &mut session)
@@ -451,6 +487,22 @@ mod check_system {
                 .pink_eval_js(js_code.into(), vec![])
                 .query(&mut session)?;
             assert_eq!(url, JsValue::String("https://httpbin.org/get".into()));
+            Ok(())
+        }
+
+        #[test]
+        fn test_dcap_report() -> Result<(), Box<dyn std::error::Error>> {
+            let pccs_url = std::env::var("PCCS_URL").expect("PCCS_URL not set");
+            let mut session = Session::<PinkRuntime>::new()?;
+            let checker = CheckSystemRef::default()
+                .deploy_bundle(&BundleProvider::local()?, &mut session)
+                .expect("Failed to deploy checker contract");
+            let ra_report = checker
+                .call()
+                .get_worker_dcap_report(pccs_url)
+                .query(&mut session)?;
+            assert!(ra_report.is_some());
+            dbg!(ra_report);
             Ok(())
         }
     }

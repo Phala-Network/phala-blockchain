@@ -33,5 +33,5 @@ phala-node-rpc-ext = { path = "../../crates/phala-node-rpc-ext" }
 phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-client"] }
 
 phaxt = { path = "../../crates/phaxt" }
-sgx-attestation = { path = "../../crates/sgx-attestation", features = ["get_collateral"] }
+sgx-attestation = { path = "../../crates/sgx-attestation", features = ["report"] }
 async-stream = "0.3.4"

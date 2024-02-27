@@ -5937,6 +5937,7 @@ dependencies = [
  "serde_cbor",
  "serde_json",
  "sgx-api-lite",
+ "sgx-attestation",
  "sidevm-env",
  "sidevm-host-runtime",
  "sp-application-crypto",
@@ -6249,6 +6250,7 @@ dependencies = [
  "hex",
  "parity-scale-codec",
  "phala-mq",
+ "pink-types",
  "prpc",
  "scale-info",
  "serde",
@@ -6390,7 +6392,7 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "pink"
-version = "0.5.1"
+version = "0.4.1"
 dependencies = [
  "hex",
  "ink",
@@ -6418,7 +6420,7 @@ dependencies = [
 
 [[package]]
 name = "pink-chain-extension"
-version = "0.5.1"
+version = "0.1.1"
 dependencies = [
  "futures",
  "getrandom 0.2.10",
@@ -6463,7 +6465,7 @@ dependencies = [
 
 [[package]]
 name = "pink-macro"
-version = "0.4.5"
+version = "0.4.0"
 dependencies = [
  "heck 0.4.1",
  "ink_ir",
@@ -6518,7 +6520,7 @@ dependencies = [
 
 [[package]]
 name = "pink-types"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -6909,6 +6911,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sgx-api-lite",
+ "sgx-attestation",
  "sidevm-host-runtime",
  "this-crate 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing",
@@ -8120,17 +8123,21 @@ dependencies = [
  "chrono",
  "const-oid",
  "der",
+ "futures",
  "hex",
  "log",
  "parity-scale-codec",
  "pem",
  "pink-json",
+ "pink-types",
  "reqwest",
+ "reqwest-env-proxy",
  "ring 0.16.20",
  "rustls-webpki 0.102.0-alpha.3",
  "scale-info",
  "serde",
  "serde_json",
+ "tracing",
  "urlencoding",
  "x509-cert",
 ]

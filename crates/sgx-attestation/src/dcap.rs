@@ -1,36 +1,28 @@
-#[cfg(feature = "get_collateral")]
-pub mod get_collateral;
+#[cfg(feature = "report")]
+pub mod report;
 
+mod constants;
 mod quote;
 mod tcb_info;
 mod utils;
-mod constants;
 
-use alloc::borrow::ToOwned;
-use alloc::string::{String, ToString};
-use alloc::vec::Vec;
-use scale::{Decode, Encode};
-use scale_info::TypeInfo;
-
-use crate::dcap::quote::{AuthData, EnclaveReport, Quote};
-use crate::dcap::tcb_info::TcbInfo;
 use crate::dcap::utils::*;
-use crate::dcap::constants::*;
-use crate::Error;
 
-#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, Debug)]
-pub struct SgxV30QuoteCollateral {
-    pub pck_crl_issuer_chain: String,
-    pub root_ca_crl: String,
-    pub pck_crl: String,
-    pub tcb_info_issuer_chain: String,
-    pub tcb_info: String,
-    pub tcb_info_signature: Vec<u8>,
-    pub qe_identity_issuer_chain: String,
-    pub qe_identity: String,
-    pub qe_identity_signature: Vec<u8>,
-}
+#[cfg(feature = "verify")]
+use {
+    crate::dcap::constants::*,
+    crate::dcap::tcb_info::TcbInfo,
+    crate::Error,
+    alloc::borrow::ToOwned,
+    alloc::string::{String, ToString},
+    alloc::vec::Vec,
+    scale::Decode,
+};
 
+pub use crate::dcap::quote::{AuthData, EnclaveReport, Quote};
+pub use pink_types::sgx::SgxV30QuoteCollateral;
+
+#[cfg(feature = "verify")]
 #[allow(clippy::type_complexity)]
 pub fn verify(
     raw_quote: &[u8],
@@ -45,8 +37,8 @@ pub fn verify(
     let tcb_info = pink_json::from_str::<TcbInfo>(&quote_collateral.tcb_info)
         .map_err(|_| Error::CodecError)?;
 
-    let next_update =
-        chrono::DateTime::parse_from_rfc3339(&tcb_info.next_update).map_err(|_| Error::CodecError)?;
+    let next_update = chrono::DateTime::parse_from_rfc3339(&tcb_info.next_update)
+        .map_err(|_| Error::CodecError)?;
     if now > next_update.timestamp() as u64 {
         return Err(Error::TCBInfoExpired);
     }
@@ -107,16 +99,19 @@ pub fn verify(
         return Err(Error::CertificateChainIsTooShort);
     }
     // Check certification_data
-    let leaf_cert: webpki::EndEntityCert =
-        webpki::EndEntityCert::try_from(&certification_certs[0])
-            .map_err(|_| Error::LeafCertificateParsingError)?;
+    let leaf_cert: webpki::EndEntityCert = webpki::EndEntityCert::try_from(&certification_certs[0])
+        .map_err(|_| Error::LeafCertificateParsingError)?;
     let intermediate_certs = &certification_certs[1..];
     verify_certificate_chain(&leaf_cert, intermediate_certs, now_in_milli)?;
 
     // Check QE signature
     let asn1_signature = encode_as_der(&auth_data.qe_report_signature)?;
     if leaf_cert
-        .verify_signature(webpki::ECDSA_P256_SHA256, &auth_data.qe_report, &asn1_signature)
+        .verify_signature(
+            webpki::ECDSA_P256_SHA256,
+            &auth_data.qe_report,
+            &asn1_signature,
+        )
         .is_err()
     {
         return Err(Error::RsaSignatureIsInvalid);
@@ -124,8 +119,7 @@ pub fn verify(
 
     // Extract QE report from quote
     let mut qe_report = auth_data.qe_report.as_slice();
-    let qe_report =
-        EnclaveReport::decode(&mut qe_report).map_err(|_err| Error::CodecError)?;
+    let qe_report = EnclaveReport::decode(&mut qe_report).map_err(|_err| Error::CodecError)?;
 
     // Check QE hash
     let mut qe_hash_data = [0u8; QE_HASH_DATA_BYTE_LEN];
@@ -165,8 +159,12 @@ pub fn verify(
     let mut advisory_ids = Vec::<String>::new();
     for tcb_level in &tcb_info.tcb_levels {
         if pce_svn >= tcb_level.tcb.pce_svn {
-            if cpu_svn.iter().zip(&tcb_level.tcb.components).any(|(a, b)| a < &b.svn) {
-                continue
+            if cpu_svn
+                .iter()
+                .zip(&tcb_level.tcb.components)
+                .any(|(a, b)| a < &b.svn)
+            {
+                continue;
             }
 
             tcb_status = tcb_level.tcb_status.clone();
@@ -197,6 +195,7 @@ pub fn verify(
 mod test {
     use super::*;
 
+    #[cfg(feature = "verify")]
     #[test]
     fn could_parse() {
         let raw_quote = include_bytes!("../sample/dcap_quote").to_vec();
@@ -209,21 +208,22 @@ mod test {
             verify(&raw_quote, &quote_collateral, now).expect("verify");
 
         assert_eq!(
-            report_data, [
-                72, 101, 108, 108, 111, 44, 32, 119, 111, 114, 108, 100, 33, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            report_data,
+            [
+                72, 101, 108, 108, 111, 44, 32, 119, 111, 114, 108, 100, 33, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
         assert_eq!(
-            pruntime_hash, [
-                51, 216, 115, 109, 183, 86, 237, 73, 151, 224, 75, 163, 88, 210, 120, 51,
-                24, 143, 25, 50, 255, 123, 29, 21, 105, 4, 211, 245, 96, 69, 47, 187,
-                0, 0, 0, 0,
-                129, 95, 66, 241, 28, 246, 68, 48, 195, 11, 171, 120, 22, 186, 89, 106,
-                29, 160, 19, 12, 59, 2, 139, 103, 49, 51, 166, 108, 249, 163, 224, 230
-            ]);
+            pruntime_hash,
+            [
+                51, 216, 115, 109, 183, 86, 237, 73, 151, 224, 75, 163, 88, 210, 120, 51, 24, 143,
+                25, 50, 255, 123, 29, 21, 105, 4, 211, 245, 96, 69, 47, 187, 0, 0, 0, 0, 129, 95,
+                66, 241, 28, 246, 68, 48, 195, 11, 171, 120, 22, 186, 89, 106, 29, 160, 19, 12, 59,
+                2, 139, 103, 49, 51, 166, 108, 249, 163, 224, 230
+            ]
+        );
         assert_eq!(tcb_status, "ConfigurationAndSWHardeningNeeded");
         assert_eq!(advisory_ids, ["INTEL-SA-00289", "INTEL-SA-00615"]);
 

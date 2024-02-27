@@ -12,7 +12,9 @@ use pink::{
         self as ext, HttpRequest, HttpResponse, JsCode, JsValue, PinkExtBackend, SigType,
         StorageQuotaExceeded,
     },
-    dispatch_ext_call, CacheOp, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
+    dispatch_ext_call,
+    types::sgx::SgxQuote,
+    CacheOp, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
 };
 use pink_chain_extension::{DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
@@ -325,6 +327,10 @@ impl PinkExtBackend for CallInQuery {
     fn js_eval(&self, codes: Vec<JsCode>, args: Vec<String>) -> Result<JsValue, Self::Error> {
         Ok(OCallImpl.js_eval(self.address.clone(), codes, args))
     }
+
+    fn worker_sgx_quote(&self) -> Result<Option<SgxQuote>, Self::Error> {
+        Ok(OCallImpl.worker_sgx_quote())
+    }
 }
 
 struct CallInCommand {
@@ -494,5 +500,9 @@ impl PinkExtBackend for CallInCommand {
         Ok(JsValue::Exception(
             "Js evaluation is not supported in transaction".into(),
         ))
+    }
+
+    fn worker_sgx_quote(&self) -> Result<Option<SgxQuote>, Self::Error> {
+        Ok(None)
     }
 }

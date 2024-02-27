@@ -1,5 +1,3 @@
-use core::time::Duration;
-
 use alloc::string::String;
 use alloc::vec::Vec;
 use base64::{engine::general_purpose, Engine as _};
@@ -8,6 +6,12 @@ use scale::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate::Error;
+
+#[cfg(feature = "verify")]
+use core::time::Duration;
+
+#[cfg(feature = "report")]
+pub mod report;
 
 #[derive(Debug, Decode, Encode)]
 pub struct EnclaveQuoteBody {
@@ -77,14 +81,16 @@ impl SignedIasReport {
         pink_json::from_str(&self.ra_report)
     }
 
+    #[cfg(feature = "verify")]
     pub fn verify(&self, now_since_unix_epoch: Duration) -> Result<(), Error> {
-        let report = self.ra_report.as_str().as_bytes();
+        let report = self.ra_report.as_bytes();
         let signature = b64_decode(&self.signature)?;
         let raw_signing_cert = b64_decode(&self.raw_signing_cert)?;
         verify_signature(report, &signature, &raw_signing_cert, now_since_unix_epoch)
     }
 }
 
+#[cfg(feature = "verify")]
 pub fn verify_signature(
     message: &[u8],
     signature: &[u8],
@@ -113,8 +119,10 @@ pub fn verify_signature(
     Ok(())
 }
 
+#[cfg(feature = "verify")]
 type SignatureAlgorithms = &'static [&'static dyn webpki::types::SignatureVerificationAlgorithm];
 
+#[cfg(feature = "verify")]
 static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
     webpki::RSA_PKCS1_2048_8192_SHA256,
     webpki::RSA_PKCS1_2048_8192_SHA384,
@@ -122,6 +130,7 @@ static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
     webpki::RSA_PKCS1_3072_8192_SHA384,
 ];
 
+#[cfg(feature = "verify")]
 static IAS_SERVER_ROOTS: &[webpki::types::TrustAnchor<'static>; 1] = &[
 	/*
 	 * -----BEGIN CERTIFICATE-----

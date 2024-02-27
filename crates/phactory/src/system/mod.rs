@@ -54,7 +54,7 @@ use phala_types::{
         NewGatekeeperEvent, RemoveGatekeeperEvent, RotateMasterKeyEvent, SystemEvent, WorkerEvent,
         WorkingReportEvent,
     },
-    wrap_content_to_sign, EcdhPublicKey, SignedContentType, WorkerPublicKey,
+    wrap_content_to_sign, AttestationProvider, EcdhPublicKey, SignedContentType, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
 use sidevm::{
@@ -546,6 +546,7 @@ impl<Platform: pal::Platform> System<Platform> {
         query_scheduler: RequestScheduler<AccountId>,
         chain_storage: &ChainStorage,
         sidevm_event_tx: OutgoingRequestChannel,
+        attestation_provider: Option<AttestationProvider>,
     ) -> Result<
         impl Future<
             Output = Result<
@@ -581,6 +582,7 @@ impl<Platform: pal::Platform> System<Platform> {
             chain_storage: chain_storage.snapshot(),
             req_id,
             sidevm_event_tx,
+            attestation_provider,
         };
         let origin = origin.cloned();
         let query = deopaque_query::<Query>(&query)?;

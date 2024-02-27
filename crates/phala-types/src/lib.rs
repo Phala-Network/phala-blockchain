@@ -432,25 +432,10 @@ pub mod messaging {
     }
 }
 
-#[cfg(feature = "sgx-attestation")]
-#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
-pub enum AttestationReport {
-    SgxIas {
-        ra_report: Vec<u8>,
-        signature: Vec<u8>,
-        raw_signing_cert: Vec<u8>,
-    },
-    SgxDcap {
-        quote: Vec<u8>,
-        collateral: Option<Collateral>,
-    },
-}
+// Types used in storage
 
 #[cfg(feature = "sgx-attestation")]
-#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
-pub enum Collateral {
-    SgxV30(sgx_attestation::dcap::SgxV30QuoteCollateral),
-}
+pub use pink_types::sgx::{AttestationReport, Collateral};
 
 #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
 #[derive(Encode, Decode, TypeInfo, Debug, Copy, Clone, PartialEq, Eq)]

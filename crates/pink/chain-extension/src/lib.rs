@@ -11,6 +11,7 @@ use pink::{
         self as ext, HttpRequest, HttpRequestError, HttpResponse, JsCode, JsValue, PinkExtBackend,
         SigType, StorageQuotaExceeded,
     },
+    types::sgx::SgxQuote,
     Balance, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash,
 };
 use reqwest::{
@@ -374,6 +375,10 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
 
     fn js_eval(&self, _codes: Vec<JsCode>, _args: Vec<String>) -> Result<JsValue, Self::Error> {
         Ok(JsValue::Exception("No Js Runtime".into()))
+    }
+
+    fn worker_sgx_quote(&self) -> Result<Option<SgxQuote>, Self::Error> {
+        Ok(None)
     }
 }
 
