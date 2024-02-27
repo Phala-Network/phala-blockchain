@@ -363,7 +363,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn test_molformed_gk_message() {
+    fn test_malformed_gk_message() {
         bind_topic!(TestMessage, b"topic0");
         #[derive(Decode, Encode)]
         struct TestMessage {
@@ -385,7 +385,7 @@ mod tests {
     }
 
     #[test]
-    fn test_molformed_message() {
+    fn test_malformed_message() {
         bind_topic!(TestMessage, b"topic0");
         #[derive(Decode, Encode)]
         struct TestMessage {

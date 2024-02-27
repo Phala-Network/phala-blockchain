@@ -19,6 +19,7 @@ pub mod pallet {
 
 	use crate::mq::MessageOriginInfo;
 	use crate::utils::attestation::Error as AttestationError;
+	use alloc::string::String;
 	use phala_types::{
 		messaging::{
 			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
@@ -203,6 +204,10 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type MaxKnownPRuntimeConsensusVersion<T: Config> =
 		StorageValue<_, KnownConsensusVersion, ValueQuery>;
+
+	/// The list of trusted NTP servers for dcap key handover
+	#[pallet::storage]
+	pub type TrustedNtpServers<T: Config> = StorageValue<_, Vec<String>, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -865,6 +870,20 @@ pub mod pallet {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 			PRuntimeConsensusVersion::<T>::put(version);
 			Self::deposit_event(Event::<T>::PRuntimeConsensusVersionChangedTo(version));
+			Ok(())
+		}
+
+		/// Set the trusted NTP servers for dcap key handover
+		///
+		/// Can only be called by `GovernanceOrigin`.
+		#[pallet::call_index(15)]
+		#[pallet::weight({0})]
+		pub fn set_trusted_ntp_servers(
+			origin: OriginFor<T>,
+			servers: Vec<String>,
+		) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+			TrustedNtpServers::<T>::put(servers);
 			Ok(())
 		}
 	}

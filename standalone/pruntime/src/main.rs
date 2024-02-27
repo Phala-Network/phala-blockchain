@@ -172,9 +172,15 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
     info!("init_args: {:#?}", init_args);
     if let Some(from) = args.request_handover_from {
         info!(%from, "Starting handover");
-        handover::handover_from(&from, init_args)
-            .await
-            .expect("Handover failed");
+        if pal_gramine::is_dcap() {
+            handover::dcap_handover_from(&from, init_args)
+                .await
+                .expect("Handover failed");
+        } else {
+            handover::handover_from(&from, init_args)
+                .await
+                .expect("Handover failed");
+        }
         info!("Handover done");
         return Ok(());
     }

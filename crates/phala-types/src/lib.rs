@@ -540,6 +540,24 @@ pub struct ChallengeHandlerInfo<BlockNumber> {
     pub ecdh_pubkey: EcdhPublicKey,
 }
 
+/// One-time Challenge for DCAP WorkerKey handover
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub struct DcapHandoverChallenge<BlockNumber> {
+    pub sgx_target_info: Vec<u8>,
+    // The challenge is only considered valid within 150 blocks (~30 min)
+    pub block_number: BlockNumber,
+    pub now: u64,
+    pub dev_mode: bool,
+    pub nonce: [u8; 32],
+    pub ntp_time_secs: u64,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub struct DcapChallengeHandlerInfo<BlockNumber> {
+    pub challenge: DcapHandoverChallenge<BlockNumber>,
+    pub ecdh_pubkey: EcdhPublicKey,
+}
+
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
 pub struct EncryptedWorkerKey {
     pub genesis_block_hash: H256,
