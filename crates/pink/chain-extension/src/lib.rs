@@ -6,7 +6,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use pink_extension::{
+use pink::{
     chain_extension::{
         self as ext, HttpRequest, HttpRequestError, HttpResponse, JsCode, JsValue, PinkExtBackend,
         SigType, StorageQuotaExceeded,
@@ -420,12 +420,12 @@ impl<W: std::io::Write> std::io::Write for LimitedWriter<W> {
 mod tests {
     use super::*;
 
-    use pink_extension::chain_extension::HttpRequest;
+    use pink::chain_extension::HttpRequest;
 
     #[test]
     fn default_impl_works() {
         use mock_ext::MockExtension;
-        use pink_extension::chain_extension::PinkExtBackend;
+        use pink::chain_extension::PinkExtBackend;
 
         let mock = MockExtension;
         let ext = DefaultPinkExtension::<_, String>::new(&mock);

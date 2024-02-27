@@ -15,7 +15,7 @@ use scale::{Compact, Decode, Encode};
 
 use contracts::objects::ContractQueryResult;
 use objects::*;
-use pink_extension::chain_extension::{signing, SigType};
+use pink::chain_extension::{signing, SigType};
 pub use primitives::era::Era;
 use rpc::call_rpc;
 pub use ss58::{get_ss58addr_version, Ss58Codec};
@@ -386,7 +386,7 @@ mod tests {
     ///   SS58 Address:      FXJFWSVDcyVi3bTy8D9ESznQM4JoNBRQLEjWFgAGnGQfpbR
     #[test]
     fn can_get_next_nonce() {
-        pink_extension_runtime::mock_ext::mock_all_ext();
+        pink_chain_extension::mock_ext::mock_all_ext();
         let version = get_ss58addr_version("kusama").unwrap();
         let public_key: [u8; 32] =
             hex_literal::hex!("8266b3183ccc58f3d145d7a4894547bd55d7739751dd15802f36ec8a0d7be314");
@@ -396,14 +396,14 @@ mod tests {
 
     #[test]
     fn can_get_runtime_version() {
-        pink_extension_runtime::mock_ext::mock_all_ext();
+        pink_chain_extension::mock_ext::mock_all_ext();
         let runtime_version = get_runtime_version("https://kusama-rpc.polkadot.io").unwrap();
         assert_eq!(runtime_version.impl_name, "parity-kusama");
     }
 
     #[test]
     fn can_get_genesis_hash() {
-        pink_extension_runtime::mock_ext::mock_all_ext();
+        pink_chain_extension::mock_ext::mock_all_ext();
         let genesis_hash = get_genesis_hash("https://kusama-rpc.polkadot.io").unwrap();
         assert_eq!(
             hex::encode(genesis_hash),
@@ -442,7 +442,7 @@ mod tests {
             assert_eq!(bytes, expected);
         }
 
-        pink_extension_runtime::mock_ext::mock_all_ext();
+        pink_chain_extension::mock_ext::mock_all_ext();
         let signer =
             hex!("9eb2ee60393aeeec31709e256d448c9e40fa64233abf12318f63726e9c417b69").to_vec();
         let public_key: [u8; 32] = signing::get_public_key(&signer, SigType::Sr25519)
@@ -462,7 +462,7 @@ mod tests {
     #[test]
     #[ignore = "only for demostration purposes"]
     fn can_send_remark() {
-        pink_extension_runtime::mock_ext::mock_all_ext();
+        pink_chain_extension::mock_ext::mock_all_ext();
         let rpc_node = "https://khala.api.onfinality.io:443/public-ws";
         let signer: [u8; 32] =
             hex!("9eb2ee60393aeeec31709e256d448c9e40fa64233abf12318f63726e9c417b69");
@@ -495,7 +495,7 @@ mod tests {
     #[test]
     #[ignore = "this is very expensive so we don't test it often"]
     fn can_call_xtransfer() {
-        pink_extension_runtime::mock_ext::mock_all_ext();
+        pink_chain_extension::mock_ext::mock_all_ext();
         use xcm::v2::{AssetId, Fungibility, Junction, Junctions, MultiAsset, MultiLocation};
 
         let rpc_node = "https://rhala-api.phala.network/api";
@@ -562,7 +562,7 @@ mod tests {
     #[ignore = "this is very expensive so we don't test it often"]
     fn test_read_storage() {
         use std::str::FromStr;
-        pink_extension_runtime::mock_ext::mock_all_ext();
+        pink_chain_extension::mock_ext::mock_all_ext();
 
         let some_block =
             H256::from_str("0xbaa0b58522c8af4acaa147604839230a57aad53b9c9f67652feeeea8a0c04679")

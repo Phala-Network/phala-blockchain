@@ -1,10 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
-use pink_extension as pink;
-
-#[pink::contract(env = PinkEnvironment)]
+#[ink::contract(env = PinkEnvironment)]
 mod tokenomic {
-    use super::pink;
     use pink::system::{ContractDeposit, DriverError as Error, SystemRef};
     use pink::PinkEnvironment;
 

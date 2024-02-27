@@ -151,13 +151,13 @@ macro_rules! http_req {
 /// # Examples
 ///
 /// ```ignore
-/// use pink_extension::http_get;
+/// use pink::http_get;
 /// let response = http_get!("https://example.com/");
 /// assert_eq!(response.status_code, 200);
 /// ```
 ///
 /// ```ignore
-/// use pink_extension::http_get;
+/// use pink::http_get;
 /// let headers = vec![("X-Foo".into(), "Bar".into())];
 /// let response = http_get!("https://example.com/", headers);
 /// assert_eq!(response.status_code, 200);
@@ -182,13 +182,13 @@ macro_rules! http_get {
 /// # Examples
 ///
 /// ```ignore
-/// use pink_extension::http_post;
+/// use pink::http_post;
 /// let response = http_post!("https://example.com/", b"Hello, world!");
 /// assert_eq!(response.status_code, 200);
 /// ```
 ///
 /// ```ignore
-/// use pink_extension::http_post;
+/// use pink::http_post;
 /// let headers = vec![("X-Foo".into(), "Bar".into())];
 /// let response = http_post!("https://example.com/", b"Hello, world!", headers);
 /// assert_eq!(response.status_code, 200);
@@ -213,7 +213,7 @@ macro_rules! http_post {
 /// # Examples
 ///
 /// ```ignore
-/// use pink_extension::http_put;
+/// use pink::http_put;
 /// let response = http_put!("https://example.com/", b"Hello, world!");
 /// assert_eq!(response.status_code, 200);
 /// ```

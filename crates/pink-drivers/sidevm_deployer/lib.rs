@@ -2,11 +2,8 @@
 
 extern crate alloc;
 
-use pink_extension as pink;
-
-#[pink::contract(env = PinkEnvironment)]
+#[ink::contract(env = PinkEnvironment)]
 mod sidevm_deployer {
-    use super::pink;
     use alloc::collections::BTreeMap;
     use alloc::string::ToString;
     use alloc::vec::Vec;
@@ -550,8 +547,7 @@ mod sidevm_deployer {
 
         #[ink::test]
         fn should_forbid_contract_not_in_whitelist() {
-            use pink::system::{SidevmOperationRef, SystemRef};
-            use pink_extension::system::System as _;
+            use pink::system::{SidevmOperationRef, System as _, SystemRef};
             with_callee(SYSTEM_ADDR, || {
                 let mut system = System::default();
                 system.grant_admin(SIDEVMOP_ADDR.into()).ok();
@@ -568,8 +564,7 @@ mod sidevm_deployer {
 
         #[ink::test]
         fn should_allow_contract_in_whitelist() {
-            use pink::system::{SidevmOperationRef, SystemRef};
-            use pink_extension::system::System as _;
+            use pink::system::{SidevmOperationRef, System as _, SystemRef};
 
             with_callee(SYSTEM_ADDR, || {
                 let mut system = System::default();
@@ -592,11 +587,10 @@ mod sidevm_deployer {
         #[ink::test]
         fn paid_vm_works() {
             tracing_subscriber::fmt::init();
-            pink_extension_runtime::mock_ext::mock_all_ext();
-            pink_extension_runtime::mock_ext::set_mode(true);
+            pink_chain_extension::mock_ext::mock_all_ext();
+            pink_chain_extension::mock_ext::set_mode(true);
 
-            use pink::system::{SidevmOperationRef, SystemRef};
-            use pink_extension::system::System as _;
+            use pink::system::{SidevmOperationRef, System as _, SystemRef};
 
             let code_hash = Default::default();
             let code_size = 1024;

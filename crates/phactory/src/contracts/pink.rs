@@ -12,19 +12,25 @@ use parity_scale_codec::Encode;
 use phala_crypto::sr25519::Persistence;
 use phala_mq::{ContractClusterId, MessageOrigin};
 use phala_types::{contract::messaging::ResourceType, SignedContentType};
-use pink::{
+use pink::chain_extension::{JsCode, JsValue};
+use pink_loader::{
     capi::v1::{
+        self,
         ecall::{ECalls, ECallsRo},
         ocall::{
             BatchHttpResult, ExecContext, HttpRequest, HttpRequestError, HttpResponse, OCalls,
             StorageChanges,
         },
     },
+    constants::WEIGHT_REF_TIME_PER_SECOND,
     local_cache::{self, StorageQuotaExceeded},
     runtimes::v1::{get_runtime, using_ocalls},
-    types::{BlockNumber, ExecutionMode},
+    storage::ClusterStorage,
+    types::{
+        AccountId, Balance, BlockNumber, ECallsAvailable, ExecSideEffects, ExecutionMode, Hash,
+        TransactionArguments,
+    },
 };
-use pink_extension::chain_extension::{JsCode, JsValue};
 use serde::{Deserialize, Serialize};
 use sidevm::{
     service::{Command as SidevmCommand, CommandSender, Metric, SystemMessage},
@@ -32,11 +38,6 @@ use sidevm::{
 };
 use sp_core::{blake2_256, sr25519, twox_64};
 
-use ::pink::{
-    capi::v1,
-    constants::WEIGHT_REF_TIME_PER_SECOND,
-    types::{AccountId, Balance, ExecSideEffects, Hash, TransactionArguments},
-};
 use tracing::info;
 
 pub use phactory_api::contracts::{Query, QueryError, Response};
@@ -59,7 +60,7 @@ pub struct ClusterConfig {
 pub struct Cluster {
     pub id: ContractClusterId,
     pub config: ClusterConfig,
-    pub storage: pink::storage::ClusterStorage,
+    pub storage: ClusterStorage,
 }
 
 pub struct RuntimeHandleMut<'a> {
@@ -484,7 +485,7 @@ impl OCalls for RuntimeHandle<'_> {
                 }
             };
         }
-        let result = pink_extension_runtime::http_request(request, context::time_remaining_ms());
+        let result = pink_chain_extension::http_request(request, context::time_remaining_ms());
         match &result {
             Ok(response) => {
                 http_counters::add(contract, response.status_code);
@@ -502,7 +503,7 @@ impl OCalls for RuntimeHandle<'_> {
         requests: Vec<HttpRequest>,
         timeout_ms: u64,
     ) -> BatchHttpResult {
-        let results = pink_extension_runtime::batch_http_request(
+        let results = pink_chain_extension::batch_http_request(
             requests,
             context::time_remaining_ms().min(timeout_ms),
         )?;
@@ -840,7 +841,7 @@ impl Cluster {
         }
     }
 
-    pub fn deposit(&mut self, who: &::pink::types::AccountId, amount: Balance) {
+    pub fn deposit(&mut self, who: &AccountId, amount: Balance) {
         self.default_runtime_mut().deposit(who.clone(), amount)
     }
 
@@ -1104,7 +1105,7 @@ impl Cluster {
     }
 
     pub(crate) fn on_idle(&mut self, block_number: BlockNumber) {
-        if pink::types::ECallsAvailable::on_idle(self.config.runtime_version) {
+        if ECallsAvailable::on_idle(self.config.runtime_version) {
             self.default_runtime_mut().on_idle(block_number);
         }
     }

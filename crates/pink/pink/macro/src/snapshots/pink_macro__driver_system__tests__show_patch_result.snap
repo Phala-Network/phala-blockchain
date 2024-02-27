@@ -1,5 +1,5 @@
 ---
-source: crates/pink/pink-extension/macro/src/driver_system.rs
+source: crates/pink/pink/macro/src/driver_system.rs
 assertion_line: 337
 expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
 ---
@@ -26,7 +26,7 @@ mod _pink_system_impl {
     use ink::env::call::FromAccountId;
     use ink::env::CallFlags;
     use ink::{codegen::TraitCallForwarder, reflect::TraitDefinitionRegistry};
-    use pink_extension::PinkEnvironment;
+    use pink::PinkEnvironment;
     type Balance = <PinkEnvironment as ink::env::Environment>::Balance;
     type TraitInfo = <TraitDefinitionRegistry<PinkEnvironment> as System>::__ink_TraitInfo;
     type Forwarder = <TraitInfo as TraitCallForwarder>::Forwarder;
@@ -123,7 +123,7 @@ mod _pink_system_impl {
                 return Self::Mock { value: 0 };
             }
             Self::Instance {
-                address: pink_extension::ext().system_contract_id(),
+                address: pink::ext().system_contract_id(),
                 call_flags,
                 value: 0,
             }

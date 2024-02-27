@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 use objects::*;
-use pink_extension::chain_extension::signing;
+use pink::chain_extension::signing;
 use primitive_types::H256;
 use scale::{Decode, Encode};
 
@@ -299,7 +299,7 @@ mod tests {
     #[test]
     #[ignore = "this is expensive so we don't test it often"]
     fn test_query_with_primitive_result() {
-        pink_extension_runtime::mock_ext::mock_all_ext();
+        pink_chain_extension::mock_ext::mock_all_ext();
 
         // get the environment variables
         let EnvVars {
@@ -334,7 +334,7 @@ mod tests {
     #[test]
     #[ignore = "this is expensive so we don't test it often"]
     fn test_query_with_object_result() {
-        pink_extension_runtime::mock_ext::mock_all_ext();
+        pink_chain_extension::mock_ext::mock_all_ext();
 
         // get the environment variables
         let EnvVars {
@@ -372,7 +372,7 @@ mod tests {
     #[test]
     #[ignore = "this is expensive so we don't test it often"]
     fn test_call_without_params() {
-        pink_extension_runtime::mock_ext::mock_all_ext();
+        pink_chain_extension::mock_ext::mock_all_ext();
 
         // get the environment variables
         let EnvVars {
@@ -405,7 +405,7 @@ mod tests {
     #[test]
     #[ignore = "this is expensive so we don't test it often"]
     fn test_call_with_params() {
-        pink_extension_runtime::mock_ext::mock_all_ext();
+        pink_chain_extension::mock_ext::mock_all_ext();
 
         // get the environment variables
         let EnvVars {
@@ -438,7 +438,7 @@ mod tests {
     #[test]
     #[ignore = "this is expensive so we don't test it often"]
     fn test_query_with_error() {
-        pink_extension_runtime::mock_ext::mock_all_ext();
+        pink_chain_extension::mock_ext::mock_all_ext();
 
         // get the environment variables
         let EnvVars {
@@ -483,7 +483,7 @@ mod tests {
     #[test]
     #[ignore = "this is expensive so we don't test it often"]
     fn test_query_with_trapped_error() {
-        pink_extension_runtime::mock_ext::mock_all_ext();
+        pink_chain_extension::mock_ext::mock_all_ext();
 
         // get the environment variables
         let EnvVars {
@@ -528,7 +528,7 @@ mod tests {
     #[test]
     #[ignore = "this is expensive so we don't test it often"]
     fn test_call_with_error() {
-        pink_extension_runtime::mock_ext::mock_all_ext();
+        pink_chain_extension::mock_ext::mock_all_ext();
 
         // get the environment variables
         let EnvVars {

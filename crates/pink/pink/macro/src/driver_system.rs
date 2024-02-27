@@ -35,7 +35,7 @@ fn patch_or_err(
     );
     let impl_type = Ident::new(&format!("{trait_name}Ref"), Span::call_site());
 
-    let crate_pink = crate::find_crate_name("pink-extension")?;
+    let crate_pink = crate::find_crate_name("pink")?;
     let crate_ink_lang = crate::find_crate_name("ink")?;
     let crate_ink_env = quote!(#crate_ink_lang::env);
 

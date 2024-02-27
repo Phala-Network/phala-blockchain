@@ -1,5 +1,5 @@
 ---
-source: crates/pink/pink-extension/src/lib.rs
+source: crates/pink/pink/src/lib.rs
 expression: "super::PinkEvent::event_topic()"
 
 ---

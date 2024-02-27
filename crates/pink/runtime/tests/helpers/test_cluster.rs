@@ -7,6 +7,7 @@ use super::{
 };
 use log::{error, info};
 use phala_crypto::sr25519::Persistence;
+use pink::{ConvertTo, PinkEvent};
 use pink_capi::{
     types::{AccountId, ExecSideEffects, ExecutionMode, Hash},
     v1::{
@@ -18,15 +19,12 @@ use pink_capi::{
         CrossCall, CrossCallMut, ECall,
     },
 };
-use pink_extension::ConvertTo;
-use pink_extension::PinkEvent;
-use pink_extension_runtime::local_cache::{self, StorageQuotaExceeded};
+use pink_chain_extension::local_cache::{self, StorageQuotaExceeded};
 use scale::{Decode, Encode};
 use sp_core::Pair;
 use sp_runtime::DispatchError;
 
-pub type ContractExecResult = pink::ContractExecResult;
-pub type ContractInstantiateResult = pink::ContractInstantiateResult;
+pub use pink_runtime::{ContractExecResult, ContractInstantiateResult};
 
 fn test_key() -> [u8; 64] {
     let pair = sp_core::sr25519::Pair::from_seed(&[42u8; 32]);
@@ -58,7 +56,7 @@ impl Clone for TestCluster {
 impl TestCluster {
     pub fn bare() -> Self {
         let storage = ClusterStorage::default();
-        let runtime = Runtime::from_fn(pink::capi::__pink_runtime_init);
+        let runtime = Runtime::from_fn(pink_runtime::capi::__pink_runtime_init);
         Self {
             storage,
             runtime,
@@ -70,7 +68,7 @@ impl TestCluster {
     }
 
     pub fn for_test() -> Self {
-        pink_extension_runtime::mock_ext::mock_all_ext();
+        pink_chain_extension::mock_ext::mock_all_ext();
         let test_key = test_key();
         let mut me = Self::bare();
         me.tx().on_genesis();

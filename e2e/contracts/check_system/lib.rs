@@ -3,13 +3,10 @@
 #[macro_use]
 extern crate alloc;
 
-use pink_extension as pink;
-
 pub use check_system::*;
 
-#[pink::contract(env = PinkEnvironment)]
+#[ink::contract(env = PinkEnvironment)]
 mod check_system {
-    use super::pink;
     use alloc::vec::Vec;
     use pink::chain_extension::{signing as sig, JsCode, JsValue};
     use pink::system::{ContractDeposit, DriverError, Result, SystemRef};
@@ -450,9 +447,9 @@ mod check_system {
     #[cfg(test)]
     mod tests {
         use drink::session::Session;
-        use drink_pink_runtime::{Callable, DeployBundle, PinkRuntime};
+        use pink_drink::{Callable, DeployBundle, PinkRuntime};
         use ink::codegen::TraitCallBuilder;
-        use pink_extension::chain_extension::JsValue;
+        use pink::chain_extension::JsValue;
 
         use super::CheckSystemRef;
 

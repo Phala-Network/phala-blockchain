@@ -47,7 +47,6 @@ macro_rules! warn {
 /// Basic usage:
 ///
 /// ```ignore
-/// use pink_extension as pink;
 /// pink::info!("This is an information message.");
 /// let answer = 42;
 /// pink::info!("The answer is {}.", answer);

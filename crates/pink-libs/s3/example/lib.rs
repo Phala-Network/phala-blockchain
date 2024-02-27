@@ -59,7 +59,7 @@ mod example {
         /// We test a simple use case of our contract.
         #[ink::test]
         fn it_works() {
-            pink_extension_runtime::mock_ext::mock_all_ext();
+            pink_chain_extension::mock_ext::mock_all_ext();
 
             let example = Example::default();
             example.it_works();

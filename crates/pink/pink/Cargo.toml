@@ -1,6 +1,6 @@
 [package]
-name = "pink-extension"
-version = "0.5.1"
+name = "pink"
+version = "0.4.0"
 edition = "2018"
 description = "Phala's ink! for writing phat contracts"
 license = "Apache-2.0"
@@ -10,7 +10,7 @@ keywords = ["phat-contract", "pink", "ink"]
 ink = { version = "4.2", default-features = false, features = ["ink-debug"] }
 scale = { package = "parity-scale-codec", version = "3.6.5", default-features = false, features = ["derive"] }
 scale-info = { version = "2.10.0", default-features = false, features = ["derive"], optional = true }
-pink-extension-macro = { version = "0.4.2", path = "./macro" }
+pink-macro = { version = "0.4.0", path = "./macro" }
 log = "0.4.17"
 dlmalloc = { version = "0.2.4", default-features = false, features = ["global"], optional = true }
 this-crate = { version = "0.1", path = "../../this-crate" }
@@ -20,7 +20,7 @@ hex = { version = "0.4", default-features = false, features = ["alloc"] }
 pink-types = { version = "0.1", path = "../pink-types", default-features = false }
 
 [dev-dependencies]
-pink-extension-runtime = { default-features = false, path = "../pink-extension-runtime" }
+pink-chain-extension = { default-features = false, path = "../chain-extension" }
 type-info-stringify = { path = "../../type-info-stringify" }
 insta = "1.7.2"
 rusty-fork = "0.3.0"

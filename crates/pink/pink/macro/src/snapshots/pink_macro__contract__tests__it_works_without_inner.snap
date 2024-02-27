@@ -1,6 +1,6 @@
 ---
-source: crates/pink/pink-extension/macro/src/contract.rs
-assertion_line: 96
+source: crates/pink/pink/macro/src/contract.rs
+assertion_line: 124
 expression: "rustfmt_snippet::rustfmt_token_stream(&output).unwrap()"
 ---
 # [ink :: contract (env = PinkEnvironment)]

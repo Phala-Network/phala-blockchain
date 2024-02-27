@@ -11,7 +11,7 @@ pub type Index = u64;
 pub type Address = AccountId32;
 pub type Weight = u64;
 
-pub use pink_extension::{HookPoint, PinkEvent};
+pub use pink::{HookPoint, PinkEvent};
 
 /// The mode in which the runtime is currently executing.
 #[derive(Decode, Encode, Clone, Copy, Debug, PartialEq, Eq, Default)]

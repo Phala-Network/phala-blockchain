@@ -13,7 +13,7 @@ use ink::env::{emit_event, topics::state::HasRemainingTopics, Environment, Topic
 use ink::EnvAccess;
 use scale::{Decode, Encode};
 
-pub use pink_extension_macro::{contract, driver};
+pub use pink_macro::{contract, driver};
 pub use pink_types as types;
 
 pub mod chain_extension;
@@ -452,7 +452,7 @@ pub fn query_local_sidevm(address: AccountId, payload: Vec<u8>) -> Result<Vec<u8
 /// ```
 /// #[ink::contract(env = PinkEnvironment)]
 /// mod my_contract {
-///     use pink_extension::PinkEnvironment;
+///     use pink::PinkEnvironment;
 ///     #[ink(storage)]
 ///     pub struct MyContract {}
 ///     impl MyContract {

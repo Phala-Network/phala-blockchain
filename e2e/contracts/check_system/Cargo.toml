@@ -18,9 +18,9 @@ scale = { package = "parity-scale-codec", version = "3.6.5", default-features = 
 scale-info = { version = "2.10.0", default-features = false, features = ["derive"], optional = true }
 
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
-pink-extension = { default-features = false, path = "../../../crates/pink/pink-extension" }
+pink = { default-features = false, path = "../../../crates/pink/pink" }
 sgx-attestation = { default-features = false, path = "../../../crates/sgx-attestation" }
-phat_js = { version = "0.2.0", default-features = false }
+phat_js = { version = "0.3.0", default-features = false }
 pink-json = { version = "0.4", default-features = false }
 sideabi = { path = "./sideabi" }
 
@@ -34,7 +34,7 @@ features = ["ink-as-dependency"]
 
 [dev-dependencies]
 drink = "0.8.0"
-drink-pink-runtime = "1.2.16-dev.1"
+pink-drink = "0.1.1-dev.1"
 tracing-subscriber = "0.3.18"
 
 [build-dependencies]
@@ -51,8 +51,8 @@ std = [
     "scale/std",
     "phat_js/std",
     "scale-info/std",
-    "pink-extension/std",
     "indeterministic_functions/std",
+    "pink/std",
     "pink-json/std",
     "sgx-attestation/std",
     "rustls-pki-types",

@@ -1,5 +1,5 @@
 [package]
-name = "pink"
+name = "pink-runtime"
 version = "1.2.0"
 edition = "2021"
 
@@ -36,8 +36,8 @@ scale-info = { version = "2.10.0", default-features = false, features = [
 
 phala-types = { path = "../../phala-types" }
 phala-crypto = { path = "../../phala-crypto" }
-pink-extension = { path = "../pink-extension" }
-pink-extension-runtime = { path = "../pink-extension-runtime" }
+pink = { path = "../pink" }
+pink-chain-extension = { path = "../chain-extension" }
 pink-capi = { path = "../capi" }
 phala-sanitized-logger = { path = "../../phala-sanitized-logger" }
 hash-db = "0.16.0"

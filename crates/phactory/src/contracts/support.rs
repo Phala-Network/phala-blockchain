@@ -1,8 +1,8 @@
 use anyhow::{anyhow, bail, Context, Result};
 use core::time::Duration;
 use phala_types::AttestationProvider;
-use pink::types::{AccountId, ExecutionMode, TransactionArguments};
-use pink_extension::{chain_extension::JsValue, SidevmConfig};
+use pink::{chain_extension::JsValue, SidevmConfig};
+use pink_loader::types::{AccountId, ExecutionMode, TransactionArguments};
 use serde::{Deserialize, Serialize};
 use std::sync::{mpsc, Arc, Mutex};
 
@@ -541,7 +541,7 @@ fn do_start_sidevm(
 }
 
 fn local_cache_ops() -> sidevm::DynCacheOps {
-    use ::pink::local_cache as cache;
+    use pink_loader::local_cache as cache;
     type OpResult<T> = Result<T, sidevm::OcallError>;
 
     struct CacheOps;

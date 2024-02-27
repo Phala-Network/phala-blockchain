@@ -1,6 +1,10 @@
-use pink::types::{AccountId, BlockNumber};
 use serde::{Deserialize, Serialize};
 use sidevm::service::Spawner;
+
+use pink_loader::{
+    local_cache,
+    types::{AccountId, BlockNumber},
+};
 
 use crate::{
     contracts::Contract,
@@ -60,7 +64,7 @@ impl ContractsKeeper {
     }
 
     pub fn apply_local_cache_quotas(&self) {
-        ::pink::local_cache::apply_quotas(calc_cache_quotas(&self.contracts));
+        local_cache::apply_quotas(calc_cache_quotas(&self.contracts));
     }
 }
 

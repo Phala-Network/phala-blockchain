@@ -11,7 +11,6 @@ use crate::types::BaseBlockInfo;
 use crate::{hex, try_decode_hex};
 
 use super::*;
-use ::pink::types::{AccountId, ExecSideEffects, ExecutionMode};
 use parity_scale_codec::Encode;
 use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
@@ -32,6 +31,7 @@ use phala_types::{
     ChallengeHandlerInfo, EncryptedWorkerKey, HandoverChallenge, SignedContentType,
     VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfoV2,
 };
+use pink_loader::types::{AccountId, ExecSideEffects, ExecutionMode};
 use phala_types::{DcapChallengeHandlerInfo, DcapHandoverChallenge};
 use sp_application_crypto::UncheckedFrom;
 use sp_core::hashing::blake2_256;
@@ -158,7 +158,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             safe_mode_level: self.args.safe_mode_level as _,
             current_block_time,
             max_supported_pink_runtime_version: {
-                let (major, minor) = ::pink::runtimes::max_supported_version();
+                let (major, minor) = pink_loader::runtimes::max_supported_version();
                 format!("{major}.{minor}")
             },
             supported_attestation_methods: self.platform.supported_attestation_methods(),

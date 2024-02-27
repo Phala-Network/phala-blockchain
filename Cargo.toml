@@ -71,14 +71,14 @@ members = [
 	"crates/pink/capi",
 	"crates/pink/macro",
 	"crates/pink/pink-types",
-	"crates/pink/pink-extension",
-	"crates/pink/pink-extension-runtime",
+	"crates/pink/pink",
+	"crates/pink/chain-extension",
 	"crates/pink-libs/s3",
 	"crates/pink-libs/utils",
 	"crates/pink-libs/subrpc",
 	"crates/pink-libs/kv-session",
 	"crates/phaxt",
-	"crates/pink/pink-extension/macro",
+	"crates/pink/pink/macro",
 	"crates/sidevm/host-runtime",
 	"crates/sidevm/env",
 	"crates/sidevm/macro",
@@ -107,9 +107,9 @@ sp-core-hashing = { git = "https://github.com/paritytech/polkadot-sdk.git", bran
 sp-std = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0" }
 sp-runtime-interface = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0" }
 
-# For pink-extension-runtime, it will introduce Substrate from crates-io which usually different with polkadot-branch
-pink-extension = { path = "crates/pink/pink-extension" }
-pink-extension-runtime = { path = "crates/pink/pink-extension-runtime" }
+# For pink-chain-extension, it will introduce Substrate from crates-io which usually different with polkadot-branch
+pink = { path = "crates/pink/pink" }
+pink-chain-extension = { path = "crates/pink/chain-extension" }
 
 # The substrate dependencies use old version of crypto crates. Some of them, listed below, hard require subtle=v2.4
 # but latest rustls requires subtle v2.5 which cause it conflict. Ideally, substrate should upgrade it's dependencies

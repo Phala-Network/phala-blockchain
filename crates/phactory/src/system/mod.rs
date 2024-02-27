@@ -13,9 +13,12 @@ use anyhow::{anyhow, Result};
 use core::fmt;
 use phactory_api::contracts::{Query, QueryError, QueryType, Response};
 use phala_scheduler::RequestScheduler;
-use pink::{
+use pink_loader::{
     capi::v1::ecall::{ClusterSetupConfig, ECalls},
-    types::{AccountId, ExecSideEffects, ExecutionMode, TransactionArguments},
+    local_cache,
+    types::{
+        AccountId, ExecSideEffects, ExecutionMode, HookPoint, PinkEvent, TransactionArguments,
+    },
 };
 use runtime::BlockNumber;
 
@@ -60,13 +63,12 @@ use sidevm::{
 };
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
-use pink::types::{HookPoint, PinkEvent};
-use pink_extension::{SidevmOperation, Workers};
+use pink::{SidevmOperation, Workers};
 use std::convert::TryFrom;
 use std::future::Future;
 use tracing::{error, info};
 
-pub type TransactionResult = Result<Option<pink::types::ExecSideEffects>, TransactionError>;
+pub type TransactionResult = Result<Option<ExecSideEffects>, TransactionError>;
 
 pub(crate) const MAX_SUPPORTED_CONSENSUS_VERSION: u32 = 0;
 
@@ -1803,7 +1805,7 @@ pub(crate) fn apply_pink_events(
                 }
             }
             PinkEvent::CacheOp(op) => {
-                pink::local_cache::apply_cache_op(&origin, op);
+                local_cache::apply_cache_op(&origin, op);
             }
             PinkEvent::StopSidevm => {
                 let vmid = sidevm::ShortId(&origin);

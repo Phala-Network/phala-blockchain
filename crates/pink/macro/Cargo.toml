@@ -3,7 +3,7 @@ description = "Helper macros for pink runtime"
 homepage = "https://github.com/Phala-Network/phala-blockchain"
 license = "Apache-2.0"
 edition = "2021"
-name = "pink-macro"
+name = "pink-runtime-macro"
 version = "0.1.1"
 
 [lib]

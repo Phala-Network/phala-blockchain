@@ -6,11 +6,11 @@ edition = "2021"
 [dependencies]
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0" }
 sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0" }
-pink-extension = { path = "../pink-extension" }
+pink = { path = "../pink" }
 scale = { package = "parity-scale-codec", version = "3.6.5", default-features = false, features = [
     "derive",
 ] }
-pink-macro = { path = "../macro" }
+pink-runtime-macro = { path = "../macro" }
 
 [build-dependencies]
 bindgen = "0.64.0"

@@ -2,12 +2,8 @@
 
 extern crate alloc;
 
-use pink_extension as pink;
-
-#[pink::contract]
+#[ink::contract]
 mod contract {
-    use super::pink;
-
     use pink::system::DriverError as Error;
 
     type Result<T> = core::result::Result<T, Error>;

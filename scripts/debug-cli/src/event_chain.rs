@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use pink::types::EventsBlock;
+use pink_runtime::types::EventsBlock;
 
 use codec::Decode;
 

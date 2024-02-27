@@ -3,7 +3,6 @@
 use alloc::vec::Vec;
 use core::fmt;
 use pink::chain_extension::{signing, SigType};
-use pink_extension as pink;
 use scale::{Decode, Encode};
 
 /// A signed payload produced by a [`Generator`], and can be validated by [`Verifier`].
@@ -81,7 +80,7 @@ mod test {
 
     #[ink::test]
     fn it_works() {
-        pink_extension_runtime::mock_ext::mock_all_ext();
+        pink_chain_extension::mock_ext::mock_all_ext();
 
         // Generate an attestation and verify it later
         #[derive(Clone, Encode, Decode, scale_info::TypeInfo)]

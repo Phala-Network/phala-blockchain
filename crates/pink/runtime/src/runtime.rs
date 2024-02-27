@@ -16,6 +16,7 @@ use pallet_contracts::{
 use sp_runtime::{traits::IdentityLookup, Perbill};
 
 pub use extension::get_side_effects;
+pub use pink::{EcdhPublicKey, HookPoint, PinkEvent};
 pub use pink_capi::types::ExecSideEffects;
 
 type Block = sp_runtime::generic::Block<

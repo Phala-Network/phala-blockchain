@@ -7,7 +7,7 @@ use pallet_contracts::chain_extension::{
 };
 use phala_crypto::sr25519::{Persistence, KDF};
 use phala_types::contract::ConvertTo;
-use pink_extension::{
+use pink::{
     chain_extension::{
         self as ext, HttpRequest, HttpResponse, JsCode, JsValue, PinkExtBackend, SigType,
         StorageQuotaExceeded,
@@ -16,7 +16,7 @@ use pink_extension::{
     types::sgx::SgxQuote,
     CacheOp, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
 };
-use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
+use pink_chain_extension::{DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
 use sp_runtime::{AccountId32, DispatchError};
 
@@ -29,7 +29,7 @@ use crate::runtime::Pink as PalletPink;
 type Error = pallet_pink::Error<PinkRuntime>;
 
 fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
-    let topics = [pink_extension::PinkEvent::event_topic().into()];
+    let topics = [pink::PinkEvent::event_topic().into()];
     let event = super::RuntimeEvent::Contracts(pallet_contracts::Event::ContractEmitted {
         contract,
         data: event.encode(),
@@ -56,9 +56,9 @@ pub fn get_side_effects() -> (SystemEvents, ExecSideEffects) {
                     data,
                 } => {
                     if event.topics.len() == 1
-                        && event.topics[0].0 == pink_extension::PinkEvent::event_topic()
+                        && event.topics[0].0 == pink::PinkEvent::event_topic()
                     {
-                        match pink_extension::PinkEvent::decode(&mut &data[..]) {
+                        match pink::PinkEvent::decode(&mut &data[..]) {
                             Ok(event) => {
                                 pink_events.push((address.clone(), event.clone()));
                                 is_private_event = event.is_private();
@@ -266,7 +266,7 @@ impl PinkExtBackend for CallInQuery {
     fn balance_of(
         &self,
         account: ext::AccountId,
-    ) -> Result<(pink_extension::Balance, pink_extension::Balance), Self::Error> {
+    ) -> Result<(pink::Balance, pink::Balance), Self::Error> {
         self.ensure_system()?;
         let account: AccountId32 = account.convert_to();
         let total = crate::runtime::Balances::total_balance(&account);
@@ -465,7 +465,7 @@ impl PinkExtBackend for CallInCommand {
     fn balance_of(
         &self,
         account: ext::AccountId,
-    ) -> Result<(pink_extension::Balance, pink_extension::Balance), Self::Error> {
+    ) -> Result<(pink::Balance, pink::Balance), Self::Error> {
         self.as_in_query.balance_of(account)
     }
 
