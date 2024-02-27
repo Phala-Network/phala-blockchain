@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package prpc;
+
+/// The final Error type of RPCs to be serialized to protobuf.
+message PrpcError {
+    /// The error description
+    string message = 1;
+}
+
