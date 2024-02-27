@@ -140,7 +140,7 @@ pub(crate) mod context {
 
     use anyhow::{anyhow, Result};
     use phala_types::{wrap_content_to_sign, AttestationProvider, SignedContentType};
-    use pink::{
+    use pink_loader::{
         capi::v1::ocall::ExecContext,
         types::{AccountId, BlockNumber, ExecutionMode},
     };
