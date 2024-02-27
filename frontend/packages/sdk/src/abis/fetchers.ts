@@ -32,26 +32,6 @@ export async function unsafeGetContractCodeHash(
   return payload?.contracts[0]?.codeHash || null
 }
 
-export async function unsafeGetAbiFromPatronByCodeHash(codeHash: string): Promise<Record<string, unknown>> {
-  const codeHashWithoutPrefix = codeHash.indexOf('0x') === 0 ? codeHash.replace('0x', '') : codeHash
-  const resp = await fetch(`https://api.patron.works/buildSessions/metadata/${codeHashWithoutPrefix}`)
-  if (resp.status !== 200) {
-    let payload
-    try {
-      payload = await resp.json()
-    } catch (_err1) {
-      try {
-        const text = await resp.text()
-        throw new Error(`Failed to get abi from Patron: ${resp.status}: ${text}`)
-      } catch (_err2) {
-        throw new Error(`Unknown Error: ${resp.status}: ${_err2}`)
-      }
-    }
-    throw new Error(`Failed to get abi from Patron: ${resp.status}: ${(payload as any)?.error || 'Unknown Error'}`)
-  }
-  return (await resp.json()) as Record<string, unknown>
-}
-
 export async function unsafeGetAbiFromGitHubRepoByCodeHash(codeHash: string): Promise<Record<string, unknown>> {
   const codeHashWithPrefix = codeHash.indexOf('0x') !== 0 ? `0x${codeHash}` : codeHash
   const resp = await fetch(`${OFFICIAL_ARTIFACTS_URL}/artifacts/${codeHashWithPrefix}/metadata.json`)
@@ -59,16 +39,6 @@ export async function unsafeGetAbiFromGitHubRepoByCodeHash(codeHash: string): Pr
     throw new Error(`Failed to get abi from GitHub: ${resp.status}`)
   }
   return (await resp.json()) as Record<string, unknown>
-}
-
-export async function unsafeGetWasmFromPatronByCodeHash(codeHash: string): Promise<Uint8Array> {
-  const codeHashWithoutPrefix = codeHash.indexOf('0x') === 0 ? codeHash.replace('0x', '') : codeHash
-  const resp = await fetch(`https://api.patron.works/buildSessions/wasm/${codeHashWithoutPrefix}`)
-  if (resp.status !== 200) {
-    throw new Error(`Failed to get wasm from Patron: ${resp.status}`)
-  }
-  const buffer = await resp.arrayBuffer()
-  return new Uint8Array(buffer)
 }
 
 export async function unsafeGetWasmFromGithubRepoByCodeHash(codeHash: string): Promise<Uint8Array> {
