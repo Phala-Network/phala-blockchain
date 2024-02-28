@@ -5888,7 +5888,7 @@ dependencies = [
 
 [[package]]
 name = "phactory"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6883,7 +6883,7 @@ dependencies = [
 
 [[package]]
 name = "pruntime"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "anyhow",
  "base64 0.13.0",
