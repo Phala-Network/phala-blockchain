@@ -42,7 +42,12 @@ export interface CreateOptions {
   pruntimeURL?: string
   systemContractId?: string
   skipCheck?: boolean
-  strategy?: 'ack-first' | (() => Promise<Readonly<[string, string, ReturnType<typeof createPruntimeClient>]>>)
+  strategy?:
+    | 'ack-first'
+    | ((
+        api: ApiPromise,
+        clusterId: string
+      ) => Promise<Readonly<[string, string, ReturnType<typeof createPruntimeClient>]>>)
 }
 
 export interface WorkerInfo {
@@ -61,7 +66,9 @@ export interface PartialWorkerInfo {
 
 export interface StrategicWorkerInfo {
   clusterId?: string
-  strategy: 'ack-first' | (() => Promise<Readonly<[string, ReturnType<typeof createPruntimeClient>]>>)
+  strategy:
+    | 'ack-first'
+    | ((api: ApiPromise, clusterId: string) => Promise<Readonly<[string, ReturnType<typeof createPruntimeClient>]>>)
 }
 
 export class OnChainRegistry {
