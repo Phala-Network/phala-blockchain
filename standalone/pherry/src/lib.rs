@@ -894,7 +894,7 @@ async fn get_sync_operation(
             info.headernum - 1
         ).await?;
 
-        if info.para_headernum <= para_number {
+        if para_number > 0 && info.para_headernum <= para_number {
             return Ok(SyncOperation::ParachainHeader((para_number, proof)));
         }
     }
