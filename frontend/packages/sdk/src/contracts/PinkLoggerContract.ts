@@ -3,7 +3,7 @@ import { Keyring } from '@polkadot/api'
 import { Abi } from '@polkadot/api-contract'
 import type { DecodedEvent } from '@polkadot/api-contract/types'
 import type { KeyringPair } from '@polkadot/keyring/types'
-import type { Enum, Struct, Text } from '@polkadot/types'
+import type { Enum, Struct, Text, U8 } from '@polkadot/types'
 import type { AccountId } from '@polkadot/types/interfaces'
 import type { Result } from '@polkadot/types-codec'
 import { hexAddPrefix, hexToString, hexToU8a, u8aToHex } from '@polkadot/util'
@@ -171,7 +171,7 @@ interface ContractExecResultOk extends Struct {
 }
 
 interface ModuleError extends Struct {
-  index: number
+  index: U8
   error: Text
 }
 
@@ -225,7 +225,7 @@ function postProcessLogRecord<TDecodedEvent extends DecodedEvent = DecodedEvent>
       if (
         execResult.result.isErr &&
         execResult.result.asErr.isModule &&
-        execResult.result.asErr.asModule?.index === 4
+        execResult.result.asErr.asModule?.index.toNumber() === 4
       ) {
         const err = phalaTypes.createType('ContractError', execResult.result.asErr.asModule.error)
         output.result = {
