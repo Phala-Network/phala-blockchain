@@ -900,8 +900,8 @@ async fn get_sync_operation(
     }
 
     if let Some(cache) = cache_client {
-        let cached_headers = cache.get_headers(info.headernum).await?;
-        if !cached_headers.is_empty() {
+        let cached_headers = cache.get_headers(info.headernum).await;
+        if let Ok(cached_headers) = cached_headers {
             return Ok(SyncOperation::CachedRelaychainHeader(cached_headers));
         }
     }
