@@ -4,6 +4,7 @@ pub mod configurator;
 pub mod datasource;
 pub mod db;
 pub mod lifecycle;
+pub mod processor;
 pub mod pruntime;
 pub mod tx;
 pub mod utils;
