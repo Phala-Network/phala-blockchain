@@ -3,9 +3,10 @@ description = "Format given Rust code snippet with rustfmt"
 homepage = "https://github.com/Phala-Network/phala-blockchain"
 license = "Apache-2.0"
 name = "rustfmt-snippet"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2018"
 
 [dependencies]
 proc-macro2 = "1.0.36"
+tempfile = "3.10.1"
 

@@ -16,8 +16,18 @@ pub fn rustfmt(source: &str) -> std::io::Result<String> {
         io::Write,
         process::{Command, Stdio},
     };
+    use tempfile::NamedTempFile;
+    // Create a temporary file
+    let mut tempfile: NamedTempFile = NamedTempFile::new()?;
+
+    // Write the source code to the temporary file
+    writeln!(tempfile, "{}", source)?;
+
+    // Retrieve the path of the temporary file to pass it to rustfmt
+    let path = tempfile.path();
+    let path = format!("{}", path.display());
     let proc = Command::new("rustfmt")
-        .args(["/dev/fd/0", "--emit", "stdout", "--edition", "2018"])
+        .args([path.as_str(), "--emit", "stdout", "--edition", "2018"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()?;

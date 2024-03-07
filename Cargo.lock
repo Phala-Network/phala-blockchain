@@ -1003,7 +1003,7 @@ checksum = "871f9bb5e0a22eeb7e8cf16641feb87c9dc67032ccf8ff49e772eb9941d3a965"
 dependencies = [
  "async-task",
  "concurrent-queue 1.2.2",
- "fastrand",
+ "fastrand 1.7.0",
  "futures-lite",
  "once_cell",
  "slab",
@@ -1626,7 +1626,7 @@ dependencies = [
  "async-channel",
  "async-task",
  "atomic-waker",
- "fastrand",
+ "fastrand 1.7.0",
  "futures-lite",
  "once_cell",
 ]
@@ -3926,23 +3926,12 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "errno"
-version = "0.3.1"
+version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4bcfec3a70f97c962c307b2d2c56e358cf1d00b558d74262b5f929ee8cc7e73a"
+checksum = "a258e46cdc063eb8519c00b9fc845fc47bcfca4130e2f08e88665ceda8474245"
 dependencies = [
- "errno-dragonfly",
  "libc",
- "windows-sys 0.48.0",
-]
-
-[[package]]
-name = "errno-dragonfly"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa68f1b12764fab894d2755d2518754e71b4fd80ecfb822714a1206c2aab39bf"
-dependencies = [
- "cc",
- "libc",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4330,6 +4319,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fastrand"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25cbce373ec4653f1a01a31e8a5e5ec0c622dc27ff9c4e6606eefef5cbbed4a5"
+
+[[package]]
 name = "fdlimit"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4410,7 +4405,7 @@ checksum = "e94a7bbaa59354bc20dd75b67f23e2797b4490e9d6928203fb105c79e448c86c"
 dependencies = [
  "cfg-if",
  "libc",
- "redox_syscall 0.2.13",
+ "redox_syscall",
  "windows-sys 0.36.1",
 ]
 
@@ -5026,7 +5021,7 @@ version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7694489acd39452c77daa48516b894c153f192c3578d5a839b62c58099fcbf48"
 dependencies = [
- "fastrand",
+ "fastrand 1.7.0",
  "futures-core",
  "futures-io",
  "memchr",
@@ -6681,9 +6676,9 @@ checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
 
 [[package]]
 name = "libc"
-version = "0.2.151"
+version = "0.2.153"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "302d7ab3130588088d277783b1e2d2e10c9e9e4a16dd9050e6ec93fb3e7048f4"
+checksum = "9c198f91728a82281a64e1f4f9eeb25d82cb32a5de251c6bd1b5154d63a8e7bd"
 
 [[package]]
 name = "libloading"
@@ -7251,9 +7246,9 @@ checksum = "ef53942eb7bf7ff43a617b3e2c1c4a5ecf5944a7c1bc12d7ee39bbb15e5c1519"
 
 [[package]]
 name = "linux-raw-sys"
-version = "0.4.8"
+version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3852614a3bd9ca9804678ba6be5e3b8ce76dfc902cae004e3e0c44051b6e88db"
+checksum = "01cda141df6706de531b6c46c3a33ecca755538219bd484262fa09410c13539c"
 
 [[package]]
 name = "lioness"
@@ -9473,7 +9468,7 @@ dependencies = [
  "cfg-if",
  "instant",
  "libc",
- "redox_syscall 0.2.13",
+ "redox_syscall",
  "smallvec",
  "winapi",
 ]
@@ -9486,7 +9481,7 @@ checksum = "09a279cbf25cb0757810394fbc1e359949b59e348145c643a939a525692e6929"
 dependencies = [
  "cfg-if",
  "libc",
- "redox_syscall 0.2.13",
+ "redox_syscall",
  "smallvec",
  "windows-sys 0.36.1",
 ]
@@ -10566,7 +10561,7 @@ dependencies = [
  "proc-macro-crate 1.3.1",
  "proc-macro2",
  "quote",
- "rustfmt-snippet 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustfmt-snippet 0.1.0",
  "syn 2.0.51",
  "unzip3",
 ]
@@ -10621,7 +10616,7 @@ version = "0.1.1"
 dependencies = [
  "insta",
  "proc-macro2",
- "rustfmt-snippet 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustfmt-snippet 0.1.0",
  "syn 1.0.109",
  "template-quote",
 ]
@@ -11673,22 +11668,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "redox_syscall"
-version = "0.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "567664f262709473930a4bf9e51bf2ebf3348f2e748ccc50dea20646858f8f29"
-dependencies = [
- "bitflags 1.3.2",
-]
-
-[[package]]
 name = "redox_users"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b033d837a7cf162d7993aded9304e30a83213c648b6e389db233191f891e5c2b"
 dependencies = [
  "getrandom 0.2.12",
- "redox_syscall 0.2.13",
+ "redox_syscall",
  "thiserror",
 ]
 
@@ -12285,17 +12271,18 @@ dependencies = [
 [[package]]
 name = "rustfmt-snippet"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f5e687f088721017e263dedd91e4c7f45f54d5b37afa6eea95fdc34a8b80c80"
 dependencies = [
  "proc-macro2",
 ]
 
 [[package]]
 name = "rustfmt-snippet"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f5e687f088721017e263dedd91e4c7f45f54d5b37afa6eea95fdc34a8b80c80"
+version = "0.1.1"
 dependencies = [
  "proc-macro2",
+ "tempfile",
 ]
 
 [[package]]
@@ -12337,15 +12324,15 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.38.13"
+version = "0.38.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7db8590df6dfcd144d22afd1b83b36c21a18d7cbc1dc4bb5295a8712e9eb662"
+checksum = "6ea3e1a662af26cd7a3ba09c0297a31af215563ecf42817c98df621387f4e949"
 dependencies = [
  "bitflags 2.4.0",
  "errno",
  "libc",
- "linux-raw-sys 0.4.8",
- "windows-sys 0.48.0",
+ "linux-raw-sys 0.4.13",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -14374,7 +14361,7 @@ dependencies = [
 
 [[package]]
 name = "sidevm-host-runtime"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "dashmap",
@@ -14401,7 +14388,6 @@ dependencies = [
  "tokio-rustls 0.23.4",
  "tracing",
  "trust-dns-resolver 0.23.2",
- "wasm-instrument 0.3.0",
  "wasmer",
  "wasmer-compiler-cranelift",
  "wasmer-compiler-llvm",
@@ -14419,7 +14405,7 @@ dependencies = [
  "insta",
  "proc-macro-crate 1.3.1",
  "proc-macro2",
- "rustfmt-snippet 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustfmt-snippet 0.1.0",
  "syn 1.0.109",
 ]
 
@@ -14950,7 +14936,7 @@ dependencies = [
 [[package]]
 name = "sp-crypto-ec-utils"
 version = "0.10.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#81d447a8feca14222fef57ffa721302a8b808562"
+source = "git+https://github.com/paritytech/polkadot-sdk#833bafdbf7b178b639f895e0d43c43eb502de30c"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-377-ext",
@@ -15001,7 +14987,7 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "14.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#81d447a8feca14222fef57ffa721302a8b808562"
+source = "git+https://github.com/paritytech/polkadot-sdk#833bafdbf7b178b639f895e0d43c43eb502de30c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -15034,7 +15020,7 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.25.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#81d447a8feca14222fef57ffa721302a8b808562"
+source = "git+https://github.com/paritytech/polkadot-sdk#833bafdbf7b178b639f895e0d43c43eb502de30c"
 dependencies = [
  "environmental",
  "parity-scale-codec",
@@ -15254,7 +15240,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface"
 version = "24.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#81d447a8feca14222fef57ffa721302a8b808562"
+source = "git+https://github.com/paritytech/polkadot-sdk#833bafdbf7b178b639f895e0d43c43eb502de30c"
 dependencies = [
  "bytes",
  "impl-trait-for-tuples",
@@ -15299,7 +15285,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "17.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#81d447a8feca14222fef57ffa721302a8b808562"
+source = "git+https://github.com/paritytech/polkadot-sdk#833bafdbf7b178b639f895e0d43c43eb502de30c"
 dependencies = [
  "Inflector",
  "expander",
@@ -15397,7 +15383,7 @@ checksum = "54c78c5a66682568cc7b153603c5d01a2cc8f5c221c7b1e921517a0eef18ae05"
 [[package]]
 name = "sp-std"
 version = "14.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#81d447a8feca14222fef57ffa721302a8b808562"
+source = "git+https://github.com/paritytech/polkadot-sdk#833bafdbf7b178b639f895e0d43c43eb502de30c"
 
 [[package]]
 name = "sp-storage"
@@ -15429,7 +15415,7 @@ dependencies = [
 [[package]]
 name = "sp-storage"
 version = "19.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#81d447a8feca14222fef57ffa721302a8b808562"
+source = "git+https://github.com/paritytech/polkadot-sdk#833bafdbf7b178b639f895e0d43c43eb502de30c"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
@@ -15480,7 +15466,7 @@ dependencies = [
 [[package]]
 name = "sp-tracing"
 version = "16.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#81d447a8feca14222fef57ffa721302a8b808562"
+source = "git+https://github.com/paritytech/polkadot-sdk#833bafdbf7b178b639f895e0d43c43eb502de30c"
 dependencies = [
  "parity-scale-codec",
  "sp-std 14.0.0",
@@ -15596,7 +15582,7 @@ dependencies = [
 [[package]]
 name = "sp-wasm-interface"
 version = "20.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#81d447a8feca14222fef57ffa721302a8b808562"
+source = "git+https://github.com/paritytech/polkadot-sdk#833bafdbf7b178b639f895e0d43c43eb502de30c"
 dependencies = [
  "anyhow",
  "impl-trait-for-tuples",
@@ -16477,16 +16463,14 @@ dependencies = [
 
 [[package]]
 name = "tempfile"
-version = "3.6.0"
+version = "3.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31c0432476357e58790aaa47a8efb0c5138f137343f3b5f23bd36a27e3b0a6d6"
+checksum = "85b77fafb263dd9d05cbeac119526425676db3784113aa9295c88498cbf8bff1"
 dependencies = [
- "autocfg",
  "cfg-if",
- "fastrand",
- "redox_syscall 0.3.5",
- "rustix 0.37.23",
- "windows-sys 0.48.0",
+ "fastrand 2.0.1",
+ "rustix 0.38.31",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -16559,7 +16543,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21bebf2b7c9e0a515f6e0f8c51dc0f8e4696391e6f1ff30379559f8365fb0df7"
 dependencies = [
- "rustix 0.38.13",
+ "rustix 0.38.31",
  "windows-sys 0.48.0",
 ]
 
