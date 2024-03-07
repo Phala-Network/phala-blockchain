@@ -4,7 +4,7 @@ license = "Apache-2.0"
 homepage = "https://github.com/Phala-Network/phala-blockchain"
 edition = "2021"
 name = "sidevm-host-runtime"
-version = "0.1.0"
+version = "0.1.1"
 
 [dependencies]
 anyhow = "1.0.69"
@@ -24,7 +24,6 @@ wasmer-compiler-llvm = { version = "3", optional = true }
 phala-wasmer-tunables = { version = "0.1", path = "../../phala-wasmer-tunables" }
 wasmer-middlewares = "3"
 parity-wasm = "0.45.0"
-wasm-instrument = "0.3.0"
 serde = { version = "1.0", features = ["derive"] }
 rand = "0.8.5"
 thiserror = "1"

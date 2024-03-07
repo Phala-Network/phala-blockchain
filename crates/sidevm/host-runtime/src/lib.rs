@@ -1,6 +1,5 @@
 mod async_context;
 mod env;
-pub mod instrument;
 mod metering;
 mod resource;
 #[cfg(feature = "rocket-stream")]
