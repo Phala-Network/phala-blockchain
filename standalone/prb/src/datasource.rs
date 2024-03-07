@@ -799,7 +799,7 @@ impl DataSourceManager {
             .await?
             .map(|(h, proof)| (h.number, proof));
         Ok(Arc::new(DataSourceCacheItem::ParaHeaderByRelayHeight(
-            header,
+            None,
         )))
     }
     pub async fn get_para_header_by_relay_header(

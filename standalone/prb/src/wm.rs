@@ -1,19 +1,19 @@
 use crate::api::{start_api_server, WrappedWorkerContexts};
 use crate::cli::WorkerManagerCliArgs;
+use crate::dataprovider::{DataProvider, DataProviderEvent};
 use crate::datasource::{setup_data_source_manager, WrappedDataSourceManager};
-use crate::db::{setup_inventory_db, WrappedDb};
+use crate::db::{get_all_workers, setup_inventory_db, WrappedDb};
 use crate::lifecycle::{WorkerContextMap, WorkerLifecycleManager, WrappedWorkerLifecycleManager};
-use crate::pruntime::{PRuntimeClient, PRuntimeClientWithSemaphore};
+use crate::processor::{Processor, ProcessorEvent, ProcessorEventTx, WorkerContext as ProcessorWorkerContext};
 use crate::tx::TxManager;
-use crate::{use_parachain_api, worker};
+use crate::use_parachain_api;
 use crate::wm::WorkerManagerMessage::*;
-use crate::worker::{WorkerContext, WorkerLifecycleState, WrappedWorkerContext};
+use crate::worker::{WorkerLifecycleState, WrappedWorkerContext};
+use crate::worker_status::{update_worker_status, WorkerStatusUpdate};
 use anyhow::{anyhow, Result};
-use futures::future::{try_join, try_join3, try_join_all};
-use log::{debug, info};
-use phactory_api::blocks::HeaderToSync;
-use phactory_api::prpc::{self, PhactoryInfo, SyncedTo};
-use std::collections::HashMap;
+use futures::future::{try_join, try_join3, try_join4, try_join_all};
+use log::{debug, error, info};
+use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -44,6 +44,7 @@ pub struct WorkerManagerContext {
     pub dsm: WrappedDataSourceManager,
     pub workers: WrappedWorkerContexts,
     pub worker_map: Arc<TokioMutex<WorkerContextMap>>,
+    pub processor_tx: Arc<ProcessorEventTx>,
     pub txm: Arc<TxManager>,
     pub pccs_url: String,
     pub pccs_timeout_secs: u64,
@@ -115,7 +116,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         initialized: false.into(),
         current_lifecycle_manager: Arc::new(Mutex::new(None)),
         current_lifecycle_tx: Arc::new(TokioMutex::new(None)),
-        inv_db,
+        inv_db: inv_db.clone(),
         dsm: dsm.clone(),
         txm: txm.clone(),
         workers: Arc::new(TokioMutex::new(Vec::new())),
@@ -124,6 +125,64 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         pccs_timeout_secs: args.pccs_timeout,
     });
 
+    let headers_db = {
+        let opts = crate::tx::get_options(None);
+        let path = std::path::Path::new(&args.db_path).join("headers");
+        let db = crate::tx::DB::open(&opts, path).unwrap();
+        Arc::new(db)
+    };
+
+    let (processor_event_tx, processor_event_rx) = mpsc::unbounded_channel::<ProcessorEvent>();
+    let (data_provider_event_tx, data_provider_event_rx) = mpsc::unbounded_channel::<DataProviderEvent>();
+    let (worker_status_update_tx, mut worker_status_update_rx) = mpsc::unbounded_channel::<WorkerStatusUpdate>();
+
+    let processor_event_tx = Arc::new(processor_event_tx);
+    let data_provider_tx = Arc::new(data_provider_event_tx);
+
+    let mut data_provider = DataProvider {
+        dsm: dsm.clone(),
+        headers_db: headers_db.clone(),
+        rx: data_provider_event_rx,
+        tx: data_provider_tx.clone(),
+        processor_event_tx: processor_event_tx.clone(),
+    };
+    data_provider.init().await;
+
+    let mut processor = Processor {
+        rx: processor_event_rx,
+        tx: processor_event_tx.clone(),
+        data_provider_event_tx: data_provider_tx.clone(),
+        worker_status_update_tx: Arc::new(worker_status_update_tx),
+        relaychain_chaintip: crate::dataprovider::relaychain_api(dsm.clone(), false).await.latest_finalized_block_number().await.unwrap(),
+        parachain_chaintip: crate::dataprovider::parachain_api(dsm.clone(), false).await.latest_finalized_block_number().await.unwrap(),
+    };
+
+    let workers = get_all_workers(inv_db.clone()).unwrap()
+        .into_iter()
+        .filter(|w| w.enabled)
+        .map(|w| ProcessorWorkerContext {
+            uuid: w.id,
+            headernum: 0,
+            para_headernum: 0,
+            blocknum: 0,
+            calling: false,
+            accept_sync_request: false,
+            client: Arc::new(crate::pruntime::create_client(w.endpoint.clone())),
+            pending_requests: VecDeque::new(),
+        })
+        .collect::<Vec<_>>();
+
+    /*
+    let res = try_join4(
+    ).await;
+    if let Err(err) = res {
+        error!("{:?}", err);
+    }
+
+    //std::process::exit(0);
+    //let processor = Processor { .. Default::default() };
+    //init(&args.db_path, dsm.clone()).await;
+*/
     let join_handle = try_join3(
         tokio::spawn(start_api_server(ctx.clone(), args.clone())),
         tokio::spawn(txm_handle),
@@ -131,6 +190,14 @@ pub async fn wm(args: WorkerManagerCliArgs) {
     );
 
     tokio::select! {
+        _ = processor.master_loop(workers) => {}
+
+        _ = data_provider.master_loop() => {}
+
+        _ = update_worker_status(ctx.clone(), worker_status_update_rx) => {}
+
+        _ = crate::dataprovider::keep_syncing_headers(dsm.clone(), processor_event_tx.clone()) => {}
+
         ret = join_handle => {
             info!("wm.join_handle: {:?}", ret);
         }
@@ -196,95 +263,6 @@ pub async fn set_lifecycle_manager(
     )
     .await?;
     Ok(())
-}
-
-pub enum MasterEvent {
-    Init,
-    RelayHeadersReceived(Vec<HeaderToSync>),
-    RelayHeadersDispatched((usize, Result<SyncedTo, prpc::client::Error>)),
-    RelayToParaInfoReceived,
-    ParaHeadersReceived(),
-    ParaBlocksReceived(),
-    WorkerInfoReceived((usize, Result<PhactoryInfo>)),
-    Terminate,
-}
-
-pub type MasterEventRx = mpsc::UnboundedReceiver<MasterEvent>;
-pub type MasterEventTx = Arc<TokioMutex<mpsc::UnboundedSender<MasterEvent>>>;
-
-pub async fn master_loop(
-    wm_context: WrappedWorkerManagerContext,
-) -> Result<()>{
-    let (tx, rx) = mpsc::unbounded_channel::<MasterEvent>();
-
-    let relay_chaintip_number: u32 = 0;
-    let para_chaintip_number: u32 = 0;
-
-    let workers: Vec<WorkerContext> = Vec::new();
-
-    //tx.send(MasterEvent::Init);
-    //tx.
-
-    loop {
-        let event = rx.recv().await;
-        if event.is_none() {
-            break;
-        }
-
-        match event.unwrap() {
-            MasterEvent::Init => todo!(),
-            MasterEvent::RelayHeadersReceived(headers) => {
-                let from = headers.first().expect("has blocks").header.number;
-                let to = headers.last().expect("").header.number;
-                for (idx, worker) in workers.iter().enumerate() {
-                    if let Some(info) = &worker.info {
-                        if from <= info.headernum && info.headernum <= to {
-                            let pr = &worker.pr;
-                            let headers: Vec<HeaderToSync> = Vec::from_iter(headers[(info.headernum - from)..].iter().cloned());
-                            let headers = HeadersToSync::new(headers, None);
-                        }
-                    }
-                }
-            },
-            MasterEvent::RelayHeadersDispatched => todo!(),
-            MasterEvent::RelayToParaInfoReceived => todo!(),
-            MasterEvent::ParaHeadersReceived() => todo!(),
-            MasterEvent::ParaBlocksReceived() => todo!(),
-            MasterEvent::WorkerInfoReceived(_) => todo!(),
-            MasterEvent::Terminate => todo!(),
-        }
-
-        let worker_contexts = wm_context.workers.lock().await;
-        for worker_context in worker_contexts.iter() {
-            let worker_context = worker_context.read().await;
-            let worker = worker_context.worker.clone();
-            let info = worker_context.info.expect("should have value").clone();
-            drop(worker_context);
-
-            if info.blocknum < info.para_headernum {
-
-            } else if info.waiting_for_paraheaders { // && get_parachain_header_from_relaychain_at
-
-            } else if info.headernum < relay_chaintip_number {
-
-            } else {
-                // chaintip
-            }
-        }
-        drop(worker_contexts);
-    }
-
-    Ok(());
-}
-
-async fn dispatch_relay_headers(
-    tx: MasterEventTx,
-    worker_idx: usize,
-    pr: Arc<PRuntimeClient>,
-    headers: HeadersToSync,
-) {
-    let result = pr.with_lock(pr.sync_header(headers)).await?; // should be handle
-    let a = tx.lock().await.send(MasterEvent::RelayHeadersDispatched);
 }
 
 #[allow(clippy::await_holding_lock)]

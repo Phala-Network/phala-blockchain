@@ -46,6 +46,7 @@ pub struct WorkerManagerCliArgs {
 
 pub async fn start_wm() {
     env_logger::Builder::new()
+    /*
         .format(|buf, record| {
             writeln!(
                 buf,
@@ -57,6 +58,7 @@ pub async fn start_wm() {
                 record.args()
             )
         })
+        */
         .filter_level(log::LevelFilter::Info)
         .format_timestamp_micros()
         .parse_default_env()

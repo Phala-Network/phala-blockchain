@@ -7,7 +7,6 @@ use crate::tx::TxManagerError::*;
 use crate::use_parachain_api;
 use anyhow::{anyhow, Error, Result};
 use chrono::{DateTime, Utc};
-use futures::channel::mpsc::UnboundedReceiver;
 use futures::future::BoxFuture;
 use hex::ToHex;
 use lazy_static::lazy_static;
@@ -47,14 +46,12 @@ lazy_static! {
 
 static TX_QUEUE_CHUNK_SIZE: usize = 30;
 static TX_QUEUE_CHUNK_TIMEOUT_IN_MS: u64 = 1000;
-static TX_TIMEOUT: u64 = 300000;
+static TX_TIMEOUT: u64 = 30000;
 
 static PO_LIST: &str = "po_list";
 static PO_BY_PID: &str = "po:pid:";
 
 pub type DB = DBWithThreadMode<MultiThreaded>;
-
-type TxProgress = subxt::tx::TxProgress<subxt::PolkadotConfig, subxt::OnlineClient<subxt::PolkadotConfig>>;
 
 pub fn get_options(max_open_files: Option<i32>) -> Options {
     // Current tuning based off of the total ordered example, flash
@@ -72,6 +69,7 @@ pub fn get_options(max_open_files: Option<i32>) -> Options {
     opts.set_num_levels(4);
     opts.set_max_bytes_for_level_base(536_870_912); // 512mb
     opts.set_max_bytes_for_level_multiplier(8.0);
+    opts.set_keep_log_file_num(10);
 
     if let Some(max_open_files) = max_open_files {
         opts.set_max_open_files(max_open_files);
@@ -277,18 +275,12 @@ impl TxManager {
 
         Ok((txm, handle))
     }
-
     async fn start_trader(self: Arc<Self>, rx: mpsc::UnboundedReceiver<usize>) -> Result<()> {
         let rx_stream = UnboundedReceiverStream::new(rx).chunks_timeout(
             TX_QUEUE_CHUNK_SIZE,
             Duration::from_millis(TX_QUEUE_CHUNK_TIMEOUT_IN_MS),
         );
         tokio::pin!(rx_stream);
-
-        let (sneder, receiver) = mpsc::unbounded_channel::<usize>();
-
-
-        let future_vec = Vec::new();
 
         while let Some(current_txs) = rx_stream.next().await {
             let mut pending_txs = self.pending_txs.lock().await;
@@ -321,10 +313,11 @@ impl TxManager {
                 };
             }
 
-
-
             for (pid, v) in tx_map {
-                future_vec.push(self.clone().wrap_send_tx_group(pid, v));
+                if let Err(e) = self.clone().wrap_send_tx_group(pid, v).await {
+                    error!("wrap_send_tx_group: {e}");
+                    std::process::exit(255);
+                }
             }
 
             let mut running_txs = self.running_txs.lock().await;
@@ -341,22 +334,6 @@ impl TxManager {
         error!("Unexpected exit of start_trader!");
         std::process::exit(255);
     }
-
-    async fn handle_pool_transactions(self: Arc<Self>, pid: u64, receiver: UnboundedReceiver<Vec<usize>>) {
-        let api = use_parachain_api!(self.dsm, false).ok_or(NoValidSubstrateDataSource)?;
-        while let Some(transaction_ids) = receiver.next().await {
-
-        }
-    }
-
-    async fn monitor_pool_transactions(self: Arc<Self>, pid: u64) {
-        let current_nonce: u32 = 123;       
-        loop {
-
-            sleep(Duration::from_secs(1)).await;
-        }
-    }
-
     async fn wrap_send_tx_group(self: Arc<Self>, pid: u64, ids: Vec<usize>) -> Result<()> {
         if ids.is_empty() {
             anyhow::bail!("TxGroup can't be empty!");
@@ -402,7 +379,6 @@ impl TxManager {
         }
         Ok(())
     }
-
     async fn send_tx_group(self: Arc<Self>, pid: u64, ids: Vec<usize>) -> Result<Vec<Result<()>>> {
         debug!("send_tx_group: {:?}", &ids);
         let po = self.db.get_po(pid)?.ok_or(InvalidPoolOperator)?;

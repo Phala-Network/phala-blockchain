@@ -26,7 +26,6 @@ use serde::{Deserialize, Serialize};
 use sp_core::sr25519::Public as Sr25519Public;
 use sp_core::{ByteArray, Pair};
 use std::cmp;
-use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 use subxt::dynamic::{storage, Value};
@@ -148,7 +147,6 @@ pub struct WorkerContext {
     pub info: Option<PhactoryInfo>,
     pub last_message: String,
     pub session_info: Option<SessionInfo>,
-    pub pending_sequences: HashSet<u32>,
 }
 
 impl WorkerContext {
@@ -170,7 +168,6 @@ impl WorkerContext {
             info: None,
             last_message: String::new(),
             session_info: None,
-            pending_sequences: HashSet::new(),
         };
         ret.set_last_message("Starting lifecycle...");
         Ok(ret)
@@ -213,11 +210,14 @@ impl WorkerContext {
                 drop(cc);
             }
 
+            sleep(Duration::from_secs(114514000)).await;
+
+            /*
             let _ = join(
                 tokio::spawn(Self::do_start(c.clone())),
                 Self::message_loop(c.clone()),
             )
-            .await;
+            .await; */
             let cc = c.clone();
             let cc = cc.read().await;
             let state = cc.state.clone();
@@ -764,7 +764,6 @@ impl WorkerContext {
         tokio::spawn(Self::mq_sync_loop(c.clone(), pid, tx));
         Ok(rx)
     }
-
     async fn mq_sync_loop(c: WrappedWorkerContext, pid: u64, first_shot: oneshot::Sender<()>) {
         let mut first_shot = Some(first_shot);
         loop {
@@ -795,7 +794,6 @@ impl WorkerContext {
             }
         }
     }
-
     async fn mq_sync_loop_round(c: WrappedWorkerContext, pid: u64) -> Result<()> {
         let (lm, _worker, pr) = extract_essential_values!(c);
         let txm = lm.txm.clone();
@@ -807,21 +805,14 @@ impl WorkerContext {
         if messages.is_empty() {
             return Ok(());
         }
-
         let api =
             use_parachain_api!(lm.dsm, false).ok_or(anyhow!("Substrate client not ready."))?;
         let mut futures = Vec::new();
-
-        let cc = c.clone();
-        let mut cc = cc.write().await;
-        let pending_sequences= cc.pending_sequences.clone();
-        drop(cc);
-
         for (sender, messages) in messages {
             if !messages.is_empty() {
                 let min_seq = mq_next_sequence(&api, &sender).await?;
                 for message in messages {
-                    if message.sequence >= min_seq && pending_sequences.contains(message.sequence) {
+                    if message.sequence >= min_seq {
                         futures.push(txm.clone().sync_offchain_message(pid, message));
                     }
                 }

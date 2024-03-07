@@ -107,6 +107,11 @@ pub fn decode_parachain_heads(head: Vec<u8>) -> Result<Vec<u8>, Error> {
     Decode::decode(&mut head.as_slice()).or(Err(Error::FailedToDecode))
 }
 
+pub fn decode_parachain_header(raw_header: Vec<u8>) -> Result<crate::types::Header, Error> {
+    let para_fin_header_data = decode_parachain_heads(raw_header.clone())?;
+    crate::types::Header::decode(&mut para_fin_header_data.as_slice()).or(Err(Error::FailedToDecode))
+}
+
 /// Updates the nonce from the mempool
 pub async fn update_signer_nonce(api: &ParachainApi, signer: &mut SrSigner) -> Result<()> {
     let account_id = signer.account_id().clone();

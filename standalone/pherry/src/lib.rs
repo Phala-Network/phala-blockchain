@@ -576,11 +576,10 @@ async fn get_parachain_header_from_relaychain_at(
     Err(anyhow!("No parachain header was found at {}", block_number))
 }
 
-async fn sync_headers(
-    pr: &PrClient,
+pub async fn get_headers(
     api: &RelaychainApi,
     from: BlockNumber,
-) -> Result<()> {
+) -> Result<Vec<HeaderToSync>> {
     let first_header = get_header_at(api, Some(from)).await?;
     let mut headers = vec![
         HeaderToSync {
@@ -604,7 +603,17 @@ async fn sync_headers(
     let last_number = last_header.header.number;
     last_header.justification = Some(finality_proof.justification);
 
-    info!("sending a batch of {} headers (last: {})", headers.len(), last_number);
+    Ok(headers)
+}
+
+async fn sync_headers(
+    pr: &PrClient,
+    api: &RelaychainApi,
+    from: BlockNumber,
+) -> Result<()> {
+    let headers = get_headers(api, from).await?;
+
+    info!("sending a batch of {} headers (last: {})", headers.len(), headers.last().unwrap().header.number);
     let relay_synced_to = req_sync_header(pr, headers).await?;
     info!("  ..sync_header: {:?}", relay_synced_to);
 
