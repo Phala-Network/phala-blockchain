@@ -487,6 +487,11 @@ impl Client {
         Ok(())
     }
 
+    pub async fn get_header(&self, block_number: BlockNumber) -> Result<BlockInfo> {
+        let url = format!("{}/header/{block_number}", self.base_uri);
+        self.request_scale(&url).await
+    }
+
     pub async fn get_headers(&self, block_number: BlockNumber) -> Result<Vec<BlockInfo>> {
         let url = format!("{}/headers/{block_number}", self.base_uri);
         self.request_scale(&url).await

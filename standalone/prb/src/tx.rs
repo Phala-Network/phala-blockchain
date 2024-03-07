@@ -69,6 +69,7 @@ pub fn get_options(max_open_files: Option<i32>) -> Options {
     opts.set_num_levels(4);
     opts.set_max_bytes_for_level_base(536_870_912); // 512mb
     opts.set_max_bytes_for_level_multiplier(8.0);
+    opts.set_keep_log_file_num(10);
 
     if let Some(max_open_files) = max_open_files {
         opts.set_max_open_files(max_open_files);
