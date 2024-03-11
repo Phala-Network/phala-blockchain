@@ -49,5 +49,3 @@ pub struct InitArgs {
     /// The max retry times of getting the attestation report.
     pub ra_max_retries: u32,
 }
-
-pub use phala_git_revision::git_revision;
