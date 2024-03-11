@@ -202,6 +202,9 @@ fn remove_outdated_checkpoints(
 ) -> Result<()> {
     let mut kept = 0_u32;
     for (block, filename) in glob_checkpoint_files_sorted(basedir)? {
+        if remove_checkpoint_if_uncompleted(&filename)? {
+            continue;
+        }
         if block > current_block {
             continue;
         }
@@ -223,6 +226,15 @@ fn remove_checkpoint(filename: &Path) -> Result<()> {
     let info_filename = checkpoint_info_filename_for(&filename.display().to_string());
     std::fs::remove_file(info_filename).context("Failed to remove checkpoint info file")?;
     Ok(())
+}
+
+fn remove_checkpoint_if_uncompleted(filename: &Path) -> Result<bool> {
+    let info_filename = checkpoint_info_filename_for(&filename.display().to_string());
+    if !Path::new(&info_filename).exists() {
+        std::fs::remove_file(filename).context("Failed to remove uncompleted checkpoint file")?;
+        return Ok(true);
+    }
+    Ok(false)
 }
 
 #[derive(Encode, Decode, Clone, Debug)]
@@ -806,10 +818,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .dump_secret_key();
         let checkpoint_file = checkpoint_filename_for(current_block, &self.args.storage_path);
         info!("Taking checkpoint to {checkpoint_file}...");
-        self.save_checkpoint_info(&checkpoint_file)?;
         let file = File::create(&checkpoint_file).context("Failed to create checkpoint file")?;
         self.take_checkpoint_to_writer(&key, file)
             .context("Take checkpoint to writer failed")?;
+        self.save_checkpoint_info(&checkpoint_file)?;
         info!("Checkpoint saved to {checkpoint_file}");
         self.last_checkpoint = Instant::now();
         remove_outdated_checkpoints(
@@ -858,7 +870,19 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             other => other.context("Failed to load persistent data")?,
         };
         let files = glob_checkpoint_files_sorted(&args.storage_path)
-            .context("Glob checkpoint files failed")?;
+            .context("Glob checkpoint files failed")?
+            .into_iter()
+            .filter(|(_block, ckpt_filename)| {
+                let removed = remove_checkpoint_if_uncompleted(ckpt_filename);
+                match removed {
+                    Ok(removed) => !removed,
+                    Err(err) => {
+                        error!("Met error when removing checkpoint if uncompleted: {err:?}");
+                        false
+                    },
+                }
+            })
+            .collect::<Vec<(u32, PathBuf)>>();
         if files.is_empty() {
             return Ok(None);
         }
