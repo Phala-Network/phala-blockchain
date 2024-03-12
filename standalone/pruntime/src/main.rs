@@ -95,6 +95,11 @@ struct Args {
     /// The max retry times of getting the attestation report.
     #[arg(long, default_value = "1")]
     ra_max_retries: u32,
+
+    /// The timeout of a single contract query in seconds. The valid range is 5 to 600.
+    /// Out of range value will be clamped to the nearest bound.
+    #[arg(long, default_value = "10")]
+    query_timeout: u64,
 }
 
 impl Args {
@@ -137,6 +142,7 @@ impl Args {
             no_rcu: self.no_rcu,
             ra_timeout: self.ra_timeout,
             ra_max_retries: self.ra_max_retries,
+            query_timeout: self.query_timeout.clamp(5, 600),
         }
     }
 }

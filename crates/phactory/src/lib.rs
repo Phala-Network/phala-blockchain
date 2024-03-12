@@ -436,11 +436,12 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         }
 
         self.can_load_chain_state = !system::gk_master_key_exists(&args.sealing_path);
-        self.args = Arc::new(args);
-        self.query_scheduler = create_query_scheduler(self.args.cores);
+        self.query_scheduler = create_query_scheduler(args.cores);
+        self.set_args(args);
     }
 
     pub fn set_args(&mut self, args: InitArgs) {
+        contracts::pink::context::set_query_time_limit(args.query_timeout);
         self.args = Arc::new(args);
         if let Some(system) = &mut self.system {
             system.sealing_path = self.args.sealing_path.clone();
