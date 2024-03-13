@@ -320,8 +320,8 @@ export class OnChainRegistry {
             v1: [endpoint],
           },
         }
-        this.#ready = true
         await this.prepareSystemOrThrows(clusterInfo)
+        this.#ready = true
         return
       }
 
@@ -370,8 +370,8 @@ export class OnChainRegistry {
                 v1: [phactory.endpoint],
               },
             }
-            this.#ready = true
             await this.prepareSystemOrThrows(clusterInfo)
+            this.#ready = true
           } else {
             throw new Error(`Unknown strategy: ${args[0].strategy}`)
           }
@@ -415,8 +415,8 @@ export class OnChainRegistry {
               default: pruntimeURL,
             },
           }
-          this.#ready = true
           await this.prepareSystemOrThrows(clusterInfo)
+          this.#ready = true
         } else {
           const worker = args[0] as WorkerInfo
           const clusterInfo = await this.getClusterInfoById(worker.clusterId)
@@ -427,8 +427,8 @@ export class OnChainRegistry {
           this.clusterId = worker.clusterId
           this.clusterInfo = clusterInfo
           this.workerInfo = worker
-          this.#ready = true
           await this.prepareSystemOrThrows(clusterInfo)
+          this.#ready = true
         }
         return
       }
