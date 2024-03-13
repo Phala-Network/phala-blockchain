@@ -189,6 +189,9 @@ export class OnChainRegistry {
     return result.unwrap()
   }
 
+  /**
+   * @deprecated
+   */
   public async getClusters(clusterId?: string) {
     if (clusterId) {
       const result = (await this.api.query.phalaPhatContracts.clusters(clusterId)) as Option<ClusterInfo>
@@ -201,6 +204,9 @@ export class OnChainRegistry {
     }
   }
 
+  /**
+   * @deprecated
+   */
   public async getEndpoints(workerId?: U8aFixed | string) {
     if (workerId) {
       if (typeof workerId !== 'string') {
@@ -215,6 +221,9 @@ export class OnChainRegistry {
     })
   }
 
+  /**
+   * @deprecated
+   */
   public async getClusterWorkers(clusterId?: string): Promise<WorkerInfo[]> {
     let _clusterId = clusterId || this.clusterId
     if (!_clusterId) {
@@ -578,7 +587,7 @@ export class OnChainRegistry {
     }
   }
 
-  transferToCluster(address: string | AccountId, amount: number | string | BN) {
+  transferToCluster(address: string | AccountId, amount: number | string | BN | bigint) {
     return this.api.tx.phalaPhatContracts.transferToCluster(amount, this.clusterId, address)
   }
 
