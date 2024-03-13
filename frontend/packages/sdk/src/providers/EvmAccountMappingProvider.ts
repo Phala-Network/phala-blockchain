@@ -129,6 +129,7 @@ export class EvmAccountMappingProvider implements Provider {
     return this.#recoveredPubkey.compressed
   }
 
+  // @deprecated
   get evmCaller(): EvmCaller {
     if (!this.#recoveredPubkey) {
       throw new Error('WalletClientSigner is not ready.')
