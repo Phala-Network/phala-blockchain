@@ -136,7 +136,10 @@ impl RuntimeHandle<'_> {
 }
 
 pub(crate) mod context {
-    use std::time::{Duration, Instant};
+    use std::{
+        sync::atomic::{AtomicU64, Ordering},
+        time::{Duration, Instant},
+    };
 
     use anyhow::{anyhow, Result};
     use phala_types::{wrap_content_to_sign, AttestationProvider, SignedContentType};
@@ -151,6 +154,8 @@ pub(crate) mod context {
     use crate::{contracts::ContractsKeeper, system::WorkerIdentityKey, ChainStorage};
 
     environmental::environmental!(exec_context: trait GetContext);
+
+    static MAX_QUERY_TIME: AtomicU64 = AtomicU64::new(10);
 
     pub trait GetContext {
         fn chain_storage(&self) -> &ChainStorage;
@@ -314,9 +319,17 @@ pub(crate) mod context {
         time_remaining().as_millis() as u64
     }
 
+    pub fn set_query_time_limit(seconds: u64) {
+        MAX_QUERY_TIME.store(seconds, Ordering::Relaxed);
+    }
+
+    pub fn query_time_limit() -> u64 {
+        MAX_QUERY_TIME.load(Ordering::Relaxed)
+    }
+
     pub fn time_remaining() -> Duration {
-        const MAX_QUERY_TIME: Duration = Duration::from_secs(10);
-        MAX_QUERY_TIME.saturating_sub(call_elapsed())
+        let limit = Duration::from_secs(query_time_limit());
+        limit.saturating_sub(call_elapsed())
     }
 
     pub fn sidevm_query(origin: [u8; 32], vmid: [u8; 32], payload: Vec<u8>) -> Result<Vec<u8>> {

@@ -184,6 +184,8 @@ message PhactoryInfo {
   repeated string supported_attestation_methods = 28;
   // The number of live sidevm instances.
   uint32 live_sidevm_instances = 29;
+  // The timeout for contract query in seconds.
+  uint32 query_timeout = 30;
 }
 
 // Basic information for the initialized runtime

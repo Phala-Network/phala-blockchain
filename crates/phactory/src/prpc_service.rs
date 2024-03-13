@@ -163,6 +163,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             },
             supported_attestation_methods: self.platform.supported_attestation_methods(),
             live_sidevm_instances: sidevm::vm_count() as u32,
+            query_timeout: self.args.query_timeout as _,
         }
     }
 
