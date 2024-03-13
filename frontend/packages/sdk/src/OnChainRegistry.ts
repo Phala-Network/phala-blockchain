@@ -184,7 +184,7 @@ export class OnChainRegistry {
   public async getClusterInfoById(clusterId: string) {
     const result = (await this.api.query.phalaPhatContracts.clusters(clusterId)) as Option<ClusterInfo>
     if (result.isNone) {
-      return null
+      return undefined
     }
     return result.unwrap()
   }
