@@ -14,6 +14,15 @@ export function callback<TSubmittableResult>(
   result: SubmittableResult,
   unsub?: any
 ) {
+  // For `HttpProvider`, the `result` is the non-unique transaction hash, and `status` is not available
+  if (!result.status) {
+    if (unsub) {
+      ;(unsub as any)()
+    }
+    // @FIXME: this is not type-safe.
+    resolve(result as TSubmittableResult)
+    return
+  }
   if (result.status.isInBlock) {
     let error
     for (const e of result.events) {

@@ -1,18 +1,42 @@
 import type { Abi } from '@polkadot/api-contract/Abi'
-import type { Bool, Enum, Map, Option, Result, Struct, Vec, u128, u16, u32, u64, u8 } from '@polkadot/types'
+import type { Bool, Enum, Map, Null, Option, Result, Struct, Vec, u128, u16, u32, u64, u8 } from '@polkadot/types'
 import type { VecFixed } from '@polkadot/types/codec'
 import type { AccountId, Balance } from '@polkadot/types/interfaces'
 import type { ITuple } from '@polkadot/types/types'
+import type { BN } from '@polkadot/util'
 import type { PinkContractPromise, PinkContractQuery, PinkContractTx } from './contracts/PinkContract'
 import { type EvmAccountMappingProvider } from './providers/EvmAccountMappingProvider'
 import { type KeyringPairProvider } from './providers/KeyringPairProvider'
 import { type UIKeyringProvider } from './providers/UIKeyringProvider'
 
+export type HexString = `0x${string}`
+
+export type LooseNumber = number | string | bigint | BN | null
+
 export interface InkQueryOk extends Enum {
-  asInkMessageReturn: Vec<u8>
+  readonly isInkMessageReturn: boolean
+  readonly asInkMessageReturn: Vec<u8>
 }
 
-export interface InkQueryError extends Enum {}
+export interface InkQueryError extends Enum {
+  readonly isBadOrigin: boolean
+  readonly asBadOrigin: Null
+
+  readonly isRuntimeError: boolean
+  readonly asRuntimeError: Text
+
+  readonly isSidevmNotFound: boolean
+  readonly asSidevmNotFound: Null
+
+  readonly isNoResponse: boolean
+  readonly asNoResponse: Null
+
+  readonly isServiceUnavailable: boolean
+  readonly asServiceUnavailable: Null
+
+  readonly isTimeout: boolean
+  readonly asTimeout: Null
+}
 
 export interface InkResponse extends Map {
   nonce: Vec<u8>
