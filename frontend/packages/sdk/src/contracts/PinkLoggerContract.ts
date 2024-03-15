@@ -1,4 +1,3 @@
-import type { ApiPromise } from '@polkadot/api'
 import { Keyring } from '@polkadot/api'
 import { Abi } from '@polkadot/api-contract'
 import type { DecodedEvent } from '@polkadot/api-contract/types'

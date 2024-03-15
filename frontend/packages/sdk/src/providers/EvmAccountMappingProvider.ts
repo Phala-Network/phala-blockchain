@@ -3,7 +3,7 @@ import type { SubmittableExtrinsic } from '@polkadot/api/types'
 import type { u16 } from '@polkadot/types/primitive'
 import type { ISubmittableResult } from '@polkadot/types/types'
 import { encodeAddress } from '@polkadot/util-crypto'
-import type { Account, Address, Hex, WalletClient } from 'viem'
+import type { Account, Address, Chain, Hex, Transport, WalletClient } from 'viem'
 import { type CertificateData, signEip712Certificate } from '../pruntime/certificate'
 import { evmPublicKeyToSubstrateRawAddressU8a, recoverEvmPubkey } from '../utils/addressConverter'
 import {
@@ -14,8 +14,6 @@ import {
 } from '../utils/eip712'
 import { callback } from '../utils/signAndSend'
 import { Provider } from './types'
-
-type AccountLike = Account | { address: Address }
 
 export interface EvmCaller {
   compressedPubkey: `0x${string}`
@@ -29,15 +27,20 @@ export interface EvmAccountMappingProviderOptions {
 /**
  * @class EvmAccountMappingProvider
  */
-export class EvmAccountMappingProvider implements Provider {
+export class EvmAccountMappingProvider<
+  transport extends Transport = Transport,
+  chain extends Chain | undefined = Chain | undefined,
+  account extends Account | undefined = Account | undefined,
+> implements Provider
+{
   static readonly identity = 'evmAccountMapping'
 
   //
   // Resources
   //
   #apiPromise: ApiPromise
-  #client: WalletClient
-  #account: AccountLike
+  #client: WalletClient<transport, chain, account>
+  #account: NonNullable<account>
 
   //
   // Options
@@ -64,8 +67,8 @@ export class EvmAccountMappingProvider implements Provider {
 
   constructor(
     api: ApiPromise,
-    client: WalletClient,
-    account: AccountLike,
+    client: WalletClient<transport, chain, account>,
+    account: NonNullable<account>,
     { SS58Prefix = undefined }: EvmAccountMappingProviderOptions = {}
   ) {
     this.#apiPromise = api
@@ -94,10 +97,14 @@ export class EvmAccountMappingProvider implements Provider {
     )
   }
 
-  static async create(
+  static async create<
+    transport extends Transport = Transport,
+    chain extends Chain | undefined = Chain | undefined,
+    account extends Account | undefined = Account | undefined,
+  >(
     api: ApiPromise,
-    client: WalletClient,
-    account: AccountLike,
+    client: WalletClient<transport, chain, account>,
+    account: NonNullable<account>,
     options?: { msg?: string; SS58Prefix?: number }
   ) {
     const signer = new EvmAccountMappingProvider(api, client, account, options)
@@ -115,7 +122,7 @@ export class EvmAccountMappingProvider implements Provider {
     return this.#address
   }
 
-  get evmAccount(): AccountLike {
+  get evmAccount(): account {
     if (!this.#account) {
       throw new Error('WalletClientSigner is not ready.')
     }
@@ -136,7 +143,7 @@ export class EvmAccountMappingProvider implements Provider {
     }
     return {
       compressedPubkey: this.#recoveredPubkey.compressed,
-      address: this.#account.address,
+      address: this.#account!.address,
     }
   }
 
@@ -149,7 +156,7 @@ export class EvmAccountMappingProvider implements Provider {
   ): Promise<TSubmittableResult> {
     const substrateCall = await createSubstrateCall(this.#apiPromise, this.address, extrinsic)
     const typedData = createEip712StructedDataSubstrateCall(this.#domain, substrateCall)
-    const signature = await this.#client.signTypedData({ ...typedData, account: this.#account as Account })
+    const signature = await this.#client.signTypedData({ ...typedData, account: this.#account })
     return await new Promise(async (resolve, reject) => {
       try {
         const _extrinsic = this.#apiPromise.tx.evmAccountMapping.metaCall(
