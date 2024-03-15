@@ -114,7 +114,7 @@ export class OnChainRegistry {
   }
 
   get phactory() {
-    if (!this.#ready || !this.#phactory) {
+    if (!this.#phactory) {
       throw new Error('You need initialize OnChainRegistry first.')
     }
     return this.#phactory
@@ -283,7 +283,7 @@ export class OnChainRegistry {
           systemContractKey,
           provider
         )
-        this.#loggerContract = await PinkLoggerContractPromise.create(this.api, this, this.#systemContract)
+        this.#loggerContract = await PinkLoggerContractPromise.create(this)
       } else {
         throw new Error(`System contract not found: ${systemContractId}`)
       }
@@ -536,7 +536,7 @@ export class OnChainRegistry {
           systemContractKey,
           provider
         )
-        this.#loggerContract = await PinkLoggerContractPromise.create(this.api, this, this.#systemContract)
+        this.#loggerContract = await PinkLoggerContractPromise.create(this)
       } else {
         throw new Error(`System contract not found: ${systemContractId}`)
       }

@@ -325,15 +325,18 @@ export class PinkLoggerContractPromise {
   #systemContractId: string | AccountId | undefined
 
   static async create(
-    _api: ApiPromise,
-    registry: OnChainRegistry,
-    systemContract: SystemContract,
+    client: OnChainRegistry,
+    systemContract?: SystemContract,
     pair?: KeyringPair
   ): Promise<PinkLoggerContractPromise> {
     let _pair: KeyringPair | undefined = pair
     if (!_pair) {
       const keyring = new Keyring({ type: 'sr25519' })
       _pair = keyring.addFromUri('//Alice')
+    }
+    systemContract = systemContract || client.systemContract
+    if (!systemContract) {
+      throw new Error('No system contract found.')
     }
     const cert = await signCertificate({ pair: _pair })
     const { output } = await systemContract.query['system::getDriver'](_pair.address, { cert }, 'PinkLogger')
@@ -342,10 +345,10 @@ export class PinkLoggerContractPromise {
       throw new ContractInitialError('No PinkLogger contract registered in the cluster.')
     }
     const systemContractId = systemContract.address?.toHex()
-    if (!registry.phactory || !registry.remotePubkey) {
+    if (!client.phactory || !client.remotePubkey) {
       throw new Error('No Pruntime connection found.')
     }
-    return new PinkLoggerContractPromise(registry.phactory, registry.remotePubkey, _pair, contractId, systemContractId)
+    return new PinkLoggerContractPromise(client.phactory, client.remotePubkey, _pair, contractId, systemContractId)
   }
 
   // constructor(api: ApiPromise, registry: OnChainRegistry, contractId: string | AccountId, pair: KeyringPair, systemContractId: string) {

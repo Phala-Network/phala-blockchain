@@ -187,7 +187,7 @@ export class PinkBlueprintSubmittableResult extends SubmittableResult {
 export class PinkBlueprintPromise {
   readonly abi: Abi
   readonly api: ApiBase<'promise'>
-  readonly phatRegistry: OnChainRegistry
+  readonly client: OnChainRegistry
 
   protected readonly _decorateMethod: DecorateMethod<'promise'>
 
@@ -199,23 +199,19 @@ export class PinkBlueprintPromise {
   readonly #query: MapMessageInkQuery<'promise'> = {}
   readonly #tx: PinkMapConstructorExec<'promise'> = {}
 
-  constructor(
-    api: ApiBase<'promise'>,
-    phatRegistry: OnChainRegistry,
-    abi: AbiLike,
-    codeHash: string | Hash | Uint8Array
-  ) {
+  constructor(client: OnChainRegistry, abi: AbiLike, codeHash: string | Hash | Uint8Array) {
+    if (!client.isReady()) {
+      throw new Error('Your client has not been initialized correctly.')
+    }
+    const api = client.api
     if (!api || !api.isConnected || !api.tx) {
       throw new Error('Your API has not been initialized correctly and is not connected to a chain')
-    }
-    if (!phatRegistry.isReady()) {
-      throw new Error('Your phatRegistry has not been initialized correctly.')
     }
 
     this.abi = toAbi(abi, api.registry.getChainProperties())
     this.api = api
     this._decorateMethod = toPromiseMethod
-    this.phatRegistry = phatRegistry
+    this.client = client
 
     this.codeHash = phalaTypes.createType('Hash', codeHash)
 
@@ -252,7 +248,7 @@ export class PinkBlueprintPromise {
         get: (_target, prop, _receiver) => {
           const meta = this.abi.constructors.filter((i) => i.method === prop)
           if (!meta || !meta.length) {
-            throw new Error('Method not found')
+            throw new Error(`Constructor not found: ${prop as string}`)
           }
           return withMeta(meta[0], (options: PinkBlueprintSendOptions, ...arags: unknown[]) => {
             return this._send(prop as string, options, ...arags)
@@ -276,7 +272,7 @@ export class PinkBlueprintPromise {
         { WasmCode: codeHash },
         this.abi.findConstructor(constructorOrId).toU8a(params),
         salt,
-        this.phatRegistry.clusterId,
+        this.client.clusterId,
         value, // not transfer any token to the contract during initialization
         gasLimit,
         storageDepositLimit,
@@ -291,7 +287,7 @@ export class PinkBlueprintPromise {
             maybeContactId = contractId.toString()
           }
         }
-        return new PinkBlueprintSubmittableResult(result, this.abi, this.phatRegistry, maybeContactId)
+        return new PinkBlueprintSubmittableResult(result, this.abi, this.client, maybeContactId)
       })
   }
 
@@ -300,7 +296,7 @@ export class PinkBlueprintPromise {
     options: PinkInstantiateQueryOptions,
     params: unknown[]
   ) => {
-    const agreement = new WorkerAgreementKey(this.phatRegistry.remotePubkey!)
+    const agreement = new WorkerAgreementKey(this.client.remotePubkey!)
     const { cert } = options
 
     const inkQueryInternal = async (origin: string | AccountId | Uint8Array) => {
@@ -311,7 +307,7 @@ export class PinkBlueprintPromise {
       } else {
         assert(origin.toString() === cert.address, 'origin must be the same as the certificate address')
       }
-      if (!this.phatRegistry.systemContract) {
+      if (!this.client.systemContract) {
         throw new Error(
           'The associated System Contract was not set up for You OnChainRegistry, causing the estimate gas to fail.'
         )
@@ -319,14 +315,14 @@ export class PinkBlueprintPromise {
 
       const salt = options.salt || randomHex(4)
       const payload = InkQueryInstantiate(
-        this.phatRegistry.systemContract.address,
+        this.client.systemContract.address,
         this.abi.info.source.wasmHash,
         this.abi.findConstructor(constructorOrId).toU8a(params),
         salt,
         options.deposit,
         options.transfer
       )
-      const response = await pinkQuery(this.phatRegistry.phactory, agreement, payload.toHex(), cert)
+      const response = await pinkQuery(this.client.phactory, agreement, payload.toHex(), cert)
       if (response.result.isErr) {
         return phalaTypes.createType<InkQueryError>('InkQueryError', response.result.asErr.toHex())
       }
@@ -367,19 +363,19 @@ export class PinkBlueprintPromise {
     }
 
     const address = 'provider' in rest ? rest.provider.address : 'signer' in rest ? rest.address : rest.pair.address
-    const cert = userCert || (await this.phatRegistry.getAnonymousCert())
+    const cert = userCert || (await this.client.getAnonymousCert())
     const estimate = this.#query[constructorOrId]
     if (!estimate) {
       throw new Error(`Constructor not found: ${constructorOrId}`)
     }
 
-    const { gasPrice } = this.phatRegistry.clusterInfo ?? {}
+    const { gasPrice } = this.client.clusterInfo ?? {}
     if (!gasPrice) {
       throw new Error('No Gas Price or deposit Per Byte from cluster info.')
     }
 
     const [clusterBalance, onchainBalance, { gasRequired, storageDeposit }] = await Promise.all([
-      this.phatRegistry.getClusterBalance(address),
+      this.client.getClusterBalance(address),
       this.api.query.system.account<FrameSystemAccountInfo>(address),
       // We estimating the gas & storage deposit cost with deposit propose.
       estimate(cert.address, { cert, deposit: BN_MAX_SUPPLY }, ...args),
@@ -414,7 +410,7 @@ export class PinkBlueprintPromise {
             maybeContactId = contractId.toString()
           }
         }
-        return new PinkBlueprintSubmittableResult(result, this.abi, this.phatRegistry, maybeContactId)
+        return new PinkBlueprintSubmittableResult(result, this.abi, this.client, maybeContactId)
       })
     } else if ('signer' in rest) {
       return await signAndSend(tx(txOptions, ...args), rest.address, rest.signer)

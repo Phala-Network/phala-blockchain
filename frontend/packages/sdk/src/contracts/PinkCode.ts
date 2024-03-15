@@ -20,20 +20,20 @@ export interface PinkCodeSendOptions {
 }
 
 export class InkCodeSubmittableResult extends SubmittableResult {
-  readonly registry: OnChainRegistry
+  readonly client: OnChainRegistry
   readonly abi: Abi
   readonly blueprint: PinkBlueprintPromise
 
   #isFinalized: boolean
 
-  constructor(result: ISubmittableResult, abi: Abi, registry: OnChainRegistry) {
+  constructor(result: ISubmittableResult, abi: Abi, client: OnChainRegistry) {
     super(result)
 
     this.#isFinalized = false
-    this.registry = registry
+    this.client = client
     this.abi = abi
 
-    this.blueprint = new PinkBlueprintPromise(this.registry.api, this.registry, this.abi, this.abi.info.source.wasmHash)
+    this.blueprint = new PinkBlueprintPromise(this.client, this.abi, this.abi.info.source.wasmHash)
   }
 
   async waitFinalized(): Promise<void>
@@ -47,16 +47,17 @@ export class InkCodeSubmittableResult extends SubmittableResult {
     }
     let timeout = 10_000
     let cert, address
+    args = args || []
     switch (args.length) {
       case 0:
-        cert = await this.registry.getAnonymousCert()
+        cert = await this.client.getAnonymousCert()
         address = cert.address
         break
 
       case 1:
         if (typeof args[0] === 'number') {
           timeout = args[0] as number
-          cert = await this.registry.getAnonymousCert()
+          cert = await this.client.getAnonymousCert()
           address = cert.address
         } else {
           cert = args[0] as CertificateData
@@ -81,7 +82,7 @@ export class InkCodeSubmittableResult extends SubmittableResult {
     }
 
     if (this.isInBlock || this.isFinalized) {
-      const system = this.registry.systemContract!
+      const system = this.client.systemContract!
       const codeHash = this.abi.info.source.wasmHash.toString()
       const t0 = new Date().getTime()
       while (true) {
@@ -110,7 +111,7 @@ type PinkMapConstructorExec = Record<string, PinkBlueprintDeploy>
 export class PinkCodePromise {
   readonly abi: Abi
   readonly api: ApiBase<'promise'>
-  readonly phatRegistry: OnChainRegistry
+  readonly client: OnChainRegistry
 
   protected readonly _decorateMethod: DecorateMethod<'promise'>
 
@@ -118,23 +119,19 @@ export class PinkCodePromise {
 
   readonly #tx: PinkMapConstructorExec = {}
 
-  constructor(
-    api: ApiBase<'promise'>,
-    phatRegistry: OnChainRegistry,
-    abi: AbiLike,
-    wasm: Uint8Array | string | Buffer | null | undefined
-  ) {
+  constructor(client: OnChainRegistry, abi: AbiLike, wasm?: Uint8Array | string | Buffer | null | undefined) {
+    if (!client.isReady()) {
+      throw new Error('Your client has not been initialized correctly.')
+    }
+    const api = client.api
     if (!api || !api.isConnected || !api.tx) {
       throw new Error('Your API has not been initialized correctly and is not connected to a chain')
-    }
-    if (!phatRegistry.isReady()) {
-      throw new Error('Your phatRegistry has not been initialized correctly.')
     }
 
     this.abi = toAbi(abi, api.registry.getChainProperties())
     this.api = api
     this._decorateMethod = toPromiseMethod
-    this.phatRegistry = phatRegistry
+    this.client = client
 
     // NOTE: we only tested with the .contract file & wasm in Uint8Array.
     if (isWasm(this.abi.info.source.wasm)) {
@@ -175,16 +172,35 @@ export class PinkCodePromise {
 
   public async send({ provider }: PinkCodeSendOptions): Promise<InkCodeSubmittableResult> {
     return await provider.send<InkCodeSubmittableResult>(
-      this.api.tx.phalaPhatContracts.clusterUploadResource(this.phatRegistry.clusterId, 'InkCode', u8aToHex(this.code)),
-      (result) => new InkCodeSubmittableResult(result, this.abi, this.phatRegistry)
+      this.api.tx.phalaPhatContracts.clusterUploadResource(this.client.clusterId, 'InkCode', u8aToHex(this.code)),
+      (result) => new InkCodeSubmittableResult(result, this.abi, this.client)
     )
+  }
+
+  public async hasExists() {
+    if (!this.client.systemContract) {
+      throw new Error('System contract not found in the cluster, maybe the cluster is not ready yet.')
+    }
+    const cert = await this.client.getAnonymousCert()
+    const { output } = await this.client.systemContract.query['system::codeExists']<bool>(
+      this.client.alice.address,
+      { cert },
+      this.abi.info.source.wasmHash.toHex(),
+      'Ink'
+    )
+    const hasExists = !!(output && output.isOk && output.asOk.isTrue)
+    return hasExists
+  }
+
+  public getBlueprint() {
+    return new PinkBlueprintPromise(this.client, this.abi, this.abi.info.source.wasmHash)
   }
 
   #instantiate = (_constructorOrId: AbiConstructor | string | number, _params: unknown[]) => {
     return this.api.tx.phalaPhatContracts
-      .clusterUploadResource(this.phatRegistry.clusterId, 'InkCode', u8aToHex(this.code))
+      .clusterUploadResource(this.client.clusterId, 'InkCode', u8aToHex(this.code))
       .withResultTransform((result: ISubmittableResult) => {
-        return new InkCodeSubmittableResult(result, this.abi, this.phatRegistry)
+        return new InkCodeSubmittableResult(result, this.abi, this.client)
       }) as SubmittableExtrinsic<'promise', InkCodeSubmittableResult>
   }
 }
