@@ -5969,7 +5969,6 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "phala-crypto",
- "phala-git-revision",
  "phala-node-runtime",
  "phala-trie-storage",
  "phala-types",
