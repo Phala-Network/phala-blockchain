@@ -112,6 +112,13 @@ pub async fn wm(args: WorkerManagerCliArgs) {
 
     let (txm, txm_handle) = TxManager::new(&args.db_path, dsm.clone()).expect("TxManager");
 
+    let (processor_event_tx, processor_event_rx) = mpsc::unbounded_channel::<ProcessorEvent>();
+    let (data_provider_event_tx, data_provider_event_rx) = mpsc::unbounded_channel::<DataProviderEvent>();
+    let (worker_status_update_tx, mut worker_status_update_rx) = mpsc::unbounded_channel::<WorkerStatusUpdate>();
+
+    let processor_event_tx = Arc::new(processor_event_tx);
+    let data_provider_tx = Arc::new(data_provider_event_tx);
+
     let ctx = Arc::new(WorkerManagerContext {
         initialized: false.into(),
         current_lifecycle_manager: Arc::new(Mutex::new(None)),
@@ -123,6 +130,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         worker_map: Arc::new(TokioMutex::new(HashMap::new())),
         pccs_url: args.pccs_url.clone(),
         pccs_timeout_secs: args.pccs_timeout,
+        processor_tx: processor_event_tx.clone(),
     });
 
     let headers_db = {
@@ -132,13 +140,6 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         Arc::new(db)
     };
 
-    let (processor_event_tx, processor_event_rx) = mpsc::unbounded_channel::<ProcessorEvent>();
-    let (data_provider_event_tx, data_provider_event_rx) = mpsc::unbounded_channel::<DataProviderEvent>();
-    let (worker_status_update_tx, mut worker_status_update_rx) = mpsc::unbounded_channel::<WorkerStatusUpdate>();
-
-    let processor_event_tx = Arc::new(processor_event_tx);
-    let data_provider_tx = Arc::new(data_provider_event_tx);
-
     let mut data_provider = DataProvider {
         dsm: dsm.clone(),
         headers_db: headers_db.clone(),
@@ -146,7 +147,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         tx: data_provider_tx.clone(),
         processor_event_tx: processor_event_tx.clone(),
     };
-    data_provider.init().await;
+    data_provider.init().await.unwrap();
 
     let mut processor = Processor {
         rx: processor_event_rx,
@@ -169,6 +170,10 @@ pub async fn wm(args: WorkerManagerCliArgs) {
             accept_sync_request: false,
             client: Arc::new(crate::pruntime::create_client(w.endpoint.clone())),
             pending_requests: VecDeque::new(),
+
+            initialized: false,
+            registered: false,
+            benchmarked: false,
         })
         .collect::<Vec<_>>();
 
@@ -196,7 +201,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
 
         _ = update_worker_status(ctx.clone(), worker_status_update_rx) => {}
 
-        _ = crate::dataprovider::keep_syncing_headers(dsm.clone(), processor_event_tx.clone()) => {}
+        _ = crate::dataprovider::keep_syncing_headers(dsm.clone(), headers_db.clone(), processor_event_tx.clone()) => {}
 
         ret = join_handle => {
             info!("wm.join_handle: {:?}", ret);

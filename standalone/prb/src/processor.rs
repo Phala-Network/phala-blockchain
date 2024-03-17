@@ -1,5 +1,5 @@
 use anyhow::Result;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -54,9 +54,16 @@ pub struct SyncInfo {
     pub blocknum: Option<u32>,
 }
 
+#[derive(Default)]
+pub struct BroadcastInfo {
+    pub sync_info: SyncInfo,
+    pub relay_chaintip: u32,
+    pub para_chaintip: u32,
+}
+
 pub enum PRuntimeRequest {
     GetInfo,
-    GetRegisterInfo((bool, Option<sp_core::sr25519::Public>)),
+    GetRegisterInfo((bool, Option<sp_core::crypto::AccountId32>)),
     Sync(SyncRequest),
     GetEgressMessages,
     TakeCheckpoint,
@@ -66,7 +73,7 @@ enum PRuntimeResponse {
     GetInfo(PhactoryInfo),
     GetRegisterInfo(InitRuntimeResponse),
     Sync(SyncInfo),
-    GetEgressMessages(),
+    GetEgressMessages(Vec<u8>),
     TakeCheckpoint(u32),
 }
 
@@ -74,7 +81,7 @@ pub enum ProcessorEvent {
     Init(usize),
     Register(usize),
     GetEgressMsgTimerReceived(),
-    BroadcastSyncRequestReceived((SyncRequest, SyncInfo)),
+    BroadcastSyncRequest((SyncRequest, BroadcastInfo)),
     PRuntimeRequest((usize, PRuntimeRequest)),
     PRuntimeResponse((usize, Result<PRuntimeResponse, prpc::client::Error>)),
     WorkerLifecycleCommand((String, WorkerLifecycleCommand))
@@ -129,12 +136,15 @@ impl Processor {
                     //for (worker_id, worker) in workers.iter().enumerate() {
                     //}
                 },
-                ProcessorEvent::BroadcastSyncRequestReceived((request, info)) => {
+                ProcessorEvent::BroadcastSyncRequest((request, info)) => {
                     for (worker_id, worker) in workers.iter_mut().enumerate() {
-                        if worker.accept_sync_request && is_match(&worker, &info) {
+                        if worker.accept_sync_request && is_match(&worker, &info.sync_info) {
+                            info!("[{}] Meet BroadcastSyncRequest", worker.uuid);
                             self.add_pruntime_request(worker_id, worker, PRuntimeRequest::Sync(request.clone())).await;
                         }
                     }
+                    self.relaychain_chaintip = info.relay_chaintip;
+                    self.parachain_chaintip = info.para_chaintip;
                 },
                 ProcessorEvent::PRuntimeRequest((worker_id, request)) => {
                     let worker = workers.get_mut(worker_id).unwrap();
@@ -171,7 +181,15 @@ impl Processor {
                 ProcessorEvent::WorkerLifecycleCommand((uuid, command)) => {
                     let worker_id = uuid_to_worker_id.get(&uuid);
                     match worker_id {
-                        Some(worker_id) => todo!(),
+                        Some(worker_id) => {
+                            match command {
+                                WorkerLifecycleCommand::ShouldRestart => todo!(),
+                                WorkerLifecycleCommand::ShouldForceRegister => {
+                                    send_processor_event(self.tx.clone(), ProcessorEvent::Register(*worker_id));
+                                },
+                                WorkerLifecycleCommand::ShouldUpdateEndpoint(_) => todo!(),
+                            }
+                        },
                         None => {
                             error!("Cannot find worker with UUID: {}", uuid);
                         },
@@ -190,12 +208,22 @@ impl Processor {
         worker: &mut WorkerContext,
         request: PRuntimeRequest,
     ) {
-        if let PRuntimeRequest::Sync(_) = request {
+        if let PRuntimeRequest::Sync(sync_request) = &request {
             assert!(
                 worker.accept_sync_request,
-                "worker {} does not accept sync request but received one",
+                "[{}] worker does not accept sync request but received one",
                 worker.uuid,
             );
+            if sync_request.headers.is_none()
+                && sync_request.para_headers.is_none()
+                && sync_request.combined_headers.is_none()
+                && sync_request.blocks.is_none()
+                && (worker.blocknum < worker.para_headernum && worker.headernum <= self.relaychain_chaintip || worker.para_headernum <= self.parachain_chaintip)
+            {
+                warn!("[{}] Worker needs to be sync, but received an empty request. Try again.", worker.uuid);
+                self.request_next_sync(worker_id, worker);
+                return;
+            }
             worker.accept_sync_request = false;
         }
 
@@ -256,7 +284,7 @@ impl Processor {
                     }
                 )
             },
-            PRuntimeResponse::GetEgressMessages() => todo!(),
+            PRuntimeResponse::GetEgressMessages(_) => todo!(),
             PRuntimeResponse::TakeCheckpoint(_) => todo!(),
         }
     }
@@ -269,18 +297,18 @@ impl Processor {
     ) {
         if let Some(headernum) = info.headernum {
             worker.headernum = headernum + 1;
-            info!("[{}] updated headernum: {}", worker.uuid, worker.headernum);
+            debug!("[{}] updated headernum: {}", worker.uuid, worker.headernum);
         }
         if let Some(para_headernum) = info.para_headernum {
             worker.para_headernum = para_headernum + 1;
-            info!("[{}] updated para_headernum: {}", worker.uuid, worker.para_headernum);
+            debug!("[{}] updated para_headernum: {}", worker.uuid, worker.para_headernum);
         }
         if let Some(blocknum) = info.blocknum {
             worker.blocknum = blocknum + 1;
-            info!("[{}] updated blocknum: {}", worker.uuid, worker.blocknum);
+            debug!("[{}] updated blocknum: {}", worker.uuid, worker.blocknum);
         }
 
-        if worker.headernum <= self.relaychain_chaintip || worker.para_headernum <= self.parachain_chaintip || worker.blocknum <= self.parachain_chaintip {
+        if worker.headernum <= self.relaychain_chaintip || worker.para_headernum <= self.parachain_chaintip || worker.blocknum < worker.para_headernum {
             self.request_next_sync(worker_id, worker);
         }
     }
@@ -392,7 +420,7 @@ async fn dispatch_pruntime_request(
             let request = GetRuntimeInfoRequest::new(force_refresh_ra, operator);
             client.get_runtime_info(request)
                 .await
-                .map(|response| PRuntime::Response::GetRegisterInfo(response))
+                .map(|response| PRuntimeResponse::GetRegisterInfo(response))
         },
         PRuntimeRequest::Sync(request) => {
             //info!("dispatch pruntime request, sync: {}", worker_id);
@@ -404,7 +432,7 @@ async fn dispatch_pruntime_request(
             client.get_egress_messages(())
                 .await
                 .map(|response| {
-                    PRuntimeResponse::GetEgressMessages()
+                    PRuntimeResponse::GetEgressMessages(response.encoded_messages)
                 })
         },
         PRuntimeRequest::TakeCheckpoint => todo!(),
@@ -413,7 +441,7 @@ async fn dispatch_pruntime_request(
     send_processor_event(tx, ProcessorEvent::PRuntimeResponse((worker_id, result)));
 }
 
-fn send_processor_event(tx: Arc<ProcessorEventTx>, event: ProcessorEvent) {
+pub fn send_processor_event(tx: Arc<ProcessorEventTx>, event: ProcessorEvent) {
     let result = tx.send(event);
     if let Err(error) = result {
         error!("{:?}", error);
@@ -435,13 +463,15 @@ fn is_match(worker: &WorkerContext, info: &SyncInfo) -> bool {
             return false;
         }
     }
-    /*
-    if let Some(para_headernum) = info.para_headernum && para_headernum != worker.para_headernum {
-        return false;
+    if let Some(para_headernum) = info.para_headernum {
+        if para_headernum != worker.para_headernum {
+            return false;
+        }
     }
-    if let Some(blocknum) = info.blocknum && blocknum != worker.blocknum {
-        return false;
+    if let Some(blocknum) = info.blocknum {
+        if blocknum != worker.blocknum {
+            return false;
+        }
     }
-    */
-    return true;
+    true
 }
