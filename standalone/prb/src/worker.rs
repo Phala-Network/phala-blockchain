@@ -177,7 +177,7 @@ impl WorkerContext {
         let time: DateTime<Local> = Local::now();
         let worker = &self.worker;
         let m = m.into();
-        self.last_message = format!("[{time}] {}", &m);
+        self.last_message = format!("[{}] {}", time.format("%m-%d %H:%M:%S %Z"), &m);
         info!(
             "Worker {}({}, {}): {}",
             &worker.name, &worker.id, &worker.endpoint, m
