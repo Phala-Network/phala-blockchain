@@ -329,7 +329,8 @@ impl PinkExtBackend for CallInQuery {
     }
 
     fn worker_sgx_quote(&self) -> Result<Option<SgxQuote>, Self::Error> {
-        Ok(OCallImpl.worker_sgx_quote())
+        // Disabled for now since the design is not mature.
+        Err(DispatchError::Other("Worker SGX quote is not available"))
     }
 }
 
@@ -503,6 +504,6 @@ impl PinkExtBackend for CallInCommand {
     }
 
     fn worker_sgx_quote(&self) -> Result<Option<SgxQuote>, Self::Error> {
-        Ok(None)
+        Err(DispatchError::Other("Worker SGX quote is not available"))
     }
 }
