@@ -1,4 +1,3 @@
-import type { ApiPromise } from '@polkadot/api'
 import { Keyring } from '@polkadot/api'
 import { Abi } from '@polkadot/api-contract'
 import type { DecodedEvent } from '@polkadot/api-contract/types'
@@ -6,15 +5,17 @@ import type { KeyringPair } from '@polkadot/keyring/types'
 import type { Enum, Struct, Text, U8 } from '@polkadot/types'
 import type { AccountId } from '@polkadot/types/interfaces'
 import type { Result } from '@polkadot/types-codec'
-import { hexAddPrefix, hexToString, hexToU8a, u8aToHex } from '@polkadot/util'
-import { blake2AsU8a, sr25519Agreement } from '@polkadot/util-crypto'
+import { hexToString, hexToU8a, u8aToHex } from '@polkadot/util'
+import { blake2AsU8a } from '@polkadot/util-crypto'
 import type { OnChainRegistry } from '../OnChainRegistry'
 import { phalaTypes } from '../options'
-import { type CertificateData, generatePair, signCertificate } from '../pruntime/certificate'
+import { type CertificateData, signCertificate } from '../pruntime/certificate'
 import { InkQuerySidevmMessage } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
 import { type pruntime_rpc } from '../pruntime/proto'
-import type { AbiLike, InkResponse } from '../types'
+import { WorkerAgreementKey } from '../pruntime/WorkerAgreementKey'
+import type { AbiLike, SystemContract } from '../types'
+import { toAbi } from '../utils/abi/toAbi'
 import { isPascalCase, snakeToPascalCase } from '../utils/snakeToPascalCase'
 import { ContractInitialError } from './Errors'
 import { type PinkContractPromise } from './PinkContract'
@@ -188,11 +189,9 @@ interface ContractExecResult extends Struct {
 
 function sidevmQueryWithReader({ phactory, remotePubkey, address, cert }: SidevmQueryContext) {
   return async function unsafeRunSidevmQuery<T>(sidevmMessage: Record<string, any>): Promise<T> {
-    const [sk, pk] = generatePair()
     const encodedQuery = InkQuerySidevmMessage(address, sidevmMessage)
-    const queryAgreementKey = sr25519Agreement(sk, hexToU8a(hexAddPrefix(remotePubkey)))
-    const response = await pinkQuery(phactory, pk, queryAgreementKey, encodedQuery.toHex(), cert)
-    const inkResponse = phalaTypes.createType<InkResponse>('InkResponse', response)
+    const agreement = new WorkerAgreementKey(remotePubkey)
+    const inkResponse = await pinkQuery(phactory, agreement, encodedQuery.toHex(), cert)
     if (inkResponse.result.isErr) {
       let error = `[${inkResponse.result.asErr.index}] ${inkResponse.result.asErr.type}`
       if (inkResponse.result.asErr.type === 'RuntimeError') {
@@ -215,7 +214,7 @@ function postProcessLogRecord<TDecodedEvent extends DecodedEvent = DecodedEvent>
 ): SerMessage<TDecodedEvent>[] {
   let abi: Abi | undefined
   if (abiLike) {
-    abi = abiLike instanceof Abi ? abiLike : new Abi(abiLike)
+    abi = toAbi(abiLike)
   }
 
   return messages.map((message) => {
@@ -325,9 +324,8 @@ export class PinkLoggerContractPromise {
   #systemContractId: string | AccountId | undefined
 
   static async create(
-    _api: ApiPromise,
-    registry: OnChainRegistry,
-    systemContract: PinkContractPromise,
+    client: OnChainRegistry,
+    systemContract?: SystemContract,
     pair?: KeyringPair
   ): Promise<PinkLoggerContractPromise> {
     let _pair: KeyringPair | undefined = pair
@@ -335,17 +333,21 @@ export class PinkLoggerContractPromise {
       const keyring = new Keyring({ type: 'sr25519' })
       _pair = keyring.addFromUri('//Alice')
     }
+    systemContract = systemContract || client.systemContract
+    if (!systemContract) {
+      throw new Error('No system contract found.')
+    }
     const cert = await signCertificate({ pair: _pair })
     const { output } = await systemContract.query['system::getDriver'](_pair.address, { cert }, 'PinkLogger')
-    const contractId = (output as Result<Text, any>).asOk.toHex()
+    const contractId = output.asOk.toHex()
     if (!contractId) {
       throw new ContractInitialError('No PinkLogger contract registered in the cluster.')
     }
     const systemContractId = systemContract.address?.toHex()
-    if (!registry.phactory || !registry.remotePubkey) {
+    if (!client.phactory || !client.remotePubkey) {
       throw new Error('No Pruntime connection found.')
     }
-    return new PinkLoggerContractPromise(registry.phactory, registry.remotePubkey, _pair, contractId, systemContractId)
+    return new PinkLoggerContractPromise(client.phactory, client.remotePubkey, _pair, contractId, systemContractId)
   }
 
   // constructor(api: ApiPromise, registry: OnChainRegistry, contractId: string | AccountId, pair: KeyringPair, systemContractId: string) {

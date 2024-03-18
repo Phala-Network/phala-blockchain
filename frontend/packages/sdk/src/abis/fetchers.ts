@@ -1,13 +1,13 @@
 import { type Bool } from '@polkadot/types'
 import fetch from 'cross-fetch'
-import { type PinkContractPromise } from '../contracts/PinkContract'
 import { type OnChainRegistry } from '../OnChainRegistry'
 import { type CertificateData } from '../pruntime/certificate'
+import { type SystemContract } from '../types'
 
 const OFFICIAL_ARTIFACTS_URL = 'https://phala-network.github.io/phat-contract-artifacts'
 
 export interface CheckCodeHashExistsEnv {
-  systemContract: PinkContractPromise
+  systemContract: SystemContract
   cert: CertificateData
 }
 

@@ -9,17 +9,19 @@ import type { ContractCallResult, ContractCallSend, MessageMeta } from '@polkado
 import { convertWeight, withMeta } from '@polkadot/api-contract/base/util'
 import type { AbiMessage, ContractCallOutcome, ContractOptions, DecodedEvent } from '@polkadot/api-contract/types'
 import { applyOnEvent } from '@polkadot/api-contract/util'
-import type { Bytes, Null, Result, Struct, Text, Vec, u8 } from '@polkadot/types'
+import type { Bytes } from '@polkadot/types'
 import type { AccountId, ContractExecResult, EventRecord } from '@polkadot/types/interfaces'
 import type { Codec, IEnum, IKeyringPair, ISubmittableResult, Registry } from '@polkadot/types/types'
 import { BN, BN_ZERO, hexAddPrefix, hexToU8a, isHex } from '@polkadot/util'
-import { sr25519Agreement, sr25519PairFromSeed } from '@polkadot/util-crypto'
 import { from } from 'rxjs'
 import type { OnChainRegistry } from '../OnChainRegistry'
+import { type Provider } from '../providers/types'
 import type { CertificateData } from '../pruntime/certificate'
 import { EncryptedInkCommand, InkQueryMessage, PlainInkCommand } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
-import type { AbiLike, FrameSystemAccountInfo } from '../types'
+import { WorkerAgreementKey } from '../pruntime/WorkerAgreementKey'
+import type { AbiLike, AnyProvider, FrameSystemAccountInfo } from '../types'
+import { toAbi } from '../utils/abi/toAbi'
 import assert from '../utils/assert'
 import { BN_MAX_SUPPLY } from '../utils/constants'
 import { randomHex } from '../utils/hex'
@@ -70,6 +72,7 @@ interface SendOptions {
 export type PinkContractSendOptions =
   | (PinkContractOptions & SendOptions & { address: string | AccountId; signer: InjectedSigner })
   | (PinkContractOptions & SendOptions & { pair: IKeyringPair })
+  | (PinkContractOptions & SendOptions & { provider: Provider })
 
 export interface PinkContractTx<TParams extends Array<any> = any[]> extends MessageMeta {
   (options: PinkContractOptions, ...params: TParams): SubmittableExtrinsic<'promise'>
@@ -87,17 +90,19 @@ export interface PinkContractQueryOptions {
   transfer?: number | bigint | BN | string
 }
 
-class PinkContractSubmittableResult extends ContractSubmittableResult {
+class PinkContractSubmittableResult<
+  TPinkContractPromise extends PinkContractPromise = PinkContractPromise,
+> extends ContractSubmittableResult {
   readonly #registry: OnChainRegistry
 
   #isFinalized: boolean = false
-  #contract: PinkContractPromise
+  #contract: TPinkContractPromise
   #message: AbiMessage
   #nonce: string
 
   constructor(
     registry: OnChainRegistry,
-    contract: PinkContractPromise,
+    contract: TPinkContractPromise,
     nonce: string,
     message: AbiMessage,
     result: ISubmittableResult,
@@ -119,7 +124,7 @@ class PinkContractSubmittableResult extends ContractSubmittableResult {
     if (!logger) {
       return
     }
-    const { records } = await logger.tail(10, { contract: this.#contract.address.toHex() })
+    const { records } = await logger.tail(1000, { contract: this.#contract.address.toHex() })
     const sinceSubmitted = records.filter(
       (i) => (i.type === 'Log' || i.type === 'MessageOutput') && i.blockNumber >= chainHeight
     )
@@ -198,39 +203,73 @@ export interface MapMessageSend {
   [message: string]: PinkContractSend
 }
 
-interface InkQueryOk extends IEnum {
-  readonly isInkMessageReturn: boolean
-  readonly asInkMessageReturn: Vec<u8>
+//
+//
+
+interface ProxyCallbackOptions {
+  path: string[]
+  args: unknown[]
+}
+type ProxyCallback = (opts: ProxyCallbackOptions) => unknown
+
+const noop = () => {
+  /* noop */
 }
 
-interface InkQueryError extends IEnum {
-  readonly isBadOrigin: boolean
-  readonly asBadOrigin: Null
-
-  readonly isRuntimeError: boolean
-  readonly asRuntimeError: Text
-
-  readonly isSidevmNotFound: boolean
-  readonly asSidevmNotFound: Null
-
-  readonly isNoResponse: boolean
-  readonly asNoResponse: Null
-
-  readonly isServiceUnavailable: boolean
-  readonly asServiceUnavailable: Null
-
-  readonly isTimeout: boolean
-  readonly asTimeout: Null
+function createInnerProxy<TProxied = unknown>(callback: ProxyCallback, path: string[]): TProxied {
+  const proxy = new Proxy(noop, {
+    get(_obj, key) {
+      if (typeof key !== 'string' || key === 'then') {
+        return undefined
+      }
+      return createInnerProxy(callback, [...path, key]) as TProxied
+    },
+    apply(_target, _thisArg, args) {
+      const isApply = path[path.length - 1] === 'apply'
+      return callback({
+        path: isApply ? path.slice(0, -1) : path,
+        args: isApply ? args[1] : args,
+      })
+    },
+  })
+  return proxy as TProxied
 }
 
-interface InkResponse extends Struct {
-  nonce: Text
-  result: Result<InkQueryOk, InkQueryError>
+//
+//
+
+type QueryProxyArgs<TParams extends Array<any> = any[]> = {
+  args: TParams
+  origin?: string | AccountId | Uint8Array
+} & Partial<PinkContractQueryOptions> &
+  unknown
+
+type QueryProxy<T, TParams extends Array<any> = any[], ResultType = Codec, ErrType extends Codec = Codec> = {
+  [k in keyof T]: <TOverrideResultType = ResultType>(
+    args?: QueryProxyArgs<TParams>
+  ) => ContractCallResult<'promise', PinkContractCallOutcome<ILooseResult<TOverrideResultType, ErrType>>>
 }
 
+type TxProxyArgs<TParams extends Array<any> = any[]> = {
+  args?: TParams
+  waitFinalized?: (() => Promise<boolean>) | true
+} & Partial<PinkContractSendOptions> &
+  unknown
+
+type TxProxy<T, TParams extends Array<any> = any[]> = {
+  [k in keyof T]: (args?: TxProxyArgs<TParams>) => Promise<PinkContractSubmittableResult>
+}
+
+type PinkQueryMap = Record<string, PinkContractQuery | Record<string, PinkContractQuery>>
+
+type PinkCommandMap = Record<string, PinkContractTx | Record<string, PinkContractTx>>
+
+//
+//
+//
 export class PinkContractPromise<
-  TQueries extends Record<string, PinkContractQuery> = Record<string, PinkContractQuery>,
-  TTransactions extends Record<string, PinkContractTx> = Record<string, PinkContractTx>,
+  TQueries extends PinkQueryMap = Record<string, PinkContractQuery>,
+  TTransactions extends PinkCommandMap = Record<string, PinkContractTx>,
 > {
   readonly abi: Abi
   readonly api: ApiBase<'promise'>
@@ -243,27 +282,25 @@ export class PinkContractPromise<
   readonly #query: MapMessageInkQuery = {}
   readonly #tx: MapMessageTx = {}
 
+  protected _provider: AnyProvider | undefined = undefined
+
   constructor(
     api: ApiBase<'promise'>,
     phatRegistry: OnChainRegistry,
     abi: AbiLike,
     address: string | AccountId,
-    contractKey: string
+    contractKey: string,
+    provider?: AnyProvider
   ) {
-    if (!api || !api.isConnected || !api.tx) {
-      throw new Error('Your API has not been initialized correctly and is not connected to a chain')
-    }
-    if (!phatRegistry.isReady()) {
-      throw new Error('Your phatRegistry has not been initialized correctly.')
-    }
-
-    this.abi = abi instanceof Abi ? abi : new Abi(abi, api.registry.getChainProperties())
+    this.abi = toAbi(abi, api.registry.getChainProperties())
     this.api = api
     this._decorateMethod = toPromiseMethod
     this.phatRegistry = phatRegistry
 
     this.address = this.registry.createType('AccountId', address)
     this.contractKey = contractKey
+
+    this._provider = provider
 
     this.abi.messages.forEach((meta): void => {
       if (meta.isMutating) {
@@ -298,6 +335,91 @@ export class PinkContractPromise<
     })
   }
 
+  get provider(): AnyProvider | undefined {
+    return this._provider
+  }
+
+  set provider(provider: AnyProvider) {
+    if (!provider || typeof provider.send !== 'function' || typeof provider.signCertificate !== 'function') {
+      throw new Error('The provider implementation is not valid')
+    }
+    this._provider = provider
+  }
+
+  public withProvider(provider: AnyProvider): PinkContractPromise<TQueries, TTransactions> {
+    return new PinkContractPromise(this.api, this.phatRegistry, this.abi, this.address, this.contractKey, provider)
+  }
+
+  private qProxyInstance: unknown = undefined
+
+  public get q() {
+    type TMethods = TQueries & TTransactions
+    type TReMap = {
+      [k in keyof TMethods]: TMethods[k] extends PinkContractQuery
+        ? <ResultType extends Codec = Codec, TParams extends Array<any> = any[], ErrType extends Codec = Codec>(
+            args?: QueryProxyArgs<TParams>
+          ) => ContractCallResult<'promise', PinkContractCallOutcome<ILooseResult<ResultType, ErrType>>>
+        : QueryProxy<TMethods[k]>
+    } & unknown
+
+    if (!this.qProxyInstance) {
+      this.qProxyInstance = createInnerProxy<TReMap>(async ({ path, args: [arg] }) => {
+        const { args = [], origin, ...options } = (arg || {}) as QueryProxyArgs
+        const key = path.join('::')
+        if (!this.provider) {
+          throw new Error('The provider is not set')
+        }
+        let _origin = origin || this.provider.address
+        if (!options.cert) {
+          options.cert = await this.provider.signCertificate()
+          _origin = options.cert.address
+        }
+        return await this.query[key](_origin, options as PinkContractQueryOptions, ...args)
+      }, [])
+    }
+    return this.qProxyInstance as TReMap
+  }
+
+  private execProxyInstance: unknown = undefined
+
+  public get exec() {
+    type TReMap = {
+      [k in keyof TTransactions]: TTransactions[k] extends PinkContractTx
+        ? <TParams extends Array<any> = any[]>(args?: TxProxyArgs<TParams>) => Promise<PinkContractSubmittableResult>
+        : TxProxy<TTransactions[k]>
+    } & unknown
+
+    if (!this.execProxyInstance) {
+      this.execProxyInstance = createInnerProxy<TReMap>(async ({ path, args: [payload] }) => {
+        const { args = [], waitFinalized, ..._options } = (payload || {}) as TxProxyArgs
+        const key = path.join('::')
+        if (!this.provider) {
+          throw new Error('The provider is not set')
+        }
+        const meta = this.abi.messages.filter((i) => i.method === key)
+        if (!meta || !meta.length) {
+          throw new Error('Method not found')
+        }
+        const options: PinkContractSendOptions = {
+          cert: await this.provider.signCertificate(),
+          address: this.provider.address,
+          provider: this.provider,
+          ..._options,
+        }
+        const submittableResult = (await this._send(key, options, ...args)) as PinkContractSubmittableResult
+        if (waitFinalized) {
+          if (typeof waitFinalized === 'function') {
+            await submittableResult.waitFinalized(waitFinalized)
+          } else {
+            await submittableResult.waitFinalized()
+          }
+        }
+        return submittableResult
+      }, [])
+    }
+    return this.execProxyInstance as TReMap
+  }
+
   public get send() {
     return new Proxy(
       {},
@@ -323,8 +445,8 @@ export class PinkContractPromise<
     return this.#query as TQueries & { [k in keyof TTransactions]: PinkContractQuery }
   }
 
-  public get tx(): TTransactions {
-    return this.#tx as TTransactions
+  public get tx(): MapMessageTx {
+    return this.#tx as MapMessageTx
   }
 
   #inkQuery = (
@@ -345,13 +467,7 @@ export class PinkContractPromise<
 
     const { cert } = options
 
-    // Generate a keypair for encryption
-    // NOTE: each instance only has a pre-generated pair now, it maybe better to generate a new keypair every time encrypting
-    const seed = hexToU8a(hexAddPrefix(randomHex(32)))
-    const pair = sr25519PairFromSeed(seed)
-    const [sk, pk] = [pair.secretKey, pair.publicKey]
-
-    const queryAgreementKey = sr25519Agreement(sk, hexToU8a(hexAddPrefix(this.phatRegistry.remotePubkey)))
+    const agreement = new WorkerAgreementKey(this.phatRegistry.remotePubkey!)
 
     const inkQueryInternal = async (origin: string | AccountId | Uint8Array): Promise<ContractCallOutcome> => {
       if (typeof origin === 'string') {
@@ -369,8 +485,7 @@ export class PinkContractPromise<
         options.transfer,
         options.estimating !== undefined ? !!options.estimating : isEstimating
       )
-      const data = await pinkQuery(this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert)
-      const inkResponse = api.createType<InkResponse>('InkResponse', data)
+      const inkResponse = await pinkQuery(this.phatRegistry.phactory, agreement, payload.toHex(), cert)
       if (inkResponse.result.isErr) {
         // @FIXME: not sure this is enough as not yet tested
         throw new Error(`InkResponse Error: ${inkResponse.result.asErr.toString()}`)
@@ -427,7 +542,7 @@ export class PinkContractPromise<
       .withResultTransform((result: ISubmittableResult) => {
         return new PinkContractSubmittableResult(
           this.phatRegistry,
-          this,
+          this as PinkContractPromise,
           nonce,
           message,
           result,
@@ -468,8 +583,9 @@ export class PinkContractPromise<
       throw new Error(`Message not found: ${messageOrId}`)
     }
 
-    const address = 'signer' in rest ? rest.address : rest.pair.address
+    const address = 'provider' in rest ? rest.provider.address : 'signer' in rest ? rest.address : rest.pair.address
     const cert = userCert || (await this.phatRegistry.getAnonymousCert())
+
     const estimate = this.#query[messageOrId]
     if (!estimate) {
       throw new Error(`Message not found: ${messageOrId}`)
@@ -505,7 +621,37 @@ export class PinkContractPromise<
       txOptions.gasLimit = gasRequired.refTime.toBn()
     }
 
-    if ('signer' in rest) {
+    if ('provider' in rest) {
+      options.nonce && assert(isHex(options.nonce) && options.nonce.length === 66, 'Invalid nonce provided')
+      const nonce = options.nonce || hexAddPrefix(randomHex(32))
+      return await rest.provider.send(tx(txOptions, ...args), (result: ISubmittableResult) => {
+        return new PinkContractSubmittableResult(
+          this.phatRegistry,
+          this as PinkContractPromise,
+          nonce,
+          this.abi.findMessage(messageOrId),
+          result,
+          applyOnEvent(result, ['ContractEmitted', 'ContractExecution'], (records: EventRecord[]) => {
+            return records
+              .map(
+                ({
+                  event: {
+                    data: [, data],
+                  },
+                }): DecodedEvent | null => {
+                  try {
+                    return this.abi.decodeEvent(data as Bytes)
+                  } catch (error) {
+                    console.error(`Unable to decode contract event: ${(error as Error).message}`)
+                    return null
+                  }
+                }
+              )
+              .filter((decoded): decoded is DecodedEvent => !!decoded)
+          })
+        )
+      })
+    } else if ('signer' in rest) {
       return await signAndSend(tx(txOptions, ...args), rest.address, rest.signer)
     } else {
       return await signAndSend(tx(txOptions, ...args), rest.pair)
