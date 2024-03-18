@@ -38,7 +38,7 @@ impl WasmEngine {
             .as_ref()
             .map(AsRef::as_ref)
             .unwrap_or("singlepass");
-        let engine = match compiler_env {
+        let mut engine: Engine = match compiler_env {
             "singlepass" => metering(Singlepass::default()).into(),
             #[cfg(feature = "wasmer-compiler-cranelift")]
             "cranelift" => metering(Cranelift::default()).into(),
@@ -46,6 +46,7 @@ impl WasmEngine {
             "llvm" => LLVM::default().into(),
             _ => panic!("Unsupported compiler engine: {compiler_env}"),
         };
+        engine.set_tunables(dym_mem_tunables());
         Self { inner: engine }
     }
 
@@ -54,6 +55,15 @@ impl WasmEngine {
             engine: self.clone(),
             module: Module::new(&self.inner, wasm_code)?,
         })
+    }
+}
+
+fn dym_mem_tunables() -> BaseTunables {
+    BaseTunables {
+        // Always use dynamic heap memory to save memory
+        static_memory_bound: Pages(0),
+        static_memory_offset_guard_size: 0,
+        dynamic_memory_offset_guard_size: page_size::get() as _,
     }
 }
 
@@ -73,13 +83,7 @@ impl WasmModule {
             event_tx,
             log_handler,
         } = config;
-        let base = BaseTunables {
-            // Always use dynamic heap memory to save memory
-            static_memory_bound: Pages(0),
-            static_memory_offset_guard_size: 0,
-            dynamic_memory_offset_guard_size: page_size::get() as _,
-        };
-        let tunables = LimitingTunables::new(base, Pages(max_memory_pages));
+        let tunables = LimitingTunables::new(dym_mem_tunables(), Pages(max_memory_pages));
         let mut engine = self.engine.inner.clone();
         engine.set_tunables(tunables);
         let mut store = Store::new(engine);
