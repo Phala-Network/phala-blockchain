@@ -57,17 +57,17 @@ pub async fn update_worker_status(
             if let Some(sync_info) = update.sync_info {
                 if let Some(headernum) = sync_info.headernum {
                     worker.info.as_mut().map(|info| {
-                        info.headernum = headernum;
+                        info.headernum = headernum + 1;
                     });
                 }
                 if let Some(para_headernum) = sync_info.para_headernum {
                     worker.info.as_mut().map(|info| {
-                        info.para_headernum = para_headernum;
+                        info.para_headernum = para_headernum + 1;
                     });
                 }
                 if let Some(blocknum) = sync_info.blocknum {
                     worker.info.as_mut().map(|info| {
-                        info.blocknum = blocknum;
+                        info.blocknum = blocknum + 1;
                     });
                 }
             }

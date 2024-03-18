@@ -2,7 +2,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use core::time::Duration;
 use futures::StreamExt;
-use log::{error, debug, info};
+use log::{debug, error, info, warn};
 use phaxt::ChainApi;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
@@ -22,7 +22,7 @@ pub fn encode_u32(val: u32) -> [u8; 4] {
     return buf;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct WorkerSyncInfo {
     pub worker_id: usize,
     pub headernum: u32,
@@ -143,7 +143,6 @@ impl DataProvider {
                     let processor_event_tx = self.processor_event_tx.clone();
                     tokio::spawn(async move {
                         let request = loop {
-                            info!("[{}] Getting", info.worker_id);
                             match get_sync_request(dsm.clone(), headers_db.clone(), &info).await {
                                 Ok(request) => break request,
                                 Err(err) => {
@@ -152,13 +151,15 @@ impl DataProvider {
                             }
                         };
                         if request.headers.is_some() || request.para_headers.is_some() || request.combined_headers.is_some() || request.blocks.is_some() {
-                            let send_result = processor_event_tx.clone().send(
-                                ProcessorEvent::PRuntimeRequest((info.worker_id, PRuntimeRequest::Sync(request)))
-                            );
-                            if let Err(send_error) = send_result {
-                                error!("{:?}", send_error);
-                                std::process::exit(255);
-                            }
+                        } else {
+                            info!("empty response: {:?}", info);
+                        }
+                        let send_result = processor_event_tx.clone().send(
+                            ProcessorEvent::PRuntimeRequest((info.worker_id, PRuntimeRequest::Sync(request)))
+                        );
+                        if let Err(send_error) = send_result {
+                            error!("{:?}", send_error);
+                            std::process::exit(255);
                         }
                     });
                 },
@@ -197,8 +198,7 @@ async fn get_sync_request(
     info: &WorkerSyncInfo,
 ) -> Result<SyncRequest> {
     if info.blocknum < info.para_headernum {
-        let mut to = std::cmp::min((info.blocknum + 3) / 4 * 4, info.para_headernum - 1);
-        info!("need block {} to {}", info.blocknum, to);
+        let to = std::cmp::min((info.blocknum + 3) / 4 * 4, info.para_headernum - 1);
         return dsm.clone()
             .fetch_storage_changes(info.blocknum, to)
             .await
@@ -206,7 +206,6 @@ async fn get_sync_request(
     }
 
     if let Some((para_headernum, proof)) = get_para_headernum(dsm.clone(), info.headernum - 1).await? {
-        info!("{} ? {}", info.para_headernum, para_headernum);
         if info.para_headernum <= para_headernum {
             return dsm.clone()
                 .get_para_headers(info.para_headernum, para_headernum)
@@ -219,9 +218,15 @@ async fn get_sync_request(
                     }
                 });
         }
+    } else {
+        warn!("Failed to get para headernum at {}", info.headernum - 1);
     }
 
     if let Some(headers) = get_current_point(headers_db, info.headernum) {
+        let headers = headers
+            .into_iter()
+            .filter(|header| header.header.number >= info.headernum)
+            .collect::<Vec<_>>();
         return Ok(SyncRequest {
             headers: Some(phactory_api::prpc::HeadersToSync::new(headers, None)),
             ..Default::default()
@@ -237,15 +242,6 @@ async fn get_para_headernum(
     relay_headernum: u32,
 ) -> Result<Option<(u32, Vec<Vec<u8>>)>> {
     dsm.clone().get_para_header_by_relay_header(relay_headernum).await
-    /*
-    relaychain_cache(dsm.clone())
-        .await
-        .get_header(relay_headernum)
-        .await
-        .map(|info| info.para_header.map(
-            |para_header| (para_header.fin_header_num, para_header.proof)
-        ))
-        */
 }
 
 pub async fn relaychain_api(dsm: Arc<DataSourceManager>, full: bool) -> ChainApi {
@@ -344,9 +340,12 @@ pub async fn keep_syncing_headers(
                     if para_to < current_para_number {
                         error!("Para number {} from relaychain is smaller than the newest in prb {}", para_to, current_para_number);
                     }
+                    broadcast_info.para_chaintip = para_to;
 
                     let para_from = current_para_number + 1;
-                    let sync_request = if para_from > para_to{
+                    broadcast_info.sync_info.para_headernum = Some(para_from);
+                    broadcast_info.sync_info.blocknum = Some(para_from);
+                    let sync_request = if para_from > para_to {
                         info!("Broadcasting header: relaychain from {} to {}.", relay_from, relay_to);
                         SyncRequest {
                             headers: Some(phactory_api::prpc::HeadersToSync::new(
@@ -356,7 +355,6 @@ pub async fn keep_syncing_headers(
                             ..Default::default()
                         }
                     } else {
-                        broadcast_info.sync_info.para_headernum = Some(para_from);
                         match pherry::get_parachain_headers(&para_api, None, current_para_number + 1, para_to).await {
                             Ok(para_headers) => {
                                 info!("Broadcasting header: relaychain from {} to {}, parachain from {} to {}.",
@@ -419,7 +417,7 @@ fn put_headers_to_db(
         },
         None => vec![], 
     };
-    for mut header in headers {
+    for header in &mut headers {
         header.justification = None;
     }
     headers.extend(new_headers);
@@ -440,7 +438,6 @@ fn put_headers_to_db(
     let key = if with_authority_change {
         encode_u32(to)
     } else if to >= known_chaintip {
-        info!("putting from {} to {} to newest headers_db", from, to);
         encode_u32(std::u32::MAX)
     } else {
         error!("Should not happen: prove_finality API returns a non-chaintip block without authority set change");
@@ -455,7 +452,7 @@ fn put_headers_to_db(
     }
 
     let justification = headers.last().unwrap().justification.as_ref().unwrap();
-    info!(
+    debug!(
         "put into headers_db: from {} to {}, count {}, justification size: {}, headers size: {}",
         from,
         to,

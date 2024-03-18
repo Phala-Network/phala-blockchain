@@ -774,18 +774,10 @@ impl DataSourceManager {
     ) -> Result<Arc<DataSourceCacheItem>> {
         let hc = use_relaychain_hc!(self);
         if let Some(hc) = hc {
-            let headers = hc.get_headers(height).await;
-            if let Ok(mut headers) = headers {
-                if headers.len() > 1 {
-                    return Ok(Arc::new(DataSourceCacheItem::ParaHeaderByRelayHeight(None)));
-                }
-                if headers.len() == 1 {
-                    let header = headers
-                        .remove(0)
-                        .para_header
-                        .map(|h| (h.fin_header_num, h.proof));
+            if let Ok(block_info) = hc.get_header(height).await {
+                if let Some(para_header) = block_info.para_header {
                     return Ok(Arc::new(DataSourceCacheItem::ParaHeaderByRelayHeight(
-                        header,
+                        Some((para_header.fin_header_num, para_header.proof))
                     )));
                 }
             }
@@ -799,7 +791,7 @@ impl DataSourceManager {
             .await?
             .map(|(h, proof)| (h.number, proof));
         Ok(Arc::new(DataSourceCacheItem::ParaHeaderByRelayHeight(
-            None,
+            header,
         )))
     }
     pub async fn get_para_header_by_relay_header(

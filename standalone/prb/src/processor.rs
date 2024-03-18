@@ -106,7 +106,7 @@ impl Processor {
         &mut self,
         mut workers: Vec<WorkerContext>
     ) -> Result<()> {
-        tokio::time::sleep(core::time::Duration::from_secs(60)).await;
+        tokio::time::sleep(core::time::Duration::from_secs(20)).await;
 
         let mut uuid_to_worker_id = HashMap::<String, usize>::new();
         for (worker_id, worker) in workers.iter().enumerate() {
@@ -126,7 +126,7 @@ impl Processor {
             match event.unwrap() {
                 ProcessorEvent::Init(worker_id) => {
                     let worker = workers.get_mut(worker_id).unwrap();
-                    info!("[{}] Init", worker.uuid);
+                    debug!("[{}] Init", worker.uuid);
                     self.add_pruntime_request(worker_id, worker, PRuntimeRequest::GetInfo).await;
                 },
                 ProcessorEvent::Register(_) => {
@@ -138,6 +138,7 @@ impl Processor {
                 },
                 ProcessorEvent::BroadcastSyncRequest((request, info)) => {
                     for (worker_id, worker) in workers.iter_mut().enumerate() {
+                        debug!("[{}] Looking to see BroadcastSyncRequest", worker.uuid);
                         if worker.accept_sync_request && is_match(&worker, &info.sync_info) {
                             info!("[{}] Meet BroadcastSyncRequest", worker.uuid);
                             self.add_pruntime_request(worker_id, worker, PRuntimeRequest::Sync(request.clone())).await;
@@ -252,7 +253,7 @@ impl Processor {
     ) {
         match response {
             PRuntimeResponse::GetInfo(info) => {
-                info!("[{}] PRuntimeResponse, getInfo", worker.uuid);
+                //info!("[{}] PRuntimeResponse, getInfo", worker.uuid);
                 worker.headernum = info.headernum;
                 worker.para_headernum = info.para_headernum;
                 worker.blocknum = info.blocknum;
@@ -309,7 +310,29 @@ impl Processor {
         }
 
         if worker.headernum <= self.relaychain_chaintip || worker.para_headernum <= self.parachain_chaintip || worker.blocknum < worker.para_headernum {
+            debug!(
+                "[{}][{}] requesting next sync; {} <= {} || {} <= {} || {} <= {}",
+                worker.uuid,
+                worker_id,
+                worker.headernum,
+                self.relaychain_chaintip,
+                worker.para_headernum, 
+                self.parachain_chaintip,
+                worker.blocknum,
+                worker.para_headernum
+            );
             self.request_next_sync(worker_id, worker);
+        } else {
+            debug!(
+                "[{}] do not need to request; {} <= {} || {} <= {} || {} <= {}",
+                worker.uuid,
+                worker.headernum,
+                self.relaychain_chaintip,
+                worker.para_headernum, 
+                self.parachain_chaintip,
+                worker.blocknum,
+                worker.para_headernum
+            );
         }
     }
 
@@ -458,17 +481,21 @@ fn send_worker_status_update(tx: Arc<WorkerStatusUpdateTx>, update: WorkerStatus
 }
 
 fn is_match(worker: &WorkerContext, info: &SyncInfo) -> bool {
+    debug!("[{}] start to match", worker.uuid);
     if let Some(headernum) = info.headernum {
+        debug!("[{}] matching headernum: {}, {}", worker.uuid, headernum, worker.headernum);
         if headernum != worker.headernum {
             return false;
         }
     }
     if let Some(para_headernum) = info.para_headernum {
+        debug!("[{}] matching para_headernum: {}, {}", worker.uuid, para_headernum, worker.para_headernum);
         if para_headernum != worker.para_headernum {
             return false;
         }
     }
     if let Some(blocknum) = info.blocknum {
+        debug!("[{}] matching blocknum: {}, {}", worker.uuid, blocknum, worker.blocknum);
         if blocknum != worker.blocknum {
             return false;
         }
