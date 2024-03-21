@@ -443,23 +443,9 @@ impl TxManager {
             .create_signed(&call, &signer, params)
             .await?
             .submit_and_watch()
+            .await?
+            .wait_for_finalized_success()
             .await?;
-
-        let tx = tokio::select! {
-            t = tx.wait_for_in_block() => {
-                Some(t?)
-            }
-            _ = tokio::time::sleep(Duration::from_millis(TX_TIMEOUT)) => {
-                None
-            }
-        };
-
-        let tx = if let Some(tx) = tx {
-            tx
-        } else {
-            anyhow::bail!("Tx timed out!");
-        };
-        let tx = tx.wait_for_success().await?;
 
         if proxied {
             let event_proxy = tx

@@ -5,6 +5,7 @@ pub mod dataprovider;
 pub mod datasource;
 pub mod db;
 pub mod lifecycle;
+pub mod offchain_tx;
 pub mod processor;
 pub mod pruntime;
 pub mod tx;

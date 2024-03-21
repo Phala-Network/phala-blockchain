@@ -5,12 +5,13 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 
 use crate::dataprovider::{DataProviderEvent, DataProviderEventTx, WorkerSyncInfo};
+use crate::offchain_tx::{OffchainMessagesEvent, OffchainMessagesEventTx};
 use crate::pruntime::PRuntimeClient;
 use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState};
 use crate::worker_status::{WorkerStatusUpdate, WorkerStatusUpdateTx};
 
 //use phactory_api::blocks::{AuthoritySetChange, HeaderToSyn};
-use phactory_api::prpc::{self, Blocks, CombinedHeadersToSync, GetRuntimeInfoRequest, HeadersToSync, InitRuntimeResponse, ParaHeadersToSync, PhactoryInfo};
+use phactory_api::prpc::{self, Blocks, CombinedHeadersToSync, GetEgressMessagesResponse, GetRuntimeInfoRequest, HeadersToSync, InitRuntimeResponse, ParaHeadersToSync, PhactoryInfo};
 
 enum SyncStatus {
     Idle,
@@ -19,6 +20,7 @@ enum SyncStatus {
 
 pub struct WorkerContext {
     pub uuid: String,
+    pub pool_id: u64,
 
     pub headernum: u32,
     pub para_headernum: u32,
@@ -73,7 +75,7 @@ enum PRuntimeResponse {
     GetInfo(PhactoryInfo),
     GetRegisterInfo(InitRuntimeResponse),
     Sync(SyncInfo),
-    GetEgressMessages(Vec<u8>),
+    GetEgressMessages(GetEgressMessagesResponse),
     TakeCheckpoint(u32),
 }
 
@@ -95,6 +97,7 @@ pub struct Processor {
     pub rx: ProcessorEventRx,
     pub tx: Arc<ProcessorEventTx>,
     pub data_provider_event_tx: Arc<DataProviderEventTx>,
+    pub offchain_message_tx: Arc<OffchainMessagesEventTx>,
     pub worker_status_update_tx: Arc<WorkerStatusUpdateTx>,
 
     pub relaychain_chaintip: u32,
@@ -285,7 +288,9 @@ impl Processor {
                     }
                 )
             },
-            PRuntimeResponse::GetEgressMessages(_) => todo!(),
+            PRuntimeResponse::GetEgressMessages(response) => {
+                self.handle_pruntime_egress_messages(worker_id, worker, response)
+            },
             PRuntimeResponse::TakeCheckpoint(_) => todo!(),
         }
     }
@@ -352,6 +357,29 @@ impl Processor {
         if let Err(send_error) = send_result {
             error!("{:?}", send_error);
             std::process::exit(255);
+        }
+    }
+
+    fn handle_pruntime_egress_messages(
+        &mut self,
+        worker_id: usize,
+        worker: &WorkerContext,
+        response: GetEgressMessagesResponse,
+    ) {
+        let messages = match response.decode_messages() {
+            Ok(messages) => messages,
+            Err(err) => {
+                error!("[{}] failed to decode egress messages. {}", worker.uuid, err);
+                return;
+            },
+        };
+
+        for (sender, messages) in messages {
+            let result = self.offchain_message_tx.send(
+                OffchainMessagesEvent::SyncMessages((worker.pool_id, sender, messages)));
+            if let Err(err) = result {
+                error!("[{}] fail to send offchain messages. {}", worker.uuid, err);
+            }
         }
     }
 
@@ -455,7 +483,7 @@ async fn dispatch_pruntime_request(
             client.get_egress_messages(())
                 .await
                 .map(|response| {
-                    PRuntimeResponse::GetEgressMessages(response.encoded_messages)
+                    PRuntimeResponse::GetEgressMessages(response)
                 })
         },
         PRuntimeRequest::TakeCheckpoint => todo!(),

@@ -4,6 +4,7 @@ use crate::dataprovider::{DataProvider, DataProviderEvent};
 use crate::datasource::{setup_data_source_manager, WrappedDataSourceManager};
 use crate::db::{get_all_workers, setup_inventory_db, WrappedDb};
 use crate::lifecycle::{WorkerContextMap, WorkerLifecycleManager, WrappedWorkerLifecycleManager};
+use crate::offchain_tx::{master_loop as offchain_tx_loop, OffchainMessagesEvent};
 use crate::processor::{Processor, ProcessorEvent, ProcessorEventTx, WorkerContext as ProcessorWorkerContext};
 use crate::tx::TxManager;
 use crate::use_parachain_api;
@@ -11,7 +12,7 @@ use crate::wm::WorkerManagerMessage::*;
 use crate::worker::{WorkerLifecycleState, WrappedWorkerContext};
 use crate::worker_status::{update_worker_status, WorkerStatusUpdate};
 use anyhow::{anyhow, Result};
-use futures::future::{try_join, try_join3, try_join4, try_join_all};
+use futures::future::{try_join, try_join3, try_join_all};
 use log::{debug, error, info};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::AtomicBool;
@@ -114,10 +115,12 @@ pub async fn wm(args: WorkerManagerCliArgs) {
 
     let (processor_event_tx, processor_event_rx) = mpsc::unbounded_channel::<ProcessorEvent>();
     let (data_provider_event_tx, data_provider_event_rx) = mpsc::unbounded_channel::<DataProviderEvent>();
+    let (offchain_messages_tx, mut offchain_messages_rx) = mpsc::unbounded_channel::<OffchainMessagesEvent>();
     let (worker_status_update_tx, mut worker_status_update_rx) = mpsc::unbounded_channel::<WorkerStatusUpdate>();
 
     let processor_event_tx = Arc::new(processor_event_tx);
     let data_provider_tx = Arc::new(data_provider_event_tx);
+    let offchain_messages_tx = Arc::new(offchain_messages_tx);
 
     let ctx = Arc::new(WorkerManagerContext {
         initialized: false.into(),
@@ -153,6 +156,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         rx: processor_event_rx,
         tx: processor_event_tx.clone(),
         data_provider_event_tx: data_provider_tx.clone(),
+        offchain_message_tx: offchain_messages_tx.clone(),
         worker_status_update_tx: Arc::new(worker_status_update_tx),
         relaychain_chaintip: crate::dataprovider::relaychain_api(dsm.clone(), false).await.latest_finalized_block_number().await.unwrap(),
         parachain_chaintip: crate::dataprovider::parachain_api(dsm.clone(), false).await.latest_finalized_block_number().await.unwrap(),
@@ -163,6 +167,8 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         .filter(|w| w.enabled)
         .map(|w| ProcessorWorkerContext {
             uuid: w.id,
+            pool_id: w.pid.unwrap_or(0),
+
             headernum: 0,
             para_headernum: 0,
             blocknum: 0,
@@ -177,17 +183,6 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         })
         .collect::<Vec<_>>();
 
-    /*
-    let res = try_join4(
-    ).await;
-    if let Err(err) = res {
-        error!("{:?}", err);
-    }
-
-    //std::process::exit(0);
-    //let processor = Processor { .. Default::default() };
-    //init(&args.db_path, dsm.clone()).await;
-*/
     let join_handle = try_join3(
         tokio::spawn(start_api_server(ctx.clone(), args.clone())),
         tokio::spawn(txm_handle),
@@ -198,6 +193,8 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         _ = processor.master_loop(workers) => {}
 
         _ = data_provider.master_loop() => {}
+
+        _ = offchain_tx_loop(offchain_messages_rx, offchain_messages_tx.clone(), txm.clone()) => {}
 
         _ = update_worker_status(ctx.clone(), worker_status_update_rx) => {}
 
