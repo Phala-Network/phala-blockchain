@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use anyhow::Result;
+use sp_core::crypto::AccountId32;
 use core::time::Duration;
 use futures::StreamExt;
 use log::{debug, error, info, warn};
@@ -31,6 +32,7 @@ pub struct WorkerSyncInfo {
 }
 
 pub enum DataProviderEvent {
+    GenerateFastSyncRequest((usize, Vec<u8>)),
     PreloadWorkerSyncInfo(WorkerSyncInfo),
     UpdateWorkerSyncInfo(WorkerSyncInfo),
 }
@@ -130,6 +132,29 @@ impl DataProvider {
             }
 
             match event.unwrap() {
+                DataProviderEvent::GenerateFastSyncRequest((worker_id, pubkey)) => {
+                    let processor_event_tx = self.processor_event_tx.clone();
+                    let para_api = parachain_api(self.dsm.clone(), false).await;
+                    tokio::spawn(async move {
+                        let result = pherry::chain_client::search_suitable_genesis_for_worker(&para_api, &pubkey, None).await;
+                        match result {
+                            Ok((block_number, state)) => {
+                                let request = phactory_api::prpc::ChainState::new(block_number, state);
+                                send_processor_event(
+                                    processor_event_tx,
+                                    ProcessorEvent::PRuntimeRequest((worker_id, PRuntimeRequest::LoadChainState(request)))
+                                );
+                            },
+                            Err(err) => {
+                                send_processor_event(
+                                    processor_event_tx,
+                                    ProcessorEvent::Error((worker_id, err.to_string()))
+                                );
+                            },
+                        }
+
+                    });
+                },
                 DataProviderEvent::PreloadWorkerSyncInfo(info) => {
                     let dsm = self.dsm.clone();
                     let headers_db = self.headers_db.clone();

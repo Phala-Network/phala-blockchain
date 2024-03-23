@@ -1,6 +1,5 @@
 use std::sync::Arc;
 use anyhow::Result;
-use log::error;
 use tokio::sync::mpsc;
 
 use crate::processor::SyncInfo;

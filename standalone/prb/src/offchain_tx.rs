@@ -102,7 +102,7 @@ pub async fn master_loop(
                 let message_context = match sender_context.pending_messages.remove(&sequence) {
                     Some(_) => {},
                     None => {
-                        error!("[{}] sequence {} does not found, cannot remove", sender, sequence);;
+                        error!("[{}] sequence {} does not found, cannot remove", sender, sequence);
                         continue;
                     },
                 };
