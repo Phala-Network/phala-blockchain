@@ -6,15 +6,16 @@ use crate::db::{get_all_workers, setup_inventory_db, WrappedDb};
 use crate::lifecycle::{WorkerContextMap, WorkerLifecycleManager, WrappedWorkerLifecycleManager};
 use crate::offchain_tx::{master_loop as offchain_tx_loop, OffchainMessagesEvent};
 use crate::processor::{Processor, ProcessorEvent, ProcessorEventTx, WorkerContext as ProcessorWorkerContext};
-use crate::tx::TxManager;
+use crate::tx::{PoolOperatorAccess, TxManager};
 use crate::use_parachain_api;
 use crate::wm::WorkerManagerMessage::*;
 use crate::worker::{WorkerLifecycleState, WrappedWorkerContext};
 use crate::worker_status::{update_worker_status, WorkerStatusUpdate};
 use anyhow::{anyhow, Result};
 use futures::future::{try_join, try_join3, try_join_all};
-use log::{debug, error, info};
-use std::collections::{HashMap, VecDeque};
+use log::{debug, info};
+use sp_core::Pair;
+use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -158,6 +159,9 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         data_provider_event_tx: data_provider_tx.clone(),
         offchain_message_tx: offchain_messages_tx.clone(),
         worker_status_update_tx: Arc::new(worker_status_update_tx),
+        txm: txm.clone(),
+        pccs_url: args.pccs_url.clone(),
+        pccs_timeout_secs: args.pccs_timeout.clone(),
         relaychain_chaintip: crate::dataprovider::relaychain_api(dsm.clone(), false).await.latest_finalized_block_number().await.unwrap(),
         parachain_chaintip: crate::dataprovider::parachain_api(dsm.clone(), false).await.latest_finalized_block_number().await.unwrap(),
     };
@@ -165,21 +169,14 @@ pub async fn wm(args: WorkerManagerCliArgs) {
     let workers = get_all_workers(inv_db.clone()).unwrap()
         .into_iter()
         .filter(|w| w.enabled)
-        .map(|w| ProcessorWorkerContext {
-            uuid: w.id,
-            pool_id: w.pid.unwrap_or(0),
-
-            headernum: 0,
-            para_headernum: 0,
-            blocknum: 0,
-            calling: false,
-            accept_sync_request: false,
-            client: Arc::new(crate::pruntime::create_client(w.endpoint.clone())),
-            pending_requests: VecDeque::new(),
-
-            initialized: false,
-            registered: false,
-            benchmarked: false,
+        .map(|w| {
+            let pool_id = w.pid.unwrap_or(0);
+            let po = txm.clone().db.get_po(pool_id).unwrap().unwrap();
+            let operator = match po.proxied {
+                Some(owner) => owner,
+                None => po.pair.public().into(),
+            };
+            ProcessorWorkerContext::create(w, pool_id, operator)
         })
         .collect::<Vec<_>>();
 
