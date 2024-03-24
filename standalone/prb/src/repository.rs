@@ -1,16 +1,17 @@
-use std::sync::Arc;
 use anyhow::Result;
-use sp_core::crypto::AccountId32;
 use core::time::Duration;
 use futures::StreamExt;
 use log::{debug, error, info, warn};
 use phaxt::ChainApi;
+use sp_core::sr25519::Public as Sr25519Public;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 
+use crate::bus::Bus;
 use crate::datasource::DataSourceManager;
-use crate::processor::{send_processor_event, BroadcastInfo, PRuntimeRequest, ProcessorEvent, ProcessorEventTx, SyncInfo, SyncRequest};
-use crate::tx::DB;
+use crate::processor::{BroadcastInfo, PRuntimeRequest, ProcessorEvent, SyncInfo, SyncRequest, WorkerEvent};
+use crate::pool_operator::DB;
 
 use phactory_api::blocks::{find_scheduled_change, HeadersToSync};
 use pherry::headers_cache::Client as CacheClient;
@@ -25,30 +26,29 @@ pub fn encode_u32(val: u32) -> [u8; 4] {
 
 #[derive(Clone, Debug)]
 pub struct WorkerSyncInfo {
-    pub worker_id: usize,
+    pub worker_id: String,
     pub headernum: u32,
     pub para_headernum: u32,
     pub blocknum: u32,
 }
 
-pub enum DataProviderEvent {
-    GenerateFastSyncRequest((usize, Vec<u8>)),
+pub enum RepositoryEvent {
+    GenerateFastSyncRequest((String, Sr25519Public)),
     PreloadWorkerSyncInfo(WorkerSyncInfo),
     UpdateWorkerSyncInfo(WorkerSyncInfo),
 }
 
-pub type DataProviderEventRx = mpsc::UnboundedReceiver<DataProviderEvent>;
-pub type DataProviderEventTx = mpsc::UnboundedSender<DataProviderEvent>;
+pub type RepositoryRx = mpsc::UnboundedReceiver<RepositoryEvent>;
+pub type RepositoryTx = mpsc::UnboundedSender<RepositoryEvent>;
 
-pub struct DataProvider {
+pub struct Repository {
+    pub bus: Arc<Bus>,
     pub dsm: Arc<DataSourceManager>,
     pub headers_db: Arc<DB>,
-    pub rx: DataProviderEventRx,
-    pub tx: Arc<DataProviderEventTx>,
-    pub processor_event_tx: Arc<ProcessorEventTx>,
+    pub rx: RepositoryRx,
 }
 
-impl DataProvider {
+impl Repository {
     // Polkadot: Number: 9688654, SetId: 891, Hash: 0x5fdbc952b059d7c26b8b7e6432bb2b40981c602ded8cf2be7d629a4ead96f156
     // Kusama: Number: 8325311, SetId: 3228, Hash: 0xff93a4a903207ad45af110a3e15f8b66c903a0045f886c528c23fe7064532b08
     pub async fn init(
@@ -132,40 +132,40 @@ impl DataProvider {
             }
 
             match event.unwrap() {
-                DataProviderEvent::GenerateFastSyncRequest((worker_id, pubkey)) => {
-                    let processor_event_tx = self.processor_event_tx.clone();
+                RepositoryEvent::GenerateFastSyncRequest((worker_id, pubkey)) => {
+                    let bus = self.bus.clone();
                     let para_api = parachain_api(self.dsm.clone(), false).await;
                     tokio::spawn(async move {
-                        let result = pherry::chain_client::search_suitable_genesis_for_worker(&para_api, &pubkey, None).await;
+                        let result = pherry::chain_client::search_suitable_genesis_for_worker(&para_api, &pubkey.0, None).await;
                         match result {
                             Ok((block_number, state)) => {
                                 let request = phactory_api::prpc::ChainState::new(block_number, state);
-                                send_processor_event(
-                                    processor_event_tx,
-                                    ProcessorEvent::PRuntimeRequest((worker_id, PRuntimeRequest::LoadChainState(request)))
-                                );
+                                bus.send_pruntime_request(worker_id, PRuntimeRequest::LoadChainState(request));
                             },
                             Err(err) => {
-                                send_processor_event(
-                                    processor_event_tx,
-                                    ProcessorEvent::Error((worker_id, err.to_string()))
+                                bus.send_worker_event(
+                                    worker_id,
+                                    WorkerEvent::MarkError((
+                                        chrono::Utc::now().timestamp_millis(),
+                                        err.to_string(),
+                                    ))
                                 );
                             },
                         }
 
                     });
                 },
-                DataProviderEvent::PreloadWorkerSyncInfo(info) => {
+                RepositoryEvent::PreloadWorkerSyncInfo(info) => {
                     let dsm = self.dsm.clone();
                     let headers_db = self.headers_db.clone();
                     tokio::spawn(async move {
                         let _ = get_sync_request(dsm, headers_db, &info).await;
                     });
                 },
-                DataProviderEvent::UpdateWorkerSyncInfo(info) => {
+                RepositoryEvent::UpdateWorkerSyncInfo(info) => {
+                    let bus = self.bus.clone();
                     let dsm = self.dsm.clone();
                     let headers_db = self.headers_db.clone();
-                    let processor_event_tx = self.processor_event_tx.clone();
                     tokio::spawn(async move {
                         let request = loop {
                             match get_sync_request(dsm.clone(), headers_db.clone(), &info).await {
@@ -179,13 +179,7 @@ impl DataProvider {
                         } else {
                             info!("empty response: {:?}", info);
                         }
-                        let send_result = processor_event_tx.clone().send(
-                            ProcessorEvent::PRuntimeRequest((info.worker_id, PRuntimeRequest::Sync(request)))
-                        );
-                        if let Err(send_error) = send_result {
-                            error!("{:?}", send_error);
-                            std::process::exit(255);
-                        }
+                        bus.send_pruntime_request(info.worker_id, PRuntimeRequest::Sync(request));
                     });
                 },
             }
@@ -282,9 +276,9 @@ pub async fn relaychain_cache(dsm: Arc<DataSourceManager>) -> CacheClient {
 }
 
 pub async fn keep_syncing_headers(
+    bus: Arc<Bus>,
     dsm: Arc<DataSourceManager>,
     headers_db: Arc<DB>,
-    processor_event_tx: Arc<ProcessorEventTx>
 ) -> Result<()> {
     // TODO: Handle Error
     let para_api= parachain_api(dsm.clone(), false).await;
@@ -404,7 +398,7 @@ pub async fn keep_syncing_headers(
                             },
                         }
                     };
-                    send_processor_event(processor_event_tx.clone(), ProcessorEvent::BroadcastSyncRequest((sync_request, broadcast_info)));
+                    bus.send_processor_event(ProcessorEvent::BroadcastSyncRequest((sync_request, broadcast_info)));
                     current_relay_number = relay_to;
                     current_para_number = para_to;
                 },

@@ -1,19 +1,21 @@
 use crate::api::{start_api_server, WrappedWorkerContexts};
+use crate::bus::Bus;
 use crate::cli::WorkerManagerCliArgs;
-use crate::dataprovider::{DataProvider, DataProviderEvent};
+use crate::repository::{Repository, RepositoryEvent};
 use crate::datasource::{setup_data_source_manager, WrappedDataSourceManager};
-use crate::db::{get_all_workers, setup_inventory_db, WrappedDb};
+use crate::inv_db::{get_all_workers, setup_inventory_db, WrappedDb};
 use crate::lifecycle::{WorkerContextMap, WorkerLifecycleManager, WrappedWorkerLifecycleManager};
-use crate::offchain_tx::{master_loop as offchain_tx_loop, OffchainMessagesEvent};
-use crate::processor::{Processor, ProcessorEvent, ProcessorEventTx, WorkerContext as ProcessorWorkerContext};
-use crate::tx::{PoolOperatorAccess, TxManager};
+use crate::messages::{master_loop as offchain_tx_loop, MessagesEvent};
+use crate::pool_operator::PoolOperatorAccess;
+use crate::processor::{Processor, ProcessorEvent};
+use crate::tx::TxManager;
 use crate::use_parachain_api;
 use crate::wm::WorkerManagerMessage::*;
 use crate::worker::{WorkerLifecycleState, WrappedWorkerContext};
 use crate::worker_status::{update_worker_status, WorkerStatusUpdate};
 use anyhow::{anyhow, Result};
 use futures::future::{try_join, try_join3, try_join_all};
-use log::{debug, info};
+use log::{debug, error, info};
 use sp_core::Pair;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
@@ -46,7 +48,6 @@ pub struct WorkerManagerContext {
     pub dsm: WrappedDataSourceManager,
     pub workers: WrappedWorkerContexts,
     pub worker_map: Arc<TokioMutex<WorkerContextMap>>,
-    pub processor_tx: Arc<ProcessorEventTx>,
     pub txm: Arc<TxManager>,
     pub pccs_url: String,
     pub pccs_timeout_secs: u64,
@@ -114,14 +115,16 @@ pub async fn wm(args: WorkerManagerCliArgs) {
 
     let (txm, txm_handle) = TxManager::new(&args.db_path, dsm.clone()).expect("TxManager");
 
-    let (processor_event_tx, processor_event_rx) = mpsc::unbounded_channel::<ProcessorEvent>();
-    let (data_provider_event_tx, data_provider_event_rx) = mpsc::unbounded_channel::<DataProviderEvent>();
-    let (offchain_messages_tx, mut offchain_messages_rx) = mpsc::unbounded_channel::<OffchainMessagesEvent>();
-    let (worker_status_update_tx, mut worker_status_update_rx) = mpsc::unbounded_channel::<WorkerStatusUpdate>();
+    let (processor_tx, processor_rx) = mpsc::unbounded_channel::<ProcessorEvent>();
+    let (repository_tx, repository_rx) = mpsc::unbounded_channel::<RepositoryEvent>();
+    let (messages_tx, messages_rx) = mpsc::unbounded_channel::<MessagesEvent>();
+    let (_worker_status_update_tx, worker_status_update_rx) = mpsc::unbounded_channel::<WorkerStatusUpdate>();
 
-    let processor_event_tx = Arc::new(processor_event_tx);
-    let data_provider_tx = Arc::new(data_provider_event_tx);
-    let offchain_messages_tx = Arc::new(offchain_messages_tx);
+    let bus = Arc::new(Bus {
+        processor_tx: processor_tx.clone(),
+        repository_tx: repository_tx.clone(),
+        messages_tx: messages_tx.clone(),
+    });
 
     let ctx = Arc::new(WorkerManagerContext {
         initialized: false.into(),
@@ -134,51 +137,63 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         worker_map: Arc::new(TokioMutex::new(HashMap::new())),
         pccs_url: args.pccs_url.clone(),
         pccs_timeout_secs: args.pccs_timeout,
-        processor_tx: processor_event_tx.clone(),
     });
 
     let headers_db = {
-        let opts = crate::tx::get_options(None);
+        let opts = crate::pool_operator::get_options(None);
         let path = std::path::Path::new(&args.db_path).join("headers");
-        let db = crate::tx::DB::open(&opts, path).unwrap();
+        let db = crate::pool_operator::DB::open(&opts, path).unwrap();
         Arc::new(db)
     };
 
-    let mut data_provider = DataProvider {
+    let mut repository = Repository {
+        bus: bus.clone(),
         dsm: dsm.clone(),
         headers_db: headers_db.clone(),
-        rx: data_provider_event_rx,
-        tx: data_provider_tx.clone(),
-        processor_event_tx: processor_event_tx.clone(),
+        rx: repository_rx,
     };
-    data_provider.init().await.unwrap();
+    repository.init().await.unwrap();
 
-    let mut processor = Processor {
-        rx: processor_event_rx,
-        tx: processor_event_tx.clone(),
-        data_provider_event_tx: data_provider_tx.clone(),
-        offchain_message_tx: offchain_messages_tx.clone(),
-        worker_status_update_tx: Arc::new(worker_status_update_tx),
-        txm: txm.clone(),
-        pccs_url: args.pccs_url.clone(),
-        pccs_timeout_secs: args.pccs_timeout.clone(),
-        relaychain_chaintip: crate::dataprovider::relaychain_api(dsm.clone(), false).await.latest_finalized_block_number().await.unwrap(),
-        parachain_chaintip: crate::dataprovider::parachain_api(dsm.clone(), false).await.latest_finalized_block_number().await.unwrap(),
-    };
+    for worker in get_all_workers(inv_db.clone()).unwrap() {
+        let (pool, operator) = match worker.pid {
+            Some(pid) => {
+                let pool = match crate::inv_db::get_pool_by_pid(inv_db.clone(), pid) {
+                    Ok(pool) => pool,
+                    Err(err) => {
+                        error!("Fail to get pool #{}. {}", pid, err);
+                        None
+                    },
+                };
+                let operator = match txm.clone().db.get_po(pid) {
+                    Ok(po) => match po {
+                        Some(po) => {
+                            let operator = match po.proxied {
+                                Some(owner) => owner,
+                                None => po.pair.public().into(),
+                            };
+                            Some(operator)
+                        },
+                        None => todo!(),
+                    },
+                    Err(err) => {
+                        error!("Fail to get pool operator #{}. {}", pid, err);
+                        None
+                    },
+                };
+                (pool, operator)
+            },
+            None => (None, None),
+        };
+        bus.send_processor_event(ProcessorEvent::AddWorker((worker, pool, operator)));
+    }
 
-    let workers = get_all_workers(inv_db.clone()).unwrap()
-        .into_iter()
-        .filter(|w| w.enabled)
-        .map(|w| {
-            let pool_id = w.pid.unwrap_or(0);
-            let po = txm.clone().db.get_po(pool_id).unwrap().unwrap();
-            let operator = match po.proxied {
-                Some(owner) => owner,
-                None => po.pair.public().into(),
-            };
-            ProcessorWorkerContext::create(w, pool_id, operator)
-        })
-        .collect::<Vec<_>>();
+    let mut processor = Processor::create(
+        processor_rx,
+        bus.clone(),
+        txm.clone(),
+        dsm.clone(),
+        &args,
+    ).await;
 
     let join_handle = try_join3(
         tokio::spawn(start_api_server(ctx.clone(), args.clone())),
@@ -187,15 +202,15 @@ pub async fn wm(args: WorkerManagerCliArgs) {
     );
 
     tokio::select! {
-        _ = processor.master_loop(workers) => {}
+        _ = processor.master_loop() => {}
 
-        _ = data_provider.master_loop() => {}
+        _ = repository.master_loop() => {}
 
-        _ = offchain_tx_loop(offchain_messages_rx, offchain_messages_tx.clone(), txm.clone()) => {}
+        _ = offchain_tx_loop(messages_rx, bus.clone(), txm.clone()) => {}
 
         _ = update_worker_status(ctx.clone(), worker_status_update_rx) => {}
 
-        _ = crate::dataprovider::keep_syncing_headers(dsm.clone(), headers_db.clone(), processor_event_tx.clone()) => {}
+        _ = crate::repository::keep_syncing_headers(bus.clone(), dsm.clone(), headers_db.clone()) => {}
 
         ret = join_handle => {
             info!("wm.join_handle: {:?}", ret);

@@ -6,18 +6,17 @@ use parity_scale_codec::Encode;
 use phala_types::messaging::{MessageOrigin, SignedMessage};
 use tokio::sync::mpsc;
 
-use crate::tx::TxManager;
+use crate::{bus::Bus, tx::TxManager};
 
-pub enum OffchainMessagesEvent {
+pub enum MessagesEvent {
     SyncMessages((u64, MessageOrigin, Vec<SignedMessage>)),
     Completed((MessageOrigin, u64)),
 }
 
-pub type OffchainMessagesEventRx = mpsc::UnboundedReceiver<OffchainMessagesEvent>;
-pub type OffchainMessagesEventTx = mpsc::UnboundedSender<OffchainMessagesEvent>;
+pub type MessagesRx = mpsc::UnboundedReceiver<MessagesEvent>;
+pub type MessagesTx = mpsc::UnboundedSender<MessagesEvent>;
 
 pub struct MessageContext {
-
 }
 
 pub struct SenderContext {
@@ -37,8 +36,8 @@ impl SenderContext {
 }
 
 pub async fn master_loop(
-    mut rx: OffchainMessagesEventRx,
-    tx: Arc<OffchainMessagesEventTx>,
+    mut rx: MessagesRx,
+    bus: Arc<Bus>,
     txm: Arc<TxManager>,
 ) -> Result<()> {
     let mut sender_contexts = HashMap::<MessageOrigin, SenderContext>::new();
@@ -51,7 +50,7 @@ pub async fn master_loop(
 
         let event = event.unwrap();
         match event {
-            OffchainMessagesEvent::SyncMessages((pool_id, sender, messages)) => {
+            MessagesEvent::SyncMessages((pool_id, sender, messages)) => {
                 let sender_context = sender_contexts
                     .entry(sender.clone())
                     .or_insert_with(|| SenderContext {
@@ -67,12 +66,12 @@ pub async fn master_loop(
                         continue;
                     }
 
-                    let message_context = sender_context.pending_messages
+                    let _message_context = sender_context.pending_messages
                         .entry(message.sequence)
                         .or_insert_with(|| MessageContext {
                         });
 
-                    let tx = tx.clone();
+                    let bus = bus.clone();
                     let txm = txm.clone();
                     let sender = sender.clone();
                     tokio::spawn(async move {
@@ -83,15 +82,13 @@ pub async fn master_loop(
                             error!("[{}] sync offchain message completed with error. {}", sender, err);
                         }
 
-                        let result = tx.send(
-                            OffchainMessagesEvent::Completed((sender.clone(), sequence)));
-                        if let Err(err) = result {
-                            error!("[{}] fail to send message #{} completed back to master loop. {}", sender, sequence, err);
-                        }
+                        bus.send_messages_event(
+                            MessagesEvent::Completed((sender.clone(), sequence))
+                        );
                     });
                 }
             },
-            OffchainMessagesEvent::Completed((sender, sequence)) => {
+            MessagesEvent::Completed((sender, sequence)) => {
                 let sender_context = match sender_contexts.get_mut(&sender) {
                     Some(ctx) => ctx,
                     None => {
@@ -99,7 +96,7 @@ pub async fn master_loop(
                         continue;
                     },
                 };
-                let message_context = match sender_context.pending_messages.remove(&sequence) {
+                let _message_context = match sender_context.pending_messages.remove(&sequence) {
                     Some(_) => {},
                     None => {
                         error!("[{}] sequence {} does not found, cannot remove", sender, sequence);

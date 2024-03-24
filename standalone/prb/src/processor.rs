@@ -1,18 +1,23 @@
 use anyhow::{anyhow, Result};
-use log::{debug, error, info, warn};
+use log::{debug, error, info, trace, warn};
+use sp_core::crypto::{AccountId32, ByteArray};
+use sp_core::sr25519::Public as Sr25519Public;
 use std::collections::{HashMap, VecDeque};
+use std::future::IntoFuture;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
-use crate::dataprovider::{DataProviderEvent, DataProviderEventTx, WorkerSyncInfo};
-use crate::offchain_tx::{OffchainMessagesEvent, OffchainMessagesEventTx};
+use crate::bus::Bus;
+use crate::repository::{RepositoryEvent, RepositoryTx, WorkerSyncInfo};
+use crate::messages::{MessagesEvent, MessagesTx};
 use crate::pruntime::PRuntimeClient;
 use crate::tx::TxManager;
 use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState};
 use crate::worker_status::{WorkerStatusUpdate, WorkerStatusUpdateTx};
 
 //use phactory_api::blocks::{AuthoritySetChange, HeaderToSyn};
-use phactory_api::prpc::{self, Blocks, ChainState, CombinedHeadersToSync, GetEgressMessagesResponse, GetRuntimeInfoRequest, HeadersToSync, InitRuntimeResponse, ParaHeadersToSync, PhactoryInfo};
+use phactory_api::prpc::{self, Blocks, ChainState, CombinedHeadersToSync, GetEgressMessagesResponse, GetRuntimeInfoRequest, HeadersToSync, InitRuntimeRequest, InitRuntimeResponse, ParaHeadersToSync, PhactoryInfo};
+use phala_pallets::pallet_computation::{SessionInfo, WorkerState};
 
 enum WorkerLifecycle {
     Init
@@ -25,58 +30,114 @@ enum SyncStatus {
 
 pub struct WorkerContext {
     pub uuid: String,
+    pub worker: crate::inv_db::Worker,
+
     pub pool_id: u64,
-    pub operator: sp_core::crypto::AccountId32,
+    pub operator: Option<AccountId32>,
+    pub worker_sync_only: bool,
+    pub pool_sync_only: bool,
 
     pub headernum: u32,
     pub para_headernum: u32,
     pub blocknum: u32,
 
-    pub info: Option<PhactoryInfo>,
-
-    pub initialized: bool,
-    pub registered: bool,
-    pub benchmarked: bool,
+    pub phactory_info: Option<PhactoryInfo>,
+    pub session_info: Option<SessionInfo>,
 
     pub calling: bool,
     pub accept_sync_request: bool,
 
     pub client: Arc<PRuntimeClient>,
-    //pub info: Option<PhactoryInfo>,
-    //pub last_message: String,
-    //pub session_info: Option<SessionInfo>,
-    //pub pending_sequences: HashSet<u32>,
     pub pending_requests: VecDeque<PRuntimeRequest>,
+
+    pub register_requested: bool,
+    pub computing_requested: bool,
 }
 
 impl WorkerContext {
     pub fn create(
-        worker: crate::db::Worker,
-        pool_id: u64,
-        operator: sp_core::crypto::AccountId32,
+        worker: crate::inv_db::Worker,
+        pool: Option<crate::inv_db::Pool>,
+        operator: Option<AccountId32>,
     ) -> Self {
         Self {
-                uuid: worker.id,
-                pool_id,
-                operator,
+            uuid: worker.id.clone(),
+            worker: worker.clone(),
 
-                headernum: 0,
-                para_headernum: 0,
-                blocknum: 0,
+            pool_id: worker.pid.unwrap_or_default(),
+            operator,
+            worker_sync_only: worker.sync_only,
+            pool_sync_only: pool.map(|p| p.sync_only).unwrap_or(true),
 
-                info: None,
+            headernum: 0,
+            para_headernum: 0,
+            blocknum: 0,
 
-                calling: false,
-                accept_sync_request: false,
+            phactory_info: None,
+            session_info: None,
 
-                client: Arc::new(crate::pruntime::create_client(worker.endpoint.clone())),
-                pending_requests: VecDeque::new(),
+            calling: false,
+            accept_sync_request: false,
 
-                initialized: false,
-                registered: false,
-                benchmarked: false,
+            client: Arc::new(crate::pruntime::create_client(worker.endpoint.clone())),
+            pending_requests: VecDeque::new(),
 
+            register_requested: false,
+            computing_requested: false,
         }
+    }
+
+    pub fn public_key(&self) -> Option<Sr25519Public> {
+        self.phactory_info
+            .as_ref()
+            .and_then(|info| info.system.as_ref())
+            .map(|info| info.public_key.clone())
+            .map(|str|
+                hex::decode(str).map(
+                    |vec| Sr25519Public::from_slice(vec.as_slice()).unwrap()
+                )
+            )
+            .and_then(|result| result.ok())
+    }
+    
+    pub fn is_registered(&self) -> bool {
+        self.phactory_info
+            .as_ref()
+            .and_then(|info| info.system.as_ref())
+            .map(|info| info.registered)
+            .unwrap_or(false)
+    }
+
+    pub fn is_computing(&self) -> bool {
+        let state = self.session_info
+            .as_ref()
+            .map(|info| &info.state);
+        match state {
+            Some(state) => match state {
+                WorkerState::Ready => false,
+                _ => true,
+            },
+            None => false,
+        }
+    }
+
+    pub fn is_match(&self, info: &SyncInfo) -> bool {
+        if let Some(headernum) = info.headernum {
+            if headernum != self.headernum {
+                return false;
+            }
+        }
+        if let Some(para_headernum) = info.para_headernum {
+            if para_headernum != self.para_headernum {
+                return false;
+            }
+        }
+        if let Some(blocknum) = info.blocknum {
+            if blocknum != self.blocknum {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -103,69 +164,100 @@ pub struct BroadcastInfo {
 }
 
 pub enum PRuntimeRequest {
-    GetInfo,
-    GetRegisterInfo((bool, Option<sp_core::crypto::AccountId32>)),
+    PrepareLifecycle,
+    InitRuntime(InitRuntimeRequest),
     LoadChainState(ChainState),
     Sync(SyncRequest),
+    RegularGetInfo,
+    PrepareRegister((bool, Option<sp_core::crypto::AccountId32>)),
     GetEgressMessages,
     TakeCheckpoint,
 }
 
-enum PRuntimeResponse {
-    GetInfo(PhactoryInfo),
-    GetRegisterInfo(InitRuntimeResponse),
+pub enum PRuntimeResponse {
+    PrepareLifecycle(PhactoryInfo),
+    InitRuntime(InitRuntimeResponse),
     LoadChainState,
     Sync(SyncInfo),
+    RegularGetInfo(PhactoryInfo),
+    PrepareRegister(InitRuntimeResponse),
     GetEgressMessages(GetEgressMessagesResponse),
     TakeCheckpoint(u32),
 }
 
-pub enum ProcessorEvent {
-    Init(usize),
-    Register(usize),
-    //RegisterCompleted(usize),
-    BroadcastSyncRequest((SyncRequest, BroadcastInfo)),
-    PRuntimeRequest((usize, PRuntimeRequest)),
-    PRuntimeResponse((usize, Result<PRuntimeResponse, prpc::client::Error>)),
-    WorkerLifecycleCommand((String, WorkerLifecycleCommand)),
-    Error((usize, String)),
+pub enum WorkerEvent {
+    UpdateWorker(crate::inv_db::Worker),
+    PRuntimeRequest(PRuntimeRequest),
+    PRuntimeResponse(Result<PRuntimeResponse, prpc::client::Error>),
+    UpdateSessionInfo(SessionInfo),
+    WorkerLifecycleCommand(WorkerLifecycleCommand),
+    UpdateMessage((i64, String)),
+    MarkError((i64, String)),
 }
 
-pub type ProcessorEventRx = mpsc::UnboundedReceiver<ProcessorEvent>;
-pub type ProcessorEventTx = mpsc::UnboundedSender<ProcessorEvent>;
+pub enum ProcessorEvent {
+    AddWorker((crate::inv_db::Worker, Option<crate::inv_db::Pool>, Option<AccountId32>)),
+    DeleteWorker(String),
+    UpdatePool((u64, Option<crate::inv_db::Pool>)),
+    UpdatePoolOperator((u64, Option<AccountId32>)),
+    WorkerEvent((String, WorkerEvent)),
+    BroadcastSyncRequest((SyncRequest, BroadcastInfo)),
+}
+
+pub type ProcessorRx = mpsc::UnboundedReceiver<ProcessorEvent>;
+pub type ProcessorTx = mpsc::UnboundedSender<ProcessorEvent>;
 
 pub struct Processor {
-    //workers: Vec<WorkerContext>,
-    pub rx: ProcessorEventRx,
-    pub tx: Arc<ProcessorEventTx>,
-    pub data_provider_event_tx: Arc<DataProviderEventTx>,
-    pub offchain_message_tx: Arc<OffchainMessagesEventTx>,
-    pub worker_status_update_tx: Arc<WorkerStatusUpdateTx>,
+    pub rx: ProcessorRx,
 
+    pub bus: Arc<Bus>,
     pub txm: Arc<TxManager>,
+
+    pub allow_fast_sync: bool,
     pub pccs_url: String,
     pub pccs_timeout_secs: u64,
+
+    pub init_runtime_request_ias: InitRuntimeRequest,
+    pub init_runtime_request_dcap: InitRuntimeRequest,
 
     pub relaychain_chaintip: u32,
     pub parachain_chaintip: u32,
 }
 
 impl Processor {
+    pub async fn create(
+        mut rx: ProcessorRx,
+        bus: Arc<Bus>,
+        txm: Arc<TxManager>,
+        dsm: Arc<crate::datasource::DataSourceManager>,
+        args: &crate::cli::WorkerManagerCliArgs,
+    ) -> Self {
+        let ias_init_runtime_request = dsm.clone().get_init_runtime_default_request(Some(phala_types::AttestationProvider::Ias)).await.unwrap();
+        let dcap_init_runtime_request = dsm.clone().get_init_runtime_default_request(Some(phala_types::AttestationProvider::Dcap)).await.unwrap();
+
+        Self {
+            rx,
+
+            bus,
+            txm,
+
+            allow_fast_sync: !args.disable_fast_sync,
+            pccs_url: args.pccs_url.clone(),
+            pccs_timeout_secs: args.pccs_timeout.clone(),
+
+            init_runtime_request_ias: ias_init_runtime_request,
+            init_runtime_request_dcap: dcap_init_runtime_request,
+
+            relaychain_chaintip: crate::repository::relaychain_api(dsm.clone(), false).await.latest_finalized_block_number().await.unwrap(),
+            parachain_chaintip: crate::repository::parachain_api(dsm.clone(), false).await.latest_finalized_block_number().await.unwrap(),
+
+        }
+    }
+
     pub async fn master_loop(
         &mut self,
-        mut workers: Vec<WorkerContext>
     ) -> Result<()> {
-        tokio::time::sleep(core::time::Duration::from_secs(20)).await;
-
-        let mut uuid_to_worker_id = HashMap::<String, usize>::new();
-        for (worker_id, worker) in workers.iter().enumerate() {
-            uuid_to_worker_id.insert(worker.uuid.clone(), worker_id);
-        }
-
-        for (worker_id, _) in workers.iter().enumerate() {
-            send_processor_event(self.tx.clone(), ProcessorEvent::Init(worker_id));
-        }
-
+        let mut workers = HashMap::<String, WorkerContext>::new();
         loop {
             let event = self.rx.recv().await;
             if event.is_none() {
@@ -173,88 +265,72 @@ impl Processor {
             }
 
             match event.unwrap() {
-                ProcessorEvent::Init(worker_id) => {
-                    let worker = workers.get_mut(worker_id).unwrap();
-                    debug!("[{}] Init", worker.uuid);
-                    self.add_pruntime_request(worker_id, worker, PRuntimeRequest::GetInfo);
-                },
-                ProcessorEvent::Register(worker_id) => {
-                    let worker = workers.get_mut(worker_id).unwrap();
-                    self.add_pruntime_request(
-                        worker_id,
-                        worker,
-                        PRuntimeRequest::GetRegisterInfo((
-                            true,
-                            Some(worker.operator.clone()),
-                        )),
-                    );
-                },
-                //ProcessorEvent::RegisterCompleted(worker_id) => {
-                //},
                 ProcessorEvent::BroadcastSyncRequest((request, info)) => {
-                    for (worker_id, worker) in workers.iter_mut().enumerate() {
+                    for (worker_id, worker) in workers.iter_mut() {
                         debug!("[{}] Looking to see BroadcastSyncRequest", worker.uuid);
-                        if worker.accept_sync_request && is_match(&worker, &info.sync_info) {
+                        if worker.accept_sync_request && worker.is_match(&info.sync_info) {
                             info!("[{}] Meet BroadcastSyncRequest", worker.uuid);
-                            self.add_pruntime_request(worker_id, worker, PRuntimeRequest::Sync(request.clone()));
+                            self.add_pruntime_request(worker, PRuntimeRequest::Sync(request.clone()));
                         }
                     }
                     self.relaychain_chaintip = info.relay_chaintip;
                     self.parachain_chaintip = info.para_chaintip;
                 },
-                ProcessorEvent::PRuntimeRequest((worker_id, request)) => {
-                    let worker = workers.get_mut(worker_id).unwrap();
-                    //info!("[{}] PRuntimeRequest", worker.uuid);
-                    self.add_pruntime_request(worker_id, worker, request);
-                },
-                ProcessorEvent::PRuntimeResponse((worker_id, result)) => {
-                    let worker = workers.get_mut(worker_id).unwrap();
-                    //info!("[{}] PRuntimeResponse", worker.uuid);
-                    worker.calling = false;
-
-                    match result {
-                        Ok(response) => self.handle_pruntime_response(worker_id, worker, response),
-                        Err(err) => {
-                            error!("[{}] met error: {}", worker.uuid, err);
-                            let err_msg = format!("{}", err);
-                            send_worker_status_update(
-                                self.worker_status_update_tx.clone(),
-                                WorkerStatusUpdate {
-                                    uuid: worker.uuid.clone(),
-                                    state: Some(WorkerLifecycleState::HasError(err_msg)),
-                                    last_message: Some(format!("[{}] {}", chrono::offset::Local::now(), err)),
-                                    ..Default::default()
-                                }
-                            )
-
-                        },
-                    }
-
-                    if let Some(request) = worker.pending_requests.pop_front() {
-                        self.add_pruntime_request(worker_id, worker, request);
+                ProcessorEvent::AddWorker((added_worker, pool, operator)) => {
+                    let worker_id = added_worker.id.clone();
+                    let worker_context = WorkerContext::create(added_worker, pool, operator);
+                    if workers.contains_key(&worker_id) {
+                        error!("[{}] Failed to add worker because the UUID is existed.", worker_id);
+                    } else {
+                        workers.insert(worker_id.clone(), worker_context);
+                        trace!("[{}] Added worker into processor. Starting", worker_id);
+                        self.add_pruntime_request(
+                            workers.get_mut(&worker_id).unwrap(),
+                            PRuntimeRequest::PrepareLifecycle
+                        );
                     }
                 },
-                ProcessorEvent::WorkerLifecycleCommand((uuid, command)) => {
-                    let worker_id = uuid_to_worker_id.get(&uuid);
-                    match worker_id {
-                        Some(worker_id) => {
-                            match command {
-                                WorkerLifecycleCommand::ShouldRestart => {
-                                    send_processor_event(self.tx.clone(), ProcessorEvent::Init(*worker_id));
-                                },
-                                WorkerLifecycleCommand::ShouldForceRegister => {
-                                    send_processor_event(self.tx.clone(), ProcessorEvent::Register(*worker_id));
-                                },
-                                WorkerLifecycleCommand::ShouldUpdateEndpoint(_) => todo!(),
-                            }
+                ProcessorEvent::DeleteWorker(worker_id) => {
+                    match workers.remove(&worker_id) {
+                        Some(removed_worker) => {
                         },
                         None => {
-                            error!("Cannot find worker with UUID: {}", uuid);
+                            error!("[{}] Failed to delete worker because the UUID is not existed.", worker_id);
                         },
                     }
                 },
-                ProcessorEvent::Error((worker_id, error_msg)) => {
-
+                ProcessorEvent::UpdatePool((pool_id, pool)) => {
+                    let pool_sync_only = pool.map(|p| p.sync_only).unwrap_or(true);
+                    for (worker_id, worker) in workers.iter_mut() {
+                        if worker.pool_id == pool_id && worker.pool_sync_only != pool_sync_only {
+                            worker.pool_sync_only = pool_sync_only;
+                            // TODO: need anything?
+                        }
+                    }
+                },
+                ProcessorEvent::UpdatePoolOperator((pool_id, operator)) => {
+                    for (worker_id, worker) in workers.iter_mut() {
+                        if worker.pool_id == pool_id && worker.operator != operator {
+                            worker.operator = operator.clone();
+                            self.add_pruntime_request(
+                                worker,
+                                PRuntimeRequest::PrepareRegister((
+                                    true,
+                                    worker.operator.clone(),
+                                ))
+                            );
+                        }
+                    }
+                },
+                ProcessorEvent::WorkerEvent((worker_id, worker_event)) => {
+                    match workers.get_mut(&worker_id) {
+                        Some(worker_context) => {
+                            self.handle_worker_event(worker_context, worker_event);
+                        },
+                        None => {
+                            warn!("[{}] Worker does not found.", worker_id);
+                        },
+                    }
                 },
             }
         }
@@ -262,10 +338,96 @@ impl Processor {
         Ok(())
     }
 
+    fn handle_worker_event(
+        &mut self,
+        worker: &mut WorkerContext,
+        event: WorkerEvent,
+    ) {
+        match event {
+            WorkerEvent::UpdateWorker(updated_worker) => {
+                if worker.worker.endpoint != updated_worker.endpoint {
+                    worker.client = Arc::new(crate::pruntime::create_client(updated_worker.endpoint.clone()));
+                }
+                worker.worker = updated_worker;
+            },
+            WorkerEvent::PRuntimeRequest(request) => {
+                self.add_pruntime_request(worker, request);
+            },
+            WorkerEvent::PRuntimeResponse(result) => {
+                worker.calling = false;
+
+                match result {
+                    Ok(response) => self.handle_pruntime_response(worker, response),
+                    Err(err) => {
+                        error!("[{}] met error: {}", worker.uuid, err);
+                        self.update_worker_last_message(
+                            worker,
+                            &err.to_string(),
+                            None,
+                        );
+                    },
+                }
+
+                if let Some(request) = worker.pending_requests.pop_front() {
+                    self.add_pruntime_request(worker, request);
+                }
+            },
+            WorkerEvent::UpdateSessionInfo(session_info) => {
+                worker.session_info = Some(session_info);
+            },
+            WorkerEvent::WorkerLifecycleCommand(command) => {
+                self.handle_worker_lifecycle_command(worker, command);
+            },
+            WorkerEvent::UpdateMessage((timestamp, message)) => {
+                self.update_worker_last_message(
+                    worker,
+                    &message,
+                    Some(timestamp),
+                );
+            },
+            WorkerEvent::MarkError((timestamp, error_msg)) => {
+                self.update_worker_lifecycle_state(
+                    worker,
+                    WorkerLifecycleState::HasError(error_msg.clone()),
+                    &error_msg,
+                    Some(timestamp),
+                );
+            },
+        }
+
+    }
+
+    fn update_worker_lifecycle_state(
+        &mut self,
+        worker: &mut WorkerContext,
+        state: WorkerLifecycleState,
+        message: &str,
+        updated_at: Option<i64>,
+    ) {
+    }
+
+    fn update_worker_last_message(
+        &mut self,
+        worker: &mut WorkerContext,
+        message: &str,
+        updated_at: Option<i64>,
+    ) {
+    }
+
+    fn send_worker_status(
+        &mut self,
+        worker: &mut WorkerContext,
+    ) {
+    }
+
+    fn send_worker_sync_info(
+        &mut self,
+        worker: &mut WorkerContext,
+    ) {
+    }
 
     fn add_pruntime_request(
         &mut self,
-        worker_id: usize,
         worker: &mut WorkerContext,
         request: PRuntimeRequest,
     ) {
@@ -282,14 +444,14 @@ impl Processor {
                 && (worker.blocknum < worker.para_headernum && worker.headernum <= self.relaychain_chaintip || worker.para_headernum <= self.parachain_chaintip)
             {
                 warn!("[{}] Worker needs to be sync, but received an empty request. Try again.", worker.uuid);
-                self.request_next_sync(worker_id, worker);
+                self.request_next_sync(worker);
                 return;
             }
             worker.accept_sync_request = false;
         }
 
         if worker.pending_requests.is_empty() {
-            self.handle_pruntime_request(worker_id, worker, request);
+            self.handle_pruntime_request(worker, request);
         } else {
             worker.pending_requests.push_back(request);
         }
@@ -297,54 +459,65 @@ impl Processor {
 
     fn handle_pruntime_request(
         &mut self,
-        worker_id: usize,
         worker: &mut WorkerContext,
         request: PRuntimeRequest,
     ) {
         worker.calling = true;
-        tokio::task::spawn(dispatch_pruntime_request(self.tx.clone(), worker_id, worker.client.clone(), request));
+        tokio::task::spawn(
+            dispatch_pruntime_request(
+                self.bus.clone(),
+                worker.uuid.clone(),
+                worker.client.clone(),
+                request,
+            )
+        );
     }
 
     fn handle_pruntime_response(
         &mut self,
-        worker_id: usize,
         worker: &mut WorkerContext,
         response: PRuntimeResponse,
     ) {
         match response {
-            PRuntimeResponse::GetInfo(info) => {
+            PRuntimeResponse::PrepareLifecycle(info) => {
                 //info!("[{}] PRuntimeResponse, getInfo", worker.uuid);
-                worker.info = Some(info.clone());
+                worker.phactory_info = Some(info.clone());
                 worker.headernum = info.headernum;
                 worker.para_headernum = info.para_headernum;
                 worker.blocknum = info.blocknum;
-                worker.accept_sync_request = true;
-                self.request_next_operation(worker_id, worker);
-                send_worker_status_update(
-                    self.worker_status_update_tx.clone(),
-                    WorkerStatusUpdate {
-                        uuid: worker.uuid.clone(),
-                        state: Some(WorkerLifecycleState::Synchronizing),
-                        phactory_info: Some(info),
-                        ..Default::default()
-                    }
-                )
+
+                self.request_prepare_determination(worker);
+                self.send_worker_status(worker);
             },
-            PRuntimeResponse::GetRegisterInfo(response) => {
-                let tx = self.tx.clone();
-                let worker_status_update_tx = self.worker_status_update_tx.clone();
+            PRuntimeResponse::InitRuntime(response) => {
+                self.add_pruntime_request(worker, PRuntimeRequest::PrepareLifecycle);
+            },
+            PRuntimeResponse::LoadChainState => {
+                self.add_pruntime_request(worker, PRuntimeRequest::PrepareLifecycle);
+                self.request_next_sync(worker);
+            },
+            PRuntimeResponse::Sync(info) => {
+                //info!("[{}] PRuntimeResponse, sync", worker.uuid);
+                worker.accept_sync_request = true;
+                self.handle_pruntime_sync_response(worker, &info);
+                self.send_worker_sync_info(worker);
+            },
+            PRuntimeResponse::RegularGetInfo(phactory_info) => {
+                worker.phactory_info = Some(phactory_info);
+            },
+            PRuntimeResponse::PrepareRegister(response) => {
+                let bus = self.bus.clone();
                 let txm = self.txm.clone();
-                let worker_uuid = worker.uuid.clone();
+                let worker_id = worker.uuid.clone();
                 let pool_id = worker.pool_id;
                 let pccs_url = self.pccs_url.clone();
                 let pccs_timeout_secs = self.pccs_timeout_secs;
 
                 tokio::task::spawn(async move {
-                    let pubkey = response.decode_public_key().unwrap(); // TODO
                     let attestation = match response.attestation {
                         Some(attestation) => attestation,
                         None => {
-                            error!("[{}] Worker has no attestation.", worker_uuid);
+                            error!("[{}] Worker has no attestation.", worker_id);
                             return;
                         },
                     };
@@ -358,15 +531,13 @@ impl Processor {
                     let attestation = match attestation {
                         Ok(attestation) => attestation,
                         Err(err) => {
-                            error!("[{}] Failed to get attestation report. {}", worker_uuid, err);
-                            let a = std::time::SystemTime::now();
-                            send_worker_status_update(
-                                worker_status_update_tx,
-                                WorkerStatusUpdate {
-                                    uuid: worker_uuid,
-                                    last_message: Some(format!("[{}] {}", chrono::offset::Local::now(), err)),
-                                    ..Default::default()
-                                }
+                            error!("[{}] Failed to get attestation report. {}", worker_id, err);
+                            bus.send_worker_event(
+                                worker_id,
+                                WorkerEvent::MarkError((
+                                    chrono::Utc::now().timestamp_millis(),
+                                    err.to_string(),
+                                ))
                             );
                             return;
                         },
@@ -375,49 +546,31 @@ impl Processor {
                     let result = txm.register_worker(pool_id, response.encoded_runtime_info, attestation, v2).await;
                     match result {
                         Ok(_) => {
-                            info!("[{}] Worker registered successfully.", worker_uuid);
-                            send_worker_status_update(
-                                worker_status_update_tx,
-                                WorkerStatusUpdate {
-                                    uuid: worker_uuid,
-                                    last_message: Some(format!("[{}] Worker registered", chrono::offset::Local::now())),
-                                    ..Default::default()
-                                }
-                            )
+                            info!("[{}] Worker registered successfully.", worker_id);
+                            bus.send_worker_event(
+                                worker_id,
+                                WorkerEvent::UpdateMessage((
+                                    chrono::Utc::now().timestamp_millis(),
+                                    "Registered".to_string(),
+                                ))
+                            );
                         },
                         Err(err) => {
-                            error!("[{}] Worker registered failed. {}", worker_uuid, err);
-                            send_worker_status_update(
-                                worker_status_update_tx,
-                                WorkerStatusUpdate {
-                                    uuid: worker_uuid,
-                                    last_message: Some(format!("[{}] {}", chrono::offset::Local::now(), err)),
-                                    ..Default::default()
-                                }
+                            error!("[{}] Worker registered failed. {}", worker_id, err);
+                            bus.send_worker_event(
+                                worker_id,
+                                WorkerEvent::MarkError((
+                                    chrono::Utc::now().timestamp_millis(),
+                                    err.to_string(),
+                                ))
                             );
                             return;
                         },
                     }
                 });
             },
-            PRuntimeResponse::LoadChainState => {
-                self.add_pruntime_request(worker_id, worker, PRuntimeRequest::GetInfo);
-            },
-            PRuntimeResponse::Sync(info) => {
-                //info!("[{}] PRuntimeResponse, sync", worker.uuid);
-                worker.accept_sync_request = true;
-                self.handle_pruntime_sync_response(worker_id, worker, &info);
-                send_worker_status_update(
-                    self.worker_status_update_tx.clone(),
-                    WorkerStatusUpdate {
-                        uuid: worker.uuid.clone(),
-                        sync_info: Some(info),
-                        ..Default::default()
-                    }
-                )
-            },
             PRuntimeResponse::GetEgressMessages(response) => {
-                self.handle_pruntime_egress_messages(worker_id, worker, response)
+                self.handle_pruntime_egress_messages(worker, response)
             },
             PRuntimeResponse::TakeCheckpoint(_) => todo!(),
         }
@@ -425,7 +578,6 @@ impl Processor {
 
     fn handle_pruntime_sync_response(
         &mut self,
-        worker_id: usize,
         worker: &mut WorkerContext,
         info: &SyncInfo,
     ) {
@@ -443,86 +595,118 @@ impl Processor {
         }
 
         if worker.headernum <= self.relaychain_chaintip || worker.para_headernum <= self.parachain_chaintip || worker.blocknum < worker.para_headernum {
-            debug!(
-                "[{}][{}] requesting next sync; {} <= {} || {} <= {} || {} <= {}",
-                worker.uuid,
-                worker_id,
-                worker.headernum,
-                self.relaychain_chaintip,
-                worker.para_headernum, 
-                self.parachain_chaintip,
-                worker.blocknum,
-                worker.para_headernum
-            );
-            self.request_next_sync(worker_id, worker);
+            self.request_next_sync(worker);
         } else {
-            debug!(
-                "[{}] do not need to request; {} <= {} || {} <= {} || {} <= {}",
-                worker.uuid,
-                worker.headernum,
-                self.relaychain_chaintip,
-                worker.para_headernum, 
-                self.parachain_chaintip,
-                worker.blocknum,
-                worker.para_headernum
-            );
+            if !worker.register_requested && !worker.is_registered() {
+                self.add_pruntime_request(
+                    worker,
+                    PRuntimeRequest::PrepareRegister((true, worker.operator.clone()))
+                );
+                worker.register_requested = true;
+            }
+
+            let public_key = worker.public_key();
+            if public_key.is_some() && !worker.computing_requested && !worker.is_computing() {
+                let bus = self.bus.clone();
+                let txm = self.txm.clone();
+                let worker_id = worker.uuid.clone();
+                let pool_id = worker.pool_id;
+                let stake = worker.worker.stake.clone();
+                tokio::spawn(async move {
+                    let result = txm.start_computing(pool_id, public_key.unwrap(), stake).await;
+                    if let Err(err) = result {
+                        let err_msg = format!("Failed to start computing. {}", err);
+                        error!("[{}] {}", worker_id, err_msg);
+                        bus.send_worker_mark_error(worker_id, err_msg);
+                    }
+                });
+                worker.computing_requested = true;
+            }
         }
     }
 
-    fn request_next_operation(
+    fn request_prepare_determination(
         &mut self,
-        worker_id: usize,
         worker: &mut WorkerContext,
     ) {
-        if worker.info.is_none() {
-            self.add_pruntime_request(
-                worker_id,
-                worker,
-                PRuntimeRequest::GetInfo,
-            );
+        if worker.phactory_info.is_none() {
+            self.add_pruntime_request(worker, PRuntimeRequest::PrepareLifecycle);
             return;
         }
 
-        let info  = worker.info.as_ref().unwrap();
+        let info  = worker.phactory_info.as_ref().unwrap();
         if !info.initialized {
-            self.add_pruntime_request(
-                worker_id,
-                worker, 
-                PRuntimeRequest::GetRegisterInfo((true, Some(worker.operator.clone()))),
+            self.request_init(worker);
+            return;
+        }
+
+        if self.allow_fast_sync && info.can_load_chain_state {
+            self.request_fast_sync(worker);
+            return;
+        }
+
+        self.request_next_sync(worker);
+        self.update_worker_lifecycle_state(
+            worker,
+            WorkerLifecycleState::Synchronizing,
+            "Start Synchronizing...",
+            None, 
+        );
+    }
+
+    fn request_init(
+        &mut self,
+        worker: &mut WorkerContext,
+    ) {
+        let info  = worker.phactory_info.as_ref().unwrap();
+        // pRuntime versions lower than 2.2.0 always returns an empty list.
+        let supported = &info.supported_attestation_methods;
+        let request = if supported.is_empty() || supported.contains(&"epid".into()) {
+            self.init_runtime_request_ias.clone()
+        } else if supported.contains(&"dcap".into()) {
+            self.init_runtime_request_dcap.clone()
+        } else {
+            let err_msg = "Supported attestation methods does not include epid or dcap.";
+            error!("[{}] {}", worker.uuid, err_msg);
+            self.update_worker_lifecycle_state(
+                worker,
+                WorkerLifecycleState::HasError(err_msg.to_string()),
+                &err_msg,
+                None,
             );
             return;
-        }
+        };
 
-        if info.can_load_chain_state {
-            // send data request
-            return;
-        }
+        self.update_worker_last_message(worker, "Initializing pRuntime...", None);
+        self.add_pruntime_request(worker, PRuntimeRequest::InitRuntime(request));
+    }
 
-        self.request_next_sync(worker_id, worker)
+    fn request_fast_sync(
+        &mut self,
+        worker: &mut WorkerContext,
+    ) {
+        self.bus.send_repository_event(
+            RepositoryEvent::GenerateFastSyncRequest((worker.uuid.clone(), worker.public_key().unwrap()))
+        );
+        self.update_worker_last_message(worker, "Trying to load chain state...", None);
     }
 
     fn request_next_sync(
         &mut self,
-        worker_id: usize,
         worker: &WorkerContext,
     ) {
-        let send_result = self.data_provider_event_tx.send(DataProviderEvent::UpdateWorkerSyncInfo(
+        self.bus.send_repository_event(RepositoryEvent::UpdateWorkerSyncInfo(
             WorkerSyncInfo {
-                worker_id,
+                worker_id: worker.uuid.clone(),
                 headernum: worker.headernum,
                 para_headernum: worker.para_headernum,
                 blocknum: worker.blocknum,
             }
         ));
-        if let Err(send_error) = send_result {
-            error!("{:?}", send_error);
-            std::process::exit(255);
-        }
     }
 
     fn handle_pruntime_egress_messages(
         &mut self,
-        worker_id: usize,
         worker: &WorkerContext,
         response: GetEgressMessagesResponse,
     ) {
@@ -535,8 +719,13 @@ impl Processor {
         };
 
         for (sender, messages) in messages {
-            let result = self.offchain_message_tx.send(
-                OffchainMessagesEvent::SyncMessages((worker.pool_id, sender, messages)));
+            let result = self.bus.send_messages_event(
+                MessagesEvent::SyncMessages((
+                    worker.pool_id,
+                    sender,
+                    messages,
+                ))
+            );
             if let Err(err) = result {
                 error!("[{}] fail to send offchain messages. {}", worker.uuid, err);
             }
@@ -545,14 +734,11 @@ impl Processor {
 
     fn handle_worker_lifecycle_command(
         &mut self,
-        worker_id: usize,
         worker: &WorkerContext,
         command: WorkerLifecycleCommand,
     ) {
         match command {
             WorkerLifecycleCommand::ShouldRestart => {
-                // Do we need to do anything before running init?
-                send_processor_event(self.tx.clone(), ProcessorEvent::Init(worker_id));
             },
             WorkerLifecycleCommand::ShouldForceRegister => todo!(),
             WorkerLifecycleCommand::ShouldUpdateEndpoint(_) => todo!(),
@@ -615,23 +801,21 @@ async fn do_sync_request(
 }
 
 async fn dispatch_pruntime_request(
-    tx: Arc<ProcessorEventTx>,
-    worker_id: usize,
+    bus: Arc<Bus>,
+    worker_id: String,
     client: Arc<PRuntimeClient>,
     request: PRuntimeRequest,
 ) {
     let result = match request {
-        PRuntimeRequest::GetInfo => {
-            //info!("dispatch pruntime request, getInfo: {}", worker_id);
+        PRuntimeRequest::PrepareLifecycle => {
             client.get_info(())
                 .await
-                .map(|response| PRuntimeResponse::GetInfo(response))
+                .map(|response| PRuntimeResponse::PrepareLifecycle(response))
         },
-        PRuntimeRequest::GetRegisterInfo((force_refresh_ra, operator)) => {
-            let request = GetRuntimeInfoRequest::new(force_refresh_ra, operator);
-            client.get_runtime_info(request)
+        PRuntimeRequest::InitRuntime(request) => {
+            client.init_runtime(request)
                 .await
-                .map(|response| PRuntimeResponse::GetRegisterInfo(response))
+                .map(|response| PRuntimeResponse::InitRuntime(response))
         },
         PRuntimeRequest::LoadChainState(request) => {
             client.load_chain_state(request)
@@ -639,10 +823,20 @@ async fn dispatch_pruntime_request(
                 .map(|_| PRuntimeResponse::LoadChainState)
         },
         PRuntimeRequest::Sync(request) => {
-            //info!("dispatch pruntime request, sync: {}", worker_id);
             do_sync_request(client, request)
                 .await
                 .map(|response| PRuntimeResponse::Sync(response))
+        },
+        PRuntimeRequest::RegularGetInfo => {
+            client.get_info(())
+                .await
+                .map(|response| PRuntimeResponse::RegularGetInfo(response))
+        },
+        PRuntimeRequest::PrepareRegister((force_refresh_ra, operator)) => {
+            let request = GetRuntimeInfoRequest::new(force_refresh_ra, operator);
+            client.get_runtime_info(request)
+                .await
+                .map(|response| PRuntimeResponse::PrepareRegister(response))
         },
         PRuntimeRequest::GetEgressMessages => {
             client.get_egress_messages(())
@@ -654,44 +848,5 @@ async fn dispatch_pruntime_request(
         PRuntimeRequest::TakeCheckpoint => todo!(),
     };
 
-    send_processor_event(tx, ProcessorEvent::PRuntimeResponse((worker_id, result)));
-}
-
-pub fn send_processor_event(tx: Arc<ProcessorEventTx>, event: ProcessorEvent) {
-    let result = tx.send(event);
-    if let Err(error) = result {
-        error!("{:?}", error);
-        std::process::exit(255);
-    }
-}
-
-fn send_worker_status_update(tx: Arc<WorkerStatusUpdateTx>, update: WorkerStatusUpdate) {
-    let result = tx.send(update);
-    if let Err(err) = result {
-        error!("failed to update status {:?}", err);
-        std::process::exit(255);
-    }
-}
-
-fn is_match(worker: &WorkerContext, info: &SyncInfo) -> bool {
-    debug!("[{}] start to match", worker.uuid);
-    if let Some(headernum) = info.headernum {
-        debug!("[{}] matching headernum: {}, {}", worker.uuid, headernum, worker.headernum);
-        if headernum != worker.headernum {
-            return false;
-        }
-    }
-    if let Some(para_headernum) = info.para_headernum {
-        debug!("[{}] matching para_headernum: {}, {}", worker.uuid, para_headernum, worker.para_headernum);
-        if para_headernum != worker.para_headernum {
-            return false;
-        }
-    }
-    if let Some(blocknum) = info.blocknum {
-        debug!("[{}] matching blocknum: {}, {}", worker.uuid, blocknum, worker.blocknum);
-        if blocknum != worker.blocknum {
-            return false;
-        }
-    }
-    true
+    bus.send_processor_event(ProcessorEvent::WorkerEvent((worker_id, WorkerEvent::PRuntimeResponse(result))));
 }

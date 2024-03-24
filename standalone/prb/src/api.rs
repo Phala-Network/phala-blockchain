@@ -1,7 +1,7 @@
 use crate::api::ApiError::{InconsistentData, LifecycleManagerNotInitialized, WorkerNotFound};
 use crate::cli::{ConfigCommands, WorkerManagerCliArgs};
 use crate::configurator::api_handler;
-use crate::db::Worker;
+use crate::inv_db::Worker;
 use crate::tx::Transaction;
 use crate::wm::WorkerManagerMessage::ShouldResetLifecycleManager;
 use crate::wm::{send_to_main_channel, WrappedWorkerManagerContext};

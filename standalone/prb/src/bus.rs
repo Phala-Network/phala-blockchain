@@ -1,0 +1,59 @@
+use log::error;
+use tokio::sync::mpsc::error::SendError;
+
+use crate::processor::{PRuntimeRequest, ProcessorEvent, ProcessorTx, WorkerEvent};
+use crate::repository::{RepositoryEvent, RepositoryTx};
+use crate::messages::{MessagesEvent, MessagesTx};
+
+#[derive(Clone)]
+pub struct Bus {
+    pub processor_tx: ProcessorTx,
+    pub repository_tx: RepositoryTx,
+    pub messages_tx: MessagesTx,
+}
+
+impl Bus {
+    pub fn send_processor_event(&self, event: ProcessorEvent) -> Result<(), SendError<ProcessorEvent>> {
+        let result = self.processor_tx.send(event);
+        if let Err(err) = &result {
+            error!("Fail to send message to processor_tx. {}", err);
+        }
+        result
+    }
+
+    pub fn send_worker_event(&self, worker_id: String, event: WorkerEvent) -> Result<(), SendError<ProcessorEvent>> {
+        self.send_processor_event(
+            ProcessorEvent::WorkerEvent((worker_id, event)),
+        )
+    }
+
+    pub fn send_worker_mark_error(&self, worker_id: String, message: String) -> Result<(), SendError<ProcessorEvent>> {
+        self.send_worker_event(
+            worker_id,
+            WorkerEvent::MarkError((chrono::Utc::now().timestamp_millis(), message)),
+        )
+    }
+
+    pub fn send_pruntime_request(&self, worker_id: String, request: PRuntimeRequest) -> Result<(), SendError<ProcessorEvent>> {
+        self.send_worker_event(
+            worker_id,
+            WorkerEvent::PRuntimeRequest(request),
+        )
+    }
+
+    pub fn send_repository_event(&self, event: RepositoryEvent) -> Result<(), SendError<RepositoryEvent>> {
+        let result = self.repository_tx.send(event);
+        if let Err(err) = &result {
+            error!("Fail to send message to repository_tx. {}", err);
+        }
+        result
+    }
+
+    pub fn send_messages_event(&self, event: MessagesEvent) -> Result<(), SendError<MessagesEvent>> {
+        let result = self.messages_tx.send(event);
+        if let Err(err) = &result {
+            error!("Fail to send message to messages_tx. {}", err);
+        }
+        result
+    }
+}
