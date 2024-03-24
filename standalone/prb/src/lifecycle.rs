@@ -1,6 +1,6 @@
 use crate::api::WorkerStatus;
 use crate::datasource::WrappedDataSourceManager;
-use crate::db::{get_all_workers, Worker, WrappedDb};
+use crate::inv_db::{get_all_workers, Worker, WrappedDb};
 use crate::tx::TxManager;
 use crate::wm::{
     send_to_main_channel, send_to_main_channel_and_wait_for_response, WorkerManagerCommandTx,

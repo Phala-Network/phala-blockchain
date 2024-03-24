@@ -1,8 +1,8 @@
 use crate::datasource::WrappedDataSourceManager;
-use crate::db::{get_pool_by_pid, Worker};
+use crate::inv_db::{get_pool_by_pid, Worker};
 use crate::lifecycle::WrappedWorkerLifecycleManager;
 use crate::pruntime::{PRuntimeClient, PRuntimeClientWithSemaphore};
-use crate::tx::PoolOperatorAccess;
+use crate::pool_operator::PoolOperatorAccess;
 use crate::utils::fetch_storage_bytes;
 use crate::wm::{WorkerManagerMessage, WrappedWorkerManagerContext};
 use crate::worker::WorkerLifecycleCommand::*;

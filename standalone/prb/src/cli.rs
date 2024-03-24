@@ -3,7 +3,7 @@ use crate::wm::wm;
 use clap::{Parser, Subcommand, ValueEnum};
 use log::debug;
 use serde::{Deserialize, Serialize};
-use std::io::Write;
+//use std::io::Write;
 
 #[derive(Parser, Debug, Clone)]
 #[command(name="prb", version, about="Phala Runtime Bridge Worker Manager", long_about = None)]
