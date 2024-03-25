@@ -573,11 +573,18 @@ pub mod pallet {
 		pub fn set_reimbursements(
 			origin: OriginFor<T>,
 			input: Vec<(T::AccountId, u64, BalanceOf<T>)>,
+			add: bool,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			Self::ensure_migration_root(who)?;
 			for (account_id, pid, balance) in input.iter() {
-				Reimbursements::<T>::insert((account_id.clone(), *pid), *balance);
+				let key = (account_id, pid);
+				let new_balance = if add {
+					Reimbursements::<T>::get(key).unwrap_or_default() + *balance
+				} else {
+					*balance
+				};
+				Reimbursements::<T>::insert(key, new_balance);
 			}
 			Ok(())
 		}
