@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Timelike, Utc};
 use log::{error, info, trace, warn};
 use phactory_api::prpc::{
     self, ChainState, GetEgressMessagesResponse, GetEndpointResponse, GetRuntimeInfoRequest,
@@ -22,6 +22,9 @@ use crate::tx::TxManager;
 use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState};
 use crate::worker_status::WorkerStatusUpdate;
 
+const UPDATE_PHACTORY_INFO_INTERVAL: chrono::Duration = chrono::Duration::seconds(3);
+const UPDATE_EGRESS_MESSAGE_INTERVAL: chrono::Duration = chrono::Duration::seconds(3);
+
 pub struct WorkerContext {
     pub uuid: String,
 
@@ -37,12 +40,16 @@ pub struct WorkerContext {
     pub worker_status: WorkerStatus,
     pub worker_info: Option<WorkerInfoV2<AccountId32>>,
     pub session_id: Option<AccountId32>,
+    pub last_request_info_at: DateTime<Utc>,
+    pub last_request_egress_at: DateTime<Utc>,
+
     pub last_message: String,
     pub last_updated_at: DateTime<Utc>,
 
     pub client: Arc<PRuntimeClient>,
     pub pending_requests: VecDeque<PRuntimeRequest>,
 
+    pub computation_ready: bool,
     pub register_requested: bool,
     pub add_to_pool_requested: bool,
     pub computing_requested: bool,
@@ -75,13 +82,16 @@ impl WorkerContext {
             },
             worker_info: None,
             session_id: None,
+            last_request_info_at: DateTime::<Utc>::MIN_UTC,
+            last_request_egress_at: DateTime::<Utc>::MIN_UTC,
 
             last_message: String::new(),
-            last_updated_at: chrono::Utc::now(),
+            last_updated_at: Utc::now(),
 
             client: Arc::new(crate::pruntime::create_client(worker.endpoint.clone())),
             pending_requests: VecDeque::new(),
 
+            computation_ready: false,
             register_requested: false,
             add_to_pool_requested: false,
             computing_requested: false,
@@ -91,7 +101,7 @@ impl WorkerContext {
     pub fn update_message(&mut self, message: &str, updated_at: Option<DateTime<Utc>>) {
         let updated_at = match updated_at {
             Some(updated_at) => updated_at,
-            None => chrono::Utc::now(),
+            None => Utc::now(),
         };
         self.last_message = message.to_string();
         self.last_updated_at = updated_at;
@@ -176,8 +186,16 @@ impl WorkerContext {
             &&self.para_headernum == chaintip.parachain + 1
     }
 
-    pub fn is_sync_only(&self) -> bool{
+    pub fn is_sync_only(&self) -> bool {
         self.worker_sync_only || self.pool_sync_only
+    }
+
+    pub fn is_updating_phactory_info_due(&self) -> bool {
+        Utc::now().signed_duration_since(self.last_request_info_at) >= UPDATE_PHACTORY_INFO_INTERVAL
+    }
+
+    pub fn is_updating_egress_message_due(&self) -> bool {
+        Utc::now().signed_duration_since(self.last_request_egress_at) >= UPDATE_EGRESS_MESSAGE_INTERVAL
     }
 }
 
@@ -291,13 +309,9 @@ impl Processor {
         let bus = self.bus.clone();
         tokio::spawn(async move {
             loop {
-                let now = chrono::Utc::now();
                 let _ = bus.send_processor_event(ProcessorEvent::Heartbeat);
-                let duration = chrono::Utc::now().signed_duration_since(&now);
-                let duration = chrono::Duration::seconds(3) - duration;
-                if duration > chrono::Duration::zero() {
-                    tokio::time::sleep(duration.to_std().unwrap()).await;
-                }
+                let nanos = 1_000_000_000 - Utc::now().nanosecond() % 1_000_000_000;
+                tokio::time::sleep(std::time::Duration::from_nanos(nanos.into())).await;
             };
         });
 
@@ -336,7 +350,6 @@ impl Processor {
                     for worker in workers.values_mut() {
                         if worker.pool_id == pool_id && worker.pool_sync_only != pool_sync_only {
                             worker.pool_sync_only = pool_sync_only;
-                            // TODO: need anything?
                         }
                     }
                 },
@@ -366,11 +379,16 @@ impl Processor {
                 },
                 ProcessorEvent::Heartbeat => {
                     for worker in workers.values_mut() {
-                        if worker.is_sync_only() {
-                            trace!("[{}] worker or pool is sync only, skipping get egress messages.", worker.uuid);
-                        } else if !worker.is_reached_para_chaintip(&self.chaintip) {
-                            trace!("[{}] worker parachain is not at chaintip, skipping get egress messages.", worker.uuid);
-                        } else {
+                        if worker.is_updating_phactory_info_due() {
+                            worker.last_request_info_at = Utc::now();
+                            self.add_pruntime_request(worker, PRuntimeRequest::GetEgressMessages);
+                        }
+
+                        if worker.is_updating_egress_message_due()
+                            && !worker.is_sync_only()
+                            && !worker.is_reached_para_chaintip(&self.chaintip)
+                        {
+                            worker.last_request_egress_at = Utc::now();
                             self.add_pruntime_request(worker, PRuntimeRequest::GetEgressMessages);
                         }
                     }
@@ -410,7 +428,7 @@ impl Processor {
                     Ok(response) => self.handle_pruntime_response(worker, response),
                     Err(err) => {
                         error!("[{}] met error: {}", worker.uuid, err);
-                        self.update_worker_last_message(
+                        self.update_worker_message(
                             worker,
                             &err.to_string(),
                             None,
@@ -429,7 +447,7 @@ impl Processor {
                 self.handle_worker_lifecycle_command(worker, command);
             },
             WorkerEvent::UpdateMessage((timestamp, message)) => {
-                self.update_worker_last_message(
+                self.update_worker_message(
                     worker,
                     &message,
                     Some(timestamp),
@@ -454,6 +472,7 @@ impl Processor {
         message: &str,
         updated_at: Option<DateTime<Utc>>,
     ) {
+        info!("[{}] {}", worker.uuid, message);
         worker.worker_status.state = state;
         worker.update_message(message, updated_at);
         let _ = self.bus.send_worker_status_event((
@@ -465,12 +484,13 @@ impl Processor {
         ));
     }
 
-    fn update_worker_last_message(
+    fn update_worker_message(
         &mut self,
         worker: &mut WorkerContext,
         message: &str,
         updated_at: Option<DateTime<Utc>>,
     ) {
+        info!("[{}] {}", worker.uuid, message);
         worker.update_message(message, updated_at);
         let _ = self.bus.send_worker_status_event((
             worker.uuid.clone(),
@@ -545,19 +565,21 @@ impl Processor {
     ) {
         match response {
             PRuntimeResponse::PrepareLifecycle(info) => {
-                //info!("[{}] PRuntimeResponse, getInfo", worker.uuid);
                 worker.worker_status.phactory_info = Some(info.clone());
+                self.send_worker_status(worker);
+
                 worker.headernum = info.headernum;
                 worker.para_headernum = info.para_headernum;
                 worker.blocknum = info.blocknum;
 
-                self.request_prepare_determination(worker);
-                self.send_worker_status(worker);
+                self.request_prepare_lifecycle(worker);
             },
             PRuntimeResponse::InitRuntime(_response) => {
+                self.update_worker_message(worker, "InitRuntime Completed.", None);
                 self.add_pruntime_request(worker, PRuntimeRequest::PrepareLifecycle);
             },
             PRuntimeResponse::LoadChainState => {
+                self.update_worker_message(worker, "LoadChainState Completed.", None);
                 self.add_pruntime_request(worker, PRuntimeRequest::PrepareLifecycle);
             },
             PRuntimeResponse::Sync(info) => {
@@ -566,8 +588,10 @@ impl Processor {
             },
             PRuntimeResponse::RegularGetInfo(phactory_info) => {
                 worker.worker_status.phactory_info = Some(phactory_info);
+                self.send_worker_status(worker);
             },
             PRuntimeResponse::PrepareRegister(response) => {
+                self.update_worker_message(worker, "Register Starting...", None);
                 tokio::spawn(do_register(
                     self.bus.clone(),
                     self.txm.clone(),
@@ -614,12 +638,12 @@ impl Processor {
 
         if !worker.is_reached_chaintip(&self.chaintip) {
             self.request_next_sync(worker);
-        } else {
+        } else if !worker.computation_ready {
             self.request_computation_determination(worker);
         }
     }
 
-    fn request_prepare_determination(
+    fn request_prepare_lifecycle(
         &mut self,
         worker: &mut WorkerContext,
     ) {
@@ -656,6 +680,23 @@ impl Processor {
         &mut self,
         worker: &mut WorkerContext
     ) {
+        if worker.computation_ready {
+            return;
+        }
+        if worker.is_sync_only() {
+            trace!("[{}] Worker or Pool is sync only mode, skip computation determination.", worker.uuid);
+            return;
+        }
+
+        if let WorkerLifecycleState::Synchronizing = worker.worker_status.state {
+            self.update_worker_lifecycle_state(
+                worker,
+                WorkerLifecycleState::Preparing,
+                "Worker reached to ChainTip, trying to start computation.",
+                None,
+            );
+        }
+
         if !worker.is_registered() {
             if worker.register_requested {
                 trace!("[{}] register has been requested, waiting for register result", worker.uuid);
@@ -722,6 +763,14 @@ impl Processor {
                 ));
                 worker.computing_requested = true;
             }
+        } else {
+            worker.computation_ready = true;
+            self.update_worker_lifecycle_state(
+                worker,
+                WorkerLifecycleState::Working,
+                "Computing Now!",
+                None,
+            );
         }
     }
 
@@ -748,7 +797,7 @@ impl Processor {
             return;
         };
 
-        self.update_worker_last_message(worker, "Initializing pRuntime...", None);
+        self.update_worker_message(worker, "InitRuntime Starting...", None);
         self.add_pruntime_request(worker, PRuntimeRequest::InitRuntime(request));
     }
 
@@ -759,7 +808,7 @@ impl Processor {
         let _ = self.bus.send_repository_event(
             RepositoryEvent::GenerateFastSyncRequest((worker.uuid.clone(), worker.public_key().unwrap()))
         );
-        self.update_worker_last_message(worker, "Trying to load chain state...", None);
+        self.update_worker_message(worker, "LoadChainState Starting...", None);
     }
 
     fn request_next_sync(
@@ -959,7 +1008,7 @@ async fn do_register(
             let _ = bus.send_worker_event(
                 worker_id,
                 WorkerEvent::MarkError((
-                    chrono::Utc::now(),
+                    Utc::now(),
                     err.to_string(),
                 ))
             );
@@ -970,22 +1019,22 @@ async fn do_register(
     let result = txm.register_worker(pool_id, response.encoded_runtime_info, attestation, v2).await;
     match result {
         Ok(_) => {
-            info!("[{}] Worker registered successfully.", worker_id);
+            info!("[{}] Worker Register Completed.", worker_id);
             let _ = bus.send_worker_event(
                 worker_id.clone(),
                 WorkerEvent::UpdateMessage((
-                    chrono::Utc::now(),
-                    "Registered".to_string(),
+                    Utc::now(),
+                    "Worker Register Completed.".to_string(),
                 ))
             );
             let _ = bus.send_pruntime_request(worker_id.clone(), PRuntimeRequest::RegularGetInfo);
         },
         Err(err) => {
-            error!("[{}] Worker registered failed. {}", worker_id, err);
+            error!("[{}] Worker Register Failed: {}", worker_id, err);
             let _ = bus.send_worker_event(
                 worker_id,
                 WorkerEvent::MarkError((
-                    chrono::Utc::now(),
+                    Utc::now(),
                     err.to_string(),
                 ))
             );
@@ -1038,7 +1087,7 @@ async fn do_update_endpoints(
             let _ = bus.send_worker_event(
                 worker_id,
                 WorkerEvent::UpdateMessage((
-                    chrono::Utc::now(),
+                    Utc::now(),
                     "Updated endpoints.".to_string(),
                 ))
             );
@@ -1049,7 +1098,7 @@ async fn do_update_endpoints(
             let _ = bus.send_worker_event(
                 worker_id,
                 WorkerEvent::UpdateMessage((
-                    chrono::Utc::now(),
+                    Utc::now(),
                     err_msg,
                 ))
             );
