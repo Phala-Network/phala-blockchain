@@ -1,4 +1,4 @@
-use crate::api::{start_api_server, WrappedWorkerContexts};
+use crate::api::{start_api_server, WorkerStatus, WrappedWorkerContexts};
 use crate::bus::Bus;
 use crate::cli::WorkerManagerCliArgs;
 use crate::repository::{Repository, RepositoryEvent};
@@ -12,11 +12,10 @@ use crate::tx::TxManager;
 use crate::use_parachain_api;
 use crate::wm::WorkerManagerMessage::*;
 use crate::worker::{WorkerLifecycleState, WrappedWorkerContext};
-use crate::worker_status::{update_worker_status, WorkerStatusUpdate};
+use crate::worker_status::{update_worker_status, WorkerStatusEvent};
 use anyhow::{anyhow, Result};
 use futures::future::{try_join, try_join3, try_join_all};
 use log::{debug, error, info};
-use sp_core::Pair;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
@@ -48,9 +47,11 @@ pub struct WorkerManagerContext {
     pub dsm: WrappedDataSourceManager,
     pub workers: WrappedWorkerContexts,
     pub worker_map: Arc<TokioMutex<WorkerContextMap>>,
+    pub worker_status_map: Arc<TokioMutex<HashMap<String, WorkerStatus>>>,
     pub txm: Arc<TxManager>,
     pub pccs_url: String,
     pub pccs_timeout_secs: u64,
+    pub bus: Arc<Bus>,
 }
 
 pub type WrappedWorkerManagerContext = Arc<WorkerManagerContext>;
@@ -118,12 +119,13 @@ pub async fn wm(args: WorkerManagerCliArgs) {
     let (processor_tx, processor_rx) = mpsc::unbounded_channel::<ProcessorEvent>();
     let (repository_tx, repository_rx) = mpsc::unbounded_channel::<RepositoryEvent>();
     let (messages_tx, messages_rx) = mpsc::unbounded_channel::<MessagesEvent>();
-    let (_worker_status_update_tx, worker_status_update_rx) = mpsc::unbounded_channel::<WorkerStatusUpdate>();
+    let (worker_status_tx, worker_status_rx) = mpsc::unbounded_channel::<WorkerStatusEvent>();
 
     let bus = Arc::new(Bus {
         processor_tx: processor_tx.clone(),
         repository_tx: repository_tx.clone(),
         messages_tx: messages_tx.clone(),
+        worker_status_tx: worker_status_tx.clone(),
     });
 
     let ctx = Arc::new(WorkerManagerContext {
@@ -135,8 +137,10 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         txm: txm.clone(),
         workers: Arc::new(TokioMutex::new(Vec::new())),
         worker_map: Arc::new(TokioMutex::new(HashMap::new())),
+        worker_status_map: Arc::new(TokioMutex::new(HashMap::new())),
         pccs_url: args.pccs_url.clone(),
         pccs_timeout_secs: args.pccs_timeout,
+        bus: bus.clone(),
     });
 
     let headers_db = {
@@ -165,16 +169,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
                     },
                 };
                 let operator = match txm.clone().db.get_po(pid) {
-                    Ok(po) => match po {
-                        Some(po) => {
-                            let operator = match po.proxied {
-                                Some(owner) => owner,
-                                None => po.pair.public().into(),
-                            };
-                            Some(operator)
-                        },
-                        None => todo!(),
-                    },
+                    Ok(po) => po.map(|po| po.operator()),
                     Err(err) => {
                         error!("Fail to get pool operator #{}. {}", pid, err);
                         None
@@ -184,7 +179,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
             },
             None => (None, None),
         };
-        bus.send_processor_event(ProcessorEvent::AddWorker((worker, pool, operator)));
+        let _ = bus.send_processor_event(ProcessorEvent::AddWorker((worker, pool, operator)));
     }
 
     let mut processor = Processor::create(
@@ -208,13 +203,14 @@ pub async fn wm(args: WorkerManagerCliArgs) {
 
         _ = offchain_tx_loop(messages_rx, bus.clone(), txm.clone()) => {}
 
-        _ = update_worker_status(ctx.clone(), worker_status_update_rx) => {}
+        _ = update_worker_status(ctx.clone(), worker_status_rx) => {}
 
         _ = crate::repository::keep_syncing_headers(bus.clone(), dsm.clone(), headers_db.clone()) => {}
 
         ret = join_handle => {
             info!("wm.join_handle: {:?}", ret);
         }
+        /*
         _ = async {
             loop {
                 let (reload_tx, mut reload_rx) = mpsc::channel::<()>(1);
@@ -239,9 +235,11 @@ pub async fn wm(args: WorkerManagerCliArgs) {
                 sleep(Duration::from_secs(15)).await;
             }
         } => {}
+        */
     }
 }
 
+/*
 #[allow(clippy::await_holding_lock)]
 pub async fn set_lifecycle_manager(
     ctx: WrappedWorkerManagerContext,
@@ -352,3 +350,4 @@ async fn message_loop(
     debug!("message_loop end");
     Ok(())
 }
+ */

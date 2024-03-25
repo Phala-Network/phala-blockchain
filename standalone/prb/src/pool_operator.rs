@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use sp_core::crypto::{AccountId32, Ss58AddressFormat, Ss58Codec};
 use sp_core::sr25519::Pair as Sr25519Pair;
 use sp_core::Pair;
-use tokio_stream::StreamExt;
 
 static PHALA_SS58_FORMAT_U8: u8 = 30;
 lazy_static! {
@@ -50,6 +49,15 @@ pub struct PoolOperator {
     pub pid: u64,
     pub pair: Sr25519Pair,
     pub proxied: Option<AccountId32>,
+}
+
+impl PoolOperator {
+    pub fn operator(&self) -> AccountId32 {
+        match &self.proxied {
+            Some(owner) => owner.clone(),
+            None => self.pair.public().into(),
+        }
+    }
 }
 
 #[derive(Clone, Encode, Decode)]

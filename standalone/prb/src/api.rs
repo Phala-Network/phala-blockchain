@@ -191,20 +191,12 @@ async fn handle_restart_wm(State(ctx): AppContext) -> ApiResult<(StatusCode, Jso
 async fn handle_get_worker_status(
     State(ctx): AppContext,
 ) -> ApiResult<(StatusCode, Json<WorkerStatusResponse>)> {
-    let w = ctx.workers.clone();
-    let w = w.lock().await;
-    let mut workers = Vec::new();
-    for w in w.iter() {
-        let w = w.clone();
-        let w = w.read().await;
-        workers.push(WorkerStatus {
-            worker: w.worker.clone(),
-            state: w.state.clone(),
-            phactory_info: w.info.clone(),
-            last_message: w.last_message.clone(),
-            session_info: w.session_info.clone(),
-        })
-    }
+    let map = ctx.worker_status_map.clone();
+    let map = map.lock().await;
+    let workers = map.values()
+        .into_iter()
+        .map(|status| status.clone())
+        .collect::<Vec<WorkerStatus>>();
     Ok((StatusCode::OK, Json(WorkerStatusResponse { workers })))
 }
 
@@ -309,6 +301,7 @@ async fn handle_config_wm(
 ) -> ApiResult<String> {
     let po_db = ctx.txm.db.clone();
     let inv_db = ctx.inv_db.clone();
-    let ret = api_handler(inv_db, po_db, payload).await?;
+    let bus = ctx.bus.clone();
+    let ret = api_handler(inv_db, po_db, bus, payload).await?;
     Ok(ret)
 }
