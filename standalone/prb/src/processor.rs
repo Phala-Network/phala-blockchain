@@ -575,7 +575,7 @@ impl Processor {
         request: PRuntimeRequest,
     ) {
         worker.calling = true;
-        tokio::task::spawn(
+        tokio::spawn(
             dispatch_pruntime_request(
                 self.bus.clone(),
                 worker.uuid.clone(),
@@ -617,70 +617,15 @@ impl Processor {
                 worker.worker_status.phactory_info = Some(phactory_info);
             },
             PRuntimeResponse::PrepareRegister(response) => {
-                let bus = self.bus.clone();
-                let txm = self.txm.clone();
-                let worker_id = worker.uuid.clone();
-                let pool_id = worker.pool_id;
-                let pccs_url = self.pccs_url.clone();
-                let pccs_timeout_secs = self.pccs_timeout_secs;
-
-                tokio::task::spawn(async move {
-                    trace!("[{}] response: {:?}", worker_id, response);
-                    let attestation = match response.attestation {
-                        Some(attestation) => attestation,
-                        None => {
-                            error!("[{}] Worker has no attestation.", worker_id);
-                            return;
-                        },
-                    };
-                    let v2 = attestation.payload.is_none();
-                    let attestation = pherry::attestation_to_report(
-                        attestation,
-                        &pccs_url,
-                        pccs_timeout_secs,
-                    )
-                    .await;
-                    let attestation = match attestation {
-                        Ok(attestation) => attestation,
-                        Err(err) => {
-                            error!("[{}] Failed to get attestation report. {}", worker_id, err);
-                            let _ = bus.send_worker_event(
-                                worker_id,
-                                WorkerEvent::MarkError((
-                                    chrono::Utc::now(),
-                                    err.to_string(),
-                                ))
-                            );
-                            return;
-                        },
-                    };
-
-                    let result = txm.register_worker(pool_id, response.encoded_runtime_info, attestation, v2).await;
-                    match result {
-                        Ok(_) => {
-                            info!("[{}] Worker registered successfully.", worker_id);
-                            let _ = bus.send_worker_event(
-                                worker_id.clone(),
-                                WorkerEvent::UpdateMessage((
-                                    chrono::Utc::now(),
-                                    "Registered".to_string(),
-                                ))
-                            );
-                            let _ = bus.send_pruntime_request(worker_id.clone(), PRuntimeRequest::RegularGetInfo);
-                        },
-                        Err(err) => {
-                            error!("[{}] Worker registered failed. {}", worker_id, err);
-                            let _ = bus.send_worker_event(
-                                worker_id,
-                                WorkerEvent::MarkError((
-                                    chrono::Utc::now(),
-                                    err.to_string(),
-                                ))
-                            );
-                            return;
-                        },
-                    }
-                });
+                tokio::spawn(do_register(
+                    self.bus.clone(),
+                    self.txm.clone(),
+                    worker.uuid.clone(),
+                    worker.pool_id.clone(),
+                    response,
+                    self.pccs_url.clone(),
+                    self.pccs_timeout_secs.clone(),
+                ));
             },
             PRuntimeResponse::GetEgressMessages(response) => {
                 self.handle_pruntime_egress_messages(worker, response)
@@ -786,7 +731,7 @@ impl Processor {
             Some(worker_info) => {
                 if worker_info.initial_score.is_none() {
                     trace!("[{}] no initial_score yet. Skip continuing computation determination.", worker.uuid);
-
+                    return;
                 }
             },
             None => {
@@ -974,6 +919,71 @@ async fn do_sync_request(
     }
 
     Ok(response)
+}
+
+async fn do_register(
+    bus: Arc<Bus>,
+    txm: Arc<TxManager>,
+    worker_id: String,
+    pool_id: u64,
+    response: InitRuntimeResponse,
+    pccs_url: String,
+    pccs_timeout_secs: u64,
+) {
+    let attestation = match response.attestation {
+        Some(attestation) => attestation,
+        None => {
+            error!("[{}] Worker has no attestation.", worker_id);
+            return;
+        },
+    };
+    let v2 = attestation.payload.is_none();
+    let attestation = pherry::attestation_to_report(
+        attestation,
+        &pccs_url,
+        pccs_timeout_secs,
+    )
+    .await;
+    let attestation = match attestation {
+        Ok(attestation) => attestation,
+        Err(err) => {
+            error!("[{}] Failed to get attestation report. {}", worker_id, err);
+            let _ = bus.send_worker_event(
+                worker_id,
+                WorkerEvent::MarkError((
+                    chrono::Utc::now(),
+                    err.to_string(),
+                ))
+            );
+            return;
+        },
+    };
+
+    let result = txm.register_worker(pool_id, response.encoded_runtime_info, attestation, v2).await;
+    match result {
+        Ok(_) => {
+            info!("[{}] Worker registered successfully.", worker_id);
+            let _ = bus.send_worker_event(
+                worker_id.clone(),
+                WorkerEvent::UpdateMessage((
+                    chrono::Utc::now(),
+                    "Registered".to_string(),
+                ))
+            );
+            let _ = bus.send_pruntime_request(worker_id.clone(), PRuntimeRequest::RegularGetInfo);
+        },
+        Err(err) => {
+            error!("[{}] Worker registered failed. {}", worker_id, err);
+            let _ = bus.send_worker_event(
+                worker_id,
+                WorkerEvent::MarkError((
+                    chrono::Utc::now(),
+                    err.to_string(),
+                ))
+            );
+            return;
+        },
+    }
 }
 
 async fn do_add_worker_to_pool(
