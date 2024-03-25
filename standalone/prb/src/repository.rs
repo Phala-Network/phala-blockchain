@@ -436,7 +436,7 @@ pub async fn keep_syncing_headers(
                                     para_headers,
                                     proof
                                 );
-                                SyncRequest::create_from_combine_headers(headers, para_from, para_to, para_from, para_to)
+                                SyncRequest::create_from_combine_headers(headers, relay_from, relay_to, para_from, para_to)
                             },
                             Err(e) => {
                                 error!("Failed to get para headers. {e}");
