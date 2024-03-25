@@ -1,6 +1,6 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use log::{debug, error, info, trace, warn};
+use log::{error, info, trace, warn};
 use phactory_api::prpc::{
     self, ChainState, GetEgressMessagesResponse, GetEndpointResponse, GetRuntimeInfoRequest,
     InitRuntimeRequest, InitRuntimeResponse, PhactoryInfo, SignEndpointsRequest,

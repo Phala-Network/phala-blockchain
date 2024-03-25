@@ -4,7 +4,7 @@ use tokio::sync::mpsc::error::SendError;
 use crate::processor::{PRuntimeRequest, ProcessorEvent, ProcessorTx, WorkerEvent};
 use crate::repository::{RepositoryEvent, RepositoryTx};
 use crate::messages::{MessagesEvent, MessagesTx};
-use crate::worker_status::{WorkerStatusEvent, WorkerStatusTx, WorkerStatusUpdate};
+use crate::worker_status::{WorkerStatusEvent, WorkerStatusTx};
 
 #[derive(Clone)]
 pub struct Bus {
