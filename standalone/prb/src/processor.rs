@@ -20,7 +20,7 @@ use crate::worker_status::WorkerStatusUpdate;
 
 
 //use phactory_api::blocks::{AuthoritySetChange, HeaderToSyn};
-use phactory_api::prpc::{self, Blocks, ChainState, CombinedHeadersToSync, GetEgressMessagesResponse, GetRuntimeInfoRequest, HeadersToSync, InitRuntimeRequest, InitRuntimeResponse, ParaHeadersToSync, PhactoryInfo};
+use phactory_api::prpc::{self, Blocks, ChainState, CombinedHeadersToSync, GetEgressMessagesResponse, GetEndpointResponse, GetRuntimeInfoRequest, HeadersToSync, InitRuntimeRequest, InitRuntimeResponse, ParaHeadersToSync, PhactoryInfo, SignEndpointsRequest};
 use phala_pallets::pallet_computation::{SessionInfo, WorkerState};
 
 enum WorkerLifecycle {
@@ -229,6 +229,7 @@ pub enum PRuntimeRequest {
     RegularGetInfo,
     PrepareRegister((bool, Option<sp_core::crypto::AccountId32>)),
     GetEgressMessages,
+    SignEndpoints(Vec<String>),
     TakeCheckpoint,
 }
 
@@ -240,6 +241,7 @@ pub enum PRuntimeResponse {
     RegularGetInfo(PhactoryInfo),
     PrepareRegister(InitRuntimeResponse),
     GetEgressMessages(GetEgressMessagesResponse),
+    SignEndpoints(GetEndpointResponse),
     TakeCheckpoint(u32),
 }
 
@@ -623,6 +625,7 @@ impl Processor {
                 let pccs_timeout_secs = self.pccs_timeout_secs;
 
                 tokio::task::spawn(async move {
+                    trace!("[{}] response: {:?}", worker_id, response);
                     let attestation = match response.attestation {
                         Some(attestation) => attestation,
                         None => {
@@ -657,12 +660,13 @@ impl Processor {
                         Ok(_) => {
                             info!("[{}] Worker registered successfully.", worker_id);
                             let _ = bus.send_worker_event(
-                                worker_id,
+                                worker_id.clone(),
                                 WorkerEvent::UpdateMessage((
                                     chrono::Utc::now(),
                                     "Registered".to_string(),
                                 ))
                             );
+                            let _ = bus.send_pruntime_request(worker_id.clone(), PRuntimeRequest::RegularGetInfo);
                         },
                         Err(err) => {
                             error!("[{}] Worker registered failed. {}", worker_id, err);
@@ -680,6 +684,15 @@ impl Processor {
             },
             PRuntimeResponse::GetEgressMessages(response) => {
                 self.handle_pruntime_egress_messages(worker, response)
+            },
+            PRuntimeResponse::SignEndpoints(response) => {
+                tokio::spawn(do_update_endpoints(
+                    self.bus.clone(),
+                    self.txm.clone(),
+                    worker.uuid.clone(),
+                    worker.pool_id.clone(),
+                    response,
+                ));
             },
             PRuntimeResponse::TakeCheckpoint(_) => todo!(),
         }
@@ -748,12 +761,17 @@ impl Processor {
         &mut self,
         worker: &mut WorkerContext
     ) {
-        if !worker.register_requested && !worker.is_registered() {
-            self.add_pruntime_request(
-                worker,
-                PRuntimeRequest::PrepareRegister((true, worker.operator.clone()))
-            );
-            worker.register_requested = true;
+        if !worker.is_registered() {
+            if worker.register_requested {
+                trace!("[{}] register has been requested, waiting for register result", worker.uuid);
+            } else {
+                self.add_pruntime_request(
+                    worker,
+                    PRuntimeRequest::PrepareRegister((true, worker.operator.clone()))
+                );
+                worker.register_requested = true;
+            }
+            return;
         }
 
         let public_key = match worker.public_key() {
@@ -764,8 +782,13 @@ impl Processor {
             },
         };
 
-        let worker_info = match &worker.worker_info {
-            Some(worker_info) => worker_info,
+        match &worker.worker_info {
+            Some(worker_info) => {
+                if worker_info.initial_score.is_none() {
+                    trace!("[{}] no initial_score yet. Skip continuing computation determination.", worker.uuid);
+
+                }
+            },
             None => {
                 trace!("[{}] no worker_info found yet. Skip continuing computation determination.", worker.uuid);
                 return;
@@ -786,6 +809,7 @@ impl Processor {
                 ));
                 worker.add_to_pool_requested = true;
             }
+            return;
         }
 
         if !worker.is_computing() {
@@ -883,14 +907,17 @@ impl Processor {
 
     fn handle_worker_lifecycle_command(
         &mut self,
-        _worker: &WorkerContext,
+        worker: &mut WorkerContext,
         command: WorkerLifecycleCommand,
     ) {
         match command {
             WorkerLifecycleCommand::ShouldRestart => {
             },
-            WorkerLifecycleCommand::ShouldForceRegister => todo!(),
-            WorkerLifecycleCommand::ShouldUpdateEndpoint(_) => todo!(),
+            WorkerLifecycleCommand::ShouldForceRegister => {
+            },
+            WorkerLifecycleCommand::ShouldUpdateEndpoint(endpoints) => {
+                self.add_pruntime_request(worker, PRuntimeRequest::SignEndpoints(endpoints));
+            },
         }
     }
 }
@@ -980,6 +1007,38 @@ async fn do_start_computing(
     }
 }
 
+async fn do_update_endpoints(
+    bus: Arc<Bus>,
+    txm: Arc<TxManager>,
+    worker_id: String,
+    pool_id: u64,
+    response: GetEndpointResponse,
+) {
+    let result = txm.update_worker_endpoint(pool_id, response).await;
+    match result {
+        Ok(_) => {
+            let _ = bus.send_worker_event(
+                worker_id,
+                WorkerEvent::UpdateMessage((
+                    chrono::Utc::now(),
+                    "Updated endpoints.".to_string(),
+                ))
+            );
+        },
+        Err(err) => {
+            let err_msg = format!("ShouldUpdateEndpoint failed. {}", err);
+            error!("[{}] {}", worker_id, err_msg);
+            let _ = bus.send_worker_event(
+                worker_id,
+                WorkerEvent::UpdateMessage((
+                    chrono::Utc::now(),
+                    err_msg,
+                ))
+            );
+        },
+    }
+}
+
 async fn dispatch_pruntime_request(
     bus: Arc<Bus>,
     worker_id: String,
@@ -1023,6 +1082,13 @@ async fn dispatch_pruntime_request(
                 .await
                 .map(|response| {
                     PRuntimeResponse::GetEgressMessages(response)
+                })
+        },
+        PRuntimeRequest::SignEndpoints(endpoints) => {
+            client.sign_endpoint_info(SignEndpointsRequest::new(endpoints))
+                .await
+                .map(|response| {
+                    PRuntimeResponse::SignEndpoints(response)
                 })
         },
         PRuntimeRequest::TakeCheckpoint => todo!(),
