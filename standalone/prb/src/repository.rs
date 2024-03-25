@@ -10,12 +10,93 @@ use tokio::time::sleep;
 
 use crate::bus::Bus;
 use crate::datasource::DataSourceManager;
-use crate::processor::{BroadcastInfo, PRuntimeRequest, ProcessorEvent, SyncInfo, SyncRequest, WorkerEvent};
+use crate::headers_db::*;
+use crate::processor::{BroadcastInfo, PRuntimeRequest, ProcessorEvent, WorkerEvent};
 use crate::pool_operator::DB;
 
-use phactory_api::blocks::{find_scheduled_change, HeadersToSync};
+use phactory_api::prpc::{Blocks, ChainState, CombinedHeadersToSync, HeadersToSync, ParaHeadersToSync};
 use pherry::headers_cache::Client as CacheClient;
-use prpc::codec::scale::{Decode, Encode};
+
+#[derive(Clone, Debug, Default)]
+pub struct SyncRequest {
+    pub headers: Option<HeadersToSync>,
+    pub para_headers: Option<ParaHeadersToSync>,
+    pub combined_headers: Option<CombinedHeadersToSync>,
+    pub blocks: Option<Blocks>,
+    pub manifest: SyncRequestManifest,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct SyncRequestManifest {
+    pub headers: Option<(u32, u32)>,
+    pub para_headers: Option<(u32, u32)>,
+    pub blocks: Option<(u32, u32)>,
+}
+
+impl SyncRequest {
+    pub fn create_from_headers(
+        headers: HeadersToSync,
+        from: u32,
+        to: u32,
+    ) -> Self {
+        Self {
+            headers: Some(headers),
+            manifest: SyncRequestManifest {
+                headers: Some((from, to)),
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    pub fn create_from_para_headers(
+        para_headers: ParaHeadersToSync,
+        from: u32,
+        to: u32,
+    ) -> Self {
+        Self {
+            para_headers: Some(para_headers),
+            manifest: SyncRequestManifest {
+                para_headers: Some((from, to)),
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    pub fn create_from_combine_headers(
+        headers: CombinedHeadersToSync,
+        relay_from: u32,
+        relay_to: u32,
+        para_from: u32,
+        para_to: u32,
+    ) -> Self {
+        Self {
+            combined_headers: Some(headers),
+            manifest: SyncRequestManifest {
+                headers: Some((relay_from, relay_to)),
+                para_headers: Some((para_from, para_to)),
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    pub fn create_from_blocks(
+        blocks: Blocks,
+        from: u32,
+        to: u32
+    ) -> Self {
+        Self {
+            blocks: Some(blocks),
+            manifest: SyncRequestManifest {
+                blocks: Some((from, to)),
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+}
 
 pub fn encode_u32(val: u32) -> [u8; 4] {
     use byteorder::{ByteOrder, BigEndian};
@@ -139,7 +220,7 @@ impl Repository {
                         let result = pherry::chain_client::search_suitable_genesis_for_worker(&para_api, &pubkey.0, None).await;
                         match result {
                             Ok((block_number, state)) => {
-                                let request = phactory_api::prpc::ChainState::new(block_number, state);
+                                let request = ChainState::new(block_number, state);
                                 let _ = bus.send_pruntime_request(worker_id, PRuntimeRequest::LoadChainState(request));
                             },
                             Err(err) => {
@@ -190,28 +271,6 @@ impl Repository {
     }
 }
 
-fn get_current_point(db: Arc<DB>, num: u32) -> Option<HeadersToSync> {
-    let mut iter = db.iterator(rocksdb::IteratorMode::From(&encode_u32(num), rocksdb::Direction::Forward));
-    if let Some(Ok((_, value))) = iter.next() {
-        match HeadersToSync::decode(&mut &value[..]) {
-            Ok(headers) => return Some(headers),
-            Err(_) => {},
-        };
-    }
-    None
-}
-
-fn get_previous_authority_set_change_number(db: Arc<DB>, num:u32) -> Option<u32> {
-    let mut iter = db.iterator(rocksdb::IteratorMode::From(&encode_u32(num), rocksdb::Direction::Reverse));
-    if let Some(Ok((_, value))) = iter.next() {
-        match HeadersToSync::decode(&mut &value[..]) {
-            Ok(headers) => return Some(headers.last().unwrap().header.number),
-            Err(_) => {},
-        };
-    }
-    None
-}
-
 async fn get_sync_request(
     dsm: Arc<DataSourceManager>,
     headers_db: Arc<DB>,
@@ -222,7 +281,7 @@ async fn get_sync_request(
         return dsm.clone()
             .fetch_storage_changes(info.blocknum, to)
             .await
-            .map(|blocks| SyncRequest { blocks: Some(blocks), ..Default::default() });
+            .map(|blocks| SyncRequest::create_from_blocks(blocks, info.blocknum, to));
     }
 
     if let Some((para_headernum, proof)) = get_para_headernum(dsm.clone(), info.headernum - 1).await? {
@@ -232,10 +291,7 @@ async fn get_sync_request(
                 .await
                 .map(|mut headers| {
                     headers.proof = proof;
-                    SyncRequest {
-                        para_headers: Some(headers),
-                        ..Default::default()
-                    }
+                    SyncRequest::create_from_para_headers(headers, info.para_headernum, para_headernum)
                 });
         }
     } else {
@@ -247,10 +303,9 @@ async fn get_sync_request(
             .into_iter()
             .filter(|header| header.header.number >= info.headernum)
             .collect::<Vec<_>>();
-        return Ok(SyncRequest {
-            headers: Some(phactory_api::prpc::HeadersToSync::new(headers, None)),
-            ..Default::default()
-        });
+        let to = headers.last().unwrap().header.number;
+        let headers = phactory_api::prpc::HeadersToSync::new(headers, None);
+        return Ok(SyncRequest::create_from_headers(headers, info.headernum, to));
     }
 
     info!("nothing can get");
@@ -334,10 +389,6 @@ pub async fn keep_syncing_headers(
 
             let relay_from = current_relay_number + 1;
             let mut broadcast_info = BroadcastInfo {
-                sync_info: SyncInfo {
-                    headernum: Some(relay_from),
-                    ..Default::default()
-                },
                 ..Default::default()
             };
 
@@ -363,35 +414,25 @@ pub async fn keep_syncing_headers(
                     broadcast_info.para_chaintip = para_to;
 
                     let para_from = current_para_number + 1;
-                    broadcast_info.sync_info.para_headernum = Some(para_from);
-                    broadcast_info.sync_info.blocknum = Some(para_from);
                     let sync_request = if para_from > para_to {
                         info!("Broadcasting header: relaychain from {} to {}.", relay_from, relay_to);
-                        SyncRequest {
-                            headers: Some(phactory_api::prpc::HeadersToSync::new(
-                                headers.clone(),
-                                None
-                            )),
-                            ..Default::default()
-                        }
+                        SyncRequest::create_from_headers(
+                            HeadersToSync::new(headers.clone(), None),
+                            relay_from,
+                            relay_to
+                        )
                     } else {
                         match pherry::get_parachain_headers(&para_api, None, current_para_number + 1, para_to).await {
                             Ok(para_headers) => {
                                 info!("Broadcasting header: relaychain from {} to {}, parachain from {} to {}.",
-                                    relay_from,
-                                    relay_to,
-                                    para_from,
-                                    para_to,
+                                    relay_from, relay_to, para_from, para_to);
+                                let headers = CombinedHeadersToSync::new(
+                                    headers.clone(),
+                                    None,
+                                    para_headers,
+                                    proof
                                 );
-                                SyncRequest {
-                                    combined_headers: Some(phactory_api::prpc::CombinedHeadersToSync::new(
-                                        headers.clone(),
-                                        None,
-                                        para_headers,
-                                        proof
-                                    )),
-                                    ..Default::default()
-                                }
+                                SyncRequest::create_from_combine_headers(headers, para_from, para_to, para_from, para_to)
                             },
                             Err(e) => {
                                 error!("Failed to get para headers. {e}");
@@ -399,7 +440,7 @@ pub async fn keep_syncing_headers(
                             },
                         }
                     };
-                    let _ = bus.send_processor_event(ProcessorEvent::BroadcastSyncRequest((sync_request, broadcast_info)));
+                    let _ = bus.send_processor_event(ProcessorEvent::BroadcastSync((sync_request, broadcast_info)));
                     current_relay_number = relay_to;
                     current_para_number = para_to;
                 },
@@ -420,64 +461,4 @@ pub async fn keep_syncing_headers(
             info!("relaychain_chaintip: {}, parachain_chaintip: {}", current_relay_number, current_para_number);
         }
     }
-}
-
-fn put_headers_to_db(
-    headers_db: Arc<DB>,
-    new_headers: HeadersToSync,
-    known_chaintip: u32,
-) -> Result<u32> {
-    let first_new_number = new_headers.first().unwrap().header.number;
-    let mut headers = match get_current_point(headers_db.clone(), first_new_number) {
-        Some(headers) => {
-            let _ = headers_db.delete(encode_u32(std::u32::MAX));
-            headers
-        },
-        None => vec![], 
-    };
-    for header in &mut headers {
-        header.justification = None;
-    }
-    headers.extend(new_headers);
-    let headers = headers;
-
-    let mut last_num: Option<u32> = None;
-    for header in &headers {
-        if let Some(num) = last_num {
-            assert!(num + 1 == header.header.number, "prev {}, current {}, not match", num, header.header.number);
-        }
-        last_num = Some(header.header.number);
-    }
-
-    let from = headers.first().unwrap().header.number;
-    let to = headers.last().unwrap().header.number;
-    let with_authority_change = find_scheduled_change(&headers.last().unwrap().header).is_some();
-
-    let key = if with_authority_change {
-        encode_u32(to)
-    } else if to >= known_chaintip {
-        encode_u32(std::u32::MAX)
-    } else {
-        error!("Should not happen: prove_finality API returns a non-chaintip block without authority set change");
-        encode_u32(to)
-    };
-
-    let encoded_val = headers.encode();
-    let headers_size = encoded_val.len();
-
-    if let Err(err) = headers_db.put(key, encoded_val) {
-        anyhow::bail!("Failed to write DB {err}");
-    }
-
-    let justification = headers.last().unwrap().justification.as_ref().unwrap();
-    debug!(
-        "put into headers_db: from {} to {}, count {}, justification size: {}, headers size: {}",
-        from,
-        to,
-        to - from + 1,
-        justification.len(),
-        headers_size,
-    );
-
-    Ok(to)
 }
