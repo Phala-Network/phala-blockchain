@@ -15,22 +15,12 @@ use tokio::sync::mpsc;
 
 use crate::api::WorkerStatus;
 use crate::bus::Bus;
-use crate::repository::{RepositoryEvent, SyncRequest, SyncRequestManifest, WorkerSyncInfo};
+use crate::repository::{ChaintipInfo, RepositoryEvent, SyncRequest, SyncRequestManifest, WorkerSyncInfo};
 use crate::messages::MessagesEvent;
 use crate::pruntime::PRuntimeClient;
 use crate::tx::TxManager;
 use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState};
 use crate::worker_status::WorkerStatusUpdate;
-
-
-enum WorkerLifecycle {
-    Init
-}
-
-enum SyncStatus {
-    Idle,
-    Syncing,
-}
 
 pub struct WorkerContext {
     pub uuid: String,
@@ -49,9 +39,6 @@ pub struct WorkerContext {
     pub session_id: Option<AccountId32>,
     pub last_message: String,
     pub last_updated_at: DateTime<Utc>,
-
-    pub calling: bool,
-    pub accept_sync_request: bool,
 
     pub client: Arc<PRuntimeClient>,
     pub pending_requests: VecDeque<PRuntimeRequest>,
@@ -91,9 +78,6 @@ impl WorkerContext {
 
             last_message: String::new(),
             last_updated_at: chrono::Utc::now(),
-
-            calling: false,
-            accept_sync_request: false,
 
             client: Arc::new(crate::pruntime::create_client(worker.endpoint.clone())),
             pending_requests: VecDeque::new(),
@@ -177,20 +161,19 @@ impl WorkerContext {
 
     pub fn is_reached_chaintip(
         &self,
-        relaychain_chaintip: u32,
-        parachain_chaintip: u32,
+        chaintip: &ChaintipInfo,
     ) -> bool {
-        self.headernum == relaychain_chaintip + 1
-            && self.para_headernum == parachain_chaintip + 1
-            && self.blocknum == self.para_headernum
+        self.blocknum == self.para_headernum
+            && self.headernum == chaintip.relaychain + 1
+            && self.para_headernum == chaintip.parachain + 1
     }
 
     pub fn is_reached_para_chaintip(
         &self,
-        parachain_chaintip: u32,
+        chaintip: &ChaintipInfo,
     ) -> bool {
-        self.para_headernum == parachain_chaintip + 1
-            && self.blocknum == self.para_headernum
+        self.blocknum == self.para_headernum
+            &&self.para_headernum == chaintip.parachain + 1
     }
 
     pub fn is_sync_only(&self) -> bool{
@@ -203,13 +186,6 @@ pub struct SyncInfo {
     pub headernum: Option<u32>,
     pub para_headernum: Option<u32>,
     pub blocknum: Option<u32>,
-}
-
-#[derive(Default)]
-pub struct BroadcastInfo {
-    //pub sync_info: SyncInfo,
-    pub relay_chaintip: u32,
-    pub para_chaintip: u32,
 }
 
 #[derive(Debug)]
@@ -254,7 +230,7 @@ pub enum ProcessorEvent {
     UpdatePoolOperator((u64, Option<AccountId32>)),
     WorkerEvent((String, WorkerEvent)),
     Heartbeat,
-    BroadcastSync((SyncRequest, BroadcastInfo)),
+    BroadcastSync((SyncRequest, ChaintipInfo)),
 }
 
 pub type ProcessorRx = mpsc::UnboundedReceiver<ProcessorEvent>;
@@ -273,8 +249,7 @@ pub struct Processor {
     pub init_runtime_request_ias: InitRuntimeRequest,
     pub init_runtime_request_dcap: InitRuntimeRequest,
 
-    pub relaychain_chaintip: u32,
-    pub parachain_chaintip: u32,
+    pub chaintip: ChaintipInfo,
 }
 
 impl Processor {
@@ -301,9 +276,10 @@ impl Processor {
             init_runtime_request_ias: ias_init_runtime_request,
             init_runtime_request_dcap: dcap_init_runtime_request,
 
-            relaychain_chaintip: crate::repository::relaychain_api(dsm.clone(), false).await.latest_finalized_block_number().await.unwrap(),
-            parachain_chaintip: crate::repository::parachain_api(dsm.clone(), false).await.latest_finalized_block_number().await.unwrap(),
-
+            chaintip: ChaintipInfo {
+                relaychain: crate::repository::relaychain_api(dsm.clone(), false).await.latest_finalized_block_number().await.unwrap(),
+                parachain: crate::repository::parachain_api(dsm.clone(), false).await.latest_finalized_block_number().await.unwrap(),
+            },
         }
     }
 
@@ -392,7 +368,7 @@ impl Processor {
                     for worker in workers.values_mut() {
                         if worker.is_sync_only() {
                             trace!("[{}] worker or pool is sync only, skipping get egress messages.", worker.uuid);
-                        } else if !worker.is_reached_para_chaintip(self.parachain_chaintip) {
+                        } else if !worker.is_reached_para_chaintip(&self.chaintip) {
                             trace!("[{}] worker parachain is not at chaintip, skipping get egress messages.", worker.uuid);
                         } else {
                             self.add_pruntime_request(worker, PRuntimeRequest::GetEgressMessages);
@@ -401,13 +377,12 @@ impl Processor {
                 },
                 ProcessorEvent::BroadcastSync((request, info)) => {
                     for worker in workers.values_mut() {
-                        if worker.accept_sync_request && worker.is_match(&request.manifest) {
+                        if worker.is_match(&request.manifest) {
                             info!("[{}] Accepted BroadcastSyncRequest", worker.uuid);
                             self.add_pruntime_request(worker, PRuntimeRequest::Sync(request.clone()));
                         }
                     }
-                    self.relaychain_chaintip = info.relay_chaintip;
-                    self.parachain_chaintip = info.para_chaintip;
+                    self.chaintip = info;
                 },
             }
         }
@@ -431,8 +406,6 @@ impl Processor {
                 self.add_pruntime_request(worker, request);
             },
             WorkerEvent::PRuntimeResponse(result) => {
-                worker.calling = false;
-
                 match result {
                     Ok(response) => self.handle_pruntime_response(worker, response),
                     Err(err) => {
@@ -536,22 +509,11 @@ impl Processor {
     ) {
         //trace!("[{}] adding a new pruntime request: {:?}", worker.uuid, request);
         if let PRuntimeRequest::Sync(sync_request) = &request {
-            assert!(
-                worker.accept_sync_request,
-                "[{}] worker does not accept sync request but received one",
-                worker.uuid,
-            );
-            if sync_request.headers.is_none()
-                && sync_request.para_headers.is_none()
-                && sync_request.combined_headers.is_none()
-                && sync_request.blocks.is_none()
-                && (worker.blocknum < worker.para_headernum && worker.headernum <= self.relaychain_chaintip || worker.para_headernum <= self.parachain_chaintip)
-            {
+            if worker.is_reached_chaintip(&self.chaintip) && sync_request.is_empty() {
                 warn!("[{}] Worker needs to be sync, but received an empty request. Try again.", worker.uuid);
                 self.request_next_sync(worker);
                 return;
             }
-            worker.accept_sync_request = false;
         }
 
         if worker.pending_requests.is_empty() {
@@ -566,7 +528,6 @@ impl Processor {
         worker: &mut WorkerContext,
         request: PRuntimeRequest,
     ) {
-        worker.calling = true;
         tokio::spawn(
             dispatch_pruntime_request(
                 self.bus.clone(),
@@ -600,8 +561,6 @@ impl Processor {
                 self.add_pruntime_request(worker, PRuntimeRequest::PrepareLifecycle);
             },
             PRuntimeResponse::Sync(info) => {
-                //info!("[{}] PRuntimeResponse, sync", worker.uuid);
-                worker.accept_sync_request = true;
                 self.handle_pruntime_sync_response(worker, &info);
                 self.send_worker_sync_info(worker);
             },
@@ -653,7 +612,7 @@ impl Processor {
             trace!("[{}] blocknum updated, next: {}", worker.uuid, worker.blocknum);
         }
 
-        if !worker.is_reached_chaintip(self.relaychain_chaintip, self.parachain_chaintip) {
+        if !worker.is_reached_chaintip(&self.chaintip) {
             self.request_next_sync(worker);
         } else {
             self.request_computation_determination(worker);
@@ -684,7 +643,6 @@ impl Processor {
         }
 
         trace!("[{}] requesting next sync", worker.uuid);
-        worker.accept_sync_request = true;
         self.request_next_sync(worker);
         self.update_worker_lifecycle_state(
             worker,
@@ -857,6 +815,64 @@ impl Processor {
             },
         }
     }
+}
+
+async fn dispatch_pruntime_request(
+    bus: Arc<Bus>,
+    worker_id: String,
+    client: Arc<PRuntimeClient>,
+    request: PRuntimeRequest,
+) {
+    let result = match request {
+        PRuntimeRequest::PrepareLifecycle => {
+            client.get_info(())
+                .await
+                .map(|response| PRuntimeResponse::PrepareLifecycle(response))
+        },
+        PRuntimeRequest::InitRuntime(request) => {
+            client.init_runtime(request)
+                .await
+                .map(|response| PRuntimeResponse::InitRuntime(response))
+        },
+        PRuntimeRequest::LoadChainState(request) => {
+            client.load_chain_state(request)
+                .await
+                .map(|_| PRuntimeResponse::LoadChainState)
+        },
+        PRuntimeRequest::Sync(request) => {
+            do_sync_request(client, request)
+                .await
+                .map(|response| PRuntimeResponse::Sync(response))
+        },
+        PRuntimeRequest::RegularGetInfo => {
+            client.get_info(())
+                .await
+                .map(|response| PRuntimeResponse::RegularGetInfo(response))
+        },
+        PRuntimeRequest::PrepareRegister((force_refresh_ra, operator)) => {
+            let request = GetRuntimeInfoRequest::new(force_refresh_ra, operator);
+            client.get_runtime_info(request)
+                .await
+                .map(|response| PRuntimeResponse::PrepareRegister(response))
+        },
+        PRuntimeRequest::GetEgressMessages => {
+            client.get_egress_messages(())
+                .await
+                .map(|response| {
+                    PRuntimeResponse::GetEgressMessages(response)
+                })
+        },
+        PRuntimeRequest::SignEndpoints(endpoints) => {
+            client.sign_endpoint_info(SignEndpointsRequest::new(endpoints))
+                .await
+                .map(|response| {
+                    PRuntimeResponse::SignEndpoints(response)
+                })
+        },
+        PRuntimeRequest::TakeCheckpoint => todo!(),
+    };
+
+    let _ = bus.send_processor_event(ProcessorEvent::WorkerEvent((worker_id, WorkerEvent::PRuntimeResponse(result))));
 }
 
 async fn do_sync_request(
@@ -1039,62 +1055,4 @@ async fn do_update_endpoints(
             );
         },
     }
-}
-
-async fn dispatch_pruntime_request(
-    bus: Arc<Bus>,
-    worker_id: String,
-    client: Arc<PRuntimeClient>,
-    request: PRuntimeRequest,
-) {
-    let result = match request {
-        PRuntimeRequest::PrepareLifecycle => {
-            client.get_info(())
-                .await
-                .map(|response| PRuntimeResponse::PrepareLifecycle(response))
-        },
-        PRuntimeRequest::InitRuntime(request) => {
-            client.init_runtime(request)
-                .await
-                .map(|response| PRuntimeResponse::InitRuntime(response))
-        },
-        PRuntimeRequest::LoadChainState(request) => {
-            client.load_chain_state(request)
-                .await
-                .map(|_| PRuntimeResponse::LoadChainState)
-        },
-        PRuntimeRequest::Sync(request) => {
-            do_sync_request(client, request)
-                .await
-                .map(|response| PRuntimeResponse::Sync(response))
-        },
-        PRuntimeRequest::RegularGetInfo => {
-            client.get_info(())
-                .await
-                .map(|response| PRuntimeResponse::RegularGetInfo(response))
-        },
-        PRuntimeRequest::PrepareRegister((force_refresh_ra, operator)) => {
-            let request = GetRuntimeInfoRequest::new(force_refresh_ra, operator);
-            client.get_runtime_info(request)
-                .await
-                .map(|response| PRuntimeResponse::PrepareRegister(response))
-        },
-        PRuntimeRequest::GetEgressMessages => {
-            client.get_egress_messages(())
-                .await
-                .map(|response| {
-                    PRuntimeResponse::GetEgressMessages(response)
-                })
-        },
-        PRuntimeRequest::SignEndpoints(endpoints) => {
-            client.sign_endpoint_info(SignEndpointsRequest::new(endpoints))
-                .await
-                .map(|response| {
-                    PRuntimeResponse::SignEndpoints(response)
-                })
-        },
-        PRuntimeRequest::TakeCheckpoint => todo!(),
-    };
-
-    let _ = bus.send_processor_event(ProcessorEvent::WorkerEvent((worker_id, WorkerEvent::PRuntimeResponse(result))));
 }

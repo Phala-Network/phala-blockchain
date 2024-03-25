@@ -11,11 +11,16 @@ use tokio::time::sleep;
 use crate::bus::Bus;
 use crate::datasource::DataSourceManager;
 use crate::headers_db::*;
-use crate::processor::{BroadcastInfo, PRuntimeRequest, ProcessorEvent, WorkerEvent};
+use crate::processor::{PRuntimeRequest, ProcessorEvent, WorkerEvent};
 use crate::pool_operator::DB;
 
 use phactory_api::prpc::{Blocks, ChainState, CombinedHeadersToSync, HeadersToSync, ParaHeadersToSync};
 use pherry::headers_cache::Client as CacheClient;
+
+pub struct ChaintipInfo {
+    pub relaychain: u32,
+    pub parachain: u32,
+}
 
 #[derive(Clone, Debug, Default)]
 pub struct SyncRequest {
@@ -95,6 +100,13 @@ impl SyncRequest {
             },
             ..Default::default()
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.headers.is_none()
+            && self.para_headers.is_none()
+            && self.combined_headers.is_none()
+            && self.blocks.is_none()
     }
 }
 
@@ -388,12 +400,6 @@ pub async fn keep_syncing_headers(
             }
 
             let relay_from = current_relay_number + 1;
-            let mut broadcast_info = BroadcastInfo {
-                ..Default::default()
-            };
-
-            //let header = block.header();
-
             let headers = match pherry::get_headers(&relay_api, relay_from).await {
                 Ok(headers) => headers,
                 Err(e) => {
@@ -403,7 +409,6 @@ pub async fn keep_syncing_headers(
             };
             let relay_to = headers.last().unwrap().header.number;
             let relay_to_hash = (&headers.last().unwrap().header).hash();
-            broadcast_info.relay_chaintip = relay_to;
 
             match pherry::get_finalized_header_with_paraid(&relay_api, para_id, relay_to_hash.clone()).await {
                 Ok(Some((para_header, proof))) => {
@@ -411,9 +416,8 @@ pub async fn keep_syncing_headers(
                     if para_to < current_para_number {
                         error!("Para number {} from relaychain is smaller than the newest in prb {}", para_to, current_para_number);
                     }
-                    broadcast_info.para_chaintip = para_to;
-
                     let para_from = current_para_number + 1;
+
                     let sync_request = if para_from > para_to {
                         info!("Broadcasting header: relaychain from {} to {}.", relay_from, relay_to);
                         SyncRequest::create_from_headers(
@@ -440,9 +444,15 @@ pub async fn keep_syncing_headers(
                             },
                         }
                     };
-                    let _ = bus.send_processor_event(ProcessorEvent::BroadcastSync((sync_request, broadcast_info)));
                     current_relay_number = relay_to;
                     current_para_number = para_to;
+                    let _ = bus.send_processor_event(ProcessorEvent::BroadcastSync((
+                        sync_request,
+                        ChaintipInfo {
+                            relaychain: current_relay_number,
+                            parachain: current_para_number,
+                        },
+                    )));
                 },
                 Ok(None) => {
                     error!("Unknown para header for relay #{relay_to} {relay_to_hash}");
