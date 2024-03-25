@@ -2,6 +2,7 @@ use crate::api::ApiError::{InconsistentData, LifecycleManagerNotInitialized, Wor
 use crate::cli::{ConfigCommands, WorkerManagerCliArgs};
 use crate::configurator::api_handler;
 use crate::inv_db::Worker;
+use crate::processor::WorkerEvent;
 use crate::tx::Transaction;
 use crate::wm::WorkerManagerMessage::ShouldResetLifecycleManager;
 use crate::wm::{send_to_main_channel, WrappedWorkerManagerContext};
@@ -263,27 +264,14 @@ async fn handle_update_endpoints(
     State(ctx): State<WrappedWorkerManagerContext>,
     Json(payload): Json<UpdateEndpointsRequest>,
 ) -> ApiResult<(StatusCode, Json<OkResponse>)> {
-    for (idx, c) in get_workers_by_id_vec(&ctx, payload.requests.iter().map(|i| i.id.as_str()))
-        .await?
-        .iter()
-        .enumerate()
-    {
-        let c = c.read().await;
-        match &c.state {
-            WorkerLifecycleState::Working | WorkerLifecycleState::GatekeeperWorking => {
-                let tx = c.tx.clone();
-                drop(c);
-                tx.send(WorkerLifecycleCommand::ShouldUpdateEndpoint(
-                    payload
-                        .requests
-                        .get(idx)
-                        .map(|i| i.endpoints.clone())
-                        .ok_or(InconsistentData)?,
-                ))
-                .map_err(|e| anyhow!(e.to_string()))?;
-            }
-            _ => drop(c),
-        }
+        let bus = ctx.bus.clone();
+    for request in payload.requests {
+        let _ = bus.send_worker_event(
+            request.id.clone(),
+            WorkerEvent::WorkerLifecycleCommand(
+                WorkerLifecycleCommand::ShouldUpdateEndpoint(request.endpoints)
+            )
+        );
     }
     Ok((StatusCode::OK, Json(OkResponse::default())))
 }
