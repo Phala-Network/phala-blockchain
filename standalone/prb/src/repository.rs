@@ -1,7 +1,7 @@
 use anyhow::Result;
 use core::time::Duration;
 use futures::StreamExt;
-use log::{debug, error, info, warn};
+use log::{debug, error, info, trace, warn};
 use phaxt::ChainApi;
 use sp_core::sr25519::Public as Sr25519Public;
 use std::sync::Arc;
@@ -140,13 +140,13 @@ impl Repository {
                         match result {
                             Ok((block_number, state)) => {
                                 let request = phactory_api::prpc::ChainState::new(block_number, state);
-                                bus.send_pruntime_request(worker_id, PRuntimeRequest::LoadChainState(request));
+                                let _ = bus.send_pruntime_request(worker_id, PRuntimeRequest::LoadChainState(request));
                             },
                             Err(err) => {
-                                bus.send_worker_event(
+                                let _ = bus.send_worker_event(
                                     worker_id,
                                     WorkerEvent::MarkError((
-                                        chrono::Utc::now().timestamp_millis(),
+                                        chrono::Utc::now(),
                                         err.to_string(),
                                     ))
                                 );
@@ -176,10 +176,11 @@ impl Repository {
                             }
                         };
                         if request.headers.is_some() || request.para_headers.is_some() || request.combined_headers.is_some() || request.blocks.is_some() {
+                            trace!("[{}] sending sync request", info.worker_id);
                         } else {
-                            info!("empty response: {:?}", info);
+                            trace!("[{}] sending empty sync request. {:?}", info.worker_id, info);
                         }
-                        bus.send_pruntime_request(info.worker_id, PRuntimeRequest::Sync(request));
+                        let _ = bus.send_pruntime_request(info.worker_id, PRuntimeRequest::Sync(request));
                     });
                 },
             }
@@ -398,7 +399,7 @@ pub async fn keep_syncing_headers(
                             },
                         }
                     };
-                    bus.send_processor_event(ProcessorEvent::BroadcastSyncRequest((sync_request, broadcast_info)));
+                    let _ = bus.send_processor_event(ProcessorEvent::BroadcastSyncRequest((sync_request, broadcast_info)));
                     current_relay_number = relay_to;
                     current_para_number = para_to;
                 },
@@ -419,8 +420,6 @@ pub async fn keep_syncing_headers(
             info!("relaychain_chaintip: {}, parachain_chaintip: {}", current_relay_number, current_para_number);
         }
     }
-
-    Ok(())
 }
 
 fn put_headers_to_db(
