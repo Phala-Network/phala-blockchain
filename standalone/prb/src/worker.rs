@@ -1,40 +1,34 @@
-use crate::datasource::WrappedDataSourceManager;
 use crate::inv_db::{get_pool_by_pid, Worker};
-use crate::lifecycle::WrappedWorkerLifecycleManager;
 use crate::pruntime::{PRuntimeClient, PRuntimeClientWithSemaphore};
 use crate::pool_operator::PoolOperatorAccess;
 use crate::utils::fetch_storage_bytes;
 use crate::wm::{WorkerManagerMessage, WrappedWorkerManagerContext};
 use crate::worker::WorkerLifecycleCommand::*;
-use crate::{use_parachain_api, use_relaychain_hc, with_retry};
+use crate::use_parachain_api;
 use anyhow::{anyhow, Result};
 use chrono::prelude::*;
 use futures::future::join;
 use log::{debug, error, info, warn};
-use phactory_api::blocks::{AuthoritySetChange, HeaderToSync};
+
 use phactory_api::prpc::{
-    GetRuntimeInfoRequest, HeadersToSync, PhactoryInfo, SignEndpointsRequest,
+    GetRuntimeInfoRequest, PhactoryInfo, SignEndpointsRequest,
 };
 use phala_pallets::pallet_computation::{SessionInfo, WorkerState};
 use phala_pallets::registry::WorkerInfoV2;
 use phala_types::AttestationProvider;
 use phaxt::subxt::ext::sp_runtime;
 use pherry::chain_client::{mq_next_sequence, search_suitable_genesis_for_worker};
-use pherry::types::Block;
-use pherry::{attestation_to_report, BlockSyncState};
+
+use pherry::attestation_to_report;
 use serde::{Deserialize, Serialize};
 use sp_core::sr25519::Public as Sr25519Public;
 use sp_core::{ByteArray, Pair};
-use std::cmp;
+
 use std::sync::Arc;
 use std::time::Duration;
 use subxt::dynamic::{storage, Value};
 use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex, RwLock};
 use tokio::time::sleep;
-
-static RELAYCHAIN_HEADER_BATCH_SIZE: u32 = 1000;
-static PARACHAIN_BLOCK_BATCH_SIZE: u8 = 2;
-static GRANDPA_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"FRNK";
 
 pub type WorkerLifecycleCommandTx = mpsc::UnboundedSender<WorkerLifecycleCommand>;
 pub type WorkerLifecycleCommandRx = mpsc::UnboundedReceiver<WorkerLifecycleCommand>;
@@ -316,7 +310,7 @@ impl WorkerContext {
                     lifecycle_loop_state_handle_error!(Self::handle_on_starting, c);
                 }
                 WorkerLifecycleState::Synchronizing => {
-                    lifecycle_loop_state_handle_error!(Self::handle_on_synchronizing, c);
+                    //lifecycle_loop_state_handle_error!(Self::handle_on_synchronizing, c);
                 }
                 WorkerLifecycleState::Preparing => {
                     lifecycle_loop_state_handle_error!(Self::handle_on_preparing, c);
@@ -426,11 +420,6 @@ impl WorkerContext {
         }
 
         Self::set_state(c.clone(), WorkerLifecycleState::Synchronizing).await;
-        Ok(())
-    }
-
-    async fn handle_on_synchronizing(c: WrappedWorkerContext) -> Result<()> {
-        tokio::spawn(Self::sync_loop(c));
         Ok(())
     }
 
@@ -819,412 +808,6 @@ impl WorkerContext {
             }
         }
         let _ = futures::future::try_join_all(futures).await?;
-        Ok(())
-    }
-}
-
-impl WorkerContext {
-    async fn sync_loop(c: WrappedWorkerContext) {
-        set_worker_message!(c, "Now start synchronizing!");
-        let (lm, worker, pr) = extract_essential_values!(c);
-        let dsm = lm.dsm.clone();
-        // let pid = worker.pid.expect("PID not found!");
-
-        let mut sync_state = BlockSyncState {
-            blocks: Vec::new(),
-            authory_set_state: None,
-        };
-
-        loop {
-            return_if_error_or_restarting!(c);
-
-            match Self::sync_loop_round(
-                c.clone(),
-                lm.clone(),
-                worker.clone(),
-                pr.clone(),
-                dsm.clone(),
-                sync_state,
-            )
-            .await
-            {
-                Ok((dont_wait, s)) => {
-                    sync_state = s;
-                    if !dont_wait {
-                        sync_state.authory_set_state = None;
-                        sync_state.blocks.clear();
-                        // match Self::mq_sync_loop_round(c.clone(), pid).await {
-                        //     Ok(_) => {}
-                        //     Err(e) => {
-                        //         let msg = format!("Error while synchronizing mq: {e}");
-                        //         warn!("{}", &msg);
-                        //         set_worker_message!(c, msg.as_str());
-                        //     }
-                        // }
-                        sleep(Duration::from_secs(3)).await;
-                    }
-                }
-                Err(e) => {
-                    Self::set_state(c.clone(), WorkerLifecycleState::HasError(e.to_string())).await;
-                    return;
-                }
-            }
-        }
-    }
-
-    async fn sync_loop_round(
-        c: WrappedWorkerContext,
-        _lm: WrappedWorkerLifecycleManager,
-        _worker: Worker,
-        pr: Arc<PRuntimeClient>,
-        dsm: WrappedDataSourceManager,
-        mut sync_state: BlockSyncState,
-    ) -> Result<(bool, BlockSyncState)> {
-        let dsm = dsm.clone();
-        let i = pr.get_info(()).await?;
-        let next_para_headernum = i.para_headernum;
-        if i.blocknum < next_para_headernum {
-            Self::batch_sync_storage_changes(
-                pr.clone(),
-                dsm.clone(),
-                i.blocknum,
-                next_para_headernum - 1,
-                PARACHAIN_BLOCK_BATCH_SIZE,
-            )
-            .await?;
-        }
-        if i.waiting_for_paraheaders {
-            let pp = pr.clone();
-            let dd = dsm.clone();
-            let i = i.clone();
-            debug!("maybe_sync_waiting_parablocks: {:?}", i.public_key);
-            Self::maybe_sync_waiting_parablocks(pp, dd, &i, PARACHAIN_BLOCK_BATCH_SIZE).await?;
-        }
-
-        return_if_error_or_restarting!(c, Ok((false, sync_state)));
-
-        let hc = use_relaychain_hc!(dsm);
-        if hc.is_some() {
-            sync_state.authory_set_state = None;
-            sync_state.blocks.clear();
-            debug!("ready to use headers-cache: {:?}", i.public_key);
-            let not_done_with_hc = Self::sync_with_cached_headers(pr.clone(), dsm.clone(), &i).await?;
-            if not_done_with_hc {
-                return Ok((true, sync_state));
-            }
-        }
-
-        debug!("ready to sync: {:?}", i.public_key);
-        let (not_done, sync_state) = Self::sync(pr.clone(), dsm.clone(), &i, sync_state).await?;
-
-        if !not_done {
-            let cc = c.clone();
-            let cc = cc.write().await;
-            let state = cc.state.clone();
-            drop(cc);
-            if let WorkerLifecycleState::Synchronizing = state {
-                Self::set_state(c, WorkerLifecycleState::Preparing).await;
-            }
-        }
-        Ok((not_done, sync_state))
-    }
-
-    async fn batch_sync_storage_changes(
-        pr: Arc<PRuntimeClient>,
-        dsm: WrappedDataSourceManager,
-        from: u32,
-        to: u32,
-        batch_size: u8,
-    ) -> Result<()> {
-        debug!("batch_sync_storage_changes {from} {to}");
-        let ranges = (from..=to)
-            .step_by(batch_size as _)
-            .map(|from| (from, to.min(from.saturating_add((batch_size - 1) as _))))
-            .collect::<Vec<(u32, u32)>>();
-        if ranges.is_empty() {
-            return Ok(());
-        }
-        for (from, to) in ranges {
-            let sc = dsm.clone().fetch_storage_changes(from, to).await?;
-            pr.with_lock(pr.dispatch_blocks(sc)).await??;
-        }
-        Ok(())
-    }
-    async fn sync_parachain_header(
-        pr: Arc<PRuntimeClient>,
-        dsm: WrappedDataSourceManager,
-        from: u32,
-        to: u32,
-        last_header_proof: Vec<Vec<u8>>,
-    ) -> Result<u32> {
-        if from >= to {
-            debug!("from: {from}, to: {to}");
-            return Ok(to - 1);
-        }
-
-        let mut headers = with_retry!(dsm.clone().get_para_headers(from, to), u64::MAX, 1500)?;
-        headers.proof = last_header_proof;
-        let res = pr.with_lock(pr.sync_para_header(headers)).await??;
-
-        Ok(res.synced_to)
-    }
-    async fn maybe_sync_waiting_parablocks(
-        pr: Arc<PRuntimeClient>,
-        dsm: WrappedDataSourceManager,
-        i: &PhactoryInfo,
-        batch_size: u8,
-    ) -> Result<()> {
-        //debug!("maybe_sync_waiting_parablocks");
-        let fin_header = dsm
-            .clone()
-            .get_para_header_by_relay_header(i.headernum - 1)
-            .await?;
-        if fin_header.is_none() {
-            return Ok(());
-        }
-        let (fin_header_num, proof) = fin_header.unwrap();
-        if fin_header_num + 1 > i.para_headernum {
-            let hdr_synced_to = Self::sync_parachain_header(
-                pr.clone(),
-                dsm.clone(),
-                i.para_headernum,
-                fin_header_num,
-                proof,
-            )
-            .await?;
-            if i.blocknum < hdr_synced_to {
-                Self::batch_sync_storage_changes(
-                    pr,
-                    dsm.clone(),
-                    i.blocknum,
-                    hdr_synced_to,
-                    batch_size,
-                )
-                .await?;
-            }
-        }
-        Ok(())
-    }
-    async fn sync_with_cached_headers(
-        pr: Arc<PRuntimeClient>,
-        dsm: WrappedDataSourceManager,
-        i: &PhactoryInfo,
-    ) -> Result<bool> {
-        let (relay_headers, last_para_num, last_para_proof) =
-            match dsm.clone().get_cached_headers(i.headernum).await? {
-                None => return Ok(false),
-                Some(relay_headers) => relay_headers,
-            };
-        pr.with_lock(pr.sync_header(relay_headers)).await??;
-        if last_para_num.is_none() || last_para_proof.is_none() {
-            return Ok(true);
-        }
-        let last_para_num = last_para_num.unwrap();
-        let last_para_proof = last_para_proof.unwrap();
-
-        let hdr_synced_to = Self::sync_parachain_header(
-            pr.clone(),
-            dsm.clone(),
-            i.para_headernum,
-            last_para_num,
-            last_para_proof,
-        )
-        .await?;
-        if i.blocknum < hdr_synced_to {
-            debug!("sync_with_cached_headers {}, {}", i.blocknum, hdr_synced_to);
-            Self::batch_sync_storage_changes(
-                pr,
-                dsm,
-                i.blocknum,
-                hdr_synced_to,
-                PARACHAIN_BLOCK_BATCH_SIZE,
-            )
-            .await?;
-        }
-        Ok(true)
-    }
-    async fn sync(
-        pr: Arc<PRuntimeClient>,
-        dsm: WrappedDataSourceManager,
-        i: &PhactoryInfo,
-        mut sync_state: BlockSyncState,
-    ) -> Result<(bool, BlockSyncState)> {
-        while let Some(b) = sync_state.blocks.first() {
-            if b.block.header.number >= i.headernum {
-                break;
-            }
-            sync_state.blocks.remove(0);
-        }
-        let next_relay_block = match sync_state.blocks.last() {
-            Some(b) => b.block.header.number + 1,
-            None => i.headernum,
-        };
-        let (batch_end, more_blocks) = {
-            let latest = dsm.clone().get_latest_relay_block_num().await?;
-            let fetch_limit = next_relay_block + RELAYCHAIN_HEADER_BATCH_SIZE - 1;
-            if fetch_limit < latest {
-                (fetch_limit, true)
-            } else {
-                (latest, false)
-            }
-        };
-        for b in next_relay_block..=batch_end {
-            let block = dsm
-                .clone()
-                .get_relay_block_without_storage_changes(b)
-                .await?;
-            sync_state.blocks.push(block);
-        }
-
-        Self::batch_sync_block(pr, dsm, &mut sync_state, PARACHAIN_BLOCK_BATCH_SIZE as _).await?;
-
-        if sync_state.blocks.is_empty() && !more_blocks {
-            Ok((false, sync_state))
-        } else {
-            Ok((true, sync_state))
-        }
-    }
-    async fn batch_sync_block(
-        pr: Arc<PRuntimeClient>,
-        dsm: WrappedDataSourceManager,
-        sync_state: &mut BlockSyncState,
-        batch_size: u32,
-    ) -> Result<()> {
-        let block_buf = &mut sync_state.blocks;
-        if block_buf.is_empty() {
-            return Ok(());
-        }
-        let i = pr.get_info(()).await?;
-        let mut next_headernum = i.headernum;
-        let mut next_blocknum = i.blocknum;
-        let mut next_para_headernum = i.para_headernum;
-        if next_blocknum < next_para_headernum {
-            Self::batch_sync_storage_changes(
-                pr.clone(),
-                dsm.clone(),
-                next_blocknum,
-                next_para_headernum,
-                batch_size as _,
-            )
-            .await?;
-            next_blocknum = next_para_headernum + 1;
-        }
-
-        while !block_buf.is_empty() {
-            let last_set = if let Some(set) = sync_state.authory_set_state {
-                set
-            } else {
-                let number = block_buf
-                    .first()
-                    .unwrap()
-                    .block
-                    .header
-                    .number
-                    .saturating_sub(1);
-                let hash = dsm.clone().get_relay_block_hash(number).await?;
-                let set_id = dsm.clone().get_current_set_id(hash).await?;
-                let set = (number, set_id);
-                sync_state.authory_set_state = Some(set);
-                set
-            };
-            let set_id_change_at = dsm
-                .clone()
-                .get_setid_changed_height(last_set, block_buf)
-                .await?;
-            let last_number_in_buf = block_buf.last().unwrap().block.header.number;
-            let first_block_number = block_buf.first().unwrap().block.header.number;
-            // TODO(pherry): fix the potential overflow here
-            let end_buffer = block_buf.len() as isize - 1;
-            let end_set_id_change = match set_id_change_at {
-                Some(change_at) => change_at as isize - first_block_number as isize,
-                None => block_buf.len() as isize,
-            };
-            let header_end = cmp::min(end_buffer, end_set_id_change);
-            let mut header_idx = header_end;
-            while header_idx >= 0 {
-                if block_buf[header_idx as usize]
-                    .justifications
-                    .as_ref()
-                    .and_then(|v| v.get(GRANDPA_ENGINE_ID))
-                    .is_some()
-                {
-                    break;
-                }
-                header_idx -= 1;
-            }
-            if header_idx < 0 {
-                debug!(
-                    "Cannot find justification within window (from: {}, to: {})",
-                    first_block_number,
-                    block_buf.last().unwrap().block.header.number,
-                );
-                break;
-            }
-            let block_batch: Vec<Block> = block_buf.drain(..=(header_idx as usize)).collect();
-            let header_batch: Vec<HeaderToSync> = block_batch
-                .iter()
-                .map(|b| HeaderToSync {
-                    header: b.block.header.clone(),
-                    justification: b
-                        .justifications
-                        .clone()
-                        .and_then(|v| v.into_justification(GRANDPA_ENGINE_ID)),
-                })
-                .collect();
-            let last_header = &header_batch.last().unwrap();
-            let last_header_hash = last_header.header.hash();
-            let last_header_number = last_header.header.number;
-
-            let mut authrotiy_change: Option<AuthoritySetChange> = None;
-            if let Some(change_at) = set_id_change_at {
-                if change_at == last_header_number {
-                    authrotiy_change = Some(
-                        dsm.clone()
-                            .get_authority_with_proof_at(last_header_hash)
-                            .await?,
-                    );
-                }
-            }
-            let mut header_batch = header_batch;
-            header_batch.retain(|h| h.header.number >= next_headernum);
-            let r = pr
-                .sync_header(HeadersToSync::new(header_batch, authrotiy_change))
-                .await?;
-            next_headernum = r.synced_to + 1;
-            let hdr_synced_to =
-                match dsm.clone().get_finalized_header(last_header_hash).await? {
-                    Some((fin_header, proof)) => {
-                        Self::sync_parachain_header(
-                            pr.clone(),
-                            dsm.clone(),
-                            next_para_headernum,
-                            fin_header.number,
-                            proof,
-                        )
-                        .await?
-                    }
-                    None => 0,
-                };
-            next_para_headernum = hdr_synced_to + 1;
-
-            if next_blocknum < hdr_synced_to {
-                Self::batch_sync_storage_changes(
-                    pr.clone(),
-                    dsm.clone(),
-                    next_blocknum,
-                    hdr_synced_to,
-                    batch_size as _,
-                )
-                .await?;
-                next_blocknum = hdr_synced_to + 1;
-            }
-
-            sync_state.authory_set_state = Some(match set_id_change_at {
-                Some(change_at) => (change_at + 1, last_set.1 + 1),
-                None => (last_number_in_buf, last_set.1),
-            });
-        }
-
         Ok(())
     }
 }
