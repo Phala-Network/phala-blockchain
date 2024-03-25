@@ -1,4 +1,4 @@
-use crate::api::ApiError::{InconsistentData, LifecycleManagerNotInitialized, WorkerNotFound};
+use crate::api::ApiError::{LifecycleManagerNotInitialized, WorkerNotFound};
 use crate::cli::{ConfigCommands, WorkerManagerCliArgs};
 use crate::configurator::api_handler;
 use crate::inv_db::Worker;
