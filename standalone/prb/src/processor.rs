@@ -1,27 +1,27 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use log::{debug, error, info, trace, warn};
+use phactory_api::prpc::{
+    self, ChainState, GetEgressMessagesResponse, GetEndpointResponse, GetRuntimeInfoRequest,
+    InitRuntimeRequest, InitRuntimeResponse, PhactoryInfo, SignEndpointsRequest,
+};
+use phala_pallets::pallet_computation::{SessionInfo, WorkerState};
 use phala_pallets::registry::WorkerInfoV2;
 use sp_core::crypto::{AccountId32, ByteArray};
 use sp_core::sr25519::Public as Sr25519Public;
 use std::collections::{HashMap, VecDeque};
-
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
 use crate::api::WorkerStatus;
 use crate::bus::Bus;
-use crate::repository::{RepositoryEvent, WorkerSyncInfo};
+use crate::repository::{RepositoryEvent, SyncRequest, SyncRequestManifest, WorkerSyncInfo};
 use crate::messages::MessagesEvent;
 use crate::pruntime::PRuntimeClient;
 use crate::tx::TxManager;
 use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState};
 use crate::worker_status::WorkerStatusUpdate;
 
-
-//use phactory_api::blocks::{AuthoritySetChange, HeaderToSyn};
-use phactory_api::prpc::{self, Blocks, ChainState, CombinedHeadersToSync, GetEgressMessagesResponse, GetEndpointResponse, GetRuntimeInfoRequest, HeadersToSync, InitRuntimeRequest, InitRuntimeResponse, ParaHeadersToSync, PhactoryInfo, SignEndpointsRequest};
-use phala_pallets::pallet_computation::{SessionInfo, WorkerState};
 
 enum WorkerLifecycle {
     Init
@@ -156,19 +156,19 @@ impl WorkerContext {
         }
     }
 
-    pub fn is_match(&self, info: &SyncInfo) -> bool {
-        if let Some(headernum) = info.headernum {
-            if headernum != self.headernum {
+    pub fn is_match(&self, manifest: &SyncRequestManifest) -> bool {
+        if let Some((from, _)) = manifest.headers {
+            if self.headernum != from {
                 return false;
             }
         }
-        if let Some(para_headernum) = info.para_headernum {
-            if para_headernum != self.para_headernum {
+        if let Some((from, _)) = manifest.para_headers {
+            if self.para_headernum != from {
                 return false;
             }
         }
-        if let Some(blocknum) = info.blocknum {
-            if blocknum != self.blocknum {
+        if let Some((from, _)) = manifest.blocks {
+            if self.blocknum != from {
                 return false;
             }
         }
@@ -198,14 +198,6 @@ impl WorkerContext {
     }
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct SyncRequest {
-    pub headers: Option<HeadersToSync>,
-    pub para_headers: Option<ParaHeadersToSync>,
-    pub combined_headers: Option<CombinedHeadersToSync>,
-    pub blocks: Option<Blocks>,
-}
-
 #[derive(Default)]
 pub struct SyncInfo {
     pub headernum: Option<u32>,
@@ -215,7 +207,7 @@ pub struct SyncInfo {
 
 #[derive(Default)]
 pub struct BroadcastInfo {
-    pub sync_info: SyncInfo,
+    //pub sync_info: SyncInfo,
     pub relay_chaintip: u32,
     pub para_chaintip: u32,
 }
@@ -256,13 +248,13 @@ pub enum WorkerEvent {
 }
 
 pub enum ProcessorEvent {
-    Heartbeat,
     AddWorker((crate::inv_db::Worker, Option<crate::inv_db::Pool>, Option<AccountId32>)),
     DeleteWorker(String),
     UpdatePool((u64, Option<crate::inv_db::Pool>)),
     UpdatePoolOperator((u64, Option<AccountId32>)),
     WorkerEvent((String, WorkerEvent)),
-    BroadcastSyncRequest((SyncRequest, BroadcastInfo)),
+    Heartbeat,
+    BroadcastSync((SyncRequest, BroadcastInfo)),
 }
 
 pub type ProcessorRx = mpsc::UnboundedReceiver<ProcessorEvent>;
@@ -340,27 +332,6 @@ impl Processor {
             }
 
             match event.unwrap() {
-                ProcessorEvent::Heartbeat => {
-                    for worker in workers.values_mut() {
-                        if worker.is_sync_only() {
-                            trace!("[{}] worker or pool is sync only, skipping get egress messages.", worker.uuid);
-                        } else if !worker.is_reached_para_chaintip(self.parachain_chaintip) {
-                            trace!("[{}] worker parachain is not at chaintip, skipping get egress messages.", worker.uuid);
-                        } else {
-                            self.add_pruntime_request(worker, PRuntimeRequest::GetEgressMessages);
-                        }
-                    }
-                },
-                ProcessorEvent::BroadcastSyncRequest((request, info)) => {
-                    for worker in workers.values_mut() {
-                        if worker.accept_sync_request && worker.is_match(&info.sync_info) {
-                            info!("[{}] Meet BroadcastSyncRequest", worker.uuid);
-                            self.add_pruntime_request(worker, PRuntimeRequest::Sync(request.clone()));
-                        }
-                    }
-                    self.relaychain_chaintip = info.relay_chaintip;
-                    self.parachain_chaintip = info.para_chaintip;
-                },
                 ProcessorEvent::AddWorker((added_worker, pool, operator)) => {
                     let worker_id = added_worker.id.clone();
                     let worker_context = WorkerContext::create(added_worker, pool, operator);
@@ -416,6 +387,27 @@ impl Processor {
                             warn!("[{}] Worker does not found.", worker_id);
                         },
                     }
+                },
+                ProcessorEvent::Heartbeat => {
+                    for worker in workers.values_mut() {
+                        if worker.is_sync_only() {
+                            trace!("[{}] worker or pool is sync only, skipping get egress messages.", worker.uuid);
+                        } else if !worker.is_reached_para_chaintip(self.parachain_chaintip) {
+                            trace!("[{}] worker parachain is not at chaintip, skipping get egress messages.", worker.uuid);
+                        } else {
+                            self.add_pruntime_request(worker, PRuntimeRequest::GetEgressMessages);
+                        }
+                    }
+                },
+                ProcessorEvent::BroadcastSync((request, info)) => {
+                    for worker in workers.values_mut() {
+                        if worker.accept_sync_request && worker.is_match(&request.manifest) {
+                            info!("[{}] Accepted BroadcastSyncRequest", worker.uuid);
+                            self.add_pruntime_request(worker, PRuntimeRequest::Sync(request.clone()));
+                        }
+                    }
+                    self.relaychain_chaintip = info.relay_chaintip;
+                    self.parachain_chaintip = info.para_chaintip;
                 },
             }
         }
