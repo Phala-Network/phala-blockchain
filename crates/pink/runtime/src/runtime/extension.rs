@@ -109,7 +109,7 @@ impl ChainExtension<PinkRuntime> for PinkExtension {
         let (ret, output) = if mode.is_query() {
             dispatch_ext_call!(env.func_id(), call_in_query, env)
         } else {
-            let call = CallInCommand {
+            let call = CallInTransaction {
                 as_in_query: call_in_query,
             };
             dispatch_ext_call!(env.func_id(), call, env)
@@ -333,14 +333,14 @@ impl PinkExtBackend for CallInQuery {
     }
 }
 
-struct CallInCommand {
+struct CallInTransaction {
     as_in_query: CallInQuery,
 }
 
 /// This implementation is used when calling the extension in a command.
 /// # NOTE FOR IMPLEMENTORS
 /// Make sure the return values are deterministic.
-impl PinkExtBackend for CallInCommand {
+impl PinkExtBackend for CallInTransaction {
     type Error = DispatchError;
 
     fn http_request(&self, _request: HttpRequest) -> Result<HttpResponse, Self::Error> {
