@@ -267,7 +267,6 @@ impl PinkExtBackend for CallInQuery {
         &self,
         account: ext::AccountId,
     ) -> Result<(pink::Balance, pink::Balance), Self::Error> {
-        self.ensure_system()?;
         let account: AccountId32 = account.convert_to();
         let total = crate::runtime::Balances::total_balance(&account);
         let free = crate::runtime::Balances::free_balance(&account);
