@@ -54,6 +54,7 @@ pub enum HttpRequestError {
     TooManyRequests,
     NetworkError,
     ResponseTooLarge,
+    TooManyHeaders,
 }
 
 impl super::sealed::Sealed for HttpRequestError {}
@@ -99,6 +100,7 @@ impl HttpRequestError {
             Self::TooManyRequests => "Too many requests",
             Self::NetworkError => "Network error",
             Self::ResponseTooLarge => "Response too large",
+            Self::TooManyHeaders => "Too many headers",
         }
     }
 }
