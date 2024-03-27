@@ -12,6 +12,7 @@ use phala_pallets::registry::WorkerInfoV2;
 use sp_core::crypto::{AccountId32, ByteArray};
 use sp_core::sr25519::Public as Sr25519Public;
 use std::collections::{HashMap, VecDeque};
+use std::fmt;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -240,6 +241,64 @@ pub enum PRuntimeResponse {
     GetEgressMessages(GetEgressMessagesResponse),
     SignEndpoints(GetEndpointResponse),
     TakeCheckpoint(u32),
+}
+
+impl fmt::Display for PRuntimeRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "PRuntimeRequest::")?;
+        match &self {
+            PRuntimeRequest::PrepareLifecycle => write!(f, "PrepareLifecycle"),
+            PRuntimeRequest::InitRuntime(_) => write!(f, "InitRuntime"),
+            PRuntimeRequest::LoadChainState(_) => write!(f, "LoadChainState"),
+            PRuntimeRequest::Sync(info) => {
+                write!(f, "Sync(")?;
+                if let Some((from, to)) = info.manifest.headers {
+                    write!(f, "headers({}-{})", from, to)?;
+                }
+                if let Some((from, to)) = info.manifest.para_headers {
+                    write!(f, "para_headers({}-{})", from, to)?;
+                }
+                if let Some((from, to)) = info.manifest.blocks {
+                    write!(f, "blocks({}-{})", from, to)?;
+                }
+                write!(f, ")")
+            },
+            PRuntimeRequest::RegularGetInfo => write!(f, "RegularGetInfo"),
+            PRuntimeRequest::PrepareRegister(_) => write!(f, "PrepareRegister"),
+            PRuntimeRequest::GetEgressMessages => write!(f, "GetEgressMessages"),
+            PRuntimeRequest::SignEndpoints(_) => write!(f, "SignEndpoints"),
+            PRuntimeRequest::TakeCheckpoint => write!(f, "TakeCheckpoint"),
+        }
+    }
+}
+
+impl fmt::Display for PRuntimeResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "PRuntimeResponse::")?;
+        match &self {
+            PRuntimeResponse::PrepareLifecycle(_) => write!(f, "PrepareLifecycle"),
+            PRuntimeResponse::InitRuntime(_) => write!(f, "InitRuntime"),
+            PRuntimeResponse::LoadChainState => write!(f, "LoadChainState"),
+            PRuntimeResponse::Sync(info) => {
+                write!(f, "Sync(")?;
+                if let Some(to) = info.headernum {
+                    write!(f, "headers({})", to)?;
+                }
+                if let Some(to) = info.para_headernum {
+                    write!(f, "para_headers({})", to)?;
+                }
+                if let Some(to) = info.blocknum {
+                    write!(f, "blocks({})", to)?;
+                }
+                write!(f, ")")
+            },
+            PRuntimeResponse::RegularGetInfo(_) => write!(f, "RegularGetInfo"),
+            PRuntimeResponse::PrepareRegister(_) => write!(f, "PrepareRegister"),
+            PRuntimeResponse::GetEgressMessages(_) => write!(f, "GetEgressMessages"),
+            PRuntimeResponse::SignEndpoints(_) => write!(f, "SignEndpoints"),
+            PRuntimeResponse::TakeCheckpoint(_) => write!(f, "TakeCheckpoint"),
+        }
+    }
 }
 
 pub enum WorkerEvent {
@@ -518,8 +577,9 @@ impl Processor {
                     },
                 }
 
+                trace!("[{}] Pending PRuntimeRequest Count: {}", worker.uuid, worker.pending_requests.len());
                 if let Some(request) = worker.pending_requests.pop_front() {
-                    self.add_pruntime_request(worker, request);
+                    self.handle_pruntime_request(worker, request);
                 }
             },
             WorkerEvent::UpdateWorkerInfo(worker_info) => {
@@ -652,7 +712,7 @@ impl Processor {
             }
         }
 
-        //trace!("[{}] adding a new pruntime request: {:?}", worker.uuid, request);
+        trace!("[{}] Adding {}", worker.uuid, request);
         if let PRuntimeRequest::Sync(sync_request) = &request {
             if sync_request.is_empty() {
                 if !worker.is_reached_chaintip(&self.chaintip) && sync_request.is_empty() {
@@ -666,9 +726,15 @@ impl Processor {
         }
 
         if !worker.pruntime_lock && worker.pending_requests.is_empty() {
-            worker.pruntime_lock = true;
+            trace!("[{}] Immediately handle {}", worker.uuid, request);
             self.handle_pruntime_request(worker, request);
         } else {
+            trace!("[{}] Enqueuing {} because: pruntime_lock {}, pendings: {}",
+                worker.uuid,
+                request,
+                worker.pruntime_lock,
+                worker.pending_requests.len()
+            );
             worker.pending_requests.push_back(request);
         }
     }
@@ -678,6 +744,7 @@ impl Processor {
         worker: &mut WorkerContext,
         request: PRuntimeRequest,
     ) {
+        worker.pruntime_lock = true;
         tokio::spawn(
             dispatch_pruntime_request(
                 self.bus.clone(),
@@ -693,6 +760,7 @@ impl Processor {
         worker: &mut WorkerContext,
         response: PRuntimeResponse,
     ) {
+        trace!("[{}] Received OK {}", worker.uuid, response);
         match response {
             PRuntimeResponse::PrepareLifecycle(info) => {
                 worker.worker_status.phactory_info = Some(info.clone());
@@ -752,6 +820,7 @@ impl Processor {
                 );
             },
         }
+        trace!("[{}] Handled PRuntimeResponse", worker.uuid);
     }
 
     fn handle_pruntime_sync_response(
@@ -761,21 +830,25 @@ impl Processor {
     ) {
         if let Some(headernum) = info.headernum {
             worker.headernum = headernum + 1;
-            trace!("[{}] headernum updated, next: {}", worker.uuid, worker.headernum);
+            trace!("[{}] Synced headernum, next: {}", worker.uuid, worker.headernum);
         }
         if let Some(para_headernum) = info.para_headernum {
             worker.para_headernum = para_headernum + 1;
-            trace!("[{}] para_headernum updated, next: {}", worker.uuid, worker.para_headernum);
+            trace!("[{}] Synced para_headernum, next: {}", worker.uuid, worker.para_headernum);
         }
         if let Some(blocknum) = info.blocknum {
             worker.blocknum = blocknum + 1;
-            trace!("[{}] blocknum updated, next: {}", worker.uuid, worker.blocknum);
+            trace!("[{}] Synced updated, next: {}", worker.uuid, worker.blocknum);
         }
 
         if !worker.is_reached_chaintip(&self.chaintip) {
+            trace!("[{}] Not at chaintip, requesting next sync", worker.uuid);
             self.request_next_sync(worker);
         } else if worker.can_request_computation_determination && !worker.computation_ready {
+            trace!("[{}] At chaintip, need to determinate computation", worker.uuid);
             self.request_computation_determination(worker);
+        } else {
+            trace!("[{}] At chaintip, nothing need to do", worker.uuid);
         }
     }
 
@@ -1031,6 +1104,7 @@ async fn dispatch_pruntime_request(
     client: Arc<PRuntimeClient>,
     request: PRuntimeRequest,
 ) {
+    trace!("[{}] Start to dispatch PRuntimeRequest: {}", worker_id, request);
     let need_mark_error = matches!(
         &request,
         PRuntimeRequest::PrepareLifecycle
@@ -1098,7 +1172,8 @@ async fn dispatch_pruntime_request(
             let _ = bus.send_worker_mark_error(worker_id.clone(), err.to_string());
         }
     }
-    let _ = bus.send_processor_event(ProcessorEvent::WorkerEvent((worker_id, WorkerEvent::PRuntimeResponse(result))));
+    let _ = bus.send_processor_event(ProcessorEvent::WorkerEvent((worker_id.clone(), WorkerEvent::PRuntimeResponse(result))));
+    trace!("[{}] Completed to dispatch PRuntimeRequest", worker_id);
 }
 
 async fn do_sync_request(
