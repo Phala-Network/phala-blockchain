@@ -209,7 +209,12 @@ impl LocalCache {
             .get_mut(id.as_ref())
             .and_then(|storage| storage.kvs.get_mut(key.as_ref()))
         {
-            v.expire_at = now().saturating_add(expire)
+            let now = now();
+            if v.expire_at >= now {
+                v.expire_at = now.saturating_add(expire);
+            } else {
+                self.remove(id.as_ref(), key.as_ref());
+            }
         }
     }
 
