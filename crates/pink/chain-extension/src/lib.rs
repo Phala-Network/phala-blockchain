@@ -115,6 +115,11 @@ async fn async_http_request(
 
     let method: Method =
         FromStr::from_str(request.method.as_str()).or(Err(HttpRequestError::InvalidMethod))?;
+
+    const MAX_ALLOWED_HEADERS: usize = 256;
+    if request.headers.len() > MAX_ALLOWED_HEADERS {
+        return Err(HttpRequestError::TooManyHeaders);
+    }
     let mut headers = HeaderMap::new();
     for (key, value) in &request.headers {
         let key =
