@@ -37,6 +37,7 @@ pub enum WorkerLifecycleCommand {
     ShouldRestart,
     ShouldForceRegister,
     ShouldUpdateEndpoint(Vec<String>),
+    ShouldTakeCheckpoint,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -667,6 +668,7 @@ impl WorkerContext {
                         set_worker_message!(c, format!("ShouldForceRegister: {}", e));
                     }
                 }
+                ShouldTakeCheckpoint => todo!(),
             }
         }
         drop(rx);
