@@ -51,11 +51,11 @@ pub struct WorkerContext {
     pub last_message: String,
     pub last_updated_at: DateTime<Utc>,
 
+    pub pruntime_lock: bool,
     pub client: Arc<PRuntimeClient>,
     pub pending_requests: VecDeque<PRuntimeRequest>,
 
     pub stopped: bool,
-    pub can_accept_sync: bool,
     pub can_request_computation_determination: bool,
     pub computation_ready: bool,
     pub register_requested: bool,
@@ -96,11 +96,11 @@ impl WorkerContext {
             last_message: String::new(),
             last_updated_at: Utc::now(),
 
+            pruntime_lock: false,
             client: Arc::new(crate::pruntime::create_client(worker.endpoint.clone())),
             pending_requests: VecDeque::new(),
 
             stopped: false,
-            can_accept_sync: true,
             can_request_computation_determination: false,
             computation_ready: false,
             register_requested: false,
@@ -413,7 +413,7 @@ impl Processor {
                 },
                 ProcessorEvent::BroadcastSync((request, info)) => {
                     for worker in workers.values_mut() {
-                        if worker.can_accept_sync && worker.is_match(&request.manifest) {
+                        if worker.is_match(&request.manifest) {
                             trace!("[{}] Accepted BroadcastSyncRequest", worker.uuid);
                             self.add_pruntime_request(worker, PRuntimeRequest::Sync(request.clone()));
                         }
@@ -505,6 +505,7 @@ impl Processor {
                 self.add_pruntime_request(worker, request);
             },
             WorkerEvent::PRuntimeResponse(result) => {
+                worker.pruntime_lock = false;
                 match result {
                     Ok(response) => self.handle_pruntime_response(worker, response),
                     Err(err) => {
@@ -662,15 +663,10 @@ impl Processor {
                 }
                 return;
             }
-            if !worker.can_accept_sync {
-                trace!("[{}] Worker cannot accept sync request now. Skip this one.", worker.uuid);
-                return;
-            }
-
-            worker.can_accept_sync = false;
         }
 
-        if worker.pending_requests.is_empty() {
+        if !worker.pruntime_lock && worker.pending_requests.is_empty() {
+            worker.pruntime_lock = true;
             self.handle_pruntime_request(worker, request);
         } else {
             worker.pending_requests.push_back(request);
@@ -717,7 +713,6 @@ impl Processor {
                 self.add_pruntime_request(worker, PRuntimeRequest::PrepareLifecycle);
             },
             PRuntimeResponse::Sync(info) => {
-                worker.can_accept_sync = true;
                 self.handle_pruntime_sync_response(worker, &info);
                 self.send_worker_sync_info(worker);
             },
