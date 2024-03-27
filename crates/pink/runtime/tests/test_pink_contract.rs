@@ -280,7 +280,7 @@ fn test_get_balance() {
         .call()
         .direct_balance_of(TEST_ADDRESS.convert_to())
         .query(&mut cluster);
-    assert!(result.is_err());
+    assert_eq!(result.unwrap().0, balance);
 
     let result = checker
         .call()
