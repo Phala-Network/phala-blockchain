@@ -2,7 +2,7 @@ import React, {useCallback, useMemo} from 'react';
 import {styled, useStyletron} from 'baseui';
 import {StatefulDataTable, CategoricalColumn, NumericalColumn, StringColumn, COLUMNS} from 'baseui/data-table';
 import {MobileHeader} from 'baseui/mobile-header';
-import {TbAnalyze, TbCloudUpload, TbRefresh} from 'react-icons/tb';
+import {TbAnalyze, TbCloudUpload, TbRefresh, TbCloudCheck} from 'react-icons/tb';
 import Head from 'next/head';
 import {useAtomValue} from 'jotai';
 import {currentFetcherAtom, currentWmAtom} from '@/state';
@@ -195,6 +195,34 @@ export default function WorkerStatusPage() {
           </span>
         ),
       },
+
+      {
+        label: 'Take Checkpoint',
+        onClick: async ({selection}) => {
+          if (!confirm('Are you sure?')) {
+            return;
+          }
+          try {
+            await rawFetcher({
+              url: '/workers/take_checkpoint',
+              method: 'PUT',
+              data: {ids: selection.map((i) => i.id)},
+            });
+            toaster.positive('Requested, check worker status for progress.');
+          } catch (e) {
+            console.error(e);
+            toaster.negative(e.toString());
+          } finally {
+            await mutate();
+          }
+        },
+        renderIcon: () => (
+          <span className={css({display: 'flex', alignItems: 'center', fontSize: '12px', lineHeight: '0'})}>
+            <TbCloudCheck className={css({marginRight: '3px'})} size={16} />
+            Take Checkpoint
+          </span>
+        ),
+      },
     ];
   }, [css, mutate, rawFetcher]);
   const rowActions = useMemo(() => {
@@ -251,6 +279,34 @@ export default function WorkerStatusPage() {
           <span className={css({display: 'flex', alignItems: 'center', fontSize: '15px', lineHeight: '0'})}>
             <TbCloudUpload className={css({marginRight: '3px'})} size={16} />
             Force Register
+          </span>
+        ),
+      },
+
+      {
+        label: 'Take Checkpoint',
+        onClick: async ({row}) => {
+          if (!confirm('Are you sure?')) {
+            return;
+          }
+          try {
+            await rawFetcher({
+              url: '/workers/take_checkpoint',
+              method: 'PUT',
+              data: {ids: [row.id]},
+            });
+            toaster.positive('Requested, check worker status for progress.');
+          } catch (e) {
+            console.error(e);
+            toaster.negative(e.toString());
+          } finally {
+            await mutate();
+          }
+        },
+        renderIcon: () => (
+          <span className={css({display: 'flex', alignItems: 'center', fontSize: '15px', lineHeight: '0'})}>
+            <TbCloudCheck className={css({marginRight: '3px'})} size={16} />
+            Take Checkpoint
           </span>
         ),
       },
