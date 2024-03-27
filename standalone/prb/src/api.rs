@@ -201,6 +201,7 @@ async fn handle_restart_specific_workers(
     State(ctx): State<WrappedWorkerManagerContext>,
     Json(payload): Json<IdsRequest>,
 ) -> ApiResult<(StatusCode, Json<OkResponse>)> {
+    let bus = ctx.bus.clone();
     for worker_id in payload.ids {
         let _ = bus.send_worker_event(
             worker_id,
@@ -216,6 +217,7 @@ async fn handle_force_register_workers(
     State(ctx): State<WrappedWorkerManagerContext>,
     Json(payload): Json<IdsRequest>,
 ) -> ApiResult<(StatusCode, Json<OkResponse>)> {
+    let bus = ctx.bus.clone();
     for worker_id in payload.ids {
         let _ = bus.send_worker_event(
             worker_id,
@@ -242,7 +244,7 @@ async fn handle_update_endpoints(
     State(ctx): State<WrappedWorkerManagerContext>,
     Json(payload): Json<UpdateEndpointsRequest>,
 ) -> ApiResult<(StatusCode, Json<OkResponse>)> {
-        let bus = ctx.bus.clone();
+    let bus = ctx.bus.clone();
     for request in payload.requests {
         let _ = bus.send_worker_event(
             request.id.clone(),
