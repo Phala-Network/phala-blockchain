@@ -182,12 +182,7 @@ async fn handle_get_wm_status() -> Json<WmStatusResponse> {
 }
 
 async fn handle_restart_wm(State(ctx): AppContext) -> ApiResult<(StatusCode, Json<OkResponse>)> {
-    let tx = ctx.current_lifecycle_tx.clone();
-    let tx = tx.lock().await;
-    let tx_move = tx.as_ref().ok_or(LifecycleManagerNotInitialized)?.clone();
-    drop(tx);
-    send_to_main_channel(tx_move, ShouldResetLifecycleManager).await?;
-    Ok((StatusCode::OK, Json(OkResponse::default())))
+    Ok((StatusCode::METHOD_NOT_ALLOWED, Json(OkResponse::default())))
 }
 
 async fn handle_get_worker_status(
@@ -202,37 +197,18 @@ async fn handle_get_worker_status(
     Ok((StatusCode::OK, Json(WorkerStatusResponse { workers })))
 }
 
-async fn get_workers_by_id_vec<S: Into<String>>(
-    ctx: &WrappedWorkerManagerContext,
-    ids: impl IntoIterator<Item = S>,
-) -> ApiResult<Vec<WrappedWorkerContext>> {
-    let worker_map = ctx.worker_map.clone();
-    let worker_map = worker_map.lock().await;
-    let mut c: Vec<WrappedWorkerContext> = vec![];
-    for id in ids {
-        let id = id.into();
-        c.push(worker_map.get(&id).ok_or(WorkerNotFound(id))?.clone())
-    }
-    Ok(c)
-}
-
 async fn handle_restart_specific_workers(
     State(ctx): State<WrappedWorkerManagerContext>,
     Json(payload): Json<IdsRequest>,
 ) -> ApiResult<(StatusCode, Json<OkResponse>)> {
-    for c in get_workers_by_id_vec(&ctx, &payload.ids).await? {
-        let c = c.read().await;
-        match &c.state {
-            WorkerLifecycleState::Restarting => drop(c),
-            _ => {
-                let tx = c.tx.clone();
-                drop(c);
-                tx.send(WorkerLifecycleCommand::ShouldRestart)
-                    .map_err(|e| anyhow!(e.to_string()))?;
-            }
-        }
+    for worker_id in payload.ids {
+        let _ = bus.send_worker_event(
+            worker_id,
+            WorkerEvent::WorkerLifecycleCommand(
+                WorkerLifecycleCommand::ShouldRestart
+            )
+        );
     }
-
     Ok((StatusCode::OK, Json(OkResponse::default())))
 }
 
@@ -240,12 +216,13 @@ async fn handle_force_register_workers(
     State(ctx): State<WrappedWorkerManagerContext>,
     Json(payload): Json<IdsRequest>,
 ) -> ApiResult<(StatusCode, Json<OkResponse>)> {
-    for c in get_workers_by_id_vec(&ctx, &payload.ids).await? {
-        let c = c.read().await;
-        let tx = c.tx.clone();
-        drop(c);
-        tx.send(WorkerLifecycleCommand::ShouldForceRegister)
-            .map_err(|e| anyhow!(e.to_string()))?;
+    for worker_id in payload.ids {
+        let _ = bus.send_worker_event(
+            worker_id,
+            WorkerEvent::WorkerLifecycleCommand(
+                WorkerLifecycleCommand::ShouldForceRegister
+            )
+        );
     }
     Ok((StatusCode::OK, Json(OkResponse::default())))
 }
