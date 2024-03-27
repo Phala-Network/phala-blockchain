@@ -55,6 +55,7 @@ pub struct WorkerContext {
     pub pending_requests: VecDeque<PRuntimeRequest>,
 
     pub stopped: bool,
+    pub can_accept_sync: bool,
     pub can_request_computation_determination: bool,
     pub computation_ready: bool,
     pub register_requested: bool,
@@ -99,6 +100,7 @@ impl WorkerContext {
             pending_requests: VecDeque::new(),
 
             stopped: false,
+            can_accept_sync: true,
             can_request_computation_determination: false,
             computation_ready: false,
             register_requested: false,
@@ -343,6 +345,7 @@ impl Processor {
                         error!("[{}] Failed to add worker because the UUID is existed.", worker_id);
                     } else {
                         workers.insert(worker_id.clone(), worker_context);
+                        self.send_worker_status(workers.get_mut(&worker_id).unwrap());
                         trace!("[{}] Added worker into processor. Starting", worker_id);
                         self.add_pruntime_request(
                             workers.get_mut(&worker_id).unwrap(),
@@ -403,23 +406,14 @@ impl Processor {
                             && !worker.is_sync_only()
                             && worker.is_reached_para_chaintip(&self.chaintip)
                         {
-                            //trace!("[{}] request egress", worker.uuid);
                             worker.last_request_egress_at = Utc::now();
                             self.add_pruntime_request(worker, PRuntimeRequest::GetEgressMessages);
-                        /*} else {
-                            trace!("[{}] skip egress, reason: {}, {}, {} ({} {})", worker.uuid,
-                                worker.is_updating_egress_message_due(),
-                                worker.is_sync_only(),
-                                worker.is_reached_para_chaintip(&self.chaintip),
-                                worker.blocknum,
-                                self.chaintip.parachain + 1,
-                            );*/
                         }
                     }
                 },
                 ProcessorEvent::BroadcastSync((request, info)) => {
                     for worker in workers.values_mut() {
-                        if worker.is_match(&request.manifest) {
+                        if worker.can_accept_sync && worker.is_match(&request.manifest) {
                             info!("[{}] Accepted BroadcastSyncRequest", worker.uuid);
                             self.add_pruntime_request(worker, PRuntimeRequest::Sync(request.clone()));
                         }
@@ -455,7 +449,7 @@ impl Processor {
                     }
 
                     if !worker_info_requests.is_empty() {
-                        info!("requesting worker info, count {}", worker_info_requests.len());
+                        //info!("requesting worker info, count {}", worker_info_requests.len());
                         tokio::spawn(do_update_worker_info(
                             self.bus.clone(),
                             self.dsm.clone(),
@@ -463,7 +457,7 @@ impl Processor {
                         ));
                     }
                     if !session_id_requests.is_empty() {
-                        info!("requesting session id, count {}", session_id_requests.len());
+                        //info!("requesting session id, count {}", session_id_requests.len());
                         tokio::spawn(do_update_session_id(
                             self.bus.clone(),
                             self.dsm.clone(),
@@ -471,7 +465,7 @@ impl Processor {
                         ));
                     }
                     if !session_info_requests.is_empty() {
-                        info!("requesting session info, count {}", session_info_requests.len());
+                        //info!("requesting session info, count {}", session_info_requests.len());
                         tokio::spawn(do_update_session_info(
                             self.bus.clone(),
                             self.dsm.clone(),
@@ -514,7 +508,7 @@ impl Processor {
                 match result {
                     Ok(response) => self.handle_pruntime_response(worker, response),
                     Err(err) => {
-                        error!("[{}] met error: {}", worker.uuid, err);
+                        error!("[{}] pRuntime returned an error: {}", worker.uuid, err);
                         self.update_worker_message(
                             worker,
                             &err.to_string(),
@@ -589,7 +583,7 @@ impl Processor {
         message: &str,
         updated_at: Option<DateTime<Utc>>,
     ) {
-        info!("[{}] {}", worker.uuid, message);
+        info!("[{}] WORKER_MESSAGE: {}", worker.uuid, message);
         worker.worker_status.state = state;
         worker.update_message(message, updated_at);
         let _ = self.bus.send_worker_status_event((
@@ -607,7 +601,7 @@ impl Processor {
         message: &str,
         updated_at: Option<DateTime<Utc>>,
     ) {
-        info!("[{}] {}", worker.uuid, message);
+        info!("[{}] WORKER_MESSAGE: {}", worker.uuid, message);
         worker.update_message(message, updated_at);
         let _ = self.bus.send_worker_status_event((
             worker.uuid.clone(),
@@ -659,11 +653,21 @@ impl Processor {
 
         //trace!("[{}] adding a new pruntime request: {:?}", worker.uuid, request);
         if let PRuntimeRequest::Sync(sync_request) = &request {
-            if worker.is_reached_chaintip(&self.chaintip) && sync_request.is_empty() {
-                warn!("[{}] Worker needs to be sync, but received an empty request. Try again.", worker.uuid);
-                self.request_next_sync(worker);
+            if sync_request.is_empty() {
+                if !worker.is_reached_chaintip(&self.chaintip) && sync_request.is_empty() {
+                    warn!("[{}] Worker needs to be sync, but received an empty request. Try again.", worker.uuid);
+                    self.request_next_sync(worker);
+                } else {
+                    trace!("[{}] Skip the empty sync request.", worker.uuid);
+                }
                 return;
             }
+            if !worker.can_accept_sync {
+                trace!("[{}] Worker cannot accept sync request now. Skip this one.", worker.uuid);
+                return;
+            }
+
+            worker.can_accept_sync = false;
         }
 
         if worker.pending_requests.is_empty() {
@@ -713,6 +717,7 @@ impl Processor {
                 self.add_pruntime_request(worker, PRuntimeRequest::PrepareLifecycle);
             },
             PRuntimeResponse::Sync(info) => {
+                worker.can_accept_sync = true;
                 self.handle_pruntime_sync_response(worker, &info);
                 self.send_worker_sync_info(worker);
             },
@@ -744,7 +749,13 @@ impl Processor {
                     response,
                 ));
             },
-            PRuntimeResponse::TakeCheckpoint(_) => todo!(),
+            PRuntimeResponse::TakeCheckpoint(synced_to) => {
+                self.update_worker_message(
+                    worker,
+                    &format!("Checkpoint saved to #{}.", synced_to),
+                    None
+                );
+            },
         }
     }
 
@@ -1012,6 +1023,9 @@ impl Processor {
             WorkerLifecycleCommand::ShouldUpdateEndpoint(endpoints) => {
                 self.add_pruntime_request(worker, PRuntimeRequest::SignEndpoints(endpoints));
             },
+            WorkerLifecycleCommand::ShouldTakeCheckpoint => {
+                self.add_pruntime_request(worker, PRuntimeRequest::TakeCheckpoint);
+            },
         }
     }
 }
@@ -1022,6 +1036,13 @@ async fn dispatch_pruntime_request(
     client: Arc<PRuntimeClient>,
     request: PRuntimeRequest,
 ) {
+    let need_mark_error = matches!(
+        &request,
+        PRuntimeRequest::PrepareLifecycle
+            | PRuntimeRequest::InitRuntime(_)
+            | PRuntimeRequest::LoadChainState(_)
+            | PRuntimeRequest::PrepareRegister(_)
+    );
     let result = match request {
         PRuntimeRequest::PrepareLifecycle => {
             client.get_info(())
@@ -1068,9 +1089,20 @@ async fn dispatch_pruntime_request(
                     PRuntimeResponse::SignEndpoints(response)
                 })
         },
-        PRuntimeRequest::TakeCheckpoint => todo!(),
+        PRuntimeRequest::TakeCheckpoint => {
+            client.take_checkpoint(())
+                .await
+                .map(|response| {
+                    PRuntimeResponse::TakeCheckpoint(response.synced_to)
+                })
+        },
     };
 
+    if need_mark_error {
+        if let Err(err) = &result {
+            let _ = bus.send_worker_mark_error(worker_id.clone(), err.to_string());
+        }
+    }
     let _ = bus.send_processor_event(ProcessorEvent::WorkerEvent((worker_id, WorkerEvent::PRuntimeResponse(result))));
 }
 
@@ -1458,7 +1490,6 @@ async fn do_update_session_info(
         },
     };
 
-    info!("session info: received {} results", results.len());
     for (idx, (worker_id, _)) in requests.iter().enumerate() {
         let result = match results.get(idx) {
             Some(res) => res,

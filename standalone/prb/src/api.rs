@@ -152,6 +152,7 @@ pub async fn start_api_server(
             put(handle_force_register_workers),
         )
         .route("/workers/update_endpoints", put(handle_update_endpoints))
+        .route("/workers/take_checkpoint", put(handle_take_checkpoint))
         .route("/tx/status", get(handle_get_tx_status))
         .fallback(handle_get_root)
         .with_state(ctx);
@@ -270,6 +271,22 @@ async fn handle_update_endpoints(
             request.id.clone(),
             WorkerEvent::WorkerLifecycleCommand(
                 WorkerLifecycleCommand::ShouldUpdateEndpoint(request.endpoints)
+            )
+        );
+    }
+    Ok((StatusCode::OK, Json(OkResponse::default())))
+}
+
+async fn handle_take_checkpoint(
+    State(ctx): State<WrappedWorkerManagerContext>,
+    Json(payload): Json<IdsRequest>,
+) -> ApiResult<(StatusCode, Json<OkResponse>)> {
+        let bus = ctx.bus.clone();
+    for worker_id in payload.ids {
+        let _ = bus.send_worker_event(
+            worker_id,
+            WorkerEvent::WorkerLifecycleCommand(
+                WorkerLifecycleCommand::ShouldTakeCheckpoint
             )
         );
     }
