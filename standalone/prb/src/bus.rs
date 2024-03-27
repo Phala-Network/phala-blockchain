@@ -29,6 +29,13 @@ impl Bus {
         )
     }
 
+    pub fn send_worker_update_message(&self, worker_id: String, message: String) -> Result<(), SendError<ProcessorEvent>> {
+        self.send_worker_event(
+            worker_id,
+            WorkerEvent::UpdateMessage((chrono::Utc::now(), message)),
+        )
+    }
+
     pub fn send_worker_mark_error(&self, worker_id: String, message: String) -> Result<(), SendError<ProcessorEvent>> {
         self.send_worker_event(
             worker_id,

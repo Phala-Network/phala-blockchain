@@ -135,23 +135,26 @@ pub type RepositoryRx = mpsc::UnboundedReceiver<RepositoryEvent>;
 pub type RepositoryTx = mpsc::UnboundedSender<RepositoryEvent>;
 
 pub struct Repository {
+    pub rx: RepositoryRx,
     pub bus: Arc<Bus>,
     pub dsm: Arc<DataSourceManager>,
     pub headers_db: Arc<DB>,
-    pub rx: RepositoryRx,
 }
 
 impl Repository {
     // Polkadot: Number: 9688654, SetId: 891, Hash: 0x5fdbc952b059d7c26b8b7e6432bb2b40981c602ded8cf2be7d629a4ead96f156
     // Kusama: Number: 8325311, SetId: 3228, Hash: 0xff93a4a903207ad45af110a3e15f8b66c903a0045f886c528c23fe7064532b08
-    pub async fn init(
-        &self,
-    ) -> Result<()> {
+    pub async fn create(
+        rx: RepositoryRx,
+        bus: Arc<Bus>,
+        dsm: Arc<DataSourceManager>,
+        headers_db: Arc<DB>,
+    ) -> Result<Self> {
 
         //db.iterator(rocksdb::IteratorMode::From((), ()))
 
-        let relay_api = self.dsm.clone().current_relaychain_rpc_client(false).await.unwrap().client.clone();
-        let para_api = self.dsm.clone().current_parachain_rpc_client(true).await.unwrap().client.clone();
+        let relay_api = dsm.clone().current_relaychain_rpc_client(false).await.unwrap().client.clone();
+        let para_api = dsm.clone().current_parachain_rpc_client(true).await.unwrap().client.clone();
 
         let para_id = para_api.get_paraid(None).await?;
         //let para_head_storage_key = para_api.paras_heads_key(para_id)?;
@@ -160,7 +163,7 @@ impl Repository {
         let relaychain_start_at = para_api.relay_parent_number().await? - 1;
         debug!("relaychain_start_at: {}", relaychain_start_at);
 
-        let mut current_num = match get_previous_authority_set_change_number(self.headers_db.clone(), std::u32::MAX) {
+        let mut current_num = match get_previous_authority_set_change_number(headers_db.clone(), std::u32::MAX) {
             Some(num) => num + 1,
             None => relaychain_start_at
         };
@@ -173,46 +176,19 @@ impl Repository {
             }
 
             let headers = pherry::get_headers(&relay_api, current_num).await?;
-            let last_number = put_headers_to_db(self.headers_db.clone(), headers, relay_chaintip)?;
+            let last_number = put_headers_to_db(headers_db.clone(), headers, relay_chaintip)?;
             current_num = last_number + 1;
         }
 
-        self.headers_db.compact_range(None::<&[u8]>, None::<&[u8]>);
-        let _ = self.headers_db.flush();
+        headers_db.compact_range(None::<&[u8]>, None::<&[u8]>);
+        let _ = headers_db.flush();
 
-        /*
-        for result in self.headers_db.iterator(rocksdb::IteratorMode::Start) {
-            match result {
-                Ok((_, value)) => {
-                    let authority_set_change_at = match HeadersToSync::decode(&mut &value[..]) {
-                        Ok(headers) => headers.last().unwrap().header.number,
-                        Err(_) => break,
-                    };
-                    let block_info = relaychain_cache(self.dsm.clone()).await.get_header(authority_set_change_at).await;
-                    match block_info {
-                        Ok(block_info) => {
-                            info!("{}: {}", authority_set_change_at, block_info.para_header.is_some());
-
-                        },
-                        Err(_) => break,
-                    }
-                },
-                Err(_) => break,
-            }
-        }
-
-        //let mut last_known_block_num = 8325311 as u32 - 1;
-        //let relaychain_authority_set_start_block_num = Vec::<u32>::new();
-        //relaychain_authority_set_start_block_num.as_mut().push(0);
-
-        for i in 3229..8605 {
-            let headers = pherry::get_headers(&relay_api, last_known_block_num + 1).await?;
-            last_known_block_num = headers.last().unwrap().header.number;
-            let just = headers.last().unwrap().justification.as_ref().unwrap().len();
-            info!("{i}\t{last_known_block_num}\t{just}");
-        }
-    */
-        Ok(())
+        Ok(Self {
+            rx,
+            bus,
+            dsm,
+            headers_db,
+        })
     }
 
     pub async fn master_loop(
@@ -453,6 +429,7 @@ pub async fn keep_syncing_headers(
                             parachain: current_para_number,
                         },
                     )));
+                    let _ = bus.send_processor_event(ProcessorEvent::RequestUpdateSessionInfo);
                 },
                 Ok(None) => {
                     error!("Unknown para header for relay #{relay_to} {relay_to_hash}");
