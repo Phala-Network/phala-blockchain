@@ -204,7 +204,7 @@ pub async fn api_handler(db: WrappedDb, po_db: Arc<DB>, bus: Arc<Bus>, command: 
             v.pid = Some(pid);
             let _ = bus.send_processor_event(ProcessorEvent::AddWorker((
                 v.clone(),
-                get_pool_by_pid(db.clone(), pid).unwrap(),
+                get_pool_by_pid(db.clone(), pid).unwrap().map(|p| p.sync_only),
                 po_db.get_po(pid)?.map(|po| po.operator()),
             )));
             let v = serde_json::to_string_pretty(&v)?;

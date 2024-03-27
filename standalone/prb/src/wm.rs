@@ -150,13 +150,12 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         Arc::new(db)
     };
 
-    let mut repository = Repository {
-        bus: bus.clone(),
-        dsm: dsm.clone(),
-        headers_db: headers_db.clone(),
-        rx: repository_rx,
-    };
-    repository.init().await.unwrap();
+    let mut repository = Repository::create(
+        repository_rx,
+        bus.clone(),
+        dsm.clone(),
+        headers_db.clone(),
+    ).await.unwrap();
 
     for worker in get_all_workers(inv_db.clone()).unwrap() {
         let (pool, operator) = match worker.pid {
@@ -179,7 +178,11 @@ pub async fn wm(args: WorkerManagerCliArgs) {
             },
             None => (None, None),
         };
-        let _ = bus.send_processor_event(ProcessorEvent::AddWorker((worker, pool, operator)));
+        let _ = bus.send_processor_event(ProcessorEvent::AddWorker((
+            worker,
+            pool.map(|p| p.sync_only),
+            operator,
+        )));
     }
 
     let mut processor = Processor::create(
@@ -201,7 +204,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
 
         _ = repository.master_loop() => {}
 
-        _ = offchain_tx_loop(messages_rx, bus.clone(), txm.clone()) => {}
+        _ = offchain_tx_loop(messages_rx, bus.clone(), dsm.clone(), txm.clone()) => {}
 
         _ = update_worker_status(ctx.clone(), worker_status_rx) => {}
 
