@@ -58,10 +58,16 @@ impl SyncRequest {
         para_headers: ParaHeadersToSync,
         from: u32,
         to: u32,
+        relay_at: u32,
     ) -> Self {
         Self {
             para_headers: Some(para_headers),
             manifest: SyncRequestManifest {
+                // Multiple relaychain blocks may have same parachain head.
+                // 
+                // Even the parachain froms are same, if the relaychain height are different,
+                // the proof cannot be validated. So we need to also pass the relaychain height.
+                headers: Some((relay_at + 1, relay_at)),
                 para_headers: Some((from, to)),
                 ..Default::default()
             },
@@ -227,11 +233,11 @@ impl Repository {
                 RepositoryEvent::PreloadWorkerSyncInfo(info) => {
                     let dsm = self.dsm.clone();
                     let headers_db = self.headers_db.clone();
-                    tokio::spawn(async move {
-                        let _ = get_sync_request(dsm, headers_db, &info).await;
-                    });
+                    tokio::spawn(get_sync_request(dsm, headers_db, &info));
                 },
                 RepositoryEvent::UpdateWorkerSyncInfo(info) => {
+                    trace!("[{}] Received UpdateWorkerSyncInfo. header({}) para_header({}) block({})",
+                        info.worker_id, info.headernum, info.para_headernum, info.blocknum);
                     let bus = self.bus.clone();
                     let dsm = self.dsm.clone();
                     let headers_db = self.headers_db.clone();
@@ -240,14 +246,16 @@ impl Repository {
                             match get_sync_request(dsm.clone(), headers_db.clone(), &info).await {
                                 Ok(request) => break request,
                                 Err(err) => {
-                                    error!("fail to get_sync_request, {}", err);
+                                    error!("[{}] fail to get_sync_request, {}", info.worker_id, err);
+                                    // TODO: Send some error message
+                                    tokio::time::sleep(std::time::Duration::from_secs(6)).await;
                                 },
                             }
                         };
                         if request.headers.is_some() || request.para_headers.is_some() || request.combined_headers.is_some() || request.blocks.is_some() {
-                            trace!("[{}] sending sync request", info.worker_id);
+                            trace!("[{}] sending sync request. {:?}", info.worker_id, info);
                         } else {
-                            trace!("[{}] sending empty sync request. {:?}", info.worker_id, info);
+                            trace!("[{}] sending empty sync request.", info.worker_id);
                         }
                         let _ = bus.send_pruntime_request(info.worker_id, PRuntimeRequest::Sync(request));
                     });
@@ -279,7 +287,12 @@ async fn get_sync_request(
                 .await
                 .map(|mut headers| {
                     headers.proof = proof;
-                    SyncRequest::create_from_para_headers(headers, info.para_headernum, para_headernum)
+                    SyncRequest::create_from_para_headers(
+                        headers,
+                        info.para_headernum,
+                        para_headernum,
+                        info_headernum - 1,
+                    )
                 });
         }
     } else {

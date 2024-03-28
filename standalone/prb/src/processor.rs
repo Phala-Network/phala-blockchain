@@ -466,7 +466,7 @@ impl Processor {
                 },
                 ProcessorEvent::BroadcastSync((request, info)) => {
                     for worker in workers.values_mut() {
-                        if worker.is_match(&request.manifest) {
+                        if worker.is_match(&request.manifest) && worker.is_reached_chaintip(&self.chaintip) {
                             trace!("[{}] Accepted BroadcastSyncRequest", worker.uuid);
                             self.add_pruntime_request(worker, PRuntimeRequest::Sync(request.clone()));
                         }
