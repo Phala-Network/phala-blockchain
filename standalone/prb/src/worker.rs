@@ -50,6 +50,7 @@ pub enum WorkerLifecycleState {
 
     HasError(String),
     Restarting,
+    Disabled,
 }
 
 pub type WrappedWorkerContext = Arc<RwLock<WorkerContext>>;
@@ -338,6 +339,7 @@ impl WorkerContext {
                     );
                     return;
                 }
+                WorkerLifecycleState::Disabled => todo!(),
             }
 
             tokio::spawn(lm.clone().webhook_send(c.clone()));
