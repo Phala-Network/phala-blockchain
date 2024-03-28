@@ -84,7 +84,11 @@ impl WorkerContext {
 
             worker_status: WorkerStatus {
                 worker: worker.clone(),
-                state: WorkerLifecycleState::Starting,
+                state: if worker.enabled {
+                    WorkerLifecycleState::Starting
+                } else {
+                    WorkerLifecycleState::Disabled
+                },
                 phactory_info: None,
                 last_message: String::new(),
                 session_info: None,
@@ -558,7 +562,21 @@ impl Processor {
                 if worker.worker_status.worker.endpoint != updated_worker.endpoint {
                     worker.client = Arc::new(crate::pruntime::create_client(updated_worker.endpoint.clone()));
                 }
-                worker.worker_status.worker = updated_worker;
+                if worker.worker_status.worker.enabled != updated_worker.enabled {
+                    let message = format!("Restarting due to switching {}, need to wait about {} seconds",
+                        if updated_worker.enabled { "enabled" } else { "disabled" },
+                        RESTART_WORKER_COOL_PERIOD.num_seconds() + 5
+                    );
+                    self.update_worker_state_and_message(worker, WorkerLifecycleState::Restarting, &message, None);
+                    tokio::spawn(do_restart(
+                        self.bus.clone(),
+                        updated_worker,
+                        worker.pool_sync_only,
+                        worker.operator.clone(),
+                    ));
+                } else {
+                    worker.worker_status.worker = updated_worker;
+                }
             },
             WorkerEvent::PRuntimeRequest(request) => {
                 self.add_pruntime_request(worker, request);
@@ -579,7 +597,7 @@ impl Processor {
 
                 trace!("[{}] Pending PRuntimeRequest Count: {}", worker.uuid, worker.pending_requests.len());
                 if let Some(request) = worker.pending_requests.pop_front() {
-                    self.handle_pruntime_request(worker, request);
+                    self.execute_pruntime_request(worker, request);
                 }
             },
             WorkerEvent::UpdateWorkerInfo(worker_info) => {
@@ -719,15 +737,18 @@ impl Processor {
                     warn!("[{}] Worker needs to be sync, but received an empty request. Try again.", worker.uuid);
                     self.request_next_sync(worker);
                 } else {
-                    trace!("[{}] Skip the empty sync request.", worker.uuid);
+                    trace!("[{}] Ignoring the empty sync request.", worker.uuid);
                 }
+                return;
+            } else if !worker.is_match(&sync_request.manifest) {
+                warn!("[{}] Ignoring not match Syncing: {}", worker.uuid, request);
                 return;
             }
         }
 
         if !worker.pruntime_lock && worker.pending_requests.is_empty() {
             trace!("[{}] Immediately handle {}", worker.uuid, request);
-            self.handle_pruntime_request(worker, request);
+            self.execute_pruntime_request(worker, request);
         } else {
             trace!("[{}] Enqueuing {} because: pruntime_lock {}, pendings: {}",
                 worker.uuid,
@@ -739,7 +760,7 @@ impl Processor {
         }
     }
 
-    fn handle_pruntime_request(
+    fn execute_pruntime_request(
         &mut self,
         worker: &mut WorkerContext,
         request: PRuntimeRequest,
