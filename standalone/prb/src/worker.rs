@@ -237,37 +237,6 @@ impl WorkerContext {
         }
     }
 
-    async fn restart(c: WrappedWorkerContext) -> Result<()> {
-        let cc = c.clone();
-        let cc = cc.read().await;
-        match cc.state {
-            WorkerLifecycleState::Restarting => {
-                warn!(
-                    "Attempting to restart a worker which is not started!({}, {}, {})",
-                    &cc.worker.name, &cc.worker.endpoint, &cc.worker.id
-                );
-            }
-            _ => {
-                let sm_tx = cc.sm_tx.as_ref().unwrap().clone();
-                sm_tx.send(WorkerLifecycleState::Restarting)?;
-            }
-        }
-        drop(cc);
-        Ok(())
-    }
-
-    async fn do_start(c: WrappedWorkerContext) {
-        let (tx, rx) = mpsc::unbounded_channel::<WorkerLifecycleState>();
-        let mut cc = c.write().await;
-        cc.sm_tx = Some(tx.clone());
-        drop(cc);
-        let _ = join(
-            Self::lifecycle_loop(c.clone(), rx),
-            Self::update_info_loop(c.clone()),
-        )
-        .await;
-    }
-
     async fn set_state(c: WrappedWorkerContext, state: WorkerLifecycleState) {
         let c = c.read().await;
         match &c.state {
@@ -276,73 +245,6 @@ impl WorkerContext {
                 let sm_tx = c.sm_tx.as_ref().unwrap().clone();
                 sm_tx.send(state).expect("should update sm state");
             }
-        }
-    }
-
-    async fn lifecycle_loop(c: WrappedWorkerContext, mut sm_rx: WorkerLifecycleStateRx) {
-        macro_rules! lifecycle_loop_state_handle_error {
-            ($f:expr, $c:expr) => {{
-                if let Err(e) = $f($c.clone()).await {
-                    let (_, worker, _) = extract_essential_values!($c);
-                    let cc = $c.clone();
-                    let mut cc = cc.write().await;
-                    cc.set_last_message(&e.to_string());
-                    drop(cc);
-                    info!(
-                        "Worker {}({}, {}) stopped.",
-                        &worker.name, &worker.id, &worker.endpoint
-                    );
-                    Self::set_state($c.clone(), WorkerLifecycleState::HasError(e.to_string()))
-                        .await;
-                }
-            }};
-        }
-
-        let (lm, worker, _pr) = extract_essential_values!(c);
-
-        Self::set_state(c.clone(), WorkerLifecycleState::Starting).await;
-
-        while let Some(s) = sm_rx.recv().await {
-            let mut cc = c.write().await;
-            cc.state = s.clone();
-            drop(cc);
-
-            match s {
-                WorkerLifecycleState::Starting => {
-                    lifecycle_loop_state_handle_error!(Self::handle_on_starting, c);
-                }
-                WorkerLifecycleState::Synchronizing => {
-                    //lifecycle_loop_state_handle_error!(Self::handle_on_synchronizing, c);
-                }
-                WorkerLifecycleState::Preparing => {
-                    lifecycle_loop_state_handle_error!(Self::handle_on_preparing, c);
-                }
-                WorkerLifecycleState::Working => {
-                    set_worker_message!(c, "Working now.")
-                }
-                WorkerLifecycleState::GatekeeperWorking => {
-                    set_worker_message!(
-                        c,
-                        "Gatekeeper mode detected, skipping stakepool operations."
-                    );
-                }
-                WorkerLifecycleState::HasError(e) => {
-                    error!(
-                        "Worker {}({}, {}) stopped due to error: {}",
-                        &worker.name, &worker.id, &worker.endpoint, e
-                    );
-                }
-                WorkerLifecycleState::Restarting => {
-                    warn!(
-                        "Worker {}({}, {}) is restarting, it may take some time...",
-                        &worker.name, &worker.id, &worker.endpoint
-                    );
-                    return;
-                }
-                WorkerLifecycleState::Disabled => todo!(),
-            }
-
-            tokio::spawn(lm.clone().webhook_send(c.clone()));
         }
     }
 
@@ -643,37 +545,6 @@ impl WorkerContext {
             }
             sleep(Duration::from_secs(6)).await;
         }
-    }
-
-    async fn message_loop(c: WrappedWorkerContext) {
-        let cc = c.clone();
-        let cc = cc.read().await;
-        let rx = cc.rx.clone();
-        drop(cc);
-        let mut rx = rx.lock().await;
-        while let Some(cmd) = rx.recv().await {
-            match cmd {
-                ShouldRestart => {
-                    if let Err(e) = Self::restart(c.clone()).await {
-                        error!("ShouldRestart: {}", e);
-                        std::process::exit(255);
-                    }
-                    return;
-                }
-                ShouldUpdateEndpoint(endpoints) => {
-                    if let Err(e) = Self::update_endpoint(c.clone(), endpoints).await {
-                        set_worker_message!(c, format!("ShouldUpdateEndpoint: {}", e));
-                    }
-                }
-                ShouldForceRegister => {
-                    if let Err(e) = Self::register_worker(c.clone(), true).await {
-                        set_worker_message!(c, format!("ShouldForceRegister: {}", e));
-                    }
-                }
-                ShouldTakeCheckpoint => todo!(),
-            }
-        }
-        drop(rx);
     }
 
     async fn update_endpoint(c: WrappedWorkerContext, endpoints: Vec<String>) -> Result<()> {
