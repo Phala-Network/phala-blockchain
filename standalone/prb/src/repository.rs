@@ -231,9 +231,11 @@ impl Repository {
                     });
                 },
                 RepositoryEvent::PreloadWorkerSyncInfo(info) => {
-                    let dsm = self.dsm.clone();
-                    let headers_db = self.headers_db.clone();
-                    tokio::spawn(get_sync_request(dsm, headers_db, &info));
+                    tokio::spawn(get_sync_request(
+                        self.dsm.clone(),
+                        self.headers_db.clone(),
+                        info,
+                    ));
                 },
                 RepositoryEvent::UpdateWorkerSyncInfo(info) => {
                     trace!("[{}] Received UpdateWorkerSyncInfo. header({}) para_header({}) block({})",
@@ -243,7 +245,7 @@ impl Repository {
                     let headers_db = self.headers_db.clone();
                     tokio::spawn(async move {
                         let request = loop {
-                            match get_sync_request(dsm.clone(), headers_db.clone(), &info).await {
+                            match get_sync_request(dsm.clone(), headers_db.clone(), info.clone()).await {
                                 Ok(request) => break request,
                                 Err(err) => {
                                     error!("[{}] fail to get_sync_request, {}", info.worker_id, err);
@@ -257,7 +259,20 @@ impl Repository {
                         } else {
                             trace!("[{}] sending empty sync request.", info.worker_id);
                         }
-                        let _ = bus.send_pruntime_request(info.worker_id, PRuntimeRequest::Sync(request));
+                        let manifest = request.manifest.clone();
+                        let _ = bus.send_pruntime_request(info.worker_id.clone(), PRuntimeRequest::Sync(request));
+
+                        let mut next_info = info.clone();
+                        if let Some((_, to)) = &manifest.headers {
+                            next_info.headernum = to + 1;
+                        }
+                        if let Some((_, to)) = &manifest.para_headers {
+                            next_info.para_headernum = to + 1;
+                        }
+                        if let Some((_, to)) = &manifest.blocks {
+                            next_info.blocknum = to + 1;
+                        }
+                        let _ = bus.send_repository_event(RepositoryEvent::PreloadWorkerSyncInfo(next_info));
                     });
                 },
             }
@@ -270,7 +285,7 @@ impl Repository {
 async fn get_sync_request(
     dsm: Arc<DataSourceManager>,
     headers_db: Arc<DB>,
-    info: &WorkerSyncInfo,
+    info: WorkerSyncInfo,
 ) -> Result<SyncRequest> {
     if info.blocknum < info.para_headernum {
         let to = std::cmp::min((info.blocknum + 3) / 4 * 4, info.para_headernum - 1);
@@ -291,7 +306,7 @@ async fn get_sync_request(
                         headers,
                         info.para_headernum,
                         para_headernum,
-                        info_headernum - 1,
+                        info.headernum - 1,
                     )
                 });
         }
@@ -299,14 +314,17 @@ async fn get_sync_request(
         warn!("Failed to get para headernum at {}", info.headernum - 1);
     }
 
+    trace!("[{}] Getting from headers_db: {}", info.worker_id, info.headernum);
     if let Some(headers) = get_current_point(headers_db, info.headernum) {
         let headers = headers
             .into_iter()
             .filter(|header| header.header.number >= info.headernum)
             .collect::<Vec<_>>();
-        let to = headers.last().unwrap().header.number;
-        let headers = phactory_api::prpc::HeadersToSync::new(headers, None);
-        return Ok(SyncRequest::create_from_headers(headers, info.headernum, to));
+        if let Some(last_header) = headers.last() {
+            let to = last_header.header.number;
+            let headers = phactory_api::prpc::HeadersToSync::new(headers, None);
+            return Ok(SyncRequest::create_from_headers(headers, info.headernum, to));
+        }
     }
 
     info!("nothing can get");
@@ -374,7 +392,7 @@ pub async fn keep_syncing_headers(
                 continue;
             },
         };
-        
+
         while let Some(block) = blocks_sub.next().await {
             let block = match block {
                 Ok(block) => block,
@@ -404,6 +422,7 @@ pub async fn keep_syncing_headers(
                     let para_to = para_header.number;
                     if para_to < current_para_number {
                         error!("Para number {} from relaychain is smaller than the newest in prb {}", para_to, current_para_number);
+                        continue;
                     }
                     let para_from = current_para_number + 1;
 
