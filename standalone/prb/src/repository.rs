@@ -402,6 +402,7 @@ pub async fn keep_syncing_headers(
                             relay_to
                         )
                     } else {
+                        let _ = bus.send_processor_event(ProcessorEvent::RequestUpdateSessionInfo);
                         match pherry::get_parachain_headers(&para_api, None, current_para_number + 1, para_to).await {
                             Ok(para_headers) => {
                                 info!("Broadcasting header: relaychain from {} to {}, parachain from {} to {}.",
@@ -429,7 +430,6 @@ pub async fn keep_syncing_headers(
                             parachain: current_para_number,
                         },
                     )));
-                    let _ = bus.send_processor_event(ProcessorEvent::RequestUpdateSessionInfo);
                 },
                 Ok(None) => {
                     error!("Unknown para header for relay #{relay_to} {relay_to_hash}");
