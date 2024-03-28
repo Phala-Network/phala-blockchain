@@ -27,8 +27,7 @@ use crate::use_parachain_api;
 use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState};
 use crate::worker_status::WorkerStatusUpdate;
 
-const UPDATE_PHACTORY_INFO_INTERVAL: chrono::Duration = chrono::Duration::seconds(3);
-const UPDATE_EGRESS_MESSAGE_INTERVAL: chrono::Duration = chrono::Duration::seconds(3);
+const UPDATE_PHACTORY_INFO_INTERVAL: chrono::Duration = chrono::Duration::seconds(5);
 const RESTART_WORKER_COOL_PERIOD: chrono::Duration = chrono::Duration::seconds(15);
 
 pub struct WorkerContext {
@@ -46,8 +45,6 @@ pub struct WorkerContext {
     pub worker_status: WorkerStatus,
     pub worker_info: Option<WorkerInfoV2<AccountId32>>,
     pub session_id: Option<AccountId32>,
-    pub last_request_info_at: DateTime<Utc>,
-    pub last_request_egress_at: DateTime<Utc>,
 
     pub last_message: String,
     pub last_updated_at: DateTime<Utc>,
@@ -55,9 +52,11 @@ pub struct WorkerContext {
     pub pruntime_lock: bool,
     pub client: Arc<PRuntimeClient>,
     pub pending_requests: VecDeque<PRuntimeRequest>,
+    pub phactory_info_requested: bool,
+    pub phactory_info_requested_at: DateTime<Utc>,
 
     pub stopped: bool,
-    pub can_request_computation_determination: bool,
+    pub received_session_info_update: bool,
     pub computation_ready: bool,
     pub register_requested: bool,
     pub add_to_pool_requested: bool,
@@ -95,8 +94,6 @@ impl WorkerContext {
             },
             worker_info: None,
             session_id: None,
-            last_request_info_at: DateTime::<Utc>::MIN_UTC,
-            last_request_egress_at: DateTime::<Utc>::MIN_UTC,
 
             last_message: String::new(),
             last_updated_at: Utc::now(),
@@ -104,9 +101,11 @@ impl WorkerContext {
             pruntime_lock: false,
             client: Arc::new(crate::pruntime::create_client(worker.endpoint.clone())),
             pending_requests: VecDeque::new(),
+            phactory_info_requested: false,
+            phactory_info_requested_at: DateTime::<Utc>::MIN_UTC,
 
             stopped: false,
-            can_request_computation_determination: false,
+            received_session_info_update: false,
             computation_ready: false,
             register_requested: false,
             add_to_pool_requested: false,
@@ -207,11 +206,8 @@ impl WorkerContext {
     }
 
     pub fn is_updating_phactory_info_due(&self) -> bool {
-        Utc::now().signed_duration_since(self.last_request_info_at) >= UPDATE_PHACTORY_INFO_INTERVAL
-    }
-
-    pub fn is_updating_egress_message_due(&self) -> bool {
-        Utc::now().signed_duration_since(self.last_request_egress_at) >= UPDATE_EGRESS_MESSAGE_INTERVAL
+        !self.phactory_info_requested
+            && Utc::now().signed_duration_since(self.phactory_info_requested_at) >= UPDATE_PHACTORY_INFO_INTERVAL
     }
 }
 
@@ -461,17 +457,11 @@ impl Processor {
                 ProcessorEvent::Heartbeat => {
                     for worker in workers.values_mut() {
                         if worker.is_updating_phactory_info_due() {
-                            worker.last_request_info_at = Utc::now();
+                            worker.phactory_info_requested = true;
+                            worker.phactory_info_requested_at = Utc::now();
                             self.add_pruntime_request(worker, PRuntimeRequest::RegularGetInfo);
                         }
 
-                        if worker.is_updating_egress_message_due()
-                            && !worker.is_sync_only()
-                            && worker.is_reached_para_chaintip(&self.chaintip)
-                        {
-                            worker.last_request_egress_at = Utc::now();
-                            self.add_pruntime_request(worker, PRuntimeRequest::GetEgressMessages);
-                        }
                     }
                 },
                 ProcessorEvent::BroadcastSync((request, info)) => {
@@ -498,21 +488,23 @@ impl Processor {
 
                         let initial_score = worker.worker_info.as_ref().and_then(|info| info.initial_score);
                         if initial_score.is_none() {
+                            trace!("[{}] Requesting ChainStatus: WorkerInfoV2", worker.uuid);
                             worker_info_requests.push((worker.uuid.clone(), public_key));
                             continue;
                         }
                         match &worker.session_id {
                             Some(session_id) => {
+                                trace!("[{}] Requesting ChainStatus: SessionInfo", worker.uuid);
                                 session_info_requests.push((worker.uuid.clone(), session_id.clone()));
                             },
                             None => {
+                                trace!("[{}] Requesting ChainStatus: SessionId", worker.uuid);
                                 session_id_requests.push((worker.uuid.clone(), public_key));
                             },
                         }
                     }
 
                     if !worker_info_requests.is_empty() {
-                        //info!("requesting worker info, count {}", worker_info_requests.len());
                         tokio::spawn(do_update_worker_info(
                             self.bus.clone(),
                             self.dsm.clone(),
@@ -520,7 +512,6 @@ impl Processor {
                         ));
                     }
                     if !session_id_requests.is_empty() {
-                        //info!("requesting session id, count {}", session_id_requests.len());
                         tokio::spawn(do_update_session_id(
                             self.bus.clone(),
                             self.dsm.clone(),
@@ -528,7 +519,6 @@ impl Processor {
                         ));
                     }
                     if !session_info_requests.is_empty() {
-                        //info!("requesting session info, count {}", session_info_requests.len());
                         tokio::spawn(do_update_session_info(
                             self.bus.clone(),
                             self.dsm.clone(),
@@ -607,7 +597,7 @@ impl Processor {
                 worker.session_id = Some(session_id);
             },
             WorkerEvent::UpdateSessionInfo(session_info) => {
-                worker.can_request_computation_determination = true;
+                worker.received_session_info_update = true;
                 if worker.worker_status.session_info.is_none() {
                     worker.worker_status.session_info = session_info;
                     self.send_worker_status(worker);
@@ -643,7 +633,6 @@ impl Processor {
         &mut self,
         worker: &mut WorkerContext,
         state: WorkerLifecycleState,
-        updated_at: Option<DateTime<Utc>>,
     ) {
         worker.worker_status.state = state;
         let _ = self.bus.send_worker_status_event((
@@ -806,6 +795,7 @@ impl Processor {
                 self.send_worker_sync_info(worker);
             },
             PRuntimeResponse::RegularGetInfo(phactory_info) => {
+                worker.phactory_info_requested = false;
                 worker.worker_status.phactory_info = Some(phactory_info);
                 self.send_worker_status(worker);
             },
@@ -865,11 +855,16 @@ impl Processor {
         if !worker.is_reached_chaintip(&self.chaintip) {
             trace!("[{}] Not at chaintip, requesting next sync", worker.uuid);
             self.request_next_sync(worker);
-        } else if worker.can_request_computation_determination && !worker.computation_ready {
-            trace!("[{}] At chaintip, need to determinate computation", worker.uuid);
-            self.request_computation_determination(worker);
         } else {
-            trace!("[{}] At chaintip, nothing need to do", worker.uuid);
+            trace!("[{}] Reached to chaintip!", worker.uuid);
+            if worker.is_registered() && info.blocknum.is_some() {
+                trace!("[{}] Dispatched a block, requesting EgressMessages", worker.uuid);
+                self.add_pruntime_request(worker, PRuntimeRequest::GetEgressMessages);
+            }
+            if !worker.computation_ready && worker.received_session_info_update {
+                trace!("[{}] Requesting computation determination", worker.uuid);
+                self.request_computation_determination(worker);
+            }
         }
     }
 
@@ -910,7 +905,7 @@ impl Processor {
         &mut self,
         worker: &mut WorkerContext
     ) {
-        if !worker.can_request_computation_determination || worker.computation_ready {
+        if worker.computation_ready || !worker.received_session_info_update {
             return;
         }
         if worker.is_sync_only() {
