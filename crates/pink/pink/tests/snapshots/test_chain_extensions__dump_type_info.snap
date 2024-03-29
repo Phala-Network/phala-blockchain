@@ -1,6 +1,6 @@
 ---
 source: crates/pink/pink/tests/test_chain_extensions.rs
-assertion_line: 203
+assertion_line: 202
 expression: "type_info_stringify::<Root>()"
 ---
 pink::chain_extension::http_request::HttpRequest = struct {
@@ -26,6 +26,7 @@ pink::chain_extension::http_request::HttpRequestError = enum {
     [7]TooManyRequests,
     [8]NetworkError,
     [9]ResponseTooLarge,
+    [10]TooManyHeaders,
 }
 pink::chain_extension::StorageQuotaExceeded = struct {
 }
@@ -141,4 +142,3 @@ test_chain_extensions::Root = struct {
     _driver_err: pink::system::DriverError,
     _code_type: pink::system::CodeType,
 }
-
