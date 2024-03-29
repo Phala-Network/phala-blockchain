@@ -38,6 +38,10 @@ impl MessageContext {
             Utc::now().signed_duration_since(self.start_at) <= Duration::minutes(30)
         )
     }
+
+    pub fn is_timeout_or_failure(&self) -> bool {
+        !self.is_pending_or_success()
+    }
 }
 
 pub struct SenderContext {
@@ -85,7 +89,7 @@ pub async fn master_loop(
                             .filter(|message| {
                                 sender_context.pending_messages
                                     .get(&message.sequence)
-                                    .map(|p_msg| p_msg.is_pending_or_success())
+                                    .map(|p_msg| p_msg.is_timeout_or_failure())
                                     .unwrap_or(true)
                             })
                             .collect::<Vec<_>>()
