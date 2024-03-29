@@ -11,6 +11,7 @@ use phala_pallets::pallet_computation::{SessionInfo, WorkerState};
 use phala_pallets::registry::WorkerInfoV2;
 use sp_core::crypto::{AccountId32, ByteArray};
 use sp_core::sr25519::Public as Sr25519Public;
+use subxt::ext::sp_runtime::traits::EnsureAdd;
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::sync::Arc;
@@ -29,6 +30,40 @@ use crate::worker_status::WorkerStatusUpdate;
 
 const UPDATE_PHACTORY_INFO_INTERVAL: chrono::Duration = chrono::Duration::seconds(5);
 const RESTART_WORKER_COOL_PERIOD: chrono::Duration = chrono::Duration::seconds(15);
+
+pub enum SyncStage {
+    NotStart,
+    Init,
+    LoadChainState,
+    Sync,
+    Completed,
+}
+
+pub enum ComputationStage {
+    NotStart,
+    Register,
+    AddToPool,
+    StartComputing,
+    Completed,
+}
+
+impl fmt::Display for ComputationStage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ComputationStage::")?;
+        match &self {
+            ComputationStage::NotStart => write!(f, "NotStart"),
+            ComputationStage::Register => write!(f, "Register"),
+            ComputationStage::AddToPool => write!(f, "AddToPool"),
+            ComputationStage::StartComputing => write!(f, "StartComputing"),
+            ComputationStage::Completed => write!(f, "Completed"),
+        }
+    }
+}
+
+pub enum ExecutionStatus {
+    Ok((usize, String)),
+    Error((usize, String)),
+}
 
 pub struct WorkerContext {
     pub uuid: String,
@@ -52,15 +87,21 @@ pub struct WorkerContext {
     pub pruntime_lock: bool,
     pub client: Arc<PRuntimeClient>,
     pub pending_requests: VecDeque<PRuntimeRequest>,
+
+    pub phactory_info_execution_status: ExecutionStatus,
     pub phactory_info_requested: bool,
     pub phactory_info_requested_at: DateTime<Utc>,
 
+    pub sync_stage: SyncStage,
+    pub sync_execution_status: ExecutionStatus,
+
     pub stopped: bool,
-    pub received_session_info_update: bool,
-    pub computation_ready: bool,
-    pub register_requested: bool,
-    pub add_to_pool_requested: bool,
-    pub computing_requested: bool,
+
+    pub computation_stage: ComputationStage,
+    pub computation_exeuction_status: ExecutionStatus,
+    pub update_worker_info_count: usize,
+    pub update_session_id_count: usize,
+    pub update_session_info_count: usize,
 }
 
 impl WorkerContext {
@@ -101,15 +142,21 @@ impl WorkerContext {
             pruntime_lock: false,
             client: Arc::new(crate::pruntime::create_client(worker.endpoint.clone())),
             pending_requests: VecDeque::new(),
+
+            phactory_info_execution_status: ExecutionStatus::Ok((0, String::new())),
             phactory_info_requested: false,
             phactory_info_requested_at: DateTime::<Utc>::MIN_UTC,
 
+            sync_stage: SyncStage::NotStart,
+            sync_execution_status: ExecutionStatus::Ok((0, String::new())),
+
             stopped: false,
-            received_session_info_update: false,
-            computation_ready: false,
-            register_requested: false,
-            add_to_pool_requested: false,
-            computing_requested: false,
+
+            computation_stage: ComputationStage::NotStart,
+            computation_exeuction_status: ExecutionStatus::Ok((0, String::new())),
+            update_worker_info_count: 0,
+            update_session_id_count: 0,
+            update_session_info_count: 0,
         }
     }
 
@@ -306,7 +353,7 @@ pub enum WorkerEvent {
     PRuntimeRequest(PRuntimeRequest),
     PRuntimeResponse(Result<PRuntimeResponse, prpc::client::Error>),
     UpdateWorkerInfo(WorkerInfoV2<AccountId32>),
-    UpdateSessionId(AccountId32),
+    UpdateSessionId(Option<AccountId32>),
     UpdateSessionInfo(Option<SessionInfo>),
     WorkerLifecycleCommand(WorkerLifecycleCommand),
     UpdateMessage((DateTime<Utc>, String)),
@@ -474,6 +521,7 @@ impl Processor {
                     self.chaintip = info;
                 },
                 ProcessorEvent::RequestUpdateSessionInfo => {
+                    info!("Received RequestUpdateSessionInfo");
                     let mut worker_info_requests = Vec::<(String, Sr25519Public)>::new();
                     let mut session_id_requests = Vec::<(String, Sr25519Public)>::new();
                     let mut session_info_requests = Vec::<(String, AccountId32)>::new();
@@ -591,19 +639,27 @@ impl Processor {
                 }
             },
             WorkerEvent::UpdateWorkerInfo(worker_info) => {
+                trace!("[{}] Received UpdateWorkerInfo", worker.uuid);
+                worker.update_worker_info_count = worker.update_worker_info_count.saturating_add(1);
                 worker.worker_info = Some(worker_info);
             },
             WorkerEvent::UpdateSessionId(session_id) => {
-                worker.session_id = Some(session_id);
+                trace!("[{}] Received UpdateSessionId", worker.uuid);
+                worker.update_session_id_count = worker.update_session_id_count.saturating_add(1);
+                if session_id.is_some() {
+                    worker.session_id = session_id;
+                    self.send_worker_status(worker);
+                } else if worker.session_id.is_some() {
+                    warn!("[{}] Received a none session_id, but we already have.", worker.uuid);
+                }
             },
             WorkerEvent::UpdateSessionInfo(session_info) => {
-                worker.received_session_info_update = true;
-                if worker.worker_status.session_info.is_none() {
+                trace!("[{}] Received UpdateSessionInfo", worker.uuid);
+                worker.update_session_info_count = worker.update_session_info_count.saturating_add(1);
+                if session_info.is_some() {
                     worker.worker_status.session_info = session_info;
                     self.send_worker_status(worker);
-                } else if session_info.is_some() {
-                    worker.worker_status.session_info = session_info;
-                } else {
+                } else if worker.worker_status.session_info.is_some() {
                     warn!("[{}] Received a none session_info, but we already have.", worker.uuid);
                 }
             },
@@ -861,7 +917,7 @@ impl Processor {
                 trace!("[{}] Dispatched a block, requesting EgressMessages", worker.uuid);
                 self.add_pruntime_request(worker, PRuntimeRequest::GetEgressMessages);
             }
-            if !worker.computation_ready && worker.received_session_info_update {
+            if !matches!(worker.computation_stage, ComputationStage::Completed) {
                 trace!("[{}] Requesting computation determination", worker.uuid);
                 self.request_computation_determination(worker);
             }
@@ -905,7 +961,7 @@ impl Processor {
         &mut self,
         worker: &mut WorkerContext
     ) {
-        if worker.computation_ready || !worker.received_session_info_update {
+        if matches!(worker.computation_stage, ComputationStage::Completed) {
             return;
         }
         if worker.is_sync_only() {
@@ -913,7 +969,7 @@ impl Processor {
             return;
         }
 
-        if let WorkerLifecycleState::Synchronizing = worker.worker_status.state {
+        if matches!(worker.worker_status.state, WorkerLifecycleState::Synchronizing) {
             self.update_worker_state_and_message(
                 worker,
                 WorkerLifecycleState::Preparing,
@@ -923,80 +979,118 @@ impl Processor {
         }
 
         if !worker.is_registered() {
-            if worker.register_requested {
-                trace!("[{}] register has been requested, waiting for register result", worker.uuid);
-            } else {
-                self.add_pruntime_request(
-                    worker,
-                    PRuntimeRequest::PrepareRegister((true, worker.operator.clone(), false))
-                );
-                worker.register_requested = true;
+            match &worker.computation_stage {
+                ComputationStage::NotStart => {
+                    trace!("[{}] Requesting PRuntime InitRuntimeResponse for register", worker.uuid);
+                    self.add_pruntime_request(
+                        worker,
+                        PRuntimeRequest::PrepareRegister((true, worker.operator.clone(), false))
+                    );
+                    worker.computation_stage = ComputationStage::Register;
+                },
+                ComputationStage::Register => {
+                    trace!("[{}] Register has been requested, waiting for register result", worker.uuid);
+                },
+                _ => {
+                    error!("[{}] Worker is not registered but has Stage={}", worker.uuid, worker.computation_stage);
+                },
             }
+            return;
+        }
+
+        if worker.worker_status.worker.gatekeeper {
+            trace!("[{}] Worker is in Gatekeeper mode. Completing computation determination.", worker.uuid);
+            worker.computation_stage = ComputationStage::Completed;
             return;
         }
 
         let public_key = match worker.public_key() {
             Some(public_key) => public_key,
             None => {
-                trace!("[{}] no public key found. Skip continuing computation determination.", worker.uuid);
+                trace!("[{}] No public key found. Skip continuing computation determination.", worker.uuid);
                 return
             },
         };
 
+        if worker.update_worker_info_count == 0 {
+            trace!("[{}] Not updating WorkerInfo yet. Skip continuing computation determination.", worker.uuid);
+            return;
+        }
         match &worker.worker_info {
             Some(worker_info) => {
                 if worker_info.initial_score.is_none() {
-                    trace!("[{}] no initial_score yet. Skip continuing computation determination.", worker.uuid);
+                    trace!("[{}] No initial_score yet. Skip continuing computation determination.", worker.uuid);
                     return;
                 }
             },
             None => {
-                trace!("[{}] no worker_info found yet. Skip continuing computation determination.", worker.uuid);
+                trace!("[{}] No worker_info found yet. Skip continuing computation determination.", worker.uuid);
                 return;
             },
         };
 
+        if worker.update_session_id_count == 0 {
+            trace!("[{}] Not updating SessionId yet. Skip continuing computation determination.", worker.uuid);
+            return;
+        }
         if worker.session_id.is_none() {
-            if worker.add_to_pool_requested {
-                trace!("[{}] already requested add to pool, waiting for session_id", worker.uuid);
-            } else {
-                trace!("[{}] requesting add to pool", worker.uuid);
-                tokio::spawn(do_add_worker_to_pool(
-                    self.bus.clone(),
-                    self.txm.clone(),
-                    worker.uuid.clone(),
-                    worker.pool_id.clone(),
-                    public_key.clone(),
-                ));
-                worker.add_to_pool_requested = true;
+            match &worker.computation_stage {
+                ComputationStage::NotStart | ComputationStage::Register => {
+                    trace!("[{}] Requesting add to pool", worker.uuid);
+                    tokio::spawn(do_add_worker_to_pool(
+                        self.bus.clone(),
+                        self.txm.clone(),
+                        worker.uuid.clone(),
+                        worker.pool_id.clone(),
+                        public_key.clone(),
+                    ));
+                    worker.computation_stage = ComputationStage::AddToPool;
+                },
+                ComputationStage::AddToPool => {
+                    trace!("[{}] AddToPool has been requested, waiting for session_id", worker.uuid);
+                },
+                _ => {
+                    error!("[{}] Worker has no SessionId but has Stage={}", worker.uuid, worker.computation_stage);
+                }
             }
             return;
         }
 
-        if !worker.is_computing() {
-            if worker.computing_requested {
-                trace!("[{}] already requested start computing, waiting...", worker.uuid);
-            } else {
-                trace!("[{}] requesting start computing", worker.uuid);
-                tokio::spawn(do_start_computing(
-                    self.bus.clone(),
-                    self.txm.clone(),
-                    worker.uuid.clone(),
-                    worker.pool_id.clone(),
-                    public_key.clone(),
-                    worker.worker_status.worker.stake.clone()
-                ));
-                worker.computing_requested = true;
-            }
-        } else {
-            worker.computation_ready = true;
-            self.update_worker_state_and_message(
-                worker,
-                WorkerLifecycleState::Working,
-                "Computing Now!",
-                None,
-            );
+        if worker.update_session_info_count == 0 {
+            trace!("[{}] Not updating SessionInfo yet. Skip continuing computation determination.", worker.uuid);
+            return;
         }
+        if !worker.is_computing() {
+            match &worker.computation_stage {
+                ComputationStage::NotStart | ComputationStage::Register | ComputationStage::AddToPool => {
+                    trace!("[{}] requesting start computing", worker.uuid);
+                    tokio::spawn(do_start_computing(
+                        self.bus.clone(),
+                        self.txm.clone(),
+                        worker.uuid.clone(),
+                        worker.pool_id.clone(),
+                        public_key.clone(),
+                        worker.worker_status.worker.stake.clone()
+                    ));
+                    worker.computation_stage = ComputationStage::StartComputing;
+                },
+                ComputationStage::StartComputing => {
+                    trace!("[{}] StartComputing has been requested, waiting...", worker.uuid);
+                },
+                _ => {
+                    error!("[{}] Worker is not computing but has Stage={}", worker.uuid, worker.computation_stage);
+                },
+            }
+            return;
+        }
+
+        worker.computation_stage = ComputationStage::Completed;
+        self.update_worker_state_and_message(
+            worker,
+            WorkerLifecycleState::Working,
+            "Computing Now!",
+            None,
+        );
     }
 
     fn request_init(
@@ -1514,19 +1608,22 @@ async fn do_update_session_id(
         };
         match result {
             Ok(result) => {
-                if let Some(bytes) = result {
-                    let session_id = match AccountId32::decode(&mut bytes.as_slice()) {
-                        Ok(id) => id,
+                let session_id = match result {
+                    Some(bytes) => match AccountId32::decode(&mut bytes.as_slice()) {
+                        Ok(id) => Some(id),
                         Err(err) => {
                             error!("Failed to decode AccountId32: {:?}. {:?}", err, bytes);
                             continue;
                         },
-                    };
-                    let _ = bus.send_worker_event(
-                        worker_id.clone(),
-                        WorkerEvent::UpdateSessionId(session_id.clone()),
-                    );
-                    session_info_requests.push((worker_id.clone(), session_id.clone()))
+                    },
+                    None => None,
+                };
+                let _ = bus.send_worker_event(
+                    worker_id.clone(),
+                    WorkerEvent::UpdateSessionId(session_id.clone()),
+                );
+                if let Some(session_id) = session_id {
+                    session_info_requests.push((worker_id.clone(), session_id))
                 }
             },
             Err(err) => {
