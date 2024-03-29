@@ -68,7 +68,7 @@ async-trait = "0.1.57"
 phala-scheduler = { path = "../phala-scheduler" }
 sgx-api-lite = { path = "../sgx-api-lite" }
 sgx-attestation = { path = "../sgx-attestation" }
-reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "socks", "trust-dns"] }
+reqwest = { version = "0.11.27", default-features = false, features = ["rustls-tls", "socks", "hickory-dns"] }
 reqwest-env-proxy = { path = "../reqwest-env-proxy" }
 libc = "0.2"
 
