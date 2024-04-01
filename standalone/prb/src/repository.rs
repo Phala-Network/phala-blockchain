@@ -10,7 +10,7 @@ use tokio::time::sleep;
 
 use crate::bus::Bus;
 use crate::datasource::DataSourceManager;
-use crate::headers_db::*;
+use crate::{headers_db::*, use_parachain_api};
 use crate::processor::{PRuntimeRequest, ProcessorEvent, WorkerEvent};
 use crate::pool_operator::DB;
 
@@ -132,7 +132,6 @@ pub struct WorkerSyncInfo {
 }
 
 pub enum RepositoryEvent {
-    GenerateFastSyncRequest((String, Sr25519Public)),
     PreloadWorkerSyncInfo(WorkerSyncInfo),
     UpdateWorkerSyncInfo(WorkerSyncInfo),
 }
@@ -207,29 +206,6 @@ impl Repository {
             }
 
             match event.unwrap() {
-                RepositoryEvent::GenerateFastSyncRequest((worker_id, pubkey)) => {
-                    let bus = self.bus.clone();
-                    let para_api = parachain_api(self.dsm.clone(), false).await;
-                    tokio::spawn(async move {
-                        let result = pherry::chain_client::search_suitable_genesis_for_worker(&para_api, &pubkey.0, None).await;
-                        match result {
-                            Ok((block_number, state)) => {
-                                let request = ChainState::new(block_number, state);
-                                let _ = bus.send_pruntime_request(worker_id, PRuntimeRequest::LoadChainState(request));
-                            },
-                            Err(err) => {
-                                let _ = bus.send_worker_event(
-                                    worker_id,
-                                    WorkerEvent::MarkError((
-                                        chrono::Utc::now(),
-                                        err.to_string(),
-                                    ))
-                                );
-                            },
-                        }
-
-                    });
-                },
                 RepositoryEvent::PreloadWorkerSyncInfo(info) => {
                     tokio::spawn(get_sync_request(
                         self.dsm.clone(),
@@ -279,6 +255,25 @@ impl Repository {
         }
 
         Ok(())
+    }
+}
+
+pub async fn get_load_state_request(
+    bus: Arc<Bus>,
+    dsm: Arc<DataSourceManager>,
+    worker_id: String,
+    public_key: Sr25519Public,
+    prefer_number: u32,
+) {
+    let para_api = use_parachain_api!(dsm, true).unwrap();
+    match pherry::chain_client::search_suitable_genesis_for_worker(&para_api, &public_key, Some(prefer_number)).await {
+        Ok((block_number, state)) => {
+            let request = ChainState::new(block_number, state);
+            let _ = bus.send_pruntime_request(worker_id, PRuntimeRequest::LoadChainState(request));
+        },
+        Err(err) => {
+            let _ = bus.send_worker_mark_error(worker_id, err.to_string());
+        },
     }
 }
 

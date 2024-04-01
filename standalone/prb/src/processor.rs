@@ -20,7 +20,7 @@ use tokio::sync::mpsc;
 use crate::api::WorkerStatus;
 use crate::bus::Bus;
 use crate::datasource::DataSourceManager;
-use crate::repository::{ChaintipInfo, RepositoryEvent, SyncRequest, SyncRequestManifest, WorkerSyncInfo};
+use crate::repository::{get_load_state_request, ChaintipInfo, RepositoryEvent, SyncRequest, SyncRequestManifest, WorkerSyncInfo};
 use crate::messages::MessagesEvent;
 use crate::pruntime::PRuntimeClient;
 use crate::tx::TxManager;
@@ -355,6 +355,9 @@ pub enum WorkerEvent {
     UpdateWorkerInfo(WorkerInfoV2<AccountId32>),
     UpdateSessionId(Option<AccountId32>),
     UpdateSessionInfo(Option<SessionInfo>),
+    RepositoryLoadStateRequest,
+    RepositoryPreloadRequest(SyncRequest),
+    RepositorySyncRequest(SyncRequest),
     WorkerLifecycleCommand(WorkerLifecycleCommand),
     UpdateMessage((DateTime<Utc>, String)),
     MarkError((DateTime<Utc>, String)),
@@ -663,6 +666,21 @@ impl Processor {
                     warn!("[{}] Received a none session_info, but we already have.", worker.uuid);
                 }
             },
+            WorkerEvent::RepositoryLoadStateRequest => {
+                trace!("[{}] Requesting LoadStateRequest", worker.uuid);
+                tokio::spawn(get_load_state_request(
+                    self.bus.clone(),
+                    self.dsm.clone(),
+                    worker.uuid.clone(),
+                    worker.public_key().unwrap(),
+                    // Cannot register before dispatching at least one block.
+                    // Do not fast sync the newest block for new workers
+                    self.chaintip.parachain - 1,
+                ));
+                self.update_worker_message(worker, "LoadChainState Starting...", None);
+            },
+            WorkerEvent::RepositoryPreloadRequest(_) => todo!(),
+            WorkerEvent::RepositorySyncRequest(_) => todo!(),
             WorkerEvent::WorkerLifecycleCommand(command) => {
                 self.handle_worker_lifecycle_command(worker, command);
             },
@@ -917,7 +935,7 @@ impl Processor {
                 trace!("[{}] Dispatched a block, requesting EgressMessages", worker.uuid);
                 self.add_pruntime_request(worker, PRuntimeRequest::GetEgressMessages);
             }
-            if !matches!(worker.computation_stage, ComputationStage::Completed) {
+            if !matches!(worker.computation_stage, ComputationStage::Completed) && !worker.is_sync_only() {
                 trace!("[{}] Requesting computation determination", worker.uuid);
                 self.request_computation_determination(worker);
             }
@@ -942,8 +960,11 @@ impl Processor {
         }
 
         trace!("[{}] checking worker fast sync", worker.uuid);
-        if self.allow_fast_sync && info.can_load_chain_state {
-            self.request_fast_sync(worker);
+        if self.allow_fast_sync && info.can_load_chain_state && self.chaintip.parachain > 1 {
+            let _ = self.bus.send_worker_event(
+                worker.uuid.clone(),
+                WorkerEvent::RepositoryLoadStateRequest
+            );
             return;
         }
 
@@ -981,7 +1002,7 @@ impl Processor {
         if !worker.is_registered() {
             match &worker.computation_stage {
                 ComputationStage::NotStart => {
-                    trace!("[{}] Requesting PRuntime InitRuntimeResponse for register", worker.uuid);
+                    info!("[{}] Requesting PRuntime InitRuntimeResponse for register", worker.uuid);
                     self.add_pruntime_request(
                         worker,
                         PRuntimeRequest::PrepareRegister((true, worker.operator.clone(), false))
@@ -999,7 +1020,7 @@ impl Processor {
         }
 
         if worker.worker_status.worker.gatekeeper {
-            trace!("[{}] Worker is in Gatekeeper mode. Completing computation determination.", worker.uuid);
+            info!("[{}] Worker is in Gatekeeper mode. Completing computation determination.", worker.uuid);
             worker.computation_stage = ComputationStage::Completed;
             return;
         }
@@ -1036,7 +1057,7 @@ impl Processor {
         if worker.session_id.is_none() {
             match &worker.computation_stage {
                 ComputationStage::NotStart | ComputationStage::Register => {
-                    trace!("[{}] Requesting add to pool", worker.uuid);
+                    info!("[{}] Requesting add to pool", worker.uuid);
                     tokio::spawn(do_add_worker_to_pool(
                         self.bus.clone(),
                         self.txm.clone(),
@@ -1063,7 +1084,7 @@ impl Processor {
         if !worker.is_computing() {
             match &worker.computation_stage {
                 ComputationStage::NotStart | ComputationStage::Register | ComputationStage::AddToPool => {
-                    trace!("[{}] requesting start computing", worker.uuid);
+                    info!("[{}] Requesting start computing", worker.uuid);
                     tokio::spawn(do_start_computing(
                         self.bus.clone(),
                         self.txm.clone(),
@@ -1118,16 +1139,6 @@ impl Processor {
 
         self.update_worker_message(worker, "InitRuntime Starting...", None);
         self.add_pruntime_request(worker, PRuntimeRequest::InitRuntime(request));
-    }
-
-    fn request_fast_sync(
-        &mut self,
-        worker: &mut WorkerContext,
-    ) {
-        let _ = self.bus.send_repository_event(
-            RepositoryEvent::GenerateFastSyncRequest((worker.uuid.clone(), worker.public_key().unwrap()))
-        );
-        self.update_worker_message(worker, "LoadChainState Starting...", None);
     }
 
     fn request_next_sync(
