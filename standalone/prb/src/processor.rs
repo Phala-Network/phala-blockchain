@@ -9,7 +9,7 @@ use crate::tx::TxManager;
 use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState};
 use crate::worker_status::WorkerStatusUpdate;
 use anyhow::Result;
-use chrono::{DateTime, Timelike, Utc};
+use chrono::{DateTime, Duration, Timelike, Utc};
 use log::{error, info, trace, warn};
 use phactory_api::prpc::{
     self, ChainState, GetEgressMessagesResponse, GetEndpointResponse, GetRuntimeInfoRequest,
@@ -24,8 +24,10 @@ use std::fmt;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
-const UPDATE_PHACTORY_INFO_INTERVAL: chrono::Duration = chrono::Duration::seconds(5);
-const RESTART_WORKER_COOL_PERIOD: chrono::Duration = chrono::Duration::seconds(15);
+#[allow(deprecated)]
+const UPDATE_PHACTORY_INFO_INTERVAL: Duration = Duration::seconds(5);
+#[allow(deprecated)]
+const RESTART_WORKER_COOL_PERIOD: Duration = Duration::seconds(15);
 
 pub enum SyncStage {
     NotStart,
