@@ -1,8 +1,16 @@
-use anyhow::{anyhow, Result};
+use crate::api::WorkerStatus;
+use crate::bus::Bus;
+use crate::compute_management::*;
+use crate::datasource::DataSourceManager;
+use crate::repository::{get_load_state_request, ChaintipInfo, RepositoryEvent, SyncRequest, SyncRequestManifest, WorkerSyncInfo};
+use crate::messages::MessagesEvent;
+use crate::pruntime::PRuntimeClient;
+use crate::tx::TxManager;
+use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState};
+use crate::worker_status::WorkerStatusUpdate;
+use anyhow::Result;
 use chrono::{DateTime, Timelike, Utc};
-use futures::future::try_join_all;
 use log::{error, info, trace, warn};
-use parity_scale_codec::Decode;
 use phactory_api::prpc::{
     self, ChainState, GetEgressMessagesResponse, GetEndpointResponse, GetRuntimeInfoRequest,
     InitRuntimeRequest, InitRuntimeResponse, PhactoryInfo, SignEndpointsRequest,
@@ -11,22 +19,10 @@ use phala_pallets::pallet_computation::{SessionInfo, WorkerState};
 use phala_pallets::registry::WorkerInfoV2;
 use sp_core::crypto::{AccountId32, ByteArray};
 use sp_core::sr25519::Public as Sr25519Public;
-use subxt::ext::sp_runtime::traits::EnsureAdd;
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-
-use crate::api::WorkerStatus;
-use crate::bus::Bus;
-use crate::datasource::DataSourceManager;
-use crate::repository::{get_load_state_request, ChaintipInfo, RepositoryEvent, SyncRequest, SyncRequestManifest, WorkerSyncInfo};
-use crate::messages::MessagesEvent;
-use crate::pruntime::PRuntimeClient;
-use crate::tx::TxManager;
-use crate::use_parachain_api;
-use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState};
-use crate::worker_status::WorkerStatusUpdate;
 
 const UPDATE_PHACTORY_INFO_INTERVAL: chrono::Duration = chrono::Duration::seconds(5);
 const RESTART_WORKER_COOL_PERIOD: chrono::Duration = chrono::Duration::seconds(15);
@@ -97,6 +93,8 @@ pub struct WorkerContext {
 
     pub stopped: bool,
 
+    pub compute_management_context: Option<ComputeManagementContext>,
+
     pub computation_stage: ComputationStage,
     pub computation_exeuction_status: ExecutionStatus,
     pub update_worker_info_count: usize,
@@ -151,6 +149,8 @@ impl WorkerContext {
             sync_execution_status: ExecutionStatus::Ok((0, String::new())),
 
             stopped: false,
+
+            compute_management_context: None,
 
             computation_stage: ComputationStage::NotStart,
             computation_exeuction_status: ExecutionStatus::Ok((0, String::new())),
@@ -718,7 +718,7 @@ impl Processor {
         ));
     }
 
-    fn update_worker_state_and_message(
+    pub fn update_worker_state_and_message(
         &mut self,
         worker: &mut WorkerContext,
         state: WorkerLifecycleState,
@@ -737,7 +737,7 @@ impl Processor {
         ));
     }
 
-    fn update_worker_message(
+    pub fn update_worker_message(
         &mut self,
         worker: &mut WorkerContext,
         message: &str,
@@ -751,7 +751,7 @@ impl Processor {
         ));
     }
 
-    fn send_worker_status(
+    pub fn send_worker_status(
         &mut self,
         worker: &mut WorkerContext,
     ) {
@@ -761,7 +761,7 @@ impl Processor {
         ));
     }
 
-    fn send_worker_sync_info(
+    pub fn send_worker_sync_info(
         &mut self,
         worker: &mut WorkerContext,
     ) {
@@ -775,7 +775,7 @@ impl Processor {
         ));
     }
 
-    fn add_pruntime_request(
+    pub fn add_pruntime_request(
         &mut self,
         worker: &mut WorkerContext,
         request: PRuntimeRequest,
@@ -937,7 +937,7 @@ impl Processor {
             }
             if !matches!(worker.computation_stage, ComputationStage::Completed) && !worker.is_sync_only() {
                 trace!("[{}] Requesting computation determination", worker.uuid);
-                self.request_computation_determination(worker);
+                self.request_compute_management(worker);
             }
         }
     }
@@ -975,142 +975,6 @@ impl Processor {
             WorkerLifecycleState::Synchronizing,
             "Start Synchronizing...",
             None, 
-        );
-    }
-
-    fn request_computation_determination(
-        &mut self,
-        worker: &mut WorkerContext
-    ) {
-        if matches!(worker.computation_stage, ComputationStage::Completed) {
-            return;
-        }
-        if worker.is_sync_only() {
-            trace!("[{}] Worker or Pool is sync only mode, skip computation determination.", worker.uuid);
-            return;
-        }
-
-        if matches!(worker.worker_status.state, WorkerLifecycleState::Synchronizing) {
-            self.update_worker_state_and_message(
-                worker,
-                WorkerLifecycleState::Preparing,
-                "Worker reached to ChainTip, trying to start computation.",
-                None,
-            );
-        }
-
-        if !worker.is_registered() {
-            match &worker.computation_stage {
-                ComputationStage::NotStart => {
-                    info!("[{}] Requesting PRuntime InitRuntimeResponse for register", worker.uuid);
-                    self.add_pruntime_request(
-                        worker,
-                        PRuntimeRequest::PrepareRegister((true, worker.operator.clone(), false))
-                    );
-                    worker.computation_stage = ComputationStage::Register;
-                },
-                ComputationStage::Register => {
-                    trace!("[{}] Register has been requested, waiting for register result", worker.uuid);
-                },
-                _ => {
-                    error!("[{}] Worker is not registered but has Stage={}", worker.uuid, worker.computation_stage);
-                },
-            }
-            return;
-        }
-
-        if worker.worker_status.worker.gatekeeper {
-            info!("[{}] Worker is in Gatekeeper mode. Completing computation determination.", worker.uuid);
-            worker.computation_stage = ComputationStage::Completed;
-            return;
-        }
-
-        let public_key = match worker.public_key() {
-            Some(public_key) => public_key,
-            None => {
-                trace!("[{}] No public key found. Skip continuing computation determination.", worker.uuid);
-                return
-            },
-        };
-
-        if worker.update_worker_info_count == 0 {
-            trace!("[{}] Not updating WorkerInfo yet. Skip continuing computation determination.", worker.uuid);
-            return;
-        }
-        match &worker.worker_info {
-            Some(worker_info) => {
-                if worker_info.initial_score.is_none() {
-                    trace!("[{}] No initial_score yet. Skip continuing computation determination.", worker.uuid);
-                    return;
-                }
-            },
-            None => {
-                trace!("[{}] No worker_info found yet. Skip continuing computation determination.", worker.uuid);
-                return;
-            },
-        };
-
-        if worker.update_session_id_count == 0 {
-            trace!("[{}] Not updating SessionId yet. Skip continuing computation determination.", worker.uuid);
-            return;
-        }
-        if worker.session_id.is_none() {
-            match &worker.computation_stage {
-                ComputationStage::NotStart | ComputationStage::Register => {
-                    info!("[{}] Requesting add to pool", worker.uuid);
-                    tokio::spawn(do_add_worker_to_pool(
-                        self.bus.clone(),
-                        self.txm.clone(),
-                        worker.uuid.clone(),
-                        worker.pool_id.clone(),
-                        public_key.clone(),
-                    ));
-                    worker.computation_stage = ComputationStage::AddToPool;
-                },
-                ComputationStage::AddToPool => {
-                    trace!("[{}] AddToPool has been requested, waiting for session_id", worker.uuid);
-                },
-                _ => {
-                    error!("[{}] Worker has no SessionId but has Stage={}", worker.uuid, worker.computation_stage);
-                }
-            }
-            return;
-        }
-
-        if worker.update_session_info_count == 0 {
-            trace!("[{}] Not updating SessionInfo yet. Skip continuing computation determination.", worker.uuid);
-            return;
-        }
-        if !worker.is_computing() {
-            match &worker.computation_stage {
-                ComputationStage::NotStart | ComputationStage::Register | ComputationStage::AddToPool => {
-                    info!("[{}] Requesting start computing", worker.uuid);
-                    tokio::spawn(do_start_computing(
-                        self.bus.clone(),
-                        self.txm.clone(),
-                        worker.uuid.clone(),
-                        worker.pool_id.clone(),
-                        public_key.clone(),
-                        worker.worker_status.worker.stake.clone()
-                    ));
-                    worker.computation_stage = ComputationStage::StartComputing;
-                },
-                ComputationStage::StartComputing => {
-                    trace!("[{}] StartComputing has been requested, waiting...", worker.uuid);
-                },
-                _ => {
-                    error!("[{}] Worker is not computing but has Stage={}", worker.uuid, worker.computation_stage);
-                },
-            }
-            return;
-        }
-
-        worker.computation_stage = ComputationStage::Completed;
-        self.update_worker_state_and_message(
-            worker,
-            WorkerLifecycleState::Working,
-            "Computing Now!",
-            None,
         );
     }
 
@@ -1351,102 +1215,6 @@ async fn do_sync_request(
     Ok(response)
 }
 
-async fn do_register(
-    bus: Arc<Bus>,
-    txm: Arc<TxManager>,
-    worker_id: String,
-    pool_id: u64,
-    response: InitRuntimeResponse,
-    pccs_url: String,
-    pccs_timeout_secs: u64,
-) {
-    let attestation = match response.attestation {
-        Some(attestation) => attestation,
-        None => {
-            error!("[{}] Worker has no attestation.", worker_id);
-            return;
-        },
-    };
-    let v2 = attestation.payload.is_none();
-    let attestation = pherry::attestation_to_report(
-        attestation,
-        &pccs_url,
-        pccs_timeout_secs,
-    )
-    .await;
-    let attestation = match attestation {
-        Ok(attestation) => attestation,
-        Err(err) => {
-            error!("[{}] Failed to get attestation report. {}", worker_id, err);
-            let _ = bus.send_worker_event(
-                worker_id,
-                WorkerEvent::MarkError((
-                    Utc::now(),
-                    err.to_string(),
-                ))
-            );
-            return;
-        },
-    };
-
-    let result = txm.register_worker(pool_id, response.encoded_runtime_info, attestation, v2).await;
-    match result {
-        Ok(_) => {
-            info!("[{}] Worker Register Completed.", worker_id);
-            let _ = bus.send_worker_event(
-                worker_id.clone(),
-                WorkerEvent::UpdateMessage((
-                    Utc::now(),
-                    "Worker Register Completed.".to_string(),
-                ))
-            );
-            let _ = bus.send_pruntime_request(worker_id.clone(), PRuntimeRequest::RegularGetInfo);
-        },
-        Err(err) => {
-            error!("[{}] Worker Register Failed: {}", worker_id, err);
-            let _ = bus.send_worker_event(
-                worker_id,
-                WorkerEvent::MarkError((
-                    Utc::now(),
-                    err.to_string(),
-                ))
-            );
-            return;
-        },
-    }
-}
-
-async fn do_add_worker_to_pool(
-    bus: Arc<Bus>,
-    txm: Arc<TxManager>,
-    worker_id: String,
-    pool_id: u64,
-    worker_public_key: Sr25519Public,
-) {
-    let result = txm.add_worker(pool_id, worker_public_key).await;
-    if let Err(err) = result {
-        let err_msg = format!("Failed to add_worker_to_pool. {}", err);
-        error!("[{}] {}", worker_id, err_msg);
-        let _ = bus.send_worker_mark_error(worker_id, err_msg);
-    }
-}
-
-async fn do_start_computing(
-    bus: Arc<Bus>,
-    txm: Arc<TxManager>,
-    worker_id: String,
-    pool_id: u64,
-    worker_public_key: Sr25519Public,
-    stake: String,
-) {
-    let result = txm.start_computing(pool_id, worker_public_key, stake).await;
-    if let Err(err) = result {
-        let err_msg = format!("Failed to start computing. {}", err);
-        error!("[{}] {}", worker_id, err_msg);
-        let _ = bus.send_worker_mark_error(worker_id, err_msg);
-    }
-}
-
 async fn do_restart(
     bus: Arc<Bus>,
     worker: crate::inv_db::Worker,
@@ -1499,223 +1267,4 @@ async fn do_update_endpoints(
             );
         },
     }
-}
-
-async fn do_update_worker_info(
-    bus: Arc<Bus>,
-    dsm: Arc<DataSourceManager>,
-    requests: Vec<(String, Sr25519Public)>,
-) -> Result<()> {
-    let para_api = use_parachain_api!(dsm, false).ok_or(anyhow!("parachain_api not found"))?;
-    let metadata = para_api.metadata();
-    let hash = para_api.rpc().finalized_head().await?;
-    let storage = para_api.storage().at(hash);
-
-    let futures = requests
-        .iter()
-        .map(|(_, public_key)| {
-            let address = subxt::dynamic::storage(
-                "PhalaRegistry",
-                "Workers",
-                vec![subxt::dynamic::Value::from_bytes(public_key)],
-            );
-            let storage = storage.clone();
-            let lookup_bytes = crate::utils::storage_address_bytes(&address, &metadata).unwrap();
-            tokio::spawn(async move {
-                storage.fetch_raw(&lookup_bytes).await
-            })
-        })
-        .collect::<Vec<_>>();
-
-    let results = match try_join_all(futures).await {
-        Ok(results) => results,
-        Err(err) => {
-            error!("Met error during update worker info: {}", err);
-            return Err(err.into());
-        },
-    };
-
-    let mut session_ids_requests = Vec::<(String, Sr25519Public)>::new();
-    for (idx, (worker_id, public_key)) in requests.iter().enumerate() {
-        let result = match results.get(idx) {
-            Some(res) => res,
-            None => {
-                error!("WorkerInfo: #{} result not exists.", idx);
-                continue;
-            },
-        };
-        match result {
-            Ok(result) => {
-                if let Some(bytes) = result {
-                    let worker_info = match WorkerInfoV2::<AccountId32>::decode(&mut bytes.as_slice()) {
-                        Ok(info) => info,
-                        Err(err) => {
-                            error!("Failed to decode WorkerInvoV2: {:?}. {:?}", err, bytes);
-                            continue;
-                        },
-                    };
-                    let _ = bus.send_worker_event(
-                        worker_id.clone(),
-                        WorkerEvent::UpdateWorkerInfo(worker_info.clone()),
-                    );
-                    session_ids_requests.push((worker_id.clone(), public_key.clone()))
-                }
-            },
-            Err(err) => {
-                error!("{}", err);
-            },
-        }
-    }
-
-    if session_ids_requests.is_empty() {
-        Ok(())
-    } else {
-        do_update_session_id(bus, dsm, session_ids_requests).await
-    }
-}
-
-async fn do_update_session_id(
-    bus: Arc<Bus>,
-    dsm: Arc<DataSourceManager>,
-    requests: Vec<(String, Sr25519Public)>,
-) -> Result<()> {
-    let para_api = use_parachain_api!(dsm, false).ok_or(anyhow!("parachain_api not found"))?;
-    let metadata = para_api.metadata();
-    let hash = para_api.rpc().finalized_head().await?;
-    let storage = para_api.storage().at(hash);
-
-    let futures = requests
-        .iter()
-        .map(|(_, public_key)| {
-            let address = subxt::dynamic::storage(
-                "PhalaComputation",
-                "WorkerBindings",
-                vec![subxt::dynamic::Value::from_bytes(public_key)],
-            );
-            let storage = storage.clone();
-            let lookup_bytes = crate::utils::storage_address_bytes(&address, &metadata).unwrap();
-            tokio::spawn(async move {
-                storage.fetch_raw(&lookup_bytes).await
-            })
-        })
-        .collect::<Vec<_>>();
-
-    let results = match try_join_all(futures).await {
-        Ok(results) => results,
-        Err(err) => {
-            error!("Met error during update session id: {}", err);
-            return Err(err.into());
-        },
-    };
-
-    let mut session_info_requests = Vec::<(String, AccountId32)>::new();
-    for (idx, (worker_id, _)) in requests.iter().enumerate() {
-        let result = match results.get(idx) {
-            Some(res) => res,
-            None => {
-                error!("SessionId: #{} result not exists.", idx);
-                continue;
-            },
-        };
-        match result {
-            Ok(result) => {
-                let session_id = match result {
-                    Some(bytes) => match AccountId32::decode(&mut bytes.as_slice()) {
-                        Ok(id) => Some(id),
-                        Err(err) => {
-                            error!("Failed to decode AccountId32: {:?}. {:?}", err, bytes);
-                            continue;
-                        },
-                    },
-                    None => None,
-                };
-                let _ = bus.send_worker_event(
-                    worker_id.clone(),
-                    WorkerEvent::UpdateSessionId(session_id.clone()),
-                );
-                if let Some(session_id) = session_id {
-                    session_info_requests.push((worker_id.clone(), session_id))
-                }
-            },
-            Err(err) => {
-                error!("{}", err);
-            },
-        }
-    }
-
-    if session_info_requests.is_empty() {
-        Ok(())
-    } else {
-        do_update_session_info(bus, dsm, session_info_requests).await
-    }
-}
-
-async fn do_update_session_info(
-    bus: Arc<Bus>,
-    dsm: Arc<DataSourceManager>,
-    requests: Vec<(String, AccountId32)>,
-) -> Result<()> {
-    let para_api = use_parachain_api!(dsm, false).ok_or(anyhow!("parachain_api not found"))?;
-    let metadata = para_api.metadata();
-    let hash = para_api.rpc().finalized_head().await?;
-    let storage = para_api.storage().at(hash);
-
-    let futures = requests
-        .iter()
-        .map(|(_, session_id)| {
-            let address = subxt::dynamic::storage(
-                "PhalaComputation",
-                "Sessions",
-                vec![subxt::dynamic::Value::from_bytes(session_id)],
-            );
-            let storage = storage.clone();
-            let lookup_bytes = crate::utils::storage_address_bytes(&address, &metadata).unwrap();
-            tokio::spawn(async move {
-                storage.fetch_raw(&lookup_bytes).await
-            })
-        })
-        .collect::<Vec<_>>();
-
-    let results = match try_join_all(futures).await {
-        Ok(results) => results,
-        Err(err) => {
-            error!("Met error during update session id: {}", err);
-            return Err(err.into());
-        },
-    };
-
-    for (idx, (worker_id, _)) in requests.iter().enumerate() {
-        let result = match results.get(idx) {
-            Some(res) => res,
-            None => {
-                error!("SessionInfo: #{} result not exists.", idx);
-                continue;
-            },
-        };
-        match result {
-            Ok(result) => {
-                let session_info = match result {
-                    Some(bytes) => {
-                        let session_info = match SessionInfo::decode(&mut bytes.as_slice()) {
-                            Ok(id) => id,
-                            Err(err) => {
-                                error!("Failed to decode SessionInfo: {:?}. {:?}", err, bytes);
-                                continue;
-                            },
-                        };
-                        Some(session_info)
-                    }
-                    _ => None
-                };
-                let _ = bus.send_worker_event(
-                    worker_id.clone(),
-                    WorkerEvent::UpdateSessionInfo(session_info),
-                );
-            },
-            Err(err) => {
-                error!("{}", err);
-            },
-        }
-    }
-    Ok(())
 }
