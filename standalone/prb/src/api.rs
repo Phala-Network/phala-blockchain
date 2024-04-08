@@ -1,13 +1,10 @@
-use crate::api::ApiError::{LifecycleManagerNotInitialized, WorkerNotFound};
 use crate::cli::{ConfigCommands, WorkerManagerCliArgs};
 use crate::configurator::api_handler;
 use crate::inv_db::Worker;
 use crate::processor::WorkerEvent;
 use crate::tx::Transaction;
-use crate::wm::WorkerManagerMessage::ShouldResetLifecycleManager;
-use crate::wm::{send_to_main_channel, WrappedWorkerManagerContext};
+use crate::wm::WrappedWorkerManagerContext;
 use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState, WrappedWorkerContext};
-use anyhow::anyhow;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -181,7 +178,7 @@ async fn handle_get_wm_status() -> Json<WmStatusResponse> {
     })
 }
 
-async fn handle_restart_wm(State(ctx): AppContext) -> ApiResult<(StatusCode, Json<OkResponse>)> {
+async fn handle_restart_wm() -> ApiResult<(StatusCode, Json<OkResponse>)> {
     Ok((StatusCode::METHOD_NOT_ALLOWED, Json(OkResponse::default())))
 }
 

@@ -11,7 +11,7 @@ use tokio::time::sleep;
 use crate::bus::Bus;
 use crate::datasource::DataSourceManager;
 use crate::{headers_db::*, use_parachain_api};
-use crate::processor::{PRuntimeRequest, ProcessorEvent, WorkerEvent};
+use crate::processor::{PRuntimeRequest, ProcessorEvent};
 use crate::pool_operator::DB;
 
 use phactory_api::prpc::{Blocks, ChainState, CombinedHeadersToSync, HeadersToSync, ParaHeadersToSync};
