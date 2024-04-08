@@ -3,11 +3,9 @@ use crate::pruntime::{PRuntimeClient, PRuntimeClientWithSemaphore};
 use crate::pool_operator::PoolOperatorAccess;
 use crate::utils::fetch_storage_bytes;
 use crate::wm::{WorkerManagerMessage, WrappedWorkerManagerContext};
-use crate::worker::WorkerLifecycleCommand::*;
 use crate::use_parachain_api;
 use anyhow::{anyhow, Result};
 use chrono::prelude::*;
-use futures::future::join;
 use log::{debug, error, info, warn};
 
 use phactory_api::prpc::{
@@ -16,7 +14,6 @@ use phactory_api::prpc::{
 use phala_pallets::pallet_computation::{SessionInfo, WorkerState};
 use phala_pallets::registry::WorkerInfoV2;
 use phala_types::AttestationProvider;
-use phaxt::subxt::ext::sp_runtime;
 use pherry::chain_client::{mq_next_sequence, search_suitable_genesis_for_worker};
 
 use pherry::attestation_to_report;

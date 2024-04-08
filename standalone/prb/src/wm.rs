@@ -4,24 +4,21 @@ use crate::cli::WorkerManagerCliArgs;
 use crate::repository::{Repository, RepositoryEvent};
 use crate::datasource::{setup_data_source_manager, WrappedDataSourceManager};
 use crate::inv_db::{get_all_workers, setup_inventory_db, WrappedDb};
-use crate::lifecycle::{WorkerContextMap, WorkerLifecycleManager, WrappedWorkerLifecycleManager};
+use crate::lifecycle::{WorkerContextMap, WrappedWorkerLifecycleManager};
 use crate::messages::{master_loop as offchain_tx_loop, MessagesEvent};
 use crate::pool_operator::PoolOperatorAccess;
 use crate::processor::{Processor, ProcessorEvent};
 use crate::tx::TxManager;
 use crate::use_parachain_api;
-use crate::wm::WorkerManagerMessage::*;
-use crate::worker::{WorkerLifecycleState, WrappedWorkerContext};
+use crate::worker::WrappedWorkerContext;
 use crate::worker_status::{update_worker_status, WorkerStatusEvent};
 use anyhow::{anyhow, Result};
-use futures::future::{try_join, try_join3, try_join_all};
-use log::{debug, error, info};
+use futures::future::{try_join3, try_join_all};
+use log::{error, info};
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
-use tokio::time::sleep;
 
 pub type GlobalWorkerManagerCommandChannelPair = (
     mpsc::UnboundedSender<WorkerManagerCommand>,
@@ -108,8 +105,6 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         setup_data_source_manager(&args.data_source_config_path, args.cache_size)
             .await
             .expect("Initialize data source manager");
-
-    let fast_sync_enabled = !args.disable_fast_sync;
 
     dsm.clone().wait_until_rpc_avail(false).await;
     let _api = use_parachain_api!(dsm, false).unwrap();
