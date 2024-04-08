@@ -1,13 +1,13 @@
-use std::{collections::{hash_map::Entry::{Occupied, Vacant}, HashMap}, sync::Arc};
-
+use crate::{bus::Bus, datasource::DataSourceManager, tx::TxManager, use_parachain_api};
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use log::{debug, error, info, trace, warn};
-
 use phala_types::messaging::{MessageOrigin, SignedMessage};
+use std::{collections::{hash_map::Entry::{Occupied, Vacant}, HashMap}, sync::Arc};
 use tokio::sync::mpsc;
 
-use crate::{bus::Bus, datasource::DataSourceManager, tx::TxManager, use_parachain_api};
+#[allow(deprecated)]
+const TRANSACTION_TIMEOUT: Duration = Duration::minutes(30);
 
 pub enum MessagesEvent {
     SyncMessages((String, u64, MessageOrigin, Vec<SignedMessage>)),
@@ -35,7 +35,7 @@ impl MessageContext {
     pub fn is_pending_or_success(&self) -> bool {
         matches!(self.state, MessageState::Successful) || (
             matches!(self.state, MessageState::Pending) &&
-            Utc::now().signed_duration_since(self.start_at) <= Duration::minutes(30)
+            Utc::now().signed_duration_since(self.start_at) <= TRANSACTION_TIMEOUT
         )
     }
 

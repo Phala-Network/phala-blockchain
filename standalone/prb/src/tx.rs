@@ -38,7 +38,6 @@ static TX_TIP: u128 = 0;
 
 static TX_QUEUE_CHUNK_SIZE: usize = 30;
 static TX_QUEUE_CHUNK_TIMEOUT_IN_MS: u64 = 1000;
-static TX_TIMEOUT: u64 = 30000;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum TransactionState {
