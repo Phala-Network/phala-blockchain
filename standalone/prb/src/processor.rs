@@ -1018,6 +1018,10 @@ impl Processor {
         };
 
         for (sender, messages) in messages {
+            if messages.is_empty() {
+                trace!("[{}] Received empty messages for sender {}", worker.uuid, sender);
+                continue;
+            }
             let _ = self.bus.send_messages_event(
                 MessagesEvent::SyncMessages((
                     worker.uuid.clone(),
