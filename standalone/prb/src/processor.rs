@@ -835,6 +835,25 @@ impl Processor {
                 self.send_worker_sync_info(worker);
             },
             PRuntimeResponse::RegularGetInfo(phactory_info) => {
+                if worker.headernum != phactory_info.headernum
+                    || worker.para_headernum != phactory_info.para_headernum
+                    || worker.blocknum != phactory_info.blocknum
+                {
+                    warn!(
+                        "[{}] Sync status not match: existing {}-{}-{}, received: {}-{}-{}",
+                        worker.uuid,
+                        worker.headernum,
+                        worker.para_headernum,
+                        worker.blocknum,
+                        phactory_info.headernum,
+                        phactory_info.para_headernum,
+                        phactory_info.blocknum,
+                    );
+                    worker.headernum = phactory_info.headernum;
+                    worker.para_headernum = phactory_info.para_headernum;
+                    worker.blocknum = phactory_info.blocknum;
+                    self.request_next_sync(worker);
+                }
                 worker.phactory_info_requested = false;
                 worker.worker_status.phactory_info = Some(phactory_info);
                 self.send_worker_status(worker);
