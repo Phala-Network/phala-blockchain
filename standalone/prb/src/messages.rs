@@ -171,15 +171,13 @@ pub async fn master_loop(
                         },
                     }
 
-                    let bus = bus.clone();
-                    let txm = txm.clone();
-                    let sender = sender.clone();
+                    trace!("[{}] Sending #{} message", sender, message.sequence);
                     tokio::spawn(do_sync_message(
                         bus.clone(),
                         txm.clone(),
                         worker_id.clone(),
                         pool_id,
-                        sender,
+                        sender.clone(),
                         message
                     ));
                 }
@@ -195,7 +193,7 @@ pub async fn master_loop(
                 };
                 match sender_context.pending_messages.get_mut(&sequence) {
                     Some(ctx) => {
-                        ctx.state = match &result{
+                        ctx.state = match &result {
                             Ok(_) => MessageState::Successful,
                             Err(_) => MessageState::Failure,
                         };
@@ -206,7 +204,11 @@ pub async fn master_loop(
                     },
                 };
                 if let Err(err) = result {
-                    let _ = bus.send_worker_update_message(worker_id, err.to_string());
+                    error!("[{}] sync offchain message completed with error. {}", sender, err);
+                    let _ = bus.send_worker_update_message(
+                        worker_id,
+                        format!("Sync offchain message met error, will retry. {}", err)
+                    );
                 }
             },
             MessagesEvent::RemoveSender(sender) => {
@@ -263,12 +265,7 @@ async fn do_sync_message(
     message: SignedMessage,
 ) {
     let sequence = message.sequence;
-
     let result = txm.sync_offchain_message(pool_id, message).await;
-    if let Err(err) = &result {
-        error!("[{}] sync offchain message completed with error. {}", sender, err);
-    }
-
     let _ = bus.send_messages_event(
         MessagesEvent::Completed((worker_id, sender.clone(), sequence, result))
     );

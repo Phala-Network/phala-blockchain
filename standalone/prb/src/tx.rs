@@ -482,7 +482,7 @@ impl TxManager {
         let mut pending_txs = self.pending_txs.lock().await;
 
         let id = self.tx_count.fetch_add(1, Ordering::SeqCst);
-        debug!("send_to_queue: {:?}", &id);
+        debug!("send_to_queue: {:?}, desc: {}", id, desc);
 
         pending_txs.push_back(id);
         drop(pending_txs);
@@ -540,7 +540,8 @@ impl TxManager {
     ) -> Result<()> {
         let encoded = signed_message.encode();
         let tx_payload = EncodedPayload::new("PhalaMq", "sync_offchain_message", encoded);
-        let desc = format!("Sync offchain message to chain for pool #{pid}.");
+        let desc = format!("Sync offchain message to chain for pool #{}, sender {}(#{}).",
+            pid, signed_message.message.sender, signed_message.sequence);
         self.clone().send_to_queue(pid, tx_payload, desc).await
     }
     pub async fn add_worker(self: Arc<Self>, pid: u64, pubkey: Sr25519Public) -> Result<()> {
