@@ -216,12 +216,9 @@ pub async fn do_register(
         Ok(attestation) => attestation,
         Err(err) => {
             error!("[{}] Failed to get attestation report. {}", worker_id, err);
-            let _ = bus.send_worker_event(
+            let _ = bus.send_worker_mark_error(
                 worker_id,
-                WorkerEvent::MarkError((
-                    Utc::now(),
-                    err.to_string(),
-                ))
+                err.to_string(),
             );
             return;
         },
@@ -242,12 +239,9 @@ pub async fn do_register(
         },
         Err(err) => {
             error!("[{}] Worker Register Failed: {}", worker_id, err);
-            let _ = bus.send_worker_event(
+            let _ = bus.send_worker_mark_error(
                 worker_id,
-                WorkerEvent::MarkError((
-                    Utc::now(),
-                    err.to_string(),
-                ))
+                err.to_string(),
             );
             return;
         },
