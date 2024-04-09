@@ -38,6 +38,17 @@ pub struct ComputeManagementContext {
 }
 
 impl WorkerContext {
+    pub fn is_compute_management_needed(&self) -> bool {
+        !self.is_compute_started() && !self.is_sync_only()
+    }
+
+    fn is_compute_started(&self) -> bool {
+        matches!(
+            self.compute_management_context.as_ref().map(|c| &c.stage),
+            Some(ComputeManagementStage::Completed)
+        )
+    }
+
     fn determinate_next_stage(
         &mut self,
     ) -> ComputeManagementStage {

@@ -37,32 +37,6 @@ pub enum SyncStage {
     Completed,
 }
 
-pub enum ComputationStage {
-    NotStart,
-    Register,
-    AddToPool,
-    StartComputing,
-    Completed,
-}
-
-impl fmt::Display for ComputationStage {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ComputationStage::")?;
-        match &self {
-            ComputationStage::NotStart => write!(f, "NotStart"),
-            ComputationStage::Register => write!(f, "Register"),
-            ComputationStage::AddToPool => write!(f, "AddToPool"),
-            ComputationStage::StartComputing => write!(f, "StartComputing"),
-            ComputationStage::Completed => write!(f, "Completed"),
-        }
-    }
-}
-
-pub enum ExecutionStatus {
-    Ok((usize, String)),
-    Error((usize, String)),
-}
-
 pub struct WorkerContext {
     pub uuid: String,
 
@@ -86,20 +60,12 @@ pub struct WorkerContext {
     pub client: Arc<PRuntimeClient>,
     pub pending_requests: VecDeque<PRuntimeRequest>,
 
-    pub phactory_info_execution_status: ExecutionStatus,
     pub phactory_info_requested: bool,
     pub phactory_info_requested_at: DateTime<Utc>,
-
-    pub sync_stage: SyncStage,
-    pub sync_execution_status: ExecutionStatus,
 
     pub stopped: bool,
 
     pub compute_management_context: Option<ComputeManagementContext>,
-
-    pub computation_stage: ComputationStage,
-    pub computation_exeuction_status: ExecutionStatus,
-    pub update_worker_info_count: usize,
     pub update_session_id_count: usize,
     pub update_session_info_count: usize,
 }
@@ -143,20 +109,12 @@ impl WorkerContext {
             client: Arc::new(crate::pruntime::create_client(worker.endpoint.clone())),
             pending_requests: VecDeque::new(),
 
-            phactory_info_execution_status: ExecutionStatus::Ok((0, String::new())),
             phactory_info_requested: false,
             phactory_info_requested_at: DateTime::<Utc>::MIN_UTC,
-
-            sync_stage: SyncStage::NotStart,
-            sync_execution_status: ExecutionStatus::Ok((0, String::new())),
 
             stopped: false,
 
             compute_management_context: None,
-
-            computation_stage: ComputationStage::NotStart,
-            computation_exeuction_status: ExecutionStatus::Ok((0, String::new())),
-            update_worker_info_count: 0,
             update_session_id_count: 0,
             update_session_info_count: 0,
         }
@@ -645,7 +603,6 @@ impl Processor {
             },
             WorkerEvent::UpdateWorkerInfo(worker_info) => {
                 trace!("[{}] Received UpdateWorkerInfo", worker.uuid);
-                worker.update_worker_info_count = worker.update_worker_info_count.saturating_add(1);
                 worker.worker_info = Some(worker_info);
             },
             WorkerEvent::UpdateSessionId(session_id) => {
@@ -937,8 +894,8 @@ impl Processor {
                 trace!("[{}] Dispatched a block, requesting EgressMessages", worker.uuid);
                 self.add_pruntime_request(worker, PRuntimeRequest::GetEgressMessages);
             }
-            if !matches!(worker.computation_stage, ComputationStage::Completed) && !worker.is_sync_only() {
-                trace!("[{}] Requesting computation determination", worker.uuid);
+            if worker.is_compute_management_needed() {
+                trace!("[{}] Requesting compute management", worker.uuid);
                 self.request_compute_management(worker);
             }
         }
