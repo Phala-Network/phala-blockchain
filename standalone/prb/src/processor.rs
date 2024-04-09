@@ -60,6 +60,8 @@ pub struct WorkerContext {
     pub pruntime_lock: bool,
     pub client: Arc<PRuntimeClient>,
     pub pending_requests: VecDeque<PRuntimeRequest>,
+    pub pruntime_recent_error_count: usize,
+    pub last_worker_lifecycle: Option<WorkerLifecycleState>,
 
     pub phactory_info_requested: bool,
     pub phactory_info_requested_at: DateTime<Utc>,
@@ -109,6 +111,8 @@ impl WorkerContext {
             pruntime_lock: false,
             client: Arc::new(crate::pruntime::create_client(worker.endpoint.clone())),
             pending_requests: VecDeque::new(),
+            pruntime_recent_error_count: 0,
+            last_worker_lifecycle: None,
 
             phactory_info_requested: false,
             phactory_info_requested_at: DateTime::<Utc>::MIN_UTC,
@@ -592,14 +596,67 @@ impl Processor {
             WorkerEvent::PRuntimeResponse(result) => {
                 worker.pruntime_lock = false;
                 match result {
-                    Ok(response) => self.handle_pruntime_response(worker, response),
+                    Ok(response) => {
+                        if worker.pruntime_recent_error_count >= 3 && worker.last_worker_lifecycle.is_some() {
+                            warn!("{:?}", worker.last_worker_lifecycle);
+                            match &worker.worker_status.state {
+                                WorkerLifecycleState::HasError(msg) if msg.starts_with("Continously received") => {
+                                    let msg = format!(
+                                        "Recovered from RpcError. Previously had error {} times.",
+                                        worker.pruntime_recent_error_count
+                                    );
+                                    info!("[{}] {}", worker.uuid, msg);
+                                    let last_state = worker.last_worker_lifecycle.take().unwrap();
+                                    self.update_worker_state_and_message(
+                                        worker,
+                                        last_state,
+                                        &msg,
+                                        None,
+                                    );
+                                },
+                                _ => (),
+                            }
+                        }
+                        worker.pruntime_recent_error_count = 0;
+                        worker.last_worker_lifecycle = None;
+                        self.handle_pruntime_response(worker, response)
+                    },
                     Err(err) => {
-                        error!("[{}] pRuntime returned an error: {}", worker.uuid, err);
-                        self.update_worker_message(
-                            worker,
-                            &err.to_string(),
-                            None,
-                        );
+                        match &err {
+                            ::prpc::client::Error::DecodeError(_) | ::prpc::client::Error::ServerError(_) => {
+                                let msg = format!("pRuntime returned an error: {}", err);
+                                self.update_worker_state(
+                                    worker,
+                                    WorkerLifecycleState::HasError(msg),
+                                );
+                            },
+                            ::prpc::client::Error::RpcError(_) => {
+                                worker.pruntime_recent_error_count += 1;
+                                if worker.pruntime_recent_error_count >= 3 {
+                                    match &worker.worker_status.state {
+                                        WorkerLifecycleState::HasError(msg) if msg.starts_with("Continously received") => (),
+                                        _ => {
+                                            worker.last_worker_lifecycle = Some(worker.worker_status.state.clone());
+                                        }
+                                    }
+                                    error!(
+                                        "[{}] Continously received {} RpcError from pRuntime, marking HasError",
+                                        worker.uuid,
+                                        worker.pruntime_recent_error_count,
+                                    );
+                                    let msg = format!(
+                                        "Continously received {} RpcError from pRuntime. Last one: {}",
+                                        worker.pruntime_recent_error_count,
+                                        err,
+                                    );
+                                    self.update_worker_state(
+                                        worker,
+                                        WorkerLifecycleState::HasError(msg),
+                                    );
+                                }
+                            },
+                        }
+
                     },
                 }
 
@@ -794,6 +851,11 @@ impl Processor {
         worker: &mut WorkerContext,
         request: PRuntimeRequest,
     ) {
+        if matches!(&request, PRuntimeRequest::RegularGetInfo) {
+            worker.phactory_info_requested = false;
+            worker.phactory_info_requested_at = Utc::now();
+        }
+
         worker.pruntime_lock = true;
         tokio::spawn(
             dispatch_pruntime_request(
@@ -854,7 +916,6 @@ impl Processor {
                     worker.blocknum = phactory_info.blocknum;
                     self.request_next_sync(worker);
                 }
-                worker.phactory_info_requested = false;
                 worker.worker_status.phactory_info = Some(phactory_info);
                 self.send_worker_status(worker);
             },
@@ -1057,15 +1118,18 @@ impl Processor {
                 ));
             },
             WorkerLifecycleCommand::ShouldForceRegister => {
+                self.update_worker_message(worker, &"Requesting ForceRegister...", None);
                 self.add_pruntime_request(
                     worker,
                     PRuntimeRequest::PrepareRegister((true, worker.operator.clone(), true)),
                 );
             },
             WorkerLifecycleCommand::ShouldUpdateEndpoint(endpoints) => {
+                self.update_worker_message(worker, &"Requesting UpdateEndpoint...", None);
                 self.add_pruntime_request(worker, PRuntimeRequest::SignEndpoints(endpoints));
             },
             WorkerLifecycleCommand::ShouldTakeCheckpoint => {
+                self.update_worker_message(worker, &"Requesting TakeCheckpoint...", None);
                 self.add_pruntime_request(worker, PRuntimeRequest::TakeCheckpoint);
             },
         }
@@ -1079,7 +1143,7 @@ async fn dispatch_pruntime_request(
     request: PRuntimeRequest,
 ) {
     trace!("[{}] Start to dispatch PRuntimeRequest: {}", worker_id, request);
-    let need_mark_error = matches!(
+    let is_critical = matches!(
         &request,
         PRuntimeRequest::PrepareLifecycle
             | PRuntimeRequest::InitRuntime(_)
@@ -1141,9 +1205,13 @@ async fn dispatch_pruntime_request(
         },
     };
 
-    if need_mark_error {
-        if let Err(err) = &result {
-            let _ = bus.send_worker_mark_error(worker_id.clone(), err.to_string());
+    if let Err(err) = &result {
+        let msg = format!("pRuntime returned an error: {}", err);
+        error!("[{}] {}", worker_id, msg);
+        if is_critical {
+            let _ = bus.send_worker_mark_error(worker_id.clone(), msg);
+        } else {
+            let _ = bus.send_worker_update_message(worker_id.clone(), msg);
         }
     }
     let _ = bus.send_processor_event(ProcessorEvent::WorkerEvent((worker_id.clone(), WorkerEvent::PRuntimeResponse(result))));
