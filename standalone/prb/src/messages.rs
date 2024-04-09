@@ -13,7 +13,7 @@ pub enum MessagesEvent {
     SyncMessages((String, u64, MessageOrigin, Vec<SignedMessage>)),
     DoSyncMessages((String, u64, MessageOrigin, Vec<SignedMessage>, Option<u64>)),
     Completed((String, MessageOrigin, u64, Result<()>)),
-    RemoveWorker(String),
+    RemoveSender(MessageOrigin),
 }
 
 pub type MessagesRx = mpsc::UnboundedReceiver<MessagesEvent>;
@@ -209,8 +209,15 @@ pub async fn master_loop(
                     let _ = bus.send_worker_update_message(worker_id, err.to_string());
                 }
             },
-            MessagesEvent::RemoveWorker(_) => {
-                warn!("Cleaning Message Pool Feature NOT Implemented Yet.");
+            MessagesEvent::RemoveSender(sender) => {
+                match sender_contexts.remove(&sender) {
+                    Some(_) => {
+                        trace!("[{}] Removed from SenderContext", sender);
+                    },
+                    None => {
+                        trace!("[{}] Does not exist in SenderContext", sender);
+                    },
+                }
             },
         }
     }

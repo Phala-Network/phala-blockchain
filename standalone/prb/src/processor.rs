@@ -17,6 +17,7 @@ use phactory_api::prpc::{
 };
 use phala_pallets::pallet_computation::{SessionInfo, WorkerState};
 use phala_pallets::registry::WorkerInfoV2;
+use phala_types::messaging::MessageOrigin;
 use sp_core::crypto::{AccountId32, ByteArray};
 use sp_core::sr25519::Public as Sr25519Public;
 use std::collections::{HashMap, VecDeque};
@@ -424,7 +425,13 @@ impl Processor {
                 },
                 ProcessorEvent::DeleteWorker(worker_id) => {
                     match workers.remove(&worker_id) {
-                        Some(_removed_worker) => {
+                        Some(removed_worker) => {
+                            if let Some(public_key) = removed_worker.public_key() {
+                                trace!("[{}] Requesting remove MessageOrigin::Worker({})", worker_id, public_key);
+                                let _ = self.bus.send_messages_event(
+                                    MessagesEvent::RemoveSender(MessageOrigin::Worker(public_key))
+                                );
+                            }
                         },
                         None => {
                             error!("[{}] Failed to delete worker because the UUID is not existed.", worker_id);
@@ -1182,7 +1189,6 @@ async fn do_restart(
 
 ) {
     let worker_id = worker.id.clone();
-    let _ = bus.send_messages_event(MessagesEvent::RemoveWorker(worker_id.clone()));
     let _ = bus.send_processor_event(ProcessorEvent::DeleteWorker(worker_id.clone()));
     info!("[{}] Restarting: Remove WorkerContext command sent, wait {} seconds and then add back",
         worker_id, RESTART_WORKER_COOL_PERIOD.num_seconds());
