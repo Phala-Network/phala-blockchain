@@ -322,7 +322,7 @@ async fn get_sync_request(
         }
     }
 
-    info!("nothing can get");
+    trace!("[{}] Got nothing to sync", info.worker_id);
     Ok(SyncRequest { ..Default::default() })
 }
 
