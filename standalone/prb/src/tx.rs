@@ -33,7 +33,7 @@ use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
 
-static TX_LONGEVITY: u64 = 16;
+static TX_LONGEVITY: u64 = 4;
 static TX_TIP: u128 = 0;
 
 static TX_QUEUE_CHUNK_SIZE: usize = 30;
