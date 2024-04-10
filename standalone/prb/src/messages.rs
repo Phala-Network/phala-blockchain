@@ -1,9 +1,13 @@
-use crate::{bus::Bus, datasource::DataSourceManager, tx::TxManager, use_parachain_api};
+use crate::bus::Bus;
+use crate::datasource::DataSourceManager;
+use crate::tx::TxManager;
+use crate::use_parachain_api;
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use log::{debug, error, info, trace, warn};
 use phala_types::messaging::{MessageOrigin, SignedMessage};
-use std::{collections::{hash_map::Entry::{Occupied, Vacant}, HashMap}, sync::Arc};
+use std::collections::{hash_map::Entry::{Occupied, Vacant}, HashMap};
+use std::sync::Arc;
 use tokio::sync::mpsc;
 
 #[allow(deprecated)]

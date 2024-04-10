@@ -6,6 +6,7 @@ use crate::repository::{get_load_state_request, ChaintipInfo, RepositoryEvent, S
 use crate::messages::MessagesEvent;
 use crate::pruntime::PRuntimeClient;
 use crate::tx::TxManager;
+use crate::{use_parachain_api, use_relaychain_api};
 use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState};
 use crate::worker_status::WorkerStatusUpdate;
 use anyhow::Result;
@@ -385,8 +386,8 @@ impl Processor {
             init_runtime_request_dcap: dcap_init_runtime_request,
 
             chaintip: ChaintipInfo {
-                relaychain: crate::repository::relaychain_api(dsm.clone(), false).await.latest_finalized_block_number().await.unwrap(),
-                parachain: crate::repository::parachain_api(dsm.clone(), false).await.latest_finalized_block_number().await.unwrap(),
+                relaychain: use_relaychain_api!(dsm, false).unwrap().latest_finalized_block_number().await.unwrap(),
+                parachain: use_parachain_api!(dsm, false).unwrap().latest_finalized_block_number().await.unwrap(),
             },
         }
     }
