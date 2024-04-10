@@ -10,9 +10,10 @@ use tokio::time::sleep;
 
 use crate::bus::Bus;
 use crate::datasource::DataSourceManager;
-use crate::{headers_db::*, use_parachain_api};
+use crate::headers_db::*;
 use crate::processor::{PRuntimeRequest, ProcessorEvent};
 use crate::pool_operator::DB;
+use crate::{use_parachain_api, use_relaychain_api};
 
 use phactory_api::prpc::{Blocks, ChainState, CombinedHeadersToSync, HeadersToSync, ParaHeadersToSync};
 use pherry::headers_cache::Client as CacheClient;
@@ -116,13 +117,6 @@ impl SyncRequest {
     }
 }
 
-pub fn encode_u32(val: u32) -> [u8; 4] {
-    use byteorder::{ByteOrder, BigEndian};
-    let mut buf = [0; 4];
-    BigEndian::write_u32(&mut buf, val);
-    return buf;
-}
-
 #[derive(Clone, Debug)]
 pub struct WorkerSyncInfo {
     pub worker_id: String,
@@ -158,8 +152,8 @@ impl Repository {
 
         //db.iterator(rocksdb::IteratorMode::From((), ()))
 
-        let relay_api = dsm.clone().current_relaychain_rpc_client(false).await.unwrap().client.clone();
-        let para_api = dsm.clone().current_parachain_rpc_client(true).await.unwrap().client.clone();
+        let relay_api = use_relaychain_api!(dsm, false).unwrap();
+        let para_api = use_parachain_api!(dsm, false).unwrap();
 
         let para_id = para_api.get_paraid(None).await?;
         //let para_head_storage_key = para_api.paras_heads_key(para_id)?;
@@ -284,7 +278,7 @@ async fn get_sync_request(
 ) -> Result<SyncRequest> {
     if info.blocknum < info.para_headernum {
         let to = std::cmp::min((info.blocknum + 3) / 4 * 4, info.para_headernum - 1);
-        return dsm.clone()
+        return dsm
             .fetch_storage_changes(info.blocknum, to)
             .await
             .map(|blocks| SyncRequest::create_from_blocks(blocks, info.blocknum, to));
@@ -292,7 +286,7 @@ async fn get_sync_request(
 
     if let Some((para_headernum, proof)) = get_para_headernum(dsm.clone(), info.headernum - 1).await? {
         if info.para_headernum <= para_headernum {
-            return dsm.clone()
+            return dsm
                 .get_para_headers(info.para_headernum, para_headernum)
                 .await
                 .map(|mut headers| {
@@ -330,19 +324,7 @@ async fn get_para_headernum(
     dsm: Arc<DataSourceManager>,
     relay_headernum: u32,
 ) -> Result<Option<(u32, Vec<Vec<u8>>)>> {
-    dsm.clone().get_para_header_by_relay_header(relay_headernum).await
-}
-
-pub async fn relaychain_api(dsm: Arc<DataSourceManager>, full: bool) -> ChainApi {
-    dsm.clone().current_relaychain_rpc_client(full).await.unwrap().client.clone()
-}
-
-pub async fn parachain_api(dsm: Arc<DataSourceManager>, full: bool) -> ChainApi {
-    dsm.clone().current_parachain_rpc_client(full).await.unwrap().client.clone()
-}
-
-pub async fn relaychain_cache(dsm: Arc<DataSourceManager>) -> CacheClient {
-    dsm.clone().current_relaychain_headers_cache().await.unwrap().client.clone()
+    dsm.get_para_header_by_relay_header(relay_headernum).await
 }
 
 pub async fn keep_syncing_headers(
@@ -351,14 +333,9 @@ pub async fn keep_syncing_headers(
     headers_db: Arc<DB>,
 ) -> Result<()> {
     // TODO: Handle Error
-    let para_api= parachain_api(dsm.clone(), false).await;
+    let relay_api = use_relaychain_api!(dsm, false).unwrap();
+    let para_api = use_parachain_api!(dsm, false).unwrap();
     let para_id = para_api.get_paraid(None).await?;
-
-    let relay_api = relaychain_api(dsm.clone(), false).await;
-    //let para_head_storage_key = relay_api.paras_heads_key(para_id)?;
-
-    let relaychain_start_block = para_api.relay_parent_number().await? - 1;
-    info!("relaychain_start_block: {relaychain_start_block}");
 
     let mut current_relay_number = get_previous_authority_set_change_number(headers_db.clone(), std::u32::MAX).unwrap();
     let (mut current_para_number, _) = pherry::get_parachain_header_from_relaychain_at(
@@ -369,8 +346,8 @@ pub async fn keep_syncing_headers(
     ).await?;
 
     loop {
-        let relay_api = match dsm.clone().current_relaychain_rpc_client(false).await {
-            Some(instance) => instance.client.clone(),
+        let relay_api = match use_relaychain_api!(dsm, false) {
+            Some(instance) => instance,
             None => {
                 error!("No valid data source, wait 10 seconds");
                 sleep(Duration::from_secs(10)).await;
