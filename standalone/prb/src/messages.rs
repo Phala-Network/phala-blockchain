@@ -155,6 +155,7 @@ pub async fn master_loop(
                                     Utc::now().signed_duration_since(message_context.start_at));
                             }
 
+                            message_context.state = MessageState::Pending;
                             message_context.start_at = Utc::now();
                             message_context.prev_try_count += 1;
                             info!(
