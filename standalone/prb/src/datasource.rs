@@ -6,19 +6,17 @@ use jsonrpsee::{
 };
 use log::{debug, error, info, warn};
 use paste::paste;
-use phactory_api::blocks::AuthoritySetChange;
 use phactory_api::prpc::{HeadersToSync, ParaHeadersToSync};
 use phactory_api::{
     blocks::GenesisBlockInfo,
     prpc::{Blocks, InitRuntimeRequest, Message},
 };
 use phala_types::AttestationProvider;
-use phaxt::sp_core::{Encode, H256};
 use phaxt::subxt::rpc::types as subxt_types;
 use phaxt::{ChainApi, RpcClient};
 
-use moka::{future::Cache, Expiry};
-use pherry::types::{Block, ConvertTo, Header};
+use moka::future::Cache;
+use pherry::types::ConvertTo;
 use pherry::{
     chain_client, get_authority_with_proof_at, get_block_at, get_finalized_header, get_header_hash,
     headers_cache::Client as CacheClient,
@@ -29,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::mem::size_of_val;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
@@ -123,14 +121,6 @@ pub enum DataSourceCacheItem {
     StorageChanges(Blocks),
     ParaHeaderByRelayHeight(Option<(u32, Vec<Vec<u8>>)>),
     ParaHeadersToSyncWithoutProof(ParaHeadersToSync),
-    CachedHeadersToSync(Option<CachedHeadersToSync>),
-    RelayBlock(Block),
-    BlockHash(Option<H256>),
-    U32(Option<u32>),
-    AuthoritySetChange(AuthoritySetChange),
-    LatestRelayBlockNumber(u32),
-    FinalizedHeader(Option<(Header, Vec<Vec<u8>>)>),
-    CurrentSetId(u64),
 }
 
 impl DataSourceCacheItem {
@@ -151,32 +141,7 @@ impl DataSourceCacheItem {
             },
             DataSourceCacheItem::ParaHeadersToSyncWithoutProof(e) => {
                 (e.encoded_len() as f64 * CACHE_SIZE_EXPANSION) as _
-            }
-            DataSourceCacheItem::CachedHeadersToSync(e) => match e {
-                None => 16,
-                Some((pb, last_num, proof)) => {
-                    let bytes: usize = (pb.encoded_len() as f64 * CACHE_SIZE_EXPANSION) as _;
-                    let proof_bytes = proof.iter().flatten().collect::<Vec<_>>().len();
-                    size_of_val(last_num) + bytes + proof_bytes
-                }
             },
-            DataSourceCacheItem::RelayBlock(e) => {
-                (e.encoded_size() as f64 * CACHE_SIZE_EXPANSION) as _
-            }
-            DataSourceCacheItem::BlockHash(_) => 34,
-            DataSourceCacheItem::U32(_) => 6,
-            DataSourceCacheItem::AuthoritySetChange(e) => {
-                (e.encoded_size() as f64 * CACHE_SIZE_EXPANSION) as _
-            }
-            DataSourceCacheItem::LatestRelayBlockNumber(_) => 6,
-            DataSourceCacheItem::FinalizedHeader(e) => match e {
-                None => 16,
-                Some((_, e)) => {
-                    let bytes_len = e.iter().flatten().collect::<Vec<_>>().len();
-                    ((e.len() + 1) * size_of_val(e)) + bytes_len
-                }
-            },
-            DataSourceCacheItem::CurrentSetId(_) => 12,
         };
         ret
     }
@@ -200,26 +165,6 @@ pub enum DataSourceError {
     NoAuthorityKeyFound,
     #[error("Returned value is None")]
     ReturnedNone,
-}
-
-pub struct DataSourceCacheItemExpiry;
-
-impl Expiry<String, Arc<DataSourceCacheItem>> for DataSourceCacheItemExpiry {
-    fn expire_after_create(
-        &self,
-        _key: &String,
-        value: &Arc<DataSourceCacheItem>,
-        _created_at: Instant,
-    ) -> Option<Duration> {
-        match **value {
-            DataSourceCacheItem::ParaHeaderByRelayHeight(None) => Some(Duration::from_secs(3)),
-            DataSourceCacheItem::CachedHeadersToSync(None) => Some(Duration::from_secs(15)),
-            DataSourceCacheItem::LatestRelayBlockNumber(_) => Some(Duration::from_secs(1)),
-            DataSourceCacheItem::FinalizedHeader(None) => Some(Duration::from_secs(3)),
-            DataSourceCacheItem::CurrentSetId(_) => Some(Duration::from_secs(3)),
-            _ => None,
-        }
-    }
 }
 
 pub struct DataSourceManager {
@@ -436,7 +381,6 @@ impl DataSourceManager {
         let cache = Cache::builder()
             .weigher(|_key, value: &Arc<DataSourceCacheItem>| -> u32 { value.resident_size() as _ })
             .max_capacity(cache_size as _)
-            .expire_after(DataSourceCacheItemExpiry)
             .time_to_idle(Duration::from_secs(2 * 60));
 
         let cache = cache.build();
