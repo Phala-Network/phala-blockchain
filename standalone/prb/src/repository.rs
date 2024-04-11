@@ -175,6 +175,9 @@ impl Repository {
             }
 
             let headers = pherry::get_headers(&relay_api, current_num).await?;
+            if phactory_api::blocks::find_scheduled_change(&headers.last().unwrap().header).is_none() {
+                break;
+            }
             let last_number = put_headers_to_db(headers_db.clone(), headers, relay_chaintip)?;
             current_num = last_number + 1;
         }

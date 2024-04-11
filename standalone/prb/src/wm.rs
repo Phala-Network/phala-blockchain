@@ -100,16 +100,12 @@ pub async fn send_to_main_channel_and_wait_for_response(
 pub async fn wm(args: WorkerManagerCliArgs) {
     info!("Staring prb-wm with {:?}", &args);
 
-    let inv_db = setup_inventory_db(&args.db_path);
     let (dsm, ds_handles) =
         setup_data_source_manager(&args.data_source_config_path, args.cache_size)
             .await
             .expect("Initialize data source manager");
 
     dsm.clone().wait_until_rpc_avail(false).await;
-    let _api = use_parachain_api!(dsm, false).unwrap();
-
-    let (txm, txm_handle) = TxManager::new(&args.db_path, dsm.clone()).expect("TxManager");
 
     let (processor_tx, processor_rx) = mpsc::unbounded_channel::<ProcessorEvent>();
     let (repository_tx, repository_rx) = mpsc::unbounded_channel::<RepositoryEvent>();
@@ -121,21 +117,6 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         repository_tx: repository_tx.clone(),
         messages_tx: messages_tx.clone(),
         worker_status_tx: worker_status_tx.clone(),
-    });
-
-    let ctx = Arc::new(WorkerManagerContext {
-        initialized: false.into(),
-        current_lifecycle_manager: Arc::new(Mutex::new(None)),
-        current_lifecycle_tx: Arc::new(TokioMutex::new(None)),
-        inv_db: inv_db.clone(),
-        dsm: dsm.clone(),
-        txm: txm.clone(),
-        workers: Arc::new(TokioMutex::new(Vec::new())),
-        worker_map: Arc::new(TokioMutex::new(HashMap::new())),
-        worker_status_map: Arc::new(TokioMutex::new(HashMap::new())),
-        pccs_url: args.pccs_url.clone(),
-        pccs_timeout_secs: args.pccs_timeout,
-        bus: bus.clone(),
     });
 
     let headers_db = {
@@ -151,6 +132,29 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         dsm.clone(),
         headers_db.clone(),
     ).await.unwrap();
+
+    if args.download_headers_only {
+        headers_db.cancel_all_background_work(true);
+        drop(headers_db);
+        return;
+    }
+
+    let inv_db = setup_inventory_db(&args.db_path);
+    let (txm, txm_handle) = TxManager::new(&args.db_path, dsm.clone()).expect("TxManager");
+    let ctx = Arc::new(WorkerManagerContext {
+        initialized: false.into(),
+        current_lifecycle_manager: Arc::new(Mutex::new(None)),
+        current_lifecycle_tx: Arc::new(TokioMutex::new(None)),
+        inv_db: inv_db.clone(),
+        dsm: dsm.clone(),
+        txm: txm.clone(),
+        workers: Arc::new(TokioMutex::new(Vec::new())),
+        worker_map: Arc::new(TokioMutex::new(HashMap::new())),
+        worker_status_map: Arc::new(TokioMutex::new(HashMap::new())),
+        pccs_url: args.pccs_url.clone(),
+        pccs_timeout_secs: args.pccs_timeout,
+        bus: bus.clone(),
+    });
 
     for worker in get_all_workers(inv_db.clone()).unwrap() {
         let (pool, operator) = match worker.pid {

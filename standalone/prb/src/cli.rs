@@ -42,6 +42,10 @@ pub struct WorkerManagerCliArgs {
     /// Timeout in seconds of PCCS server to get collateral
     #[arg(long, env, default_value = "10")]
     pub pccs_timeout: u64,
+
+    /// download headers db only
+    #[arg(long, env)]
+    pub download_headers_only: bool,
 }
 
 pub async fn start_wm() {
