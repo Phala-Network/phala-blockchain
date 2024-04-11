@@ -12,46 +12,58 @@ fn encode_u32(val: u32) -> [u8; 4] {
     return buf;
 }
 
-pub fn get_current_point(db: Arc<DB>, num: u32) -> Option<HeadersToSync> {
-    let mut iter = db.iterator(rocksdb::IteratorMode::From(&encode_u32(num), rocksdb::Direction::Forward));
-    if let Some(Ok((_, value))) = iter.next() {
-        match HeadersToSync::decode(&mut &value[..]) {
-            Ok(headers) => return Some(headers),
-            Err(_) => {},
-        };
-    }
-    None
+pub fn get_headers_with_justification(db: &DB, from: u32) -> Option<HeadersToSync> {
+    get_current_point(&db, from)
+        .map(|headers| headers
+            .into_iter()
+            .filter(|header| header.header.number >= from)
+            .collect::<Vec<_>>()
+        )
 }
 
-pub fn get_previous_authority_set_change_number(db: Arc<DB>, num:u32) -> Option<u32> {
-    let mut iter = db.iterator(rocksdb::IteratorMode::From(&encode_u32(num), rocksdb::Direction::Reverse));
-    if let Some(Ok((_, value))) = iter.next() {
-        match HeadersToSync::decode(&mut &value[..]) {
-            Ok(headers) => return Some(headers.last().unwrap().header.number),
-            Err(_) => {},
-        };
+pub fn get_current_point(db: &DB, num: u32) -> Option<HeadersToSync> {
+    let mut iter = db.iterator(rocksdb::IteratorMode::From(&encode_u32(num), rocksdb::Direction::Forward));
+    match iter.next() {
+        Some(Ok((_, value))) => HeadersToSync::decode(&mut &value[..]).ok(),
+        _ => None,
     }
-    None
+}
+
+pub fn get_previous_authority_set_change_number(db: &DB, num:u32) -> Option<u32> {
+    let mut iter = db.iterator(rocksdb::IteratorMode::From(&encode_u32(num), rocksdb::Direction::Reverse));
+    match iter.next() {
+        Some(Ok((_, value))) => {
+            HeadersToSync::decode(&mut &value[..])
+                .ok()
+                .and_then(|headers| headers.last().map(|h| h.header.number))
+        },
+        _ => None,
+    }
 }
 
 pub fn put_headers_to_db(
-    headers_db: Arc<DB>,
-    new_headers: HeadersToSync,
-    known_chaintip: u32,
+    headers_db: &DB,
+    headers: HeadersToSync,
 ) -> Result<u32> {
-    let first_new_number = new_headers.first().unwrap().header.number;
-    let mut headers = match get_current_point(headers_db.clone(), first_new_number) {
-        Some(headers) => {
-            let _ = headers_db.delete(encode_u32(std::u32::MAX));
-            headers
-        },
-        None => vec![], 
-    };
-    for header in &mut headers {
-        header.justification = None;
+    let mut headers = headers;
+    let first_header = &headers.first().expect("at least has one header").header;
+    let last_header = &headers.last().expect("at least has one header").header;
+    let with_authority_change = phactory_api::blocks::find_scheduled_change(&last_header).is_some();
+
+    if !with_authority_change {
+        let mut existing_headers = get_current_point(&headers_db, std::u32::MAX).unwrap_or_default();
+        if existing_headers.last().map(|h| h.header.number + 1 >= first_header.number).unwrap_or(false) {
+            let mut existing_headers = existing_headers
+                .into_iter()
+                .filter(|h| h.header.number < first_header.number)
+                .collect::<HeadersToSync>();
+            for header in &mut existing_headers {
+                header.justification = None;
+            }
+            existing_headers.append(&mut headers);
+            headers = existing_headers;
+        }
     }
-    headers.extend(new_headers);
-    let headers = headers;
 
     let mut last_num: Option<u32> = None;
     for header in &headers {
@@ -63,15 +75,11 @@ pub fn put_headers_to_db(
 
     let from = headers.first().unwrap().header.number;
     let to = headers.last().unwrap().header.number;
-    let with_authority_change = phactory_api::blocks::find_scheduled_change(&headers.last().unwrap().header).is_some();
 
     let key = if with_authority_change {
         encode_u32(to)
-    } else if to >= known_chaintip {
-        encode_u32(std::u32::MAX)
     } else {
-        error!("Should not happen: prove_finality API returns a non-chaintip block without authority set change");
-        encode_u32(to)
+        encode_u32(std::u32::MAX)
     };
 
     let encoded_val = headers.encode();

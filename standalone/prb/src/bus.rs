@@ -2,14 +2,12 @@ use log::error;
 use tokio::sync::mpsc::error::SendError;
 
 use crate::processor::{PRuntimeRequest, ProcessorEvent, ProcessorTx, WorkerEvent};
-use crate::repository::{RepositoryEvent, RepositoryTx};
 use crate::messages::{MessagesEvent, MessagesTx};
 use crate::worker_status::{WorkerStatusEvent, WorkerStatusTx};
 
 #[derive(Clone)]
 pub struct Bus {
     pub processor_tx: ProcessorTx,
-    pub repository_tx: RepositoryTx,
     pub messages_tx: MessagesTx,
     pub worker_status_tx: WorkerStatusTx,
 }
@@ -48,14 +46,6 @@ impl Bus {
             worker_id,
             WorkerEvent::PRuntimeRequest(request),
         )
-    }
-
-    pub fn send_repository_event(&self, event: RepositoryEvent) -> Result<(), SendError<RepositoryEvent>> {
-        let result = self.repository_tx.send(event);
-        if let Err(err) = &result {
-            error!("Fail to send message to repository_tx. {}", err);
-        }
-        result
     }
 
     pub fn send_messages_event(&self, event: MessagesEvent) -> Result<(), SendError<MessagesEvent>> {

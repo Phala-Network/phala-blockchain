@@ -2,7 +2,7 @@ use crate::api::WorkerStatus;
 use crate::bus::Bus;
 use crate::compute_management::*;
 use crate::datasource::DataSourceManager;
-use crate::repository::{get_load_state_request, ChaintipInfo, RepositoryEvent, SyncRequest, SyncRequestManifest, WorkerSyncInfo};
+use crate::repository::{do_request_next_sync, get_load_state_request, ChaintipInfo, RepositoryEvent, SyncRequest, SyncRequestManifest, WorkerSyncInfo};
 use crate::messages::MessagesEvent;
 use crate::pruntime::PRuntimeClient;
 use crate::tx::TxManager;
@@ -1056,13 +1056,16 @@ impl Processor {
         &mut self,
         worker: &WorkerContext,
     ) {
-        let _ = self.bus.send_repository_event(RepositoryEvent::UpdateWorkerSyncInfo(
+        tokio::spawn(do_request_next_sync(
+            self.bus.clone(),
+            self.dsm.clone(),
+            headers_db,
             WorkerSyncInfo {
                 worker_id: worker.uuid.clone(),
                 headernum: worker.headernum,
                 para_headernum: worker.para_headernum,
                 blocknum: worker.blocknum,
-            }
+            },
         ));
     }
 

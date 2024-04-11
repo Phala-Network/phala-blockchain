@@ -118,7 +118,6 @@ pub async fn wm(args: WorkerManagerCliArgs) {
 
     let bus = Arc::new(Bus {
         processor_tx: processor_tx.clone(),
-        repository_tx: repository_tx.clone(),
         messages_tx: messages_tx.clone(),
         worker_status_tx: worker_status_tx.clone(),
     });
@@ -197,13 +196,11 @@ pub async fn wm(args: WorkerManagerCliArgs) {
     tokio::select! {
         _ = processor.master_loop() => {}
 
-        _ = repository.master_loop() => {}
-
         _ = offchain_tx_loop(messages_rx, bus.clone(), dsm.clone(), txm.clone()) => {}
 
         _ = update_worker_status(ctx.clone(), worker_status_rx) => {}
 
-        _ = crate::repository::keep_syncing_headers(bus.clone(), dsm.clone(), headers_db.clone()) => {}
+        _ = crate::repository::background_fill_headers(bus.clone(), dsm.clone(), headers_db.clone()) => {}
 
         ret = join_handle => {
             info!("wm.join_handle: {:?}", ret);

@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use core::time::Duration;
 use futures::StreamExt;
 use log::{debug, error, info, trace, warn};
@@ -162,7 +162,7 @@ impl Repository {
         let relaychain_start_at = para_api.relay_parent_number().await? - 1;
         debug!("relaychain_start_at: {}", relaychain_start_at);
 
-        let mut current_num = match get_previous_authority_set_change_number(headers_db.clone(), std::u32::MAX) {
+        let mut current_num = match get_previous_authority_set_change_number(&headers_db, std::u32::MAX) {
             Some(num) => num + 1,
             None => relaychain_start_at
         };
@@ -175,7 +175,7 @@ impl Repository {
             }
 
             let headers = pherry::get_headers(&relay_api, current_num).await?;
-            let last_number = put_headers_to_db(headers_db.clone(), headers, relay_chaintip)?;
+            let last_number = put_headers_to_db(&headers_db, headers)?;
             current_num = last_number + 1;
         }
 
@@ -188,67 +188,6 @@ impl Repository {
             dsm,
             headers_db,
         })
-    }
-
-    pub async fn master_loop(
-        &mut self,
-    ) -> Result<()> {
-        loop {
-            let event = self.rx.recv().await;
-            if event.is_none() {
-                break;
-            }
-
-            match event.unwrap() {
-                RepositoryEvent::PreloadWorkerSyncInfo(info) => {
-                    tokio::spawn(get_sync_request(
-                        self.dsm.clone(),
-                        self.headers_db.clone(),
-                        info,
-                    ));
-                },
-                RepositoryEvent::UpdateWorkerSyncInfo(info) => {
-                    trace!("[{}] Received UpdateWorkerSyncInfo. header({}) para_header({}) block({})",
-                        info.worker_id, info.headernum, info.para_headernum, info.blocknum);
-                    let bus = self.bus.clone();
-                    let dsm = self.dsm.clone();
-                    let headers_db = self.headers_db.clone();
-                    tokio::spawn(async move {
-                        let request = loop {
-                            match get_sync_request(dsm.clone(), headers_db.clone(), info.clone()).await {
-                                Ok(request) => break request,
-                                Err(err) => {
-                                    error!("[{}] fail to get_sync_request, {}", info.worker_id, err);
-                                    // TODO: Send some error message
-                                    tokio::time::sleep(std::time::Duration::from_secs(6)).await;
-                                },
-                            }
-                        };
-                        if request.headers.is_some() || request.para_headers.is_some() || request.combined_headers.is_some() || request.blocks.is_some() {
-                            trace!("[{}] sending sync request. {:?}", info.worker_id, info);
-                        } else {
-                            trace!("[{}] sending empty sync request.", info.worker_id);
-                        }
-                        let manifest = request.manifest.clone();
-                        let _ = bus.send_pruntime_request(info.worker_id.clone(), PRuntimeRequest::Sync(request));
-
-                        let mut next_info = info.clone();
-                        if let Some((_, to)) = &manifest.headers {
-                            next_info.headernum = to + 1;
-                        }
-                        if let Some((_, to)) = &manifest.para_headers {
-                            next_info.para_headernum = to + 1;
-                        }
-                        if let Some((_, to)) = &manifest.blocks {
-                            next_info.blocknum = to + 1;
-                        }
-                        let _ = bus.send_repository_event(RepositoryEvent::PreloadWorkerSyncInfo(next_info));
-                    });
-                },
-            }
-        }
-
-        Ok(())
     }
 }
 
@@ -271,7 +210,52 @@ pub async fn get_load_state_request(
     }
 }
 
-async fn get_sync_request(
+pub async fn do_request_next_sync(
+    bus: Arc<Bus>,
+    dsm: Arc<DataSourceManager>,
+    headers_db: Arc<DB>,
+    info: WorkerSyncInfo,
+) {
+    let request = loop {
+        match generate_sync_request(dsm.clone(), headers_db.clone(), info.clone()).await {
+            Ok(request) => break request,
+            Err(err) => {
+                error!("[{}] fail to get_sync_request, {}", info.worker_id, err);
+                // TODO: Send some error message
+                tokio::time::sleep(std::time::Duration::from_secs(6)).await;
+            },
+        }
+    };
+    if request.headers.is_some() || request.para_headers.is_some() || request.combined_headers.is_some() || request.blocks.is_some() {
+        trace!("[{}] sending sync request. {:?}", info.worker_id, info);
+    } else {
+        trace!("[{}] sending empty sync request.", info.worker_id);
+    }
+    let manifest = request.manifest.clone();
+    let _ = bus.send_pruntime_request(info.worker_id.clone(), PRuntimeRequest::Sync(request));
+    preload_next_sync(dsm, headers_db, info, &manifest).await;
+}
+
+async fn preload_next_sync(
+    dsm: Arc<DataSourceManager>,
+    headers_db: Arc<DB>,
+    info: WorkerSyncInfo,
+    manifest: &SyncRequestManifest,
+) {
+    let mut next_info = info.clone();
+    if let Some((_, to)) = &manifest.headers {
+        next_info.headernum = to + 1;
+    }
+    if let Some((_, to)) = &manifest.para_headers {
+        next_info.para_headernum = to + 1;
+    }
+    if let Some((_, to)) = &manifest.blocks {
+        next_info.blocknum = to + 1;
+    }
+    let _ = generate_sync_request(dsm, headers_db.clone(), next_info).await;
+}
+
+async fn generate_sync_request(
     dsm: Arc<DataSourceManager>,
     headers_db: Arc<DB>,
     info: WorkerSyncInfo,
@@ -304,11 +288,8 @@ async fn get_sync_request(
     }
 
     trace!("[{}] Getting from headers_db: {}", info.worker_id, info.headernum);
-    if let Some(headers) = get_current_point(headers_db, info.headernum) {
-        let headers = headers
-            .into_iter()
-            .filter(|header| header.header.number >= info.headernum)
-            .collect::<Vec<_>>();
+    let relay_api = use_relaychain_api!(dsm, false).except("No valid relaychain datasource");
+    if let Some(headers) = get_or_fill_headers(&headers_db, &relay_api, info.headernum).await? {
         if let Some(last_header) = headers.last() {
             let to = last_header.header.number;
             let headers = phactory_api::prpc::HeadersToSync::new(headers, None);
@@ -327,7 +308,7 @@ async fn get_para_headernum(
     dsm.get_para_header_by_relay_header(relay_headernum).await
 }
 
-pub async fn keep_syncing_headers(
+pub async fn background_fill_headers(
     bus: Arc<Bus>,
     dsm: Arc<DataSourceManager>,
     headers_db: Arc<DB>,
@@ -337,7 +318,7 @@ pub async fn keep_syncing_headers(
     let para_api = use_parachain_api!(dsm, false).unwrap();
     let para_id = para_api.get_paraid(None).await?;
 
-    let mut current_relay_number = get_previous_authority_set_change_number(headers_db.clone(), std::u32::MAX).unwrap();
+    let mut current_relay_number = get_previous_authority_set_change_number(&headers_db, std::u32::MAX).unwrap();
     let (mut current_para_number, _) = pherry::get_parachain_header_from_relaychain_at(
         &relay_api,
         &para_api,
@@ -445,11 +426,77 @@ pub async fn keep_syncing_headers(
                 },
             }
 
-            if let Err(err) = put_headers_to_db(headers_db.clone(), headers, relay_to) {
+            if let Err(err) = put_headers_to_db(&headers_db, headers) {
                 error!("Failed to put headers to DB, {err}");
             }
 
             info!("relaychain_chaintip: {}, parachain_chaintip: {}", current_relay_number, current_para_number);
         }
     }
+}
+
+async fn get_or_fill_headers(
+    headers_db: &DB,
+    relay_api: &ChainApi,
+    from: u32,
+) -> Result<phactory_api::blocks::HeadersToSync> {
+    if let Some(headers) = get_headers_with_justification(&headers_db, from) {
+        if !headers.is_empty() {
+            return Ok(headers);
+        }
+    }
+
+    let last_authority_set_changed_at = detect_previous_close_authority_set_changed_at(&headers_db, &relay_api, from).await?;
+    fill_headers(&headers_db, &relay_api, last_authority_set_changed_at, from).await?;
+
+    Ok(get_current_point(&headers_db, from)
+        .expect("Should have headers in DB since we have filled")
+        .into_iter()
+        .filter(|header| header.header.number >= from)
+        .collect::<Vec<_>>())
+}
+
+async fn detect_previous_close_authority_set_changed_at(
+    headers_db: &DB,
+    relay_api: &ChainApi,
+    from: u32,
+) -> Result<u32> {
+    trace!("[detect: {from}] Finding appropriate start number");
+    let mut authority_set_changed_at = std::cmp::max(
+        get_previous_authority_set_change_number(&headers_db, from).unwrap_or(0),
+        from.saturating_sub(4096)
+    );
+    while authority_set_changed_at > 0 {
+        trace!("[detect: {from}] Now trying {authority_set_changed_at}");
+        let headers = match get_current_point(&headers_db, authority_set_changed_at) {
+            Some(headers) => headers,
+            None => pherry::get_headers(&relay_api, authority_set_changed_at).await?,
+        };
+        if headers.last().map(|h| h.header.number < from).unwrap_or(false) {
+            authority_set_changed_at = headers.last().unwrap().header.number;
+            trace!("[detect: {from}] Good: {authority_set_changed_at}");
+            break;
+        }
+        authority_set_changed_at = authority_set_changed_at.saturating_sub(4096);
+    }
+    return Ok(authority_set_changed_at)
+}
+
+async fn fill_headers(
+    headers_db: &DB,
+    relay_api: &ChainApi,
+    last_authority_set_changed_at: u32,
+    until: u32,
+) -> Result<()> {
+    let mut last_authority_set_changed_at = last_authority_set_changed_at;
+    while last_authority_set_changed_at < until {
+        let headers = pherry::get_headers(&relay_api, last_authority_set_changed_at + 1).await?;
+        trace!("Putting from {:?} to {:?} to DB",
+            headers.first().map(|h| h.header.number),
+            headers.last().map(|h| h.header.number),
+        );
+        last_authority_set_changed_at = headers.last().expect("should has header").header.number;
+        put_headers_to_db(&headers_db, headers);
+    }
+    Ok(())
 }
