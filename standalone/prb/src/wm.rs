@@ -104,6 +104,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         setup_data_source_manager(&args.data_source_config_path, args.cache_size)
             .await
             .expect("Initialize data source manager");
+    let ds_join_handle = tokio::spawn(try_join_all(ds_handles));
 
     dsm.clone().wait_until_rpc_avail(false).await;
 
@@ -184,6 +185,12 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         )));
     }
 
+    let join_handle = try_join3(
+        tokio::spawn(start_api_server(ctx.clone(), args.clone())),
+        tokio::spawn(txm_handle),
+        ds_join_handle,
+    );
+
     let mut processor = Processor::create(
         processor_rx,
         bus.clone(),
@@ -191,12 +198,6 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         dsm.clone(),
         &args,
     ).await;
-
-    let join_handle = try_join3(
-        tokio::spawn(start_api_server(ctx.clone(), args.clone())),
-        tokio::spawn(txm_handle),
-        try_join_all(ds_handles),
-    );
 
     tokio::select! {
         _ = processor.master_loop() => {}

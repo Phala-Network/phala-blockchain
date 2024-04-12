@@ -340,6 +340,7 @@ impl DataSourceManager {
         loop {
             if (self.clone().current_relaychain_rpc_client(full).await).is_some()
                 && (self.clone().current_parachain_rpc_client(full).await).is_some()
+                && (self.is_relaychain_full || self.clone().current_relaychain_headers_cache().await.is_some())
             {
                 break;
             }
@@ -405,7 +406,7 @@ impl DataSourceManager {
         let ret = dsm.clone();
         let _dsm_move = dsm.clone();
 
-        if !(ret.is_relaychain_full && ret.is_parachain_full) {
+        if !ret.is_parachain_full {
             warn!("Pruned mode detected hence fast sync feature disabled.");
         }
 
@@ -727,7 +728,7 @@ impl DataSourceManager {
             }
         }
 
-        let relay_api = use_relaychain_api!(self, true).ok_or(NoValidDataSource)?;
+        let relay_api = use_relaychain_api!(self, false).ok_or(NoValidDataSource)?;
         let para_api = use_parachain_api!(self, true).ok_or(NoValidDataSource)?;
 
         let last_header_hash = get_header_hash(&relay_api, Some(height)).await?;

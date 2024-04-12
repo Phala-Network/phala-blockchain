@@ -287,7 +287,7 @@ async fn get_sync_request(
             .map(|blocks| SyncRequest::create_from_blocks(blocks, info.blocknum, to));
     }
 
-    if let Some((para_headernum, proof)) = get_para_headernum(dsm.clone(), info.headernum - 1).await? {
+    if let Some((para_headernum, proof)) = get_para_headernum(dsm.clone(), info.headernum - 1).await.unwrap_or(None) {
         if info.para_headernum <= para_headernum {
             return dsm
                 .get_para_headers(info.para_headernum, para_headernum)
