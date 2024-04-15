@@ -147,8 +147,7 @@ impl WorkerContext {
     pub fn public_key(&self) -> Option<Sr25519Public> {
         self.worker_status.phactory_info
             .as_ref()
-            .and_then(|info| info.system.as_ref())
-            .map(|info| info.public_key.clone())
+            .and_then(|info| info.public_key.clone())
             .map(|str|
                 hex::decode(str).map(
                     |vec| Sr25519Public::from_slice(vec.as_slice()).unwrap()
@@ -160,7 +159,6 @@ impl WorkerContext {
     pub fn is_registered(&self) -> bool {
         self.worker_status.phactory_info
             .as_ref()
-            .and_then(|info| info.system.as_ref())
             .map(|info| info.registered)
             .unwrap_or(false)
     }
