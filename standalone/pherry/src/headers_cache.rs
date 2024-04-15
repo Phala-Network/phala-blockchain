@@ -263,98 +263,62 @@ pub async fn grab_headers(
         return Ok(0);
     }
 
-    let header_hash = crate::get_header_hash(api, Some(start_at - 1)).await?;
-    let mut last_set = api.current_set_id(Some(header_hash)).await?;
-    let mut skip_justitication = 0_u32;
-    let mut grabbed = 0;
-
     let para_id = para_api.get_paraid(None).await?;
     info!("para_id: {}", para_id);
 
-    for block_number in start_at.. {
-        let header;
-        let justifications;
-        let hash;
-        if skip_justitication == 0 {
-            let (block, header_hash) = match crate::get_block_at(api, Some(block_number)).await {
-                Ok(x) => x,
-                Err(e) => {
-                    if e.to_string().contains("not found") {
-                        break;
-                    }
-                    return Err(e);
+    let mut grabbed = 0;
+    let mut next_at = start_at;
+    loop {
+        let headers = match crate::get_headers(&api, next_at).await {
+            Ok(headers) => headers,
+            Err(e) => {
+                if e.to_string().contains("Block not yet finalized") {
+                    break;
                 }
-            };
-            header = block.block.header;
-            justifications = block.justifications;
-            hash = header_hash;
-        } else {
-            let (hdr, hdr_hash) = match crate::get_header_at(api, Some(block_number)).await {
-                Ok(x) => x,
-                Err(e) => {
-                    if e.to_string().contains("not found") {
-                        break;
-                    }
-                    return Err(e);
-                }
-            };
-            header = hdr;
-            hash = hdr_hash;
-            justifications = None;
-        };
-        let set_id = api.current_set_id(Some(hash)).await?;
-        let mut justifications = justifications;
-        let authority_set_change = if last_set != set_id {
-            info!(
-                "Authority set changed at block {} from {} to {}",
-                header.number, last_set, set_id,
-            );
-            if justifications.is_none() {
-                let just_data = api
-                    .rpc()
-                    .block(Some(hash))
-                    .await?
-                    .ok_or_else(|| anyhow!("Failed to fetch block"))?
-                    .justifications
-                    .ok_or_else(|| anyhow!("No justification for block changing set_id"))?;
-                justifications = Some(just_data.convert_to());
-            }
-            Some(crate::get_authority_with_proof_at(api, &header).await?)
-        } else {
-            None
+                return Err(e);
+            },
         };
 
-        let justification = justifications.and_then(|v| v.into_justification(GRANDPA_ENGINE_ID));
-        if let Some(just) = &justification {
-            crate::authority::verify(api, &header, just).await?;
+        let last_header = &headers.last().unwrap().header;
+        next_at = last_header.number + 1;
+        let with_authority_set_change = phactory_api::blocks::find_scheduled_change(&last_header).is_some();
+
+        for header_to_sync in headers {
+            let header = header_to_sync.header;
+            let justification = if with_authority_set_change { header_to_sync.justification } else { None };
+
+            if let Some(just) = &justification {
+                crate::authority::verify(api, &header, just).await?;
+            }
+
+            let para_header = if justification.is_none() {
+                None
+            } else {
+                crate::get_finalized_header_with_paraid(api, para_id, header.hash()).await?
+            };
+
+            let para_header = para_header.map(|(header, proof)| ParaHeader {
+                fin_header_num: header.number,
+                proof,
+            });
+
+            f(BlockInfo {
+                header,
+                justification,
+                para_header,
+                authority_set_change: None,
+            })?;
+            grabbed += 1;
+            if count == grabbed {
+                break;
+            }
         }
 
-        skip_justitication = skip_justitication.saturating_sub(1);
-        last_set = set_id;
-
-        let para_header = if justification.is_none() {
-            None
-        } else {
-            skip_justitication = justification_interval;
-            crate::get_finalized_header_with_paraid(api, para_id, hash).await?
-        };
-
-        let para_header = para_header.map(|(header, proof)| ParaHeader {
-            fin_header_num: header.number,
-            proof,
-        });
-
-        f(BlockInfo {
-            header,
-            justification,
-            para_header,
-            authority_set_change,
-        })?;
-        grabbed += 1;
-        if count == grabbed {
+        if !with_authority_set_change {
             break;
         }
     }
+
     Ok(grabbed)
 }
 
