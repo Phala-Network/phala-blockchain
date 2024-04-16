@@ -73,10 +73,17 @@ use jsonrpsee::{
 };
 
 pub async fn connect(uri: &str) -> Result<ChainApi> {
-    let rpc_client = ws_client(uri).await?;
-    let client = RpcClient::from_rpc_client(Arc::new(rpc_client))
+    let rpc_client = Arc::new(ws_client(uri).await?);
+    let client = RpcClient::from_rpc_client(rpc_client.clone())
         .await
-        .context("Failed to connect to substrate")?;
+        .context("Failed to connect to substrate");
+    let client = match client {
+        Ok(client) => client,
+        Err(err) => {
+            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+            return Err(err);
+        },
+    };
     let update_client = client.updater();
     tokio::spawn(async move {
         let result = update_client.perform_runtime_updates().await;
