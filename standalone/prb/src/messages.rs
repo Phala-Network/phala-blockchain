@@ -12,12 +12,14 @@ use tokio::sync::mpsc;
 
 #[allow(deprecated)]
 const TRANSACTION_TIMEOUT: Duration = Duration::minutes(30);
+const TX_TIMEOUT_IN_BLOCKS: u32 = 6;
 
 pub enum MessagesEvent {
     SyncMessages((String, u64, MessageOrigin, Vec<SignedMessage>)),
     DoSyncMessages((String, u64, MessageOrigin, Vec<SignedMessage>, Option<u64>)),
     Completed((String, MessageOrigin, u64, Result<()>)),
     RemoveSender(MessageOrigin),
+    CurrentHeight(u32),
 }
 
 pub type MessagesRx = mpsc::UnboundedReceiver<MessagesEvent>;
@@ -27,24 +29,71 @@ pub enum MessageState {
     Pending,
     Successful,
     Failure,
+    Timeout,
 }
 
 pub struct MessageContext {
+    sender: MessageOrigin,
+    sequence: u64,
     state: MessageState,
     start_at: DateTime<Utc>,
+    submitted_at: u32,
     prev_try_count: usize,
 }
 
 impl MessageContext {
-    pub fn is_pending_or_success(&self) -> bool {
-        matches!(self.state, MessageState::Successful) || (
-            matches!(self.state, MessageState::Pending) &&
-            Utc::now().signed_duration_since(self.start_at) <= TRANSACTION_TIMEOUT
-        )
+    pub fn is_pending(&self, current_height: u32) -> bool {
+        if matches!(self.state, MessageState::Timeout) {
+            if current_height <= self.submitted_at {
+                info!("[{} #{}] Message was marked as timeout, but current H#{} <= {}, still treated as pending",
+                    self.sender,
+                    self.sequence,
+                    current_height,
+                    self.submitted_at,
+                );
+                return true;
+            } else if current_height.saturating_sub(self.submitted_at) <= TX_TIMEOUT_IN_BLOCKS {
+                info!("[{} #{}] Message was marked as timeout, but current H#{} - {} <= {}, wait a little more time to allow potential success.",
+                    self.sender,
+                    self.sequence,
+                    current_height,
+                    self.submitted_at,
+                    TX_TIMEOUT_IN_BLOCKS,
+                );
+                return true;
+            } else {
+                info!("[{} #{}] Message was timeout because H#{} - {} > {}",
+                    self.sender,
+                    self.sequence,
+                    current_height,
+                    self.submitted_at,
+                    TX_TIMEOUT_IN_BLOCKS,
+                );
+                return false;
+            }
+        } else if matches!(self.state, MessageState::Pending) {
+            if current_height > self.submitted_at && current_height.saturating_sub(self.submitted_at) > TX_TIMEOUT_IN_BLOCKS {
+                info!("[{} #{}] Message is still pending, but H#{} - {} > {}, treat as timeout.",
+                    self.sender,
+                    self.sequence,
+                    current_height,
+                    self.submitted_at,
+                    TX_TIMEOUT_IN_BLOCKS,
+                );
+                return false;
+            } else {
+                return true;
+            }
+        }
+        false
     }
 
-    pub fn is_timeout_or_failure(&self) -> bool {
-        !self.is_pending_or_success()
+    pub fn is_pending_or_success(&self, current_height: u32) -> bool {
+        self.is_pending(current_height) || matches!(self.state, MessageState::Successful)
+    }
+
+    pub fn is_timeout_or_failure(&self, current_height: u32) -> bool {
+        !self.is_pending_or_success(current_height)
     }
 }
 
@@ -55,12 +104,13 @@ pub struct SenderContext {
 }
 
 impl SenderContext {
-    pub fn calculate_next_sequence(&self) -> u64 {
+    pub fn calculate_next_sequence(&self, current_height: u32) -> u64 {
         let mut next_sequence = self.node_next_sequence;
         while
             self.pending_messages.get(&next_sequence)
-                .map(|p_msg| p_msg.is_pending_or_success())
-                .unwrap_or(false) {
+                .map(|p_msg| p_msg.is_pending_or_success(current_height))
+                .unwrap_or(false)
+        {
             next_sequence += 1;
         }
         next_sequence
@@ -82,6 +132,8 @@ pub async fn master_loop(
             break
         }
 
+        let mut current_height = 0 as u32;
+
         let event = event.unwrap();
         match event {
             MessagesEvent::SyncMessages((worker_id, pool_id, sender, messages)) => {
@@ -93,7 +145,7 @@ pub async fn master_loop(
                             .filter(|message| {
                                 sender_context.pending_messages
                                     .get(&message.sequence)
-                                    .map(|p_msg| p_msg.is_timeout_or_failure())
+                                    .map(|p_msg| p_msg.is_timeout_or_failure(current_height))
                                     .unwrap_or(true)
                             })
                             .collect::<Vec<_>>()
@@ -137,7 +189,7 @@ pub async fn master_loop(
                 }
 
                 for message in messages {
-                    let next_sequence = sender_context.calculate_next_sequence();
+                    let next_sequence = sender_context.calculate_next_sequence(current_height);
                     if message.sequence != next_sequence {
                         debug!("[{}] Ignoring #{} message since not matching next_sequence {}.",
                             sender, message.sequence, next_sequence);
@@ -147,7 +199,7 @@ pub async fn master_loop(
                     match sender_context.pending_messages.entry(message.sequence) {
                         Occupied(entry) => {
                             let message_context = entry.into_mut();
-                            if message_context.is_pending_or_success() {
+                            if message_context.is_pending_or_success(current_height) {
                                 trace!("[{}] message #{} is pending or successful.", sender, message.sequence);
                                 continue;
                             }
@@ -169,11 +221,14 @@ pub async fn master_loop(
                         },
                         Vacant(entry) => {
                             entry.insert(MessageContext {
+                                sender: sender.clone(),
+                                sequence: message.sequence,
                                 state: MessageState::Pending,
                                 start_at: Utc::now(),
+                                submitted_at: current_height,
                                 prev_try_count: 0,
                             });
-                        },
+                        }
                     }
 
                     trace!("[{}] Sending #{} message", sender, message.sequence);
@@ -200,7 +255,14 @@ pub async fn master_loop(
                     Some(ctx) => {
                         ctx.state = match &result {
                             Ok(_) => MessageState::Successful,
-                            Err(_) => MessageState::Failure,
+                            Err(err) => {
+                                let err_str = err.to_string();
+                                if err_str.contains("Tx timed out!") {
+                                    MessageState::Timeout
+                                } else {
+                                    MessageState::Failure
+                                }
+                            },
                         };
                     },
                     None => {
@@ -225,6 +287,9 @@ pub async fn master_loop(
                         trace!("[{}] Does not exist in SenderContext", sender);
                     },
                 }
+            },
+            MessagesEvent::CurrentHeight(height) => {
+                current_height = height;
             },
         }
     }

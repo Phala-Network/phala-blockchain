@@ -38,6 +38,7 @@ static TX_TIP: u128 = 0;
 
 static TX_QUEUE_CHUNK_SIZE: usize = 30;
 static TX_QUEUE_CHUNK_TIMEOUT_IN_MS: u64 = 1000;
+static TX_TIMEOUT_SECS: u64 = 60;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum TransactionState {
@@ -275,10 +276,13 @@ impl TxManager {
             }
 
             for (pid, v) in tx_map {
-                if let Err(e) = self.clone().wrap_send_tx_group(pid, v).await {
-                    error!("wrap_send_tx_group: {e}");
-                    std::process::exit(255);
-                }
+                let txm = self.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = txm.wrap_send_tx_group(pid, v).await {
+                        error!("wrap_send_tx_group: {e}");
+                        std::process::exit(255);
+                    }
+                });
             }
 
             let mut running_txs = self.running_txs.lock().await;
@@ -399,14 +403,22 @@ impl TxManager {
         // and a dedicate account is always required for each pRB/pherry instance,
         // hence we should not worry about nonce and use the expected value on the chain storage.
         let params = mk_params(&api, TX_LONGEVITY, TX_TIP).await?;
-        let tx = api
+        let tx_progress = api
             .tx()
             .create_signed(&call, &signer, params)
             .await?
             .submit_and_watch()
-            .await?
-            .wait_for_finalized_success()
             .await?;
+
+        let tx_and_timeout = tokio::spawn(tokio::time::timeout(
+            Duration::from_secs(TX_TIMEOUT_SECS),
+            tx_progress.wait_for_finalized()
+        )).await?;
+        let tx = match tx_and_timeout {
+            Ok(tx) => tx,
+            Err(_) => anyhow::bail!("Tx timed out!"),
+        };
+        let tx = tx?.wait_for_success().await?;
 
         if proxied {
             let event_proxy = tx
