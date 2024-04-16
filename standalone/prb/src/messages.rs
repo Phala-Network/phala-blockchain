@@ -3,15 +3,15 @@ use crate::datasource::DataSourceManager;
 use crate::tx::TxManager;
 use crate::use_parachain_api;
 use anyhow::Result;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
+use futures::StreamExt;
 use log::{debug, error, info, trace, warn};
 use phala_types::messaging::{MessageOrigin, SignedMessage};
 use std::collections::{hash_map::Entry::{Occupied, Vacant}, HashMap};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc;
 
-#[allow(deprecated)]
-const TRANSACTION_TIMEOUT: Duration = Duration::minutes(30);
 const TX_TIMEOUT_IN_BLOCKS: u32 = 6;
 
 pub enum MessagesEvent {
@@ -125,6 +125,9 @@ pub async fn master_loop(
 ) -> Result<()> {
     let mut sender_contexts = HashMap::<MessageOrigin, SenderContext>::new();
 
+    tokio::spawn(background_update_current_height(bus.clone(), dsm.clone()));
+    tokio::time::sleep(Duration::from_secs(5)).await;
+
     loop {
         let messages_event = rx.recv().await;
         let event = messages_event;
@@ -132,7 +135,7 @@ pub async fn master_loop(
             break
         }
 
-        let mut current_height = 0 as u32;
+        let mut current_height: u32 = 0;
 
         let event = event.unwrap();
         match event {
@@ -278,6 +281,7 @@ pub async fn master_loop(
                     );
                 }
             },
+
             MessagesEvent::RemoveSender(sender) => {
                 match sender_contexts.remove(&sender) {
                     Some(_) => {
@@ -288,6 +292,7 @@ pub async fn master_loop(
                     },
                 }
             },
+
             MessagesEvent::CurrentHeight(height) => {
                 current_height = height;
             },
@@ -339,4 +344,43 @@ async fn do_sync_message(
     let _ = bus.send_messages_event(
         MessagesEvent::Completed((worker_id, sender.clone(), sequence, result))
     );
+}
+
+pub async fn background_update_current_height(
+    bus: Arc<Bus>,
+    dsm: Arc<DataSourceManager>,
+) -> Result<()> {
+    loop {
+        let para_api = match use_parachain_api!(dsm, false) {
+            Some(instance) => instance,
+            None => {
+                error!("No valid data source, wait 1 seconds");
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                continue;
+            },
+        };
+
+        let blocks_sub = para_api.blocks().subscribe_best().await;
+        let mut blocks_sub = match blocks_sub {
+            Ok(blocks_sub) => blocks_sub,
+            Err(e) => {
+                error!("Subscribe best blocks failed, wait 1 seconds. {e}");
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                continue;
+            },
+        };
+
+        while let Some(block) = blocks_sub.next().await {
+            let block = match block {
+                Ok(block) => block,
+                Err(e) => {
+                    error!("Got error for next block. {e}");
+                    continue;
+                },
+            };
+
+            info!("Sending Current Para Height #{}", block.number());
+            let _ = bus.send_messages_event(MessagesEvent::CurrentHeight(block.number()));
+        }
+    }
 }

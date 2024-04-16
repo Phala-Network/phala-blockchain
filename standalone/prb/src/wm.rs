@@ -5,7 +5,7 @@ use crate::repository::{Repository, RepositoryEvent};
 use crate::datasource::{setup_data_source_manager, WrappedDataSourceManager};
 use crate::inv_db::{get_all_workers, setup_inventory_db, WrappedDb};
 use crate::lifecycle::{WorkerContextMap, WrappedWorkerLifecycleManager};
-use crate::messages::{master_loop as offchain_tx_loop, MessagesEvent};
+use crate::messages::{master_loop as message_master_loop, MessagesEvent};
 use crate::pool_operator::PoolOperatorAccess;
 use crate::processor::{Processor, ProcessorEvent};
 use crate::tx::TxManager;
@@ -204,7 +204,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
 
         _ = repository.master_loop() => {}
 
-        _ = offchain_tx_loop(messages_rx, bus.clone(), dsm.clone(), txm.clone()) => {}
+        _ = message_master_loop(messages_rx, bus.clone(), dsm.clone(), txm.clone()) => {}
 
         _ = update_worker_status(ctx.clone(), worker_status_rx) => {}
 

@@ -70,6 +70,18 @@ impl<'a, T: Config> ExtraRpcClient<'a, T> {
     pub async fn system_sync_state(&self) -> Result<SyncState, Error> {
         self.client.request("system_syncState", rpc_params![]).await
     }
+
+    /// Fetch next nonce for an Account
+    ///
+    /// Return account nonce adjusted for extrinsics currently in transaction pool
+    pub async fn system_account_next_index(&self, account_id: &T::AccountId) -> Result<u64, Error>
+    where
+        T::AccountId: Serialize,
+    {
+        self.client
+            .request("system_accountNextIndex", rpc_params![&account_id])
+            .await
+    }
 }
 
 impl<'a, T: Config> ExtraRpcClient<'a, T>

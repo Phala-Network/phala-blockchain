@@ -16,6 +16,7 @@ use parity_scale_codec::Encode;
 use phactory_api::prpc::GetEndpointResponse;
 use phala_types::messaging::SignedMessage;
 use phaxt::dynamic::tx::EncodedPayload;
+use phaxt::rpc::ExtraRpcExt;
 use pherry::mk_params;
 use serde::{Deserialize, Serialize};
 use sp_core::crypto::AccountId32;
@@ -397,16 +398,13 @@ impl TxManager {
 
         let mut encoded = Vec::new();
         call.encode_call_data_to(&metadata, &mut encoded)?;
-        debug!("sending tx: 0x{}, with nonce={}", hex::encode(&encoded), api.tx().account_nonce(signer.account_id()).await?);
+        let nonce = api.extra_rpc().account_nonce(signer.account_id()).await?;
+        debug!("sending tx: 0x{}, with nonce={}", hex::encode(&encoded), nonce);
 
-        // In pRBv3, transactions are queued, there is always only 1 running transaction for each pool,
-        // and a dedicate account is always required for each pRB/pherry instance,
-        // hence we should not worry about nonce and use the expected value on the chain storage.
         let params = mk_params(&api, TX_LONGEVITY, TX_TIP).await?;
         let tx_progress = api
             .tx()
-            .create_signed(&call, &signer, params)
-            .await?
+            .create_signed_with_nonce(&call, &signer, nonce, params)?
             .submit_and_watch()
             .await?;
 
@@ -552,8 +550,8 @@ impl TxManager {
     ) -> Result<()> {
         let encoded = signed_message.encode();
         let tx_payload = EncodedPayload::new("PhalaMq", "sync_offchain_message", encoded);
-        let desc = format!("Sync offchain message to chain for pool #{}, seq #{}, sender {}.",
-            pid, signed_message.sequence, signed_message.message.sender);
+        let desc = format!("Sync offchain message #{} from {}.",
+            signed_message.sequence, signed_message.message.sender);
         self.clone().send_to_queue(pid, tx_payload, desc).await
     }
     pub async fn add_worker(self: Arc<Self>, pid: u64, pubkey: Sr25519Public) -> Result<()> {
