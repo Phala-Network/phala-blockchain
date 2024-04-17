@@ -127,14 +127,13 @@ pub async fn master_loop(
     tokio::spawn(background_update_current_height(bus.clone(), dsm.clone()));
     tokio::time::sleep(Duration::from_secs(5)).await;
 
+    let mut current_height: u32 = 0;
     loop {
         let messages_event = rx.recv().await;
         let event = messages_event;
         if event.is_none() {
             break
         }
-
-        let mut current_height: u32 = 0;
 
         let event = event.unwrap();
         match event {
