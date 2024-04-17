@@ -175,6 +175,8 @@ impl Repository {
         info!("current number: {}", current_num);
         info!("current authority set id: {}", current_authority_set_id);
 
+        delete_tail_headers(headers_db.clone());
+
         loop {
             let relay_chaintip = relay_api.latest_finalized_block_number().await?;
             if current_num > relay_chaintip {
@@ -206,16 +208,16 @@ impl Repository {
                 }
             };
 
-            let last_header = &headers.last().unwrap().header;
+            let last_header = headers.last().unwrap().header.clone();
+            let last_number = put_headers_to_db(headers_db.clone(), headers, relay_chaintip)?;
+            current_num = last_number + 1;
+
             let next_authorities = match phactory_api::blocks::find_scheduled_change(&last_header) {
                 Some(sc) => sc.next_authorities,
                 None => break,
             };
             current_authorities = Some(next_authorities);
             current_authority_set_id += 1;
-
-            let last_number = put_headers_to_db(headers_db.clone(), headers, relay_chaintip)?;
-            current_num = last_number + 1;
         }
 
         headers_db.compact_range(None::<&[u8]>, None::<&[u8]>);

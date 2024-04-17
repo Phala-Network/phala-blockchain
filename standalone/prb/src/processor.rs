@@ -11,7 +11,7 @@ use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState};
 use crate::worker_status::WorkerStatusUpdate;
 use anyhow::Result;
 use chrono::{DateTime, Duration, Timelike, Utc};
-use log::{error, info, trace, warn};
+use log::{debug, error, info, trace, warn};
 use phactory_api::prpc::{
     self, ChainState, GetEgressMessagesResponse, GetEndpointResponse, GetRuntimeInfoRequest,
     InitRuntimeRequest, InitRuntimeResponse, PhactoryInfo, SignEndpointsRequest,
@@ -50,6 +50,7 @@ pub struct WorkerContext {
     pub headernum: u32,
     pub para_headernum: u32,
     pub blocknum: u32,
+    pub pending_broadcast: bool,
 
     pub worker_status: WorkerStatus,
     pub worker_info: Option<WorkerInfoV2<AccountId32>>,
@@ -91,6 +92,7 @@ impl WorkerContext {
             headernum: 0,
             para_headernum: 0,
             blocknum: 0,
+            pending_broadcast: false,
 
             worker_status: WorkerStatus {
                 worker: worker.clone(),
@@ -486,9 +488,20 @@ impl Processor {
                 },
                 ProcessorEvent::BroadcastSync((request, info)) => {
                     for worker in workers.values_mut() {
-                        if worker.is_match(&request.manifest) && worker.is_reached_chaintip(&self.chaintip) {
-                            trace!("[{}] Accepted BroadcastSyncRequest", worker.uuid);
-                            self.add_pruntime_request(worker, PRuntimeRequest::Sync(request.clone()));
+                        if !worker.pending_broadcast {
+                            continue;
+                        }
+
+                        if worker.is_reached_chaintip(&self.chaintip) {
+                            if worker.is_match(&request.manifest) {
+                                worker.pending_broadcast = false;
+                                trace!("[{}] Accepted BroadcastSyncRequest", worker.uuid);
+                                self.add_pruntime_request(worker, PRuntimeRequest::Sync(request.clone()));
+                            }
+                        } else {
+                            worker.pending_broadcast = false;
+                            trace!("[{}] Not at chaintip but pending for broadcase. Need to re-trigger sync.", worker.uuid);
+                            self.request_next_sync(worker);
                         }
                     }
                     self.chaintip = info;
@@ -810,7 +823,7 @@ impl Processor {
                     | PRuntimeRequest::TakeCheckpoint
                     => (),
                 _ => {
-                    warn!("[{}] worker was stopped, skip the request.", worker.uuid);
+                    info!("[{}] worker was stopped, skip the request.", worker.uuid);
                 },
             }
         }
@@ -976,6 +989,7 @@ impl Processor {
             self.request_next_sync(worker);
         } else {
             trace!("[{}] Reached to chaintip!", worker.uuid);
+            worker.pending_broadcast = true;
             if worker.is_registered() && info.blocknum.is_some() {
                 trace!("[{}] Dispatched a block, requesting EgressMessages", worker.uuid);
                 self.add_pruntime_request(worker, PRuntimeRequest::GetEgressMessages);
@@ -1013,14 +1027,26 @@ impl Processor {
             return;
         }
 
-        trace!("[{}] requesting next sync", worker.uuid);
-        self.request_next_sync(worker);
-        self.update_worker_state_and_message(
-            worker,
-            WorkerLifecycleState::Synchronizing,
-            "Start Synchronizing...",
-            None, 
-        );
+        if worker.is_reached_chaintip(&self.chaintip) {
+            worker.pending_broadcast = true;
+            trace!("[{}] Already at chaintip. Requesting compute management.", worker.uuid);
+            self.request_compute_management(worker);
+            self.update_worker_state_and_message(
+                worker,
+                WorkerLifecycleState::Preparing,
+                "Start Preparing...",
+                None,
+            );
+        } else {
+            trace!("[{}] requesting next sync", worker.uuid);
+            self.request_next_sync(worker);
+            self.update_worker_state_and_message(
+                worker,
+                WorkerLifecycleState::Synchronizing,
+                "Start Synchronizing...",
+                None,
+            );
+        }
     }
 
     fn request_init(
@@ -1141,7 +1167,7 @@ async fn dispatch_pruntime_request(
     client: Arc<PRuntimeClient>,
     request: PRuntimeRequest,
 ) {
-    trace!("[{}] Start to dispatch PRuntimeRequest: {}", worker_id, request);
+    debug!("[{}] Start to dispatch PRuntimeRequest: {}", worker_id, request);
     let is_critical = matches!(
         &request,
         PRuntimeRequest::PrepareLifecycle
@@ -1214,7 +1240,7 @@ async fn dispatch_pruntime_request(
         }
     }
     let _ = bus.send_processor_event(ProcessorEvent::WorkerEvent((worker_id.clone(), WorkerEvent::PRuntimeResponse(result))));
-    trace!("[{}] Completed to dispatch PRuntimeRequest", worker_id);
+    debug!("[{}] Completed to dispatch PRuntimeRequest", worker_id);
 }
 
 async fn do_sync_request(

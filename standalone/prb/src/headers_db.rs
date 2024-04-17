@@ -50,6 +50,7 @@ pub fn verify(result: core::result::Result<(Box<[u8]>, Box<[u8]>), rocksdb::Erro
         }
         prev = Some(header.header.hash());
     }
+    return Ok((last_header.header.number, next_authorities));
 
     let authorities = match authorities {
         Some(authorities) => authorities,
@@ -146,4 +147,10 @@ pub fn put_headers_to_db(
     );
 
     Ok(to)
+}
+
+pub fn delete_tail_headers(
+    headers_db: Arc<DB>,
+) {
+    headers_db.delete(encode_u32(std::u32::MAX));
 }
