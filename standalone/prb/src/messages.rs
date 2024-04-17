@@ -36,7 +36,6 @@ pub struct MessageContext {
     sender: MessageOrigin,
     sequence: u64,
     state: MessageState,
-    start_at: DateTime<Utc>,
     submitted_at: u32,
     prev_try_count: usize,
 }
@@ -140,6 +139,8 @@ pub async fn master_loop(
         let event = event.unwrap();
         match event {
             MessagesEvent::SyncMessages((worker_id, pool_id, sender, messages)) => {
+                debug!("[{}] Received {} messages, start filtering.", sender, messages.len());
+
                 let messages = match sender_contexts.entry(sender.clone()) {
                     Occupied(entry) => {
                         let sender_context = entry.get();
@@ -159,6 +160,8 @@ pub async fn master_loop(
                     trace!("[{}] all messages are pending or completed", sender);
                     continue;
                 }
+
+                debug!("[{}] {} messages needs will send for check.", sender, messages.len());
                 tokio::spawn(do_update_next_sequence_and_sync_messages(
                     bus.clone(),
                     dsm.clone(),
@@ -170,6 +173,8 @@ pub async fn master_loop(
             },
 
             MessagesEvent::DoSyncMessages((worker_id, pool_id, sender, messages, next_sequence)) => {
+                debug!("[{}] DoSync: Receveid {} messages.", sender, messages.len());
+
                 let sender_context = match sender_contexts.entry(sender.clone()) {
                     Occupied(entry) => entry.into_mut(),
                     Vacant(entry) => match next_sequence {
@@ -201,21 +206,27 @@ pub async fn master_loop(
 
                     match sender_context.pending_messages.entry(message.sequence) {
                         Occupied(entry) => {
+                            debug!("[{}] Msg#{} has message_context, checking if retry needed.", sender, message.sequence);
+
                             let message_context = entry.into_mut();
                             if message_context.is_pending_or_success(current_height) {
                                 trace!("[{}] message #{} is pending or successful.", sender, message.sequence);
                                 continue;
                             }
 
+                            debug!("[{}] Msg#{} needs to retry.", sender, message.sequence);
+
                             if matches!(message_context.state, MessageState::Pending) {
-                                warn!("[{}] message #{} is pending, but it was timeout ({} > 30) minutes.",
+                                warn!("[{}] message #{} is pending, but {} is more than {} blocks, need retry.",
                                     sender,
                                     message.sequence,
-                                    Utc::now().signed_duration_since(message_context.start_at));
+                                    current_height.saturating_sub(message_context.submitted_at),
+                                    TX_TIMEOUT_IN_BLOCKS,
+                                );
                             }
 
                             message_context.state = MessageState::Pending;
-                            message_context.start_at = Utc::now();
+                            message_context.submitted_at = current_height;
                             message_context.prev_try_count += 1;
                             info!(
                                 "[{}] message #{} was failed for {} times. Trying again now..",
@@ -223,11 +234,12 @@ pub async fn master_loop(
                             );
                         },
                         Vacant(entry) => {
+                            debug!("[{}] Msg#{} is new.", sender, message.sequence);
+
                             entry.insert(MessageContext {
                                 sender: sender.clone(),
                                 sequence: message.sequence,
                                 state: MessageState::Pending,
-                                start_at: Utc::now(),
                                 submitted_at: current_height,
                                 prev_try_count: 0,
                             });
@@ -295,6 +307,7 @@ pub async fn master_loop(
 
             MessagesEvent::CurrentHeight(height) => {
                 current_height = height;
+                info!("Updated Current Para Height #{}", current_height);
             },
         }
     }
