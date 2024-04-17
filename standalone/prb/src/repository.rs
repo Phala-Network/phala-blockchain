@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use core::time::Duration;
 use futures::StreamExt;
 use log::{debug, error, info, trace, warn};
@@ -162,11 +162,18 @@ impl Repository {
         let relaychain_start_at = para_api.relay_parent_number().await? - 1;
         debug!("relaychain_start_at: {}", relaychain_start_at);
 
-        let mut current_num = match get_previous_authority_set_change_number(headers_db.clone(), std::u32::MAX) {
-            Some(num) => num + 1,
-            None => relaychain_start_at
+        let start_authority_set_id = if relaychain_start_at == 9688654 {
+            891
+        } else if relaychain_start_at == 8325311 {
+            3228
+        } else {
+            0
         };
+
+        let (mut current_num, mut current_authority_set_id, mut current_authorities) =
+            find_valid_num(headers_db.clone(), relaychain_start_at, start_authority_set_id);
         info!("current number: {}", current_num);
+        info!("current authority set id: {}", current_authority_set_id);
 
         loop {
             let relay_chaintip = relay_api.latest_finalized_block_number().await?;
@@ -174,10 +181,39 @@ impl Repository {
                 break
             }
 
-            let headers = pherry::get_headers(&relay_api, current_num).await?;
-            if phactory_api::blocks::find_scheduled_change(&headers.last().unwrap().header).is_none() {
-                break;
-            }
+            let mut try_count = 0 as usize;
+            let headers = loop {
+                let headers = pherry::get_headers(&relay_api, current_num).await?;
+                let last_header = headers.last().unwrap();
+                let justifications = last_header.justification.as_ref().expect("last header from proof api should has justification");
+                match &current_authorities {
+                    Some(authorities) => {
+                        let result = pherry::verify_with_prev_authority_set(
+                            current_authority_set_id,
+                            authorities,
+                            &last_header.header,
+                            justifications,
+                        );
+                        if let Ok(_) = result {
+                            break headers
+                        }
+                    }
+                    _ => break headers,
+                }
+                try_count += 1;
+                if try_count >= 3 {
+                    return Err(anyhow!("Tried three times, cannot retrieve a valid justification."))
+                }
+            };
+
+            let last_header = &headers.last().unwrap().header;
+            let next_authorities = match phactory_api::blocks::find_scheduled_change(&last_header) {
+                Some(sc) => sc.next_authorities,
+                None => break,
+            };
+            current_authorities = Some(next_authorities);
+            current_authority_set_id += 1;
+
             let last_number = put_headers_to_db(headers_db.clone(), headers, relay_chaintip)?;
             current_num = last_number + 1;
         }
@@ -455,4 +491,8 @@ pub async fn keep_syncing_headers(
             info!("relaychain_chaintip: {}, parachain_chaintip: {}", current_relay_number, current_para_number);
         }
     }
+}
+
+async fn verify () {
+
 }

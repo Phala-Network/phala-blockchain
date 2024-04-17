@@ -1,8 +1,10 @@
 use crate::pool_operator::DB;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use log::{debug, error};
 use parity_scale_codec::{Decode, Encode};
 use phactory_api::blocks::HeadersToSync;
+use sp_consensus_grandpa::AuthorityList;
+use subxt::ext::sp_runtime::traits::Header;
 use std::sync::Arc;
 
 fn encode_u32(val: u32) -> [u8; 4] {
@@ -10,6 +12,58 @@ fn encode_u32(val: u32) -> [u8; 4] {
     let mut buf = [0; 4];
     BigEndian::write_u32(&mut buf, val);
     return buf;
+}
+
+pub fn find_valid_num(db: Arc<DB>, start_at: u32, set_id: u64) -> (u32, u64, Option<AuthorityList>) {
+    let mut next_number = start_at;
+    let mut current_set_id = set_id;
+    let mut current_authorities = None;
+
+    for result in db.iterator(rocksdb::IteratorMode::From(&encode_u32(start_at), rocksdb::Direction::Forward)) {
+        if let Ok((last_number, next_authorities)) = verify(result, current_set_id, &current_authorities) {
+            next_number = last_number + 1;
+            current_set_id += 1;
+            current_authorities = Some(next_authorities);
+        } else {
+            break
+        }
+    }
+
+    (next_number, current_set_id, current_authorities)
+}
+
+pub fn verify(result: core::result::Result<(Box<[u8]>, Box<[u8]>), rocksdb::Error>, set_id: u64, authorities: &Option<AuthorityList>) -> Result<(u32, AuthorityList)> {
+    let (_, value) = result?;
+    let headers = HeadersToSync::decode(&mut &value[..])?;
+    let last_header = headers.last().expect("should have header");
+    let next_authorities = match phactory_api::blocks::find_scheduled_change(&last_header.header) {
+        Some(sc) => sc.next_authorities,
+        None => return Err(anyhow!("No scheduled change")),
+    };
+
+    let mut prev = None;
+    for header in &headers {
+        if prev.is_some() && prev.unwrap() != *header.header.parent_hash() {
+            return Err(anyhow!(
+                "#{} parent is {}, but we have {}", header.header.number, header.header.parent_hash(), prev.unwrap()
+            ))
+        }
+        prev = Some(header.header.hash());
+    }
+
+    let authorities = match authorities {
+        Some(authorities) => authorities,
+        None => return Ok((last_header.header.number, next_authorities)),
+    };
+    let justifications = last_header.justification.as_ref().expect("last header from proof api should has justification");
+    pherry::verify_with_prev_authority_set(
+        set_id,
+        authorities,
+        &last_header.header,
+        justifications,
+    )?;
+    Ok((last_header.header.number, next_authorities))
+
 }
 
 pub fn get_current_point(db: Arc<DB>, num: u32) -> Option<HeadersToSync> {

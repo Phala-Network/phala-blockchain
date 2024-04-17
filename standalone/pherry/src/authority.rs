@@ -81,12 +81,21 @@ pub async fn get_authority_with_proof_at(
     })
 }
 
-pub async fn verify(api: &RelaychainApi, header: &Header, mut justifications: &[u8]) -> Result<()> {
+pub async fn verify(api: &RelaychainApi, header: &Header, justifications: &[u8]) -> Result<()> {
     if header.number == 0 {
         return Ok(());
     }
     let prev_header = get_header_at(api, Some(header.number - 1)).await?.0;
     let auth_set = get_authority_with_proof_at(api, &prev_header).await?;
+    verify_with_prev_authority_set(
+        auth_set.authority_set.id,
+        &auth_set.authority_set.list,
+        header,
+        justifications
+    )
+}
+
+pub fn verify_with_prev_authority_set(set_id: u64, authorities: &AuthorityList, header: &Header, mut justifications: &[u8]) -> Result<()> {
     let justification: GrandpaJustification<UnsigedBlock> =
         Decode::decode(&mut justifications).context("Failed to decode justification")?;
     if (
@@ -97,11 +106,11 @@ pub async fn verify(api: &RelaychainApi, header: &Header, mut justifications: &[
         bail!("Invalid commit target in grandpa justification");
     }
     justification
-        .verify(auth_set.authority_set.id, &auth_set.authority_set.list)
+        .verify(set_id, &authorities)
         .context("Failed to verify justification")?;
     info!(
         "Verified grandpa justification at block {}, auth_id={}",
-        header.number, auth_set.authority_set.id
+        header.number, set_id
     );
     Ok(())
 }

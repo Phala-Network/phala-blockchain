@@ -23,6 +23,7 @@ use sp_consensus_grandpa::SetId;
 use subxt::config::{substrate::Era, Header as _};
 
 pub use authority::get_authority_with_proof_at;
+pub use authority::verify_with_prev_authority_set;
 
 mod authority;
 mod endpoint;
