@@ -206,6 +206,7 @@ pub async fn api_handler(db: WrappedDb, po_db: Arc<DB>, bus: Arc<Bus>, command: 
                 v.clone(),
                 get_pool_by_pid(db.clone(), pid).unwrap().map(|p| p.sync_only),
                 po_db.get_po(pid)?.map(|po| po.operator()),
+                crate::pruntime::create_client(v.endpoint.clone()),
             )));
             let v = serde_json::to_string_pretty(&v)?;
             Ok(v)

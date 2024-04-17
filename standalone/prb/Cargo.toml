@@ -46,4 +46,7 @@ schnorrkel = "0.9"
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0", default-features = false, features = [ "full_crypto" ] }
 
 byteorder = "1.5.0"
+derive_more = { version = "0.99", default-features = false, features = ["display"] }
 prpc = { path = "../../crates/prpc", default-features = false }
+rayon = "1.10.0"
+thread-priority = "0.16.0"

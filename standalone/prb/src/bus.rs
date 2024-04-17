@@ -1,4 +1,5 @@
 use log::error;
+use std::sync::mpsc::SendError as StdSendError;
 use tokio::sync::mpsc::error::SendError;
 
 use crate::processor::{PRuntimeRequest, ProcessorEvent, ProcessorTx, WorkerEvent};
@@ -15,7 +16,7 @@ pub struct Bus {
 }
 
 impl Bus {
-    pub fn send_processor_event(&self, event: ProcessorEvent) -> Result<(), SendError<ProcessorEvent>> {
+    pub fn send_processor_event(&self, event: ProcessorEvent) -> Result<(), StdSendError<ProcessorEvent>> {
         let result = self.processor_tx.send(event);
         if let Err(err) = &result {
             error!("Fail to send message to processor_tx. {}", err);
@@ -23,27 +24,27 @@ impl Bus {
         result
     }
 
-    pub fn send_worker_event(&self, worker_id: String, event: WorkerEvent) -> Result<(), SendError<ProcessorEvent>> {
+    pub fn send_worker_event(&self, worker_id: String, event: WorkerEvent) -> Result<(), StdSendError<ProcessorEvent>> {
         self.send_processor_event(
             ProcessorEvent::WorkerEvent((worker_id, event)),
         )
     }
 
-    pub fn send_worker_update_message(&self, worker_id: String, message: String) -> Result<(), SendError<ProcessorEvent>> {
+    pub fn send_worker_update_message(&self, worker_id: String, message: String) -> Result<(), StdSendError<ProcessorEvent>> {
         self.send_worker_event(
             worker_id,
             WorkerEvent::UpdateMessage((chrono::Utc::now(), message)),
         )
     }
 
-    pub fn send_worker_mark_error(&self, worker_id: String, message: String) -> Result<(), SendError<ProcessorEvent>> {
+    pub fn send_worker_mark_error(&self, worker_id: String, message: String) -> Result<(), StdSendError<ProcessorEvent>> {
         self.send_worker_event(
             worker_id,
             WorkerEvent::MarkError((chrono::Utc::now(), message)),
         )
     }
 
-    pub fn send_pruntime_request(&self, worker_id: String, request: PRuntimeRequest) -> Result<(), SendError<ProcessorEvent>> {
+    pub fn send_pruntime_request(&self, worker_id: String, request: PRuntimeRequest) -> Result<(), StdSendError<ProcessorEvent>> {
         self.send_worker_event(
             worker_id,
             WorkerEvent::PRuntimeRequest(request),

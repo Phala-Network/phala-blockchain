@@ -11,6 +11,7 @@ use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState};
 use crate::worker_status::WorkerStatusUpdate;
 use anyhow::Result;
 use chrono::{DateTime, Duration, Timelike, Utc};
+use derive_more::Display;
 use log::{debug, error, info, trace, warn};
 use phactory_api::prpc::{
     self, ChainState, GetEgressMessagesResponse, GetEndpointResponse, GetRuntimeInfoRequest,
@@ -23,8 +24,8 @@ use sp_core::crypto::{AccountId32, ByteArray};
 use sp_core::sr25519::Public as Sr25519Public;
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
-use std::sync::Arc;
-use tokio::sync::mpsc;
+use std::sync::{Arc, mpsc};
+use std::time::Instant;
 
 #[allow(deprecated)]
 const UPDATE_PHACTORY_INFO_INTERVAL: Duration = Duration::seconds(5);
@@ -80,6 +81,7 @@ impl WorkerContext {
         worker: crate::inv_db::Worker,
         pool_sync_only: Option<bool>,
         operator: Option<AccountId32>,
+        pruntime_client: PRuntimeClient,
     ) -> Self {
         Self {
             uuid: worker.id.clone(),
@@ -112,7 +114,7 @@ impl WorkerContext {
             last_updated_at: Utc::now(),
 
             pruntime_lock: false,
-            client: Arc::new(crate::pruntime::create_client(worker.endpoint.clone())),
+            client: Arc::new(pruntime_client),
             pending_requests: VecDeque::new(),
             pruntime_recent_error_count: 0,
             last_worker_lifecycle: None,
@@ -314,34 +316,56 @@ impl fmt::Display for PRuntimeResponse {
     }
 }
 
+#[derive(Display)]
 pub enum WorkerEvent {
+    #[display(fmt = "UpdateWorker")]
     UpdateWorker(crate::inv_db::Worker),
+    #[display(fmt = "PRuntimeRequest::{}", "_0")]
     PRuntimeRequest(PRuntimeRequest),
+    #[display(fmt = "PRuntimeResponse")]
     PRuntimeResponse(Result<PRuntimeResponse, prpc::client::Error>),
+    #[display(fmt = "UpdateWorkerInfo")]
     UpdateWorkerInfo(WorkerInfoV2<AccountId32>),
+    #[display(fmt = "UpdateSessionId")]
     UpdateSessionId(Option<AccountId32>),
+    #[display(fmt = "UpdateSessionInfo")]
     UpdateSessionInfo(Option<SessionInfo>),
+    #[display(fmt = "RepositoryLoadStateRequest")]
     RepositoryLoadStateRequest,
+    #[display(fmt = "RepositoryPreloadRequest")]
     RepositoryPreloadRequest(SyncRequest),
+    #[display(fmt = "RepositorySyncRequest")]
     RepositorySyncRequest(SyncRequest),
+    #[display(fmt = "WorkerLifecycleCommand")]
     WorkerLifecycleCommand(WorkerLifecycleCommand),
+    #[display(fmt = "UpdateMessage")]
     UpdateMessage((DateTime<Utc>, String)),
+    #[display(fmt = "MarkError")]
     MarkError((DateTime<Utc>, String)),
 }
 
+#[derive(Display)]
 pub enum ProcessorEvent {
-    AddWorker((crate::inv_db::Worker, Option<bool>, Option<AccountId32>)),
+    #[display(fmt = "AddWorker({})", "_0.0.id")]
+    AddWorker((crate::inv_db::Worker, Option<bool>, Option<AccountId32>, PRuntimeClient)),
+    #[display(fmt = "DeleteWorker({})", "_0")]
     DeleteWorker(String),
+    #[display(fmt = "UpdatePool({})", "_0.0")]
     UpdatePool((u64, Option<crate::inv_db::Pool>)),
+    #[display(fmt = "UpdatePoolOperator({})", "_0.0")]
     UpdatePoolOperator((u64, Option<AccountId32>)),
+    #[display(fmt = "WorkerEvent({}, {})", "_0.0", "_0.1")]
     WorkerEvent((String, WorkerEvent)),
+    #[display(fmt = "Heartbeat")]
     Heartbeat,
+    #[display(fmt = "BroadcastSync")]
     BroadcastSync((SyncRequest, ChaintipInfo)),
+    #[display(fmt = "RequestUpdateSessionInfo")]
     RequestUpdateSessionInfo,
 }
 
-pub type ProcessorRx = mpsc::UnboundedReceiver<ProcessorEvent>;
-pub type ProcessorTx = mpsc::UnboundedSender<ProcessorEvent>;
+pub type ProcessorRx = mpsc::Receiver<ProcessorEvent>;
+pub type ProcessorTx = mpsc::Sender<ProcessorEvent>;
 
 pub struct Processor {
     pub rx: ProcessorRx,
@@ -392,30 +416,22 @@ impl Processor {
         }
     }
 
-    pub async fn master_loop(
-        &mut self,
-    ) -> Result<()> {
+    pub fn master_loop(&mut self) {
+        thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Max);
         let mut workers = HashMap::<String, WorkerContext>::new();
 
-        let bus = self.bus.clone();
-        tokio::spawn(async move {
-            loop {
-                let _ = bus.send_processor_event(ProcessorEvent::Heartbeat);
-                let nanos = 1_000_000_000 - Utc::now().nanosecond() % 1_000_000_000;
-                tokio::time::sleep(std::time::Duration::from_nanos(nanos.into())).await;
-            };
-        });
-
         loop {
-            let event = self.rx.recv().await;
-            if event.is_none() {
-                break
-            }
+            let event = match self.rx.recv() {
+                Ok(event) => event,
+                Err(err) => break,
+            };
 
-            match event.unwrap() {
-                ProcessorEvent::AddWorker((added_worker, pool_sync_only, operator)) => {
+            let start_time = Instant::now();
+            let event_display = format!("{event}");
+            match event {
+                ProcessorEvent::AddWorker((added_worker, pool_sync_only, operator, pruntime_client)) => {
                     let worker_id = added_worker.id.clone();
-                    let worker_context = WorkerContext::create(added_worker, pool_sync_only, operator);
+                    let worker_context = WorkerContext::create(added_worker, pool_sync_only, operator, pruntime_client);
                     if workers.contains_key(&worker_id) {
                         error!("[{}] Failed to add worker because the UUID is existed.", worker_id);
                     } else {
@@ -561,9 +577,9 @@ impl Processor {
                     }
                 },
             }
+            let cost = start_time.elapsed().as_micros();
+            debug!("measuring {event_display} cost {cost} microseconds.");
         }
-
-        Ok(())
     }
 
     fn handle_worker_event(
@@ -1309,10 +1325,12 @@ async fn do_restart(
     info!("[{}] Restarting: Remove WorkerContext command sent, wait {} seconds and then add back",
         worker_id, RESTART_WORKER_COOL_PERIOD.num_seconds());
     tokio::time::sleep(RESTART_WORKER_COOL_PERIOD.to_std().unwrap()).await;
+    let client = crate::pruntime::create_client(worker.endpoint.clone());
     let _ = bus.send_processor_event(ProcessorEvent::AddWorker((
         worker,
         Some(pool_sync_only),
         operator,
+        client,
     )));
     info!("[{}] Restart: Add WorkerContext command sent.", worker_id);
 

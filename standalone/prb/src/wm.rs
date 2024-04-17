@@ -13,8 +13,10 @@ use crate::use_parachain_api;
 use crate::worker::WrappedWorkerContext;
 use crate::worker_status::{update_worker_status, WorkerStatusEvent};
 use anyhow::{anyhow, Result};
-use futures::future::{try_join3, try_join_all};
+use chrono::{Timelike, Utc};
+use futures::future::{try_join4, try_join_all};
 use log::{error, info};
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
@@ -108,7 +110,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
 
     dsm.clone().wait_until_rpc_avail(false).await;
 
-    let (processor_tx, processor_rx) = mpsc::unbounded_channel::<ProcessorEvent>();
+    let (processor_tx, processor_rx) = std::sync::mpsc::channel::<ProcessorEvent>();
     let (repository_tx, repository_rx) = mpsc::unbounded_channel::<RepositoryEvent>();
     let (messages_tx, messages_rx) = mpsc::unbounded_channel::<MessagesEvent>();
     let (worker_status_tx, worker_status_rx) = mpsc::unbounded_channel::<WorkerStatusEvent>();
@@ -157,38 +159,59 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         bus: bus.clone(),
     });
 
-    for worker in get_all_workers(inv_db.clone()).unwrap() {
-        let (pool, operator) = match worker.pid {
-            Some(pid) => {
-                let pool = match crate::inv_db::get_pool_by_pid(inv_db.clone(), pid) {
-                    Ok(pool) => pool,
-                    Err(err) => {
-                        error!("Fail to get pool #{}. {}", pid, err);
-                        None
-                    },
-                };
-                let operator = match txm.clone().db.get_po(pid) {
-                    Ok(po) => po.map(|po| po.operator()),
-                    Err(err) => {
-                        error!("Fail to get pool operator #{}. {}", pid, err);
-                        None
-                    },
-                };
-                (pool, operator)
-            },
-            None => (None, None),
-        };
+    let workers = get_all_workers(inv_db.clone()).unwrap();
+    let workers = workers
+        .into_par_iter()
+        .map(|worker| {
+            let client = crate::pruntime::create_client(worker.endpoint.clone());
+            match worker.pid {
+                Some(pid) => {
+                    let pool = match crate::inv_db::get_pool_by_pid(inv_db.clone(), pid) {
+                        Ok(pool) => pool,
+                        Err(err) => {
+                            error!("Fail to get pool #{}. {}", pid, err);
+                            None
+                        },
+                    };
+                    let operator = match txm.clone().db.get_po(pid) {
+                        Ok(po) => po.map(|po| po.operator()),
+                        Err(err) => {
+                            error!("Fail to get pool operator #{}. {}", pid, err);
+                            None
+                        },
+                    };
+                    (worker, pool, operator, client)
+                },
+                None => (worker, None, None, client),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    for (worker, pool, operator, client) in workers {
         let _ = bus.send_processor_event(ProcessorEvent::AddWorker((
             worker,
             pool.map(|p| p.sync_only),
             operator,
+            client,
         )));
     }
 
-    let join_handle = try_join3(
+    let timer_future = {
+        let bus = bus.clone();
+        tokio::spawn(async move {
+            loop {
+                let _ = bus.send_processor_event(ProcessorEvent::Heartbeat);
+                let nanos = 1_000_000_000 - Utc::now().nanosecond() % 1_000_000_000;
+                tokio::time::sleep(std::time::Duration::from_nanos(nanos.into())).await;
+            };
+        })
+    };
+
+    let join_handle = try_join4(
         tokio::spawn(start_api_server(ctx.clone(), args.clone())),
         tokio::spawn(txm_handle),
         ds_join_handle,
+        timer_future,
     );
 
     let mut processor = Processor::create(
@@ -200,7 +223,9 @@ pub async fn wm(args: WorkerManagerCliArgs) {
     ).await;
 
     tokio::select! {
-        _ = processor.master_loop() => {}
+        _ = tokio::task::spawn_blocking(move || {
+            processor.master_loop();
+        }) => {}
 
         _ = repository.master_loop() => {}
 
