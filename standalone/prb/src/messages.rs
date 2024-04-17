@@ -44,7 +44,7 @@ impl MessageContext {
     pub fn is_pending(&self, current_height: u32) -> bool {
         if matches!(self.state, MessageState::Timeout) {
             if current_height <= self.submitted_at {
-                info!("[{} #{}] Message was marked as timeout, but current H#{} <= {}, still treated as pending",
+                trace!("[{} #{}] Message was marked as timeout, but current H#{} <= {}, still treated as pending",
                     self.sender,
                     self.sequence,
                     current_height,
@@ -52,7 +52,7 @@ impl MessageContext {
                 );
                 return true;
             } else if current_height.saturating_sub(self.submitted_at) <= TX_TIMEOUT_IN_BLOCKS {
-                info!("[{} #{}] Message was marked as timeout, but current H#{} - {} <= {}, wait a little more time to allow potential success.",
+                trace!("[{} #{}] Message was marked as timeout, but current H#{} - {} <= {}, wait a little more time to allow potential success.",
                     self.sender,
                     self.sequence,
                     current_height,
@@ -61,7 +61,7 @@ impl MessageContext {
                 );
                 return true;
             } else {
-                info!("[{} #{}] Message was timeout because H#{} - {} > {}",
+                trace!("[{} #{}] Message was timeout because H#{} - {} > {}",
                     self.sender,
                     self.sequence,
                     current_height,
@@ -72,7 +72,7 @@ impl MessageContext {
             }
         } else if matches!(self.state, MessageState::Pending) {
             if current_height > self.submitted_at && current_height.saturating_sub(self.submitted_at) > TX_TIMEOUT_IN_BLOCKS {
-                info!("[{} #{}] Message is still pending, but H#{} - {} > {}, treat as timeout.",
+                trace!("[{} #{}] Message is still pending, but H#{} - {} > {}, treat as timeout.",
                     self.sender,
                     self.sequence,
                     current_height,
@@ -138,7 +138,7 @@ pub async fn master_loop(
         let event = event.unwrap();
         match event {
             MessagesEvent::SyncMessages((worker_id, pool_id, sender, messages)) => {
-                debug!("[{}] Received {} messages, start filtering.", sender, messages.len());
+                trace!("[{}] Received {} messages, start filtering.", sender, messages.len());
 
                 let messages = match sender_contexts.entry(sender.clone()) {
                     Occupied(entry) => {
@@ -160,7 +160,7 @@ pub async fn master_loop(
                     continue;
                 }
 
-                debug!("[{}] {} messages needs will send for check.", sender, messages.len());
+                trace!("[{}] {} messages needs will send for check.", sender, messages.len());
                 tokio::spawn(do_update_next_sequence_and_sync_messages(
                     bus.clone(),
                     dsm.clone(),
@@ -172,7 +172,7 @@ pub async fn master_loop(
             },
 
             MessagesEvent::DoSyncMessages((worker_id, pool_id, sender, messages, next_sequence)) => {
-                debug!("[{}] DoSync: Receveid {} messages.", sender, messages.len());
+                trace!("[{}] DoSync: Receveid {} messages.", sender, messages.len());
 
                 let sender_context = match sender_contexts.entry(sender.clone()) {
                     Occupied(entry) => entry.into_mut(),
@@ -205,7 +205,7 @@ pub async fn master_loop(
 
                     match sender_context.pending_messages.entry(message.sequence) {
                         Occupied(entry) => {
-                            debug!("[{}] Msg#{} has message_context, checking if retry needed.", sender, message.sequence);
+                            trace!("[{}] Msg#{} has message_context, checking if retry needed.", sender, message.sequence);
 
                             let message_context = entry.into_mut();
                             if message_context.is_pending_or_success(current_height) {
@@ -245,7 +245,7 @@ pub async fn master_loop(
                         }
                     }
 
-                    trace!("[{}] Sending #{} message", sender, message.sequence);
+                    debug!("[{}] Sending #{} message", sender, message.sequence);
                     tokio::spawn(do_sync_message(
                         bus.clone(),
                         txm.clone(),
@@ -306,7 +306,7 @@ pub async fn master_loop(
 
             MessagesEvent::CurrentHeight(height) => {
                 current_height = height;
-                info!("Updated Current Para Height #{}", current_height);
+                trace!("Updated Current Para Height #{}", current_height);
             },
         }
     }
@@ -391,7 +391,6 @@ pub async fn background_update_current_height(
                 },
             };
 
-            info!("Sending Current Para Height #{}", block.number());
             let _ = bus.send_messages_event(MessagesEvent::CurrentHeight(block.number()));
         }
     }
