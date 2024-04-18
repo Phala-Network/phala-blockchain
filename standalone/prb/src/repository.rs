@@ -332,12 +332,17 @@ pub async fn do_request_next_sync(
     headers_db: Arc<DB>,
     info: WorkerSyncInfo,
 ) {
+    let mut try_count = 0;
     let request = loop {
         match generate_sync_request(dsm.clone(), headers_db.clone(), info.clone()).await {
             Ok(request) => break request,
             Err(err) => {
-                error!("[{}] fail to get_sync_request, {}", info.worker_id, err);
-                // TODO: Send some error message
+                try_count += 1;
+                let err_msg = format!("Fail to generate_sync_request for {} times. Retrying... Last Error: {}", try_count, err);
+                error!("[{}] {}", info.worker_id, err_msg);
+                if try_count >= 3 {
+                    bus.send_worker_mark_error(info.worker_id.clone(), err_msg);
+                }
                 tokio::time::sleep(std::time::Duration::from_secs(6)).await;
             },
         }
@@ -385,7 +390,7 @@ async fn generate_sync_request(
     }
 
     if let Some((para_headernum, proof)) = get_para_headernum(dsm.clone(), info.headernum - 1).await.unwrap_or(None) {
-        if info.para_headernum <= para_headernum {
+        if para_headernum > 0 && info.para_headernum <= para_headernum {
             return dsm
                 .get_para_headers(info.para_headernum, para_headernum)
                 .await

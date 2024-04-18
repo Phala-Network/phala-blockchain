@@ -846,13 +846,14 @@ impl Processor {
     ) {
         if worker.stopped {
             match &request {
-                PRuntimeRequest::PrepareLifecycle
-                    | PRuntimeRequest::PrepareRegister((_, _, true))
-                    | PRuntimeRequest::SignEndpoints(_)
-                    | PRuntimeRequest::TakeCheckpoint
-                    => (),
+                PRuntimeRequest::TakeCheckpoint => {
+                    trace!("[{}] Stop Special: Immediately handle {}", worker.uuid, request);
+                    self.execute_pruntime_request(worker, request);
+                    return;
+                },
                 _ => {
                     info!("[{}] worker was stopped, skip the request.", worker.uuid);
+                    return;
                 },
             }
         }
@@ -943,7 +944,7 @@ impl Processor {
                     || worker.para_headernum != phactory_info.para_headernum
                     || worker.blocknum != phactory_info.blocknum
                 {
-                    warn!(
+                    error!(
                         "[{}] Sync status not match: existing {}-{}-{}, received: {}-{}-{}",
                         worker.uuid,
                         worker.headernum,
@@ -953,10 +954,11 @@ impl Processor {
                         phactory_info.para_headernum,
                         phactory_info.blocknum,
                     );
-                    worker.headernum = phactory_info.headernum;
-                    worker.para_headernum = phactory_info.para_headernum;
-                    worker.blocknum = phactory_info.blocknum;
-                    //self.request_next_sync(worker);
+                    self.update_worker_state(
+                        worker,
+                        WorkerLifecycleState::HasError("Need Restart Manually! Worker Info is not matching prb internal status.".into())
+                    );
+                    worker.stopped = true;
                 }
                 worker.worker_status.phactory_info = Some(phactory_info);
                 self.send_worker_status(worker);
