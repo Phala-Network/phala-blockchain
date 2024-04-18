@@ -455,7 +455,7 @@ pub(super) fn rocket(args: &super::Args, storage_path: &str) -> rocket::Rocket<i
             .attach(cors_options().to_cors().expect("To not fail"))
             .manage(cors_options().to_cors().expect("To not fail"));
     }
-    server = server.attach(TimeMeter).attach(RequestTracer);
+    server = server.attach(TimeMeter).attach(RequestTracer::new(2));
     server = mount_static_file_server(server, storage_path);
     server
 }
@@ -495,7 +495,7 @@ pub(super) fn rocket_acl(
     let signer = ResponseSigner::new(1024 * 1024 * 10, runtime::ecall_sign_http_response);
     server_acl = server_acl
         .attach(signer)
-        .attach(RequestTracer)
+        .attach(RequestTracer::new(2))
         .attach(TimeMeter);
     server_acl = mount_static_file_server(server_acl, storage_path);
     Some(server_acl)
