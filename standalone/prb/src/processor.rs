@@ -417,7 +417,8 @@ impl Processor {
     }
 
     pub fn master_loop(&mut self) {
-        thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Max);
+        let _ = thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Max);
+
         let mut workers = HashMap::<String, WorkerContext>::new();
 
         loop {
@@ -619,7 +620,7 @@ impl Processor {
                 }
             },
             WorkerEvent::PRuntimeRequest(request) => {
-                self.add_pruntime_request(worker, request);
+                self.handle_pruntime_request(worker, request);
             },
             WorkerEvent::PRuntimeResponse(result) => {
                 worker.pruntime_lock = false;
@@ -827,6 +828,14 @@ impl Processor {
     }
 
     pub fn add_pruntime_request(
+        &mut self,
+        worker: &mut WorkerContext,
+        request: PRuntimeRequest,
+    ) {
+        let _ = self.bus.send_pruntime_request(worker.uuid.clone(), request);
+    }
+
+    pub fn handle_pruntime_request(
         &mut self,
         worker: &mut WorkerContext,
         request: PRuntimeRequest,
@@ -1184,6 +1193,7 @@ async fn dispatch_pruntime_request(
     request: PRuntimeRequest,
 ) {
     debug!("[{}] Start to dispatch PRuntimeRequest: {}", worker_id, request);
+    let start_time = Instant::now();
     let is_critical = matches!(
         &request,
         PRuntimeRequest::PrepareLifecycle
@@ -1256,7 +1266,7 @@ async fn dispatch_pruntime_request(
         }
     }
     let _ = bus.send_processor_event(ProcessorEvent::WorkerEvent((worker_id.clone(), WorkerEvent::PRuntimeResponse(result))));
-    debug!("[{}] Completed to dispatch PRuntimeRequest", worker_id);
+    debug!("[{}] Completed PRuntimeRequest. Cost {} microseconds", worker_id, start_time.elapsed().as_micros());
 }
 
 async fn do_sync_request(
