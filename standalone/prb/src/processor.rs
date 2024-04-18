@@ -1192,8 +1192,10 @@ async fn dispatch_pruntime_request(
     client: Arc<PRuntimeClient>,
     request: PRuntimeRequest,
 ) {
-    debug!("[{}] Start to dispatch PRuntimeRequest: {}", worker_id, request);
     let start_time = Instant::now();
+    let request_display = format!("{}", request);
+    debug!("[{}] Start to dispatch {}", worker_id, request_display);
+
     let is_critical = matches!(
         &request,
         PRuntimeRequest::PrepareLifecycle
@@ -1266,7 +1268,7 @@ async fn dispatch_pruntime_request(
         }
     }
     let _ = bus.send_processor_event(ProcessorEvent::WorkerEvent((worker_id.clone(), WorkerEvent::PRuntimeResponse(result))));
-    debug!("[{}] Completed PRuntimeRequest. Cost {} microseconds", worker_id, start_time.elapsed().as_micros());
+    debug!("[{}] Completed {}. Cost {} microseconds", worker_id, request_display, start_time.elapsed().as_micros());
 }
 
 async fn do_sync_request(
