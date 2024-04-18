@@ -1,4 +1,6 @@
 use anyhow::{anyhow, Result};
+use rayon::iter::IntoParallelIterator;
+use sp_consensus_grandpa::AuthorityList;
 use core::time::Duration;
 use futures::StreamExt;
 use log::{debug, error, info, trace, warn};
@@ -129,6 +131,10 @@ pub struct Repository {
     pub bus: Arc<Bus>,
     pub dsm: Arc<DataSourceManager>,
     pub headers_db: Arc<DB>,
+    pub para_id: u32,
+    pub next_number: u32,
+    pub current_set_id: u64,
+    pub current_authorities: Option<AuthorityList>,
 }
 
 impl Repository {
@@ -140,11 +146,7 @@ impl Repository {
         headers_db: Arc<DB>,
     ) -> Result<Self> {
 
-        //db.iterator(rocksdb::IteratorMode::From((), ()))
-
-        let relay_api = use_relaychain_api!(dsm, false).unwrap();
         let para_api = use_parachain_api!(dsm, false).unwrap();
-
         let para_id = para_api.get_paraid(None).await?;
         //let para_head_storage_key = para_api.paras_heads_key(para_id)?;
         info!("para id: {}", para_id);
@@ -160,28 +162,119 @@ impl Repository {
             0
         };
 
-        let (mut current_num, mut current_authority_set_id, mut current_authorities) =
-            find_valid_num(headers_db.clone(), relaychain_start_at, start_authority_set_id);
-        info!("current number: {}", current_num);
-        info!("current authority set id: {}", current_authority_set_id);
+        Ok(Self {
+            bus,
+            dsm,
+            headers_db,
+            para_id,
+            next_number: relaychain_start_at,
+            current_set_id: start_authority_set_id,
+            current_authorities: None,
+        })
+    }
 
-        delete_tail_headers(headers_db.clone());
+    pub async fn background(&mut self, init_run: bool, need_init_verify: bool) -> Result<()> {
+        if init_run {
+            delete_tail_headers(&self.headers_db);
+        }
+        (self.next_number, self.current_set_id, self.current_authorities) = find_valid_num(
+            &self.headers_db,
+            self.next_number,
+            self.current_set_id,
+            need_init_verify,
+        );
+        info!("next number: {}", self.next_number);
+        info!("current authority set id: {}", self.current_set_id);
 
+        'forever: loop {
+            let relay_api = match use_relaychain_api!(self.dsm, false) {
+                Some(instance) => instance,
+                None => {
+                    error!("No valid data source, wait 10 seconds");
+                    sleep(Duration::from_secs(10)).await;
+                    continue;
+                },
+            };
+
+            let blocks_sub = relay_api.blocks().subscribe_finalized().await;
+            let mut blocks_sub = match blocks_sub {
+                Ok(blocks_sub) => blocks_sub,
+                Err(e) => {
+                    error!("Subscribe finalized blocks failed, wait 10 seconds. {e}");
+                    sleep(Duration::from_secs(10)).await;
+                    continue;
+                },
+            };
+
+            while let Some(block) = blocks_sub.next().await {
+                let block = match block {
+                    Ok(block) => block,
+                    Err(e) => {
+                        error!("Got error for next block. {e}");
+                        continue;
+                    },
+                };
+
+                if block.number() < self.next_number {
+                    continue;
+                }
+
+                let prev_finalized_at = self.next_number - 1;
+                match self.fill_gap(&relay_api, block.number()).await {
+                    Ok(_) => {
+                        if init_run {
+                            info!("Filled until #{}", self.next_number - 1);
+                            break 'forever
+                        }
+                    },
+                    Err(err) => {
+                        if init_run {
+                            return Err(err);
+                        }
+                        error!("Got error when filling gap. {err}");
+                        continue;
+                    },
+                }
+
+                let broadcast_result = prepare_and_broadcast(
+                    self.bus.clone(),
+                    self.dsm.clone(),
+                    self.headers_db.clone(),
+                    self.para_id,
+                    prev_finalized_at,
+                    self.next_number - 1,
+                ).await;
+                if let Err(err) = broadcast_result {
+                    error!("Met error when try to prepare and broadcast headers. {err}");
+                }
+            }
+        }
+
+        let _ = self.headers_db.flush();
+        self.headers_db.compact_range(None::<&[u8]>, None::<&[u8]>);
+
+        Ok(())
+    }
+
+    async fn fill_gap(
+        &mut self,
+        relay_api: &ChainApi,
+        potential_chaintip: u32,
+    ) -> Result<()> {
         loop {
-            let relay_chaintip = relay_api.latest_finalized_block_number().await?;
-            if current_num > relay_chaintip {
-                break
+            if self.next_number > potential_chaintip {
+                break Ok(())
             }
 
             let mut try_count = 0 as usize;
             let headers = loop {
-                let headers = pherry::get_headers(&relay_api, current_num).await?;
+                let headers = pherry::get_headers(&relay_api, self.next_number).await?;
                 let last_header = headers.last().unwrap();
                 let justifications = last_header.justification.as_ref().expect("last header from proof api should has justification");
-                match &current_authorities {
+                match &self.current_authorities {
                     Some(authorities) => {
                         let result = pherry::verify_with_prev_authority_set(
-                            current_authority_set_id,
+                            self.current_set_id,
                             authorities,
                             &last_header.header,
                             justifications,
@@ -199,25 +292,18 @@ impl Repository {
             };
 
             let last_header = headers.last().unwrap().header.clone();
-            let last_number = put_headers_to_db(headers_db.clone(), headers, relay_chaintip)?;
-            current_num = last_number + 1;
+            let last_number = put_headers_to_db(
+                self.headers_db.clone(),
+                headers,
+                potential_chaintip
+            )?;
+            self.next_number = last_number + 1;
 
-            let next_authorities = match phactory_api::blocks::find_scheduled_change(&last_header) {
-                Some(sc) => sc.next_authorities,
-                None => break,
-            };
-            current_authorities = Some(next_authorities);
-            current_authority_set_id += 1;
+            if let Some(next_authorities) = phactory_api::blocks::find_scheduled_change(&last_header) {
+                self.current_authorities = Some(next_authorities.next_authorities);
+                self.current_set_id += 1;
+            }
         }
-
-        headers_db.compact_range(None::<&[u8]>, None::<&[u8]>);
-        let _ = headers_db.flush();
-
-        Ok(Self {
-            bus,
-            dsm,
-            headers_db,
-        })
     }
 }
 
@@ -341,133 +427,86 @@ async fn get_para_headernum(
     dsm.get_para_header_by_relay_header(relay_headernum).await
 }
 
-pub async fn keep_syncing_headers(
+async fn prepare_and_broadcast(
     bus: Arc<Bus>,
     dsm: Arc<DataSourceManager>,
     headers_db: Arc<DB>,
+    para_id: u32,
+    prev_relaychain_finalized_at: u32,
+    curr_relaychain_finalized_at: u32,
 ) -> Result<()> {
-    // TODO: Handle Error
-    let relay_api = use_relaychain_api!(dsm, false).unwrap();
-    let para_api = use_parachain_api!(dsm, false).unwrap();
-    let para_id = para_api.get_paraid(None).await?;
+    let relay_api = use_relaychain_api!(dsm, false).expect("should have relaychain api");
+    let para_api = use_parachain_api!(dsm, false).expect("should have parachain api");
 
-    let mut current_relay_number = get_previous_authority_set_change_number(headers_db.clone(), std::u32::MAX).unwrap();
-    let (mut current_para_number, _) = pherry::get_parachain_header_from_relaychain_at(
-        &relay_api,
-        &para_api,
-        &None,
-        current_relay_number,
-    ).await?;
+    let relay_from = prev_relaychain_finalized_at + 1;
+    let headers = get_current_point(headers_db.clone(), relay_from)
+        .expect("should already put headers into db")
+        .into_iter()
+        .filter(|h| prev_relaychain_finalized_at < h.header.number)
+        .collect::<Vec<_>>();
 
-    loop {
-        let relay_api = match use_relaychain_api!(dsm, false) {
-            Some(instance) => instance,
-            None => {
-                error!("No valid data source, wait 10 seconds");
-                sleep(Duration::from_secs(10)).await;
-                continue;
-            },
-        };
-
-        let blocks_sub = relay_api.blocks().subscribe_finalized().await;
-        let mut blocks_sub = match blocks_sub {
-            Ok(blocks_sub) => blocks_sub,
-            Err(e) => {
-                error!("Subscribe finalized blocks failed, wait 10 seconds. {e}");
-                sleep(Duration::from_secs(10)).await;
-                continue;
-            },
-        };
-
-        while let Some(block) = blocks_sub.next().await {
-            let block = match block {
-                Ok(block) => block,
-                Err(e) => {
-                    error!("Got error for next block. {e}");
-                    continue;
-                },
-            };
-
-            if block.number() <= current_relay_number {
-                continue;
-            }
-
-            let relay_from = current_relay_number + 1;
-            let headers = match pherry::get_headers(&relay_api, relay_from).await {
-                Ok(headers) => headers,
-                Err(e) => {
-                    error!("Failed to get headers with justification. {e}");
-                    continue;
-                }
-            };
-            let relay_to = headers.last().unwrap().header.number;
-            let relay_to_hash = (&headers.last().unwrap().header).hash();
-
-            match pherry::get_finalized_header_with_paraid(&relay_api, para_id, relay_to_hash.clone()).await {
-                Ok(Some((para_header, proof))) => {
-                    let para_to = para_header.number;
-                    if para_to < current_para_number {
-                        error!("Para number {} from relaychain is smaller than the newest in prb {}", para_to, current_para_number);
-                        continue;
-                    }
-                    let para_from = current_para_number + 1;
-
-                    let sync_request = if para_from > para_to {
-                        info!("Broadcasting header: relaychain from {} to {}.", relay_from, relay_to);
-                        SyncRequest::create_from_headers(
-                            HeadersToSync::new(headers.clone(), None),
-                            relay_from,
-                            relay_to
-                        )
-                    } else {
-                        let _ = bus.send_processor_event(ProcessorEvent::RequestUpdateSessionInfo);
-                        match pherry::get_parachain_headers(&para_api, None, current_para_number + 1, para_to).await {
-                            Ok(para_headers) => {
-                                info!("Broadcasting header: relaychain from {} to {}, parachain from {} to {}.",
-                                    relay_from, relay_to, para_from, para_to);
-                                let headers = CombinedHeadersToSync::new(
-                                    headers.clone(),
-                                    None,
-                                    para_headers,
-                                    proof
-                                );
-                                SyncRequest::create_from_combine_headers(headers, relay_from, relay_to, para_from, para_to)
-                            },
-                            Err(e) => {
-                                error!("Failed to get para headers. {e}");
-                                continue;
-                            },
-                        }
-                    };
-                    current_relay_number = relay_to;
-                    current_para_number = para_to;
-                    let _ = bus.send_processor_event(ProcessorEvent::BroadcastSync((
-                        sync_request,
-                        ChaintipInfo {
-                            relaychain: current_relay_number,
-                            parachain: current_para_number,
-                        },
-                    )));
-                },
-                Ok(None) => {
-                    error!("Unknown para header for relay #{relay_to} {relay_to_hash}");
-                    continue;
-                },
-                Err(err) => {
-                    error!("Fail to get para number with proof {err}");
-                    continue;
-                },
-            }
-
-            if let Err(err) = put_headers_to_db(headers_db.clone(), headers, relay_to) {
-                error!("Failed to put headers to DB, {err}");
-            }
-
-            info!("relaychain_chaintip: {}, parachain_chaintip: {}", current_relay_number, current_para_number);
-        }
+    let relay_to = curr_relaychain_finalized_at;
+    if headers.first().expect("should have headers").header.number != relay_from {
+        return Err(anyhow!("first header from DB is not match the prev one"));
     }
-}
+    if headers.last().expect("should have headers").header.number != relay_to {
+        return Err(anyhow!("first header from DB is not match the prev one"));
+    }
+    let relay_to_hash = (&headers.last().unwrap().header).hash();
 
-async fn verify () {
+    let (para_prev, _) = get_para_headernum(dsm.clone(), prev_relaychain_finalized_at).await?
+        .expect(&format!("Unknown para header for relay #{prev_relaychain_finalized_at}"));
+    let (para_header, proof) = pherry::get_finalized_header_with_paraid(&relay_api, para_id, relay_to_hash.clone())
+        .await?
+        .expect(&format!("Unknown para header for relay #{relay_to} {relay_to_hash}"));
+    let para_to = para_header.number;
 
+    if para_to < para_prev {
+        return Err(anyhow!("Para number {} from relaychain is smaller than the newest in prb {}", para_to, para_prev));
+    }
+    let para_from = para_prev + 1;
+
+    let sync_request = if para_from > para_to {
+        info!("Broadcasting header: relaychain from {} to {}.", relay_from, relay_to);
+        SyncRequest::create_from_headers(
+            HeadersToSync::new(headers.clone(), None),
+            relay_from,
+            relay_to
+        )
+    } else {
+        let _ = bus.send_processor_event(ProcessorEvent::RequestUpdateSessionInfo);
+        let para_headers = pherry::get_parachain_headers(&para_api, None, para_from, para_to).await?;
+        info!("Broadcasting header: relaychain from {} to {}, parachain from {} to {}.",
+            relay_from, relay_to, para_from, para_to);
+        let headers = CombinedHeadersToSync::new(
+            headers.clone(),
+            None,
+            para_headers,
+            proof
+        );
+        SyncRequest::create_from_combine_headers(headers, relay_from, relay_to, para_from, para_to)
+        /*
+        SyncRequest {
+            headers: Some(HeadersToSync::new(headers.clone(), None)),
+            //para_headers: Some(ParaHeadersToSync::new(para_headers, proof)),
+            para_headers: None,
+            combined_headers: None,
+            blocks: None,
+            manifest: SyncRequestManifest {
+                headers: Some((relay_from, relay_to)),
+                //para_headers: Some((para_from, para_to)),
+                para_headers: None,
+                blocks: None,
+            },
+        } */
+    };
+    let _ = bus.send_processor_event(ProcessorEvent::BroadcastSync((
+        sync_request,
+        ChaintipInfo {
+            relaychain: relay_to,
+            parachain: para_to,
+        },
+    )));
+
+    Ok(())
 }

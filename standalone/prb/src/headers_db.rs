@@ -14,13 +14,13 @@ fn encode_u32(val: u32) -> [u8; 4] {
     return buf;
 }
 
-pub fn find_valid_num(db: Arc<DB>, start_at: u32, set_id: u64) -> (u32, u64, Option<AuthorityList>) {
+pub fn find_valid_num(db: &DB, start_at: u32, set_id: u64, need_verify: bool) -> (u32, u64, Option<AuthorityList>) {
     let mut next_number = start_at;
     let mut current_set_id = set_id;
     let mut current_authorities = None;
 
     for result in db.iterator(rocksdb::IteratorMode::From(&encode_u32(start_at), rocksdb::Direction::Forward)) {
-        if let Ok((last_number, next_authorities)) = verify(result, current_set_id, &current_authorities) {
+        if let Ok((last_number, next_authorities)) = verify(result, current_set_id, &current_authorities, need_verify) {
             next_number = last_number + 1;
             current_set_id += 1;
             current_authorities = Some(next_authorities);
@@ -32,7 +32,13 @@ pub fn find_valid_num(db: Arc<DB>, start_at: u32, set_id: u64) -> (u32, u64, Opt
     (next_number, current_set_id, current_authorities)
 }
 
-pub fn verify(result: core::result::Result<(Box<[u8]>, Box<[u8]>), rocksdb::Error>, set_id: u64, authorities: &Option<AuthorityList>) -> Result<(u32, AuthorityList)> {
+pub fn verify(
+    result: core::result::Result<(Box<[u8]>, Box<[u8]>),
+    rocksdb::Error>,
+    set_id: u64,
+    authorities: &Option<AuthorityList>,
+    need_verify: bool,
+) -> Result<(u32, AuthorityList)> {
     let (_, value) = result?;
     let headers = HeadersToSync::decode(&mut &value[..])?;
     let last_header = headers.last().expect("should have header");
@@ -40,6 +46,9 @@ pub fn verify(result: core::result::Result<(Box<[u8]>, Box<[u8]>), rocksdb::Erro
         Some(sc) => sc.next_authorities,
         None => return Err(anyhow!("No scheduled change")),
     };
+    if !need_verify {
+        return Ok((last_header.header.number, next_authorities));
+    }
 
     let mut prev = None;
     for header in &headers {
@@ -50,7 +59,6 @@ pub fn verify(result: core::result::Result<(Box<[u8]>, Box<[u8]>), rocksdb::Erro
         }
         prev = Some(header.header.hash());
     }
-    return Ok((last_header.header.number, next_authorities));
 
     let authorities = match authorities {
         Some(authorities) => authorities,
@@ -150,7 +158,7 @@ pub fn put_headers_to_db(
 }
 
 pub fn delete_tail_headers(
-    headers_db: Arc<DB>,
+    headers_db: &DB,
 ) {
-    headers_db.delete(encode_u32(std::u32::MAX));
+    let _ = headers_db.delete(encode_u32(std::u32::MAX));
 }

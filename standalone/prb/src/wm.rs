@@ -127,11 +127,12 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         Arc::new(db)
     };
 
-    let _ = Repository::create(
+    let mut repository = Repository::create(
         bus.clone(),
         dsm.clone(),
         headers_db.clone(),
     ).await.unwrap();
+    let _ = repository.background(true, args.verify_saved_headers).await.unwrap();
 
     if args.download_headers_only {
         headers_db.cancel_all_background_work(true);
@@ -220,6 +221,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         &args,
     ).await;
 
+
     tokio::select! {
         _ = tokio::task::spawn_blocking(move || {
             processor.master_loop();
@@ -229,7 +231,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
 
         _ = update_worker_status(ctx.clone(), worker_status_rx) => {}
 
-        _ = crate::repository::keep_syncing_headers(bus.clone(), dsm.clone(), headers_db.clone()) => {}
+        _ = repository.background(false, false) => {}
 
         ret = join_handle => {
             info!("wm.join_handle: {:?}", ret);

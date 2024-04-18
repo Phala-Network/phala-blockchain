@@ -46,6 +46,9 @@ pub struct WorkerManagerCliArgs {
     /// download headers db only
     #[arg(long, env)]
     pub download_headers_only: bool,
+
+    #[arg(long, env)]
+    pub verify_saved_headers: bool,
 }
 
 pub async fn start_wm() {

@@ -869,6 +869,7 @@ impl Processor {
                 return;
             } else if !worker.is_match(&sync_request.manifest) {
                 warn!("[{}] Ignoring not match Syncing: {}", worker.uuid, request);
+                self.request_next_sync(worker);
                 return;
             }
         }
@@ -955,7 +956,7 @@ impl Processor {
                     worker.headernum = phactory_info.headernum;
                     worker.para_headernum = phactory_info.para_headernum;
                     worker.blocknum = phactory_info.blocknum;
-                    self.request_next_sync(worker);
+                    //self.request_next_sync(worker);
                 }
                 worker.worker_status.phactory_info = Some(phactory_info);
                 self.send_worker_status(worker);
