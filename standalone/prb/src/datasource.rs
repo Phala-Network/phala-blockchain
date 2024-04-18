@@ -529,6 +529,7 @@ impl DataSourceManager {
             .await?;
         let ws_client = ClientBuilder::default()
             .max_concurrent_requests(config.max_concurrent_requests)
+            .ping_interval(core::time::Duration::from_secs(3))
             .build_with_tokio(sender, receiver);
         let ws_client = Arc::new(ws_client);
 
