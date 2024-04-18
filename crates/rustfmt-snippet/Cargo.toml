@@ -8,5 +8,3 @@ edition = "2018"
 
 [dependencies]
 proc-macro2 = "1.0.36"
-tempfile = "3.10.1"
-

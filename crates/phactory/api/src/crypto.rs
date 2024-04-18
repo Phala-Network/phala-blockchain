@@ -78,9 +78,9 @@ impl Signature {
         if max_depth == 0 {
             return Err(SignatureVerifyError::TooLongCertificateChain);
         }
-        let sig_type = match SignatureType::from_i32(self.signature_type) {
-            Some(val) => val,
-            None => {
+        let sig_type = match SignatureType::try_from(self.signature_type) {
+            Ok(val) => val,
+            Err(_) => {
                 return Err(SignatureVerifyError::InvalidSignatureType);
             }
         };

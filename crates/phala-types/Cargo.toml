@@ -12,7 +12,7 @@ scale-info = { version = "2.10.0", default-features = false, features = ["derive
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0", default-features = false }
 
 phala-mq = { path = "../../crates/phala-mq", default-features = false }
-prpc = { path = "../../crates/prpc", default-features = false }
+prpc = { version = "0.1", default-features = false }
 pink-types = { path = "../pink/pink-types", default-features = false }
 sgx-attestation = { path = "../sgx-attestation", default-features = false, optional = true }
 
