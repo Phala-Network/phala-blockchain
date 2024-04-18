@@ -12328,7 +12328,6 @@ name = "rustfmt-snippet"
 version = "0.1.1"
 dependencies = [
  "proc-macro2",
- "tempfile",
 ]
 
 [[package]]
