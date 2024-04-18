@@ -125,16 +125,7 @@ pub struct WorkerSyncInfo {
     pub blocknum: u32,
 }
 
-pub enum RepositoryEvent {
-    PreloadWorkerSyncInfo(WorkerSyncInfo),
-    UpdateWorkerSyncInfo(WorkerSyncInfo),
-}
-
-pub type RepositoryRx = mpsc::UnboundedReceiver<RepositoryEvent>;
-pub type RepositoryTx = mpsc::UnboundedSender<RepositoryEvent>;
-
 pub struct Repository {
-    pub rx: RepositoryRx,
     pub bus: Arc<Bus>,
     pub dsm: Arc<DataSourceManager>,
     pub headers_db: Arc<DB>,
@@ -144,7 +135,6 @@ impl Repository {
     // Polkadot: Number: 9688654, SetId: 891, Hash: 0x5fdbc952b059d7c26b8b7e6432bb2b40981c602ded8cf2be7d629a4ead96f156
     // Kusama: Number: 8325311, SetId: 3228, Hash: 0xff93a4a903207ad45af110a3e15f8b66c903a0045f886c528c23fe7064532b08
     pub async fn create(
-        rx: RepositoryRx,
         bus: Arc<Bus>,
         dsm: Arc<DataSourceManager>,
         headers_db: Arc<DB>,
@@ -224,72 +214,10 @@ impl Repository {
         let _ = headers_db.flush();
 
         Ok(Self {
-            rx,
             bus,
             dsm,
             headers_db,
         })
-    }
-
-    pub async fn master_loop(
-        &mut self,
-    ) -> Result<()> {
-        loop {
-            let event = self.rx.recv().await;
-            if event.is_none() {
-                break;
-            }
-
-            match event.unwrap() {
-                RepositoryEvent::PreloadWorkerSyncInfo(info) => {
-                    tokio::spawn(get_sync_request(
-                        self.dsm.clone(),
-                        self.headers_db.clone(),
-                        info,
-                    ));
-                },
-                RepositoryEvent::UpdateWorkerSyncInfo(info) => {
-                    trace!("[{}] Received UpdateWorkerSyncInfo. header({}) para_header({}) block({})",
-                        info.worker_id, info.headernum, info.para_headernum, info.blocknum);
-                    let bus = self.bus.clone();
-                    let dsm = self.dsm.clone();
-                    let headers_db = self.headers_db.clone();
-                    tokio::spawn(async move {
-                        let request = loop {
-                            match get_sync_request(dsm.clone(), headers_db.clone(), info.clone()).await {
-                                Ok(request) => break request,
-                                Err(err) => {
-                                    error!("[{}] fail to get_sync_request, {}", info.worker_id, err);
-                                    // TODO: Send some error message
-                                    tokio::time::sleep(std::time::Duration::from_secs(6)).await;
-                                },
-                            }
-                        };
-                        if request.headers.is_some() || request.para_headers.is_some() || request.combined_headers.is_some() || request.blocks.is_some() {
-                            trace!("[{}] sending sync request. {:?}", info.worker_id, info);
-                        } else {
-                            trace!("[{}] sending empty sync request.", info.worker_id);
-                        }
-                        let manifest = request.manifest.clone();
-                        let _ = bus.send_pruntime_request(info.worker_id.clone(), PRuntimeRequest::Sync(request));
-
-                        let mut next_info = info.clone();
-                        if let Some((_, to)) = &manifest.headers {
-                            next_info.headernum = to + 1;
-                        }
-                        if let Some((_, to)) = &manifest.para_headers {
-                            next_info.para_headernum = to + 1;
-                        }
-                        if let Some((_, to)) = &manifest.blocks {
-                            next_info.blocknum = to + 1;
-                        }
-                        let _ = bus.send_repository_event(RepositoryEvent::PreloadWorkerSyncInfo(next_info));
-                    });
-                },
-            }
-        }
-
-        Ok(())
     }
 }
 
@@ -312,7 +240,52 @@ pub async fn get_load_state_request(
     }
 }
 
-async fn get_sync_request(
+pub async fn do_request_next_sync(
+    bus: Arc<Bus>,
+    dsm: Arc<DataSourceManager>,
+    headers_db: Arc<DB>,
+    info: WorkerSyncInfo,
+) {
+    let request = loop {
+        match generate_sync_request(dsm.clone(), headers_db.clone(), info.clone()).await {
+            Ok(request) => break request,
+            Err(err) => {
+                error!("[{}] fail to get_sync_request, {}", info.worker_id, err);
+                // TODO: Send some error message
+                tokio::time::sleep(std::time::Duration::from_secs(6)).await;
+            },
+        }
+    };
+    if request.headers.is_some() || request.para_headers.is_some() || request.combined_headers.is_some() || request.blocks.is_some() {
+        trace!("[{}] sending sync request. {:?}", info.worker_id, info);
+    } else {
+        trace!("[{}] sending empty sync request.", info.worker_id);
+    }
+    let manifest = request.manifest.clone();
+    let _ = bus.send_pruntime_request(info.worker_id.clone(), PRuntimeRequest::Sync(request));
+    preload_next_sync(dsm, headers_db, info, &manifest).await;
+}
+
+async fn preload_next_sync(
+    dsm: Arc<DataSourceManager>,
+    headers_db: Arc<DB>,
+    info: WorkerSyncInfo,
+    manifest: &SyncRequestManifest,
+) {
+    let mut next_info = info.clone();
+    if let Some((_, to)) = &manifest.headers {
+        next_info.headernum = to + 1;
+    }
+    if let Some((_, to)) = &manifest.para_headers {
+        next_info.para_headernum = to + 1;
+    }
+    if let Some((_, to)) = &manifest.blocks {
+        next_info.blocknum = to + 1;
+    }
+    let _ = generate_sync_request(dsm, headers_db.clone(), next_info).await;
+}
+
+async fn generate_sync_request(
     dsm: Arc<DataSourceManager>,
     headers_db: Arc<DB>,
     info: WorkerSyncInfo,

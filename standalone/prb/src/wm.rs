@@ -1,7 +1,7 @@
 use crate::api::{start_api_server, WorkerStatus, WrappedWorkerContexts};
 use crate::bus::Bus;
 use crate::cli::WorkerManagerCliArgs;
-use crate::repository::{Repository, RepositoryEvent};
+use crate::repository::Repository;
 use crate::datasource::{setup_data_source_manager, WrappedDataSourceManager};
 use crate::inv_db::{get_all_workers, setup_inventory_db, WrappedDb};
 use crate::lifecycle::{WorkerContextMap, WrappedWorkerLifecycleManager};
@@ -111,13 +111,11 @@ pub async fn wm(args: WorkerManagerCliArgs) {
     dsm.clone().wait_until_rpc_avail(false).await;
 
     let (processor_tx, processor_rx) = std::sync::mpsc::channel::<ProcessorEvent>();
-    let (repository_tx, repository_rx) = mpsc::unbounded_channel::<RepositoryEvent>();
     let (messages_tx, messages_rx) = mpsc::unbounded_channel::<MessagesEvent>();
     let (worker_status_tx, worker_status_rx) = mpsc::unbounded_channel::<WorkerStatusEvent>();
 
     let bus = Arc::new(Bus {
         processor_tx: processor_tx.clone(),
-        repository_tx: repository_tx.clone(),
         messages_tx: messages_tx.clone(),
         worker_status_tx: worker_status_tx.clone(),
     });
@@ -129,8 +127,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         Arc::new(db)
     };
 
-    let mut repository = Repository::create(
-        repository_rx,
+    let _ = Repository::create(
         bus.clone(),
         dsm.clone(),
         headers_db.clone(),
@@ -218,6 +215,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         processor_rx,
         bus.clone(),
         txm.clone(),
+        headers_db.clone(),
         dsm.clone(),
         &args,
     ).await;
@@ -226,8 +224,6 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         _ = tokio::task::spawn_blocking(move || {
             processor.master_loop();
         }) => {}
-
-        _ = repository.master_loop() => {}
 
         _ = message_master_loop(messages_rx, bus.clone(), dsm.clone(), txm.clone()) => {}
 

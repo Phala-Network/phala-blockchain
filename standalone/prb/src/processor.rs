@@ -2,8 +2,9 @@ use crate::api::WorkerStatus;
 use crate::bus::Bus;
 use crate::compute_management::*;
 use crate::datasource::DataSourceManager;
-use crate::repository::{get_load_state_request, ChaintipInfo, RepositoryEvent, SyncRequest, SyncRequestManifest, WorkerSyncInfo};
+use crate::repository::{do_request_next_sync, get_load_state_request, ChaintipInfo, SyncRequest, SyncRequestManifest, WorkerSyncInfo};
 use crate::messages::MessagesEvent;
+use crate::pool_operator::DB;
 use crate::pruntime::PRuntimeClient;
 use crate::tx::TxManager;
 use crate::{use_parachain_api, use_relaychain_api};
@@ -373,6 +374,7 @@ pub struct Processor {
     pub bus: Arc<Bus>,
     pub dsm: Arc<DataSourceManager>,
     pub txm: Arc<TxManager>,
+    pub headers_db: Arc<DB>,
 
     pub allow_fast_sync: bool,
     pub pccs_url: String,
@@ -389,6 +391,7 @@ impl Processor {
         rx: ProcessorRx,
         bus: Arc<Bus>,
         txm: Arc<TxManager>,
+        headers_db: Arc<DB>,
         dsm: Arc<crate::datasource::DataSourceManager>,
         args: &crate::cli::WorkerManagerCliArgs,
     ) -> Self {
@@ -401,6 +404,7 @@ impl Processor {
             bus,
             dsm: dsm.clone(),
             txm,
+            headers_db,
 
             allow_fast_sync: !args.disable_fast_sync,
             pccs_url: args.pccs_url.clone(),
@@ -1105,7 +1109,10 @@ impl Processor {
         &mut self,
         worker: &WorkerContext,
     ) {
-        let _ = self.bus.send_repository_event(RepositoryEvent::UpdateWorkerSyncInfo(
+        tokio::spawn(do_request_next_sync(
+            self.bus.clone(),
+            self.dsm.clone(),
+            self.headers_db.clone(),
             WorkerSyncInfo {
                 worker_id: worker.uuid.clone(),
                 headernum: worker.headernum,
