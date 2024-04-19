@@ -1,6 +1,6 @@
 use crate::pool_operator::DB;
 use anyhow::{anyhow, Result};
-use log::{debug, error};
+use log::{debug, error, warn};
 use parity_scale_codec::{Decode, Encode};
 use phactory_api::blocks::HeadersToSync;
 use sp_consensus_grandpa::AuthorityList;
@@ -25,6 +25,7 @@ pub fn find_valid_num(db: &DB, start_at: u32, set_id: u64, need_verify: bool) ->
             current_set_id += 1;
             current_authorities = Some(next_authorities);
         } else {
+            warn!("Bad data found. next_number is {}", next_number);
             break
         }
     }
@@ -33,8 +34,7 @@ pub fn find_valid_num(db: &DB, start_at: u32, set_id: u64, need_verify: bool) ->
 }
 
 pub fn verify(
-    result: core::result::Result<(Box<[u8]>, Box<[u8]>),
-    rocksdb::Error>,
+    result: core::result::Result<(Box<[u8]>, Box<[u8]>), rocksdb::Error>,
     set_id: u64,
     authorities: &Option<AuthorityList>,
     need_verify: bool,
@@ -161,4 +161,18 @@ pub fn delete_tail_headers(
     headers_db: &DB,
 ) {
     let _ = headers_db.delete(encode_u32(std::u32::MAX));
+}
+
+pub fn delete_from(
+    headers_db: &DB,
+    next_number: u32,
+) -> u32 {
+    let mut count = 0 as u32;
+    for result in headers_db.iterator(rocksdb::IteratorMode::From(&encode_u32(next_number), rocksdb::Direction::Forward)) {
+        if let Ok((key, _)) = result {
+            let _ = headers_db.delete(key);
+            count += 1;
+        }
+    }
+    count
 }

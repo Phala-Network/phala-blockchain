@@ -185,6 +185,10 @@ impl Repository {
         );
         info!("next number: {}", self.next_number);
         info!("current authority set id: {}", self.current_set_id);
+        if init_run {
+            let count = delete_from(&self.headers_db, self.next_number);
+            warn!("{} keys was deleted.", count);
+        }
 
         'forever: loop {
             let relay_api = match use_relaychain_api!(self.dsm, false) {
@@ -215,6 +219,7 @@ impl Repository {
                     },
                 };
 
+                trace!("Got #{} from subscription. Desired: {}", block.number(), self.next_number);
                 if block.number() < self.next_number {
                     continue;
                 }
@@ -228,10 +233,10 @@ impl Repository {
                         }
                     },
                     Err(err) => {
+                        error!("Got error when filling gap. {err}");
                         if init_run {
                             return Err(err);
                         }
-                        error!("Got error when filling gap. {err}");
                         continue;
                     },
                 }
@@ -262,6 +267,7 @@ impl Repository {
         potential_chaintip: u32,
     ) -> Result<()> {
         loop {
+            trace!("Filling Gap Round. Next: {}, Potential Tip: {}", self.next_number, potential_chaintip);
             if self.next_number > potential_chaintip {
                 break Ok(())
             }
@@ -270,6 +276,7 @@ impl Repository {
             let headers = loop {
                 let headers = pherry::get_headers(&relay_api, self.next_number).await?;
                 let last_header = headers.last().unwrap();
+                debug!("Got {} headers from node. Last one: #{}", headers.len(), last_header.header.number);
                 let justifications = last_header.justification.as_ref().expect("last header from proof api should has justification");
                 match &self.current_authorities {
                     Some(authorities) => {
@@ -279,19 +286,24 @@ impl Repository {
                             &last_header.header,
                             justifications,
                         );
-                        if let Ok(_) = result {
-                            break headers
+                        match result {
+                            Ok(_) => break headers,
+                            Err(err) => {
+                                error!("Fail to verify justification. {}", err);
+                            },
                         }
                     }
                     _ => break headers,
                 }
                 try_count += 1;
                 if try_count >= 3 {
+                    error!("Tried 3 times but still no valid headers with justification received.");
                     return Err(anyhow!("Tried three times, cannot retrieve a valid justification."))
                 }
             };
 
             let last_header = headers.last().unwrap().header.clone();
+            debug!("Putting headers with last #{} into DB.", last_header.number);
             let last_number = put_headers_to_db(
                 self.headers_db.clone(),
                 headers,
@@ -332,6 +344,7 @@ pub async fn do_request_next_sync(
     headers_db: Arc<DB>,
     info: WorkerSyncInfo,
 ) {
+    trace!("[{}] Received next sync. {}-{}-{}", info.worker_id, info.headernum, info.para_headernum, info.blocknum);
     let mut try_count = 0;
     let request = loop {
         match generate_sync_request(dsm.clone(), headers_db.clone(), info.clone()).await {
@@ -341,7 +354,7 @@ pub async fn do_request_next_sync(
                 let err_msg = format!("Fail to generate_sync_request for {} times. Retrying... Last Error: {}", try_count, err);
                 error!("[{}] {}", info.worker_id, err_msg);
                 if try_count >= 3 {
-                    bus.send_worker_mark_error(info.worker_id.clone(), err_msg);
+                    let _ = bus.send_worker_mark_error(info.worker_id.clone(), err_msg);
                 }
                 tokio::time::sleep(std::time::Duration::from_secs(6)).await;
             },
@@ -382,6 +395,7 @@ async fn generate_sync_request(
     info: WorkerSyncInfo,
 ) -> Result<SyncRequest> {
     if info.blocknum < info.para_headernum {
+        trace!("[{}] Requesting blocks, # {} < {}", info.worker_id, info.blocknum, info.para_headernum);
         let to = std::cmp::min((info.blocknum + 3) / 4 * 4, info.para_headernum - 1);
         return dsm
             .fetch_storage_changes(info.blocknum, to)
@@ -391,6 +405,7 @@ async fn generate_sync_request(
 
     if let Some((para_headernum, proof)) = get_para_headernum(dsm.clone(), info.headernum - 1).await.unwrap_or(None) {
         if para_headernum > 0 && info.para_headernum <= para_headernum {
+            trace!("[{}] Requesting para headers, # {} to {}", info.worker_id, info.para_headernum, para_headernum);
             return dsm
                 .get_para_headers(info.para_headernum, para_headernum)
                 .await
@@ -490,20 +505,6 @@ async fn prepare_and_broadcast(
             proof
         );
         SyncRequest::create_from_combine_headers(headers, relay_from, relay_to, para_from, para_to)
-        /*
-        SyncRequest {
-            headers: Some(HeadersToSync::new(headers.clone(), None)),
-            //para_headers: Some(ParaHeadersToSync::new(para_headers, proof)),
-            para_headers: None,
-            combined_headers: None,
-            blocks: None,
-            manifest: SyncRequestManifest {
-                headers: Some((relay_from, relay_to)),
-                //para_headers: Some((para_from, para_to)),
-                para_headers: None,
-                blocks: None,
-            },
-        } */
     };
     let _ = bus.send_processor_event(ProcessorEvent::BroadcastSync((
         sync_request,
