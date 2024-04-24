@@ -23,7 +23,7 @@ pub async fn query<Request: Encode, Response: Decode>(
 
     let pr = phactory_api::pruntime_client::new_pruntime_client(url);
 
-    let info = pr.get_info(()).await?;
+    let info = pr.get_info(&()).await?;
     let remote_pubkey = info
         .system
         .ok_or_else(|| anyhow!("Worker not initialized"))?
@@ -72,7 +72,7 @@ pub async fn query<Request: Encode, Response: Decode>(
     let request = prpc::ContractQueryRequest::new(encrypted_data, Some(data_signature));
 
     // 5. Do the RPC call.
-    let response = pr.contract_query(request).await?;
+    let response = pr.contract_query(&request).await?;
 
     // 6. Decrypt the response.
     let encrypted_data = response.decode_encrypted_data()?;

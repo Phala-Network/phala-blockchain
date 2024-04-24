@@ -35,7 +35,7 @@ pub async fn try_update_worker_endpoint(
     signer: &mut SrSigner,
     args: &Args,
 ) -> Result<bool> {
-    let info = pr.get_endpoint_info(()).await?;
+    let info = pr.get_endpoint_info(&()).await?;
     let encoded_endpoint_payload = match info.encoded_endpoint_payload {
         None => return Ok(false), // Early return if no endpoint payload is available
         Some(payload) => payload,

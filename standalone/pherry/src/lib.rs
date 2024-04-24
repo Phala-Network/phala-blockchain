@@ -445,7 +445,7 @@ pub async fn batch_sync_storage_changes(
 }
 
 async fn try_load_handover_proof(pr: &PrClient, api: &ParachainApi) -> Result<()> {
-    let info = pr.get_info(()).await?;
+    let info = pr.get_info(&()).await?;
     if info.safe_mode_level < 2 {
         return Ok(());
     }
@@ -469,7 +469,7 @@ async fn try_load_handover_proof(pr: &PrClient, api: &ParachainApi) -> Result<()
     for p in &proof {
         info!("key=0x{}", hex::encode(sp_core::blake2_256(p)));
     }
-    pr.load_storage_proof(prpc::StorageProof { proof }).await?;
+    pr.load_storage_proof(&prpc::StorageProof { proof }).await?;
     Ok(())
 }
 
@@ -478,7 +478,7 @@ async fn req_sync_header(
     headers: Vec<HeaderToSync>,
 ) -> Result<prpc::SyncedTo> {
     let resp = pr
-        .sync_header(prpc::HeadersToSync::new(headers, None))
+        .sync_header(&prpc::HeadersToSync::new(headers, None))
         .await?;
     Ok(resp)
 }
@@ -489,7 +489,7 @@ async fn req_sync_para_header(
     proof: StorageProof,
 ) -> Result<prpc::SyncedTo> {
     let resp = pr
-        .sync_para_header(prpc::ParaHeadersToSync::new(headers, proof))
+        .sync_para_header(&prpc::ParaHeadersToSync::new(headers, proof))
         .await?;
     Ok(resp)
 }
@@ -498,7 +498,7 @@ async fn req_dispatch_block(
     pr: &PrClient,
     blocks: Vec<BlockHeaderWithChanges>,
 ) -> Result<prpc::SyncedTo> {
-    let resp = pr.dispatch_blocks(prpc::Blocks::new(blocks)).await?;
+    let resp = pr.dispatch_blocks(&prpc::Blocks::new(blocks)).await?;
     Ok(resp)
 }
 
@@ -741,7 +741,7 @@ async fn init_runtime(
     }
 
     let resp = pr
-        .init_runtime(prpc::InitRuntimeRequest::new(
+        .init_runtime(&prpc::InitRuntimeRequest::new(
             attestation_provider.is_none(),
             genesis_info,
             debug_set_key,
@@ -831,7 +831,7 @@ async fn try_register_worker(
     args: &Args,
 ) -> Result<bool> {
     let info = pr
-        .get_runtime_info(prpc::GetRuntimeInfoRequest::new(false, operator))
+        .get_runtime_info(&prpc::GetRuntimeInfoRequest::new(false, operator))
         .await?;
     if let Some(attestation) = info.attestation {
         info!("Registering worker...");
@@ -850,7 +850,7 @@ async fn try_register_worker(
 }
 
 async fn try_load_chain_state(pr: &PrClient, para_api: &ParachainApi, args: &Args) -> Result<()> {
-    let info = pr.get_info(()).await?;
+    let info = pr.get_info(&()).await?;
     info!("info: {info:#?}");
     if !info.can_load_chain_state {
         return Ok(());
@@ -868,7 +868,7 @@ async fn try_load_chain_state(pr: &PrClient, para_api: &ParachainApi, args: &Arg
     )
     .await
     .context("Failed to search suitable genesis state for worker")?;
-    pr.load_chain_state(prpc::ChainState::new(block_number, state))
+    pr.load_chain_state(&prpc::ChainState::new(block_number, state))
         .await?;
     Ok(())
 }
@@ -987,7 +987,7 @@ async fn bridge(
     let mut initial_sync_finished = false;
 
     // Try to initialize pRuntime and register on-chain
-    let info = pr.get_info(()).await?;
+    let info = pr.get_info(&()).await?;
     let operator = match args.operator.clone() {
         None => None,
         Some(operator) => {
@@ -1075,7 +1075,7 @@ async fn bridge(
 
     loop {
         // update the latest pRuntime state
-        let info = pr.get_info(()).await?;
+        let info = pr.get_info(&()).await?;
         info!("pRuntime get_info response: {:#?}", info);
         if info.blocknum >= args.to_block {
             info!("Reached target block: {}", args.to_block);
@@ -1346,9 +1346,9 @@ async fn sync_with_cached_headers(
 
 /// This function panics intentionally after the worker key handover finishes
 async fn handover_worker_key(server: &PrClient, client: &PrClient) -> Result<()> {
-    let challenge = server.handover_create_challenge(()).await?;
-    let response = client.handover_accept_challenge(challenge).await?;
-    let encrypted_key = server.handover_start(response).await?;
-    client.handover_receive(encrypted_key).await?;
+    let challenge = server.handover_create_challenge(&()).await?;
+    let response = client.handover_accept_challenge(&challenge).await?;
+    let encrypted_key = server.handover_start(&response).await?;
+    client.handover_receive(&encrypted_key).await?;
     panic!("Worker key handover done, the new pRuntime is ready to go");
 }

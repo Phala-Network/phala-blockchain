@@ -311,7 +311,7 @@ async fn probe_worker(
 ) -> Result<(WorkerPublicKey, Instant)> {
     debug!("probing worker {pubkey:?} at {uri}");
     let prpc = phactory_api::pruntime_client::new_pruntime_client_no_log(uri);
-    let info = prpc.get_info(()).await?;
+    let info = prpc.get_info(&()).await?;
     let Some(public_key) = &info.public_key else {
         return Err(anyhow::anyhow!("worker is uninitialized"));
     };

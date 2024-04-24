@@ -98,9 +98,9 @@ fn generate_unary<T: Method>(
     quote! {
         pub async fn #ident(
             &self,
-            request: #request,
+            request: &#request,
         ) -> Result<#response, prpc::client::Error> {
-            let response = self.client.request(#path, prpc::codec::encode_message_to_vec(&request)).await?;
+            let response = self.client.request(#path, prpc::codec::encode_message_to_vec(request)).await?;
             Ok(prpc::Message::decode(&response[..])?)
         }
     }

@@ -208,12 +208,12 @@ async fn handle_rpc_command(command: RpcCommand, url: String) {
         RpcCommand::GetWorkerState { pubkey } => {
             let public_key = try_decode_hex(&pubkey).expect("Failed to decode pubkey");
             let rv = client
-                .get_worker_state(phactory_api::prpc::GetWorkerStateRequest { public_key })
+                .get_worker_state(&phactory_api::prpc::GetWorkerStateRequest { public_key })
                 .await;
             print_result(rv);
         }
         RpcCommand::GetInfo => {
-            let rv = client.get_info(()).await;
+            let rv = client.get_info(&()).await;
             print_result(rv);
         }
     }
