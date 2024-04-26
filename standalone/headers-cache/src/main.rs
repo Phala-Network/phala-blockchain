@@ -420,11 +420,15 @@ async fn grab(what: Grab) -> anyhow::Result<()> {
             output,
         } => {
             let api = pherry::subxt_connect(&node_uri).await?;
-            let para_api = pherry::subxt_connect(&para_node_uri).await?;
+            let para_api = if para_node_uri.is_empty() {
+                None
+            } else {
+                Some(pherry::subxt_connect(&para_node_uri).await?)
+            };
             let output = File::create(output)?;
             let count = cache::grap_headers_to_file(
                 &api,
-                &para_api,
+                para_api.as_ref(),
                 from_block,
                 count,
                 justification_interval,

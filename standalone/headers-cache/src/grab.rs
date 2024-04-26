@@ -124,7 +124,7 @@ impl<'c> Crawler<'c> {
         info!("Grabbing headers start from {next_header}...");
         cache::grab_headers(
             &self.api,
-            &self.para_api,
+            Some(&self.para_api),
             *next_header,
             u32::MAX,
             self.config.justification_interval,
@@ -464,7 +464,7 @@ async fn regrab_header(
         let api = pherry::subxt_connect(&config.node_uri)
             .await
             .context(format!("Failed to connect to {}", config.node_uri))?;
-        cache::grab_headers(&api, &para_api, number, 1, 1, |info| {
+        cache::grab_headers(&api, Some(&para_api), number, 1, 1, |info| {
             db.put_header(info.header.number, &info.encode())
                 .context("Failed to put record to DB")?;
             grabed = Some(info.header);
