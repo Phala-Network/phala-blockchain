@@ -181,7 +181,7 @@ pub fn read_items_stream(
 /// Dump headers from the chain to a log file.
 pub async fn grap_headers_to_file(
     api: &RelaychainApi,
-    para_api: &ParachainApi,
+    para_api: Option<&ParachainApi>,
     start_at: BlockNumber,
     count: BlockNumber,
     justification_interval: BlockNumber,
@@ -250,26 +250,28 @@ pub async fn get_set_id(api: &RelaychainApi, block: BlockNumber) -> Result<(u64,
 
 pub async fn grab_headers(
     api: &RelaychainApi,
-    para_api: &ParachainApi,
+    para_api: Option<&ParachainApi>,
     start_at: BlockNumber,
     count: BlockNumber,
     justification_interval: u32,
     mut f: impl FnMut(BlockInfo) -> Result<()>,
 ) -> Result<BlockNumber> {
-    if start_at == 0 {
-        anyhow::bail!("start block must be > 0");
-    }
     if count == 0 {
         return Ok(0);
     }
 
-    let header_hash = crate::get_header_hash(api, Some(start_at - 1)).await?;
+    let prev_num = start_at.saturating_sub(1);
+    let header_hash = crate::get_header_hash(api, Some(prev_num)).await?;
     let mut last_set = api.current_set_id(Some(header_hash)).await?;
     let mut skip_justitication = 0_u32;
     let mut grabbed = 0;
 
-    let para_id = para_api.get_paraid(None).await?;
-    info!("para_id: {}", para_id);
+    let para_id = if let Some(para_api) = para_api {
+        Some(para_api.get_paraid(None).await?)
+    } else {
+        None
+    };
+    info!("para_id: {:?}", para_id);
 
     for block_number in start_at.. {
         let header;
@@ -336,7 +338,11 @@ pub async fn grab_headers(
             None
         } else {
             skip_justitication = justification_interval;
-            crate::get_finalized_header_with_paraid(api, para_id, hash).await?
+            if let Some(para_id) = para_id {
+                crate::get_finalized_header_with_paraid(api, para_id, hash).await?
+            } else {
+                None
+            }
         };
 
         let para_header = para_header.map(|(header, proof)| ParaHeader {
