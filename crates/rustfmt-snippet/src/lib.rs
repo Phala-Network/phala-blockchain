@@ -16,18 +16,8 @@ pub fn rustfmt(source: &str) -> std::io::Result<String> {
         io::Write,
         process::{Command, Stdio},
     };
-    use tempfile::NamedTempFile;
-    // Create a temporary file
-    let mut tempfile: NamedTempFile = NamedTempFile::new()?;
-
-    // Write the source code to the temporary file
-    writeln!(tempfile, "{}", source)?;
-
-    // Retrieve the path of the temporary file to pass it to rustfmt
-    let path = tempfile.path();
-    let path = format!("{}", path.display());
     let proc = Command::new("rustfmt")
-        .args([path.as_str(), "--emit", "stdout", "--edition", "2018"])
+        .args(["--emit", "stdout", "--edition", "2018"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()?;
@@ -36,9 +26,7 @@ pub fn rustfmt(source: &str) -> std::io::Result<String> {
         .expect("It always exists")
         .write_all(source.as_bytes())?;
     let output = proc.wait_with_output().unwrap();
-    let result = String::from_utf8_lossy(output.stdout.as_slice()).to_string();
-    let pos = result.find("\n\n").unwrap() + 2;
-    Ok(result[pos..].to_string())
+    Ok(String::from_utf8_lossy(output.stdout.as_slice()).to_string())
 }
 
 /// Format given TokenStream with rustfmt
