@@ -5,7 +5,6 @@ pub mod configurator;
 pub mod datasource;
 pub mod headers_db;
 pub mod inv_db;
-pub mod lifecycle;
 pub mod messages;
 pub mod pool_operator;
 pub mod processor;

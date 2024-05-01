@@ -4,7 +4,7 @@ use crate::inv_db::Worker;
 use crate::processor::WorkerEvent;
 use crate::tx::Transaction;
 use crate::wm::WrappedWorkerManagerContext;
-use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState, WrappedWorkerContext};
+use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState};
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -19,8 +19,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 type AppContext = State<WrappedWorkerManagerContext>;
 
@@ -127,9 +125,6 @@ impl From<anyhow::Error> for ApiError {
         Self::ServerError(err)
     }
 }
-
-pub type WorkerContexts = Vec<WrappedWorkerContext>;
-pub type WrappedWorkerContexts = Arc<Mutex<WorkerContexts>>;
 
 pub async fn start_api_server(
     ctx: WrappedWorkerManagerContext,
