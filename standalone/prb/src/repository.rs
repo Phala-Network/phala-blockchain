@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use rayon::iter::IntoParallelIterator;
 use sp_consensus_grandpa::AuthorityList;
 use core::time::Duration;
 use futures::StreamExt;
@@ -7,7 +6,6 @@ use log::{debug, error, info, trace, warn};
 use phaxt::ChainApi;
 use sp_core::sr25519::Public as Sr25519Public;
 use std::sync::Arc;
-use tokio::sync::mpsc;
 use tokio::time::sleep;
 
 use crate::bus::Bus;
@@ -18,7 +16,6 @@ use crate::pool_operator::DB;
 use crate::{use_parachain_api, use_relaychain_api};
 
 use phactory_api::prpc::{Blocks, ChainState, CombinedHeadersToSync, HeadersToSync, ParaHeadersToSync};
-use pherry::headers_cache::Client as CacheClient;
 
 pub struct ChaintipInfo {
     pub relaychain: u32,
