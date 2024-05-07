@@ -42,12 +42,12 @@ impl Bus {
         )
     }
 
-    pub fn send_pruntime_request(&self, worker_id: String, request: PRuntimeRequest) -> Result<(), StdSendError<ProcessorEvent>> {
-        self.send_worker_event(
-            worker_id,
-            WorkerEvent::PRuntimeRequest(request),
-        )
-    }
+    // pub fn send_pruntime_request(&self, worker_id: String, request: PRuntimeRequest) -> Result<(), StdSendError<ProcessorEvent>> {
+    //     self.send_worker_event(
+    //         worker_id,
+    //         WorkerEvent::PRuntimeRequest(request),
+    //     )
+    // }
 
     pub fn send_messages_event(&self, event: MessagesEvent) -> Result<(), SendError<MessagesEvent>> {
         let result = self.messages_tx.send(event);

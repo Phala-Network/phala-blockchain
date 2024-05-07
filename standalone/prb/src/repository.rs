@@ -327,7 +327,7 @@ pub async fn get_load_state_request(
     match pherry::chain_client::search_suitable_genesis_for_worker(&para_api, &public_key, Some(prefer_number)).await {
         Ok((block_number, state)) => {
             let request = ChainState::new(block_number, state);
-            let _ = bus.send_pruntime_request(worker_id, PRuntimeRequest::LoadChainState(request));
+            // let _ = bus.send_pruntime_request(worker_id, PRuntimeRequest::LoadChainState(request));
         },
         Err(err) => {
             let _ = bus.send_worker_mark_error(worker_id, err.to_string());
@@ -335,113 +335,77 @@ pub async fn get_load_state_request(
     }
 }
 
-pub async fn do_request_next_sync(
+pub async fn do_request_chain_state(
     bus: Arc<Bus>,
     dsm: Arc<DataSourceManager>,
-    headers_db: Arc<DB>,
-    info: WorkerSyncInfo,
+    number: u32,
 ) {
-    trace!("[{}] Received next sync. {}-{}-{}", info.worker_id, info.headernum, info.para_headernum, info.blocknum);
-    let mut try_count = 0;
-    let request = loop {
-        match generate_sync_request(dsm.clone(), headers_db.clone(), info.clone()).await {
-            Ok(request) => break request,
-            Err(err) => {
-                try_count += 1;
-                let err_msg = format!("Fail to generate_sync_request for {} times. Retrying... Last Error: {}", try_count, err);
-                error!("[{}] {}", info.worker_id, err_msg);
-                if try_count >= 3 {
-                    let _ = bus.send_worker_mark_error(info.worker_id.clone(), err_msg);
-                }
-                tokio::time::sleep(std::time::Duration::from_secs(6)).await;
-            },
-        }
-    };
-    if request.headers.is_some() || request.para_headers.is_some() || request.combined_headers.is_some() || request.blocks.is_some() {
-        trace!("[{}] sending sync request. {:?}", info.worker_id, info);
-    } else {
-        trace!("[{}] sending empty sync request.", info.worker_id);
-    }
-    let manifest = request.manifest.clone();
-    let _ = bus.send_pruntime_request(info.worker_id.clone(), PRuntimeRequest::Sync(request));
-    preload_next_sync(dsm, headers_db, info, &manifest).await;
+    todo!()
 }
 
-async fn preload_next_sync(
-    dsm: Arc<DataSourceManager>,
+pub async fn do_request_headers(
+    bus: Arc<Bus>,
     headers_db: Arc<DB>,
-    info: WorkerSyncInfo,
-    manifest: &SyncRequestManifest,
+    next_headernum: u32,
 ) {
-    let mut next_info = info.clone();
-    if let Some((_, to)) = &manifest.headers {
-        next_info.headernum = to + 1;
-    }
-    if let Some((_, to)) = &manifest.para_headers {
-        next_info.para_headernum = to + 1;
-    }
-    if let Some((_, to)) = &manifest.blocks {
-        next_info.blocknum = to + 1;
-    }
-    let _ = generate_sync_request(dsm, headers_db.clone(), next_info).await;
-}
-
-async fn generate_sync_request(
-    dsm: Arc<DataSourceManager>,
-    headers_db: Arc<DB>,
-    info: WorkerSyncInfo,
-) -> Result<SyncRequest> {
-    if info.blocknum < info.para_headernum {
-        trace!("[{}] Requesting blocks, # {} < {}", info.worker_id, info.blocknum, info.para_headernum);
-        let to = std::cmp::min((info.blocknum + 3) / 4 * 4, info.para_headernum - 1);
-        return dsm
-            .fetch_storage_changes(info.blocknum, to)
-            .await
-            .map(|blocks| SyncRequest::create_from_blocks(blocks, info.blocknum, to));
-    }
-
-    if let Some((para_headernum, proof)) = get_para_headernum(dsm.clone(), info.headernum - 1).await.unwrap_or(None) {
-        if para_headernum > 0 && info.para_headernum <= para_headernum {
-            trace!("[{}] Requesting para headers, # {} to {}", info.worker_id, info.para_headernum, para_headernum);
-            return dsm
-                .get_para_headers(info.para_headernum, para_headernum)
-                .await
-                .map(|mut headers| {
-                    headers.proof = proof;
-                    SyncRequest::create_from_para_headers(
-                        headers,
-                        info.para_headernum,
-                        para_headernum,
-                        info.headernum - 1,
-                    )
-                });
-        }
-    } else {
-        warn!("Failed to get para headernum at {}", info.headernum - 1);
-    }
-
-    trace!("[{}] Getting from headers_db: {}", info.worker_id, info.headernum);
-    if let Some(headers) = get_current_point(headers_db, info.headernum) {
-        let headers = headers
-            .into_iter()
-            .filter(|header| header.header.number >= info.headernum)
-            .collect::<Vec<_>>();
+    if let Some(mut headers) = get_current_point(headers_db, next_headernum) {
+        headers.retain(|h| h.header.number >= next_headernum);
         if let Some(last_header) = headers.last() {
-            let to = last_header.header.number;
-            let headers = phactory_api::prpc::HeadersToSync::new(headers, None);
-            return Ok(SyncRequest::create_from_headers(headers, info.headernum, to));
+            // let to = last_header.header.number;
+            let _ = bus.send_processor_event(ProcessorEvent::ReceivedHeaders((next_headernum, headers.into())));
         }
     }
-
-    trace!("[{}] Got nothing to sync", info.worker_id);
-    Ok(SyncRequest { ..Default::default() })
+    let _ = bus.send_processor_event(ProcessorEvent::ReceivedHeaders((next_headernum, vec![].into())));
 }
 
-async fn get_para_headernum(
+pub async fn do_request_para_headers(
+    bus: Arc<Bus>,
     dsm: Arc<DataSourceManager>,
-    relay_headernum: u32,
-) -> Result<Option<(u32, Vec<Vec<u8>>)>> {
-    dsm.get_para_header_by_relay_header(relay_headernum).await
+    para_from: u32,
+    relay_num: u32,
+) {
+    let response = dsm.clone().get_para_header_by_relay_header(relay_num).await;
+    if let Err(err) = response {
+        let _ = bus.send_processor_event(ProcessorEvent::ReceivedParaHeaders((
+            para_from,
+            relay_num,
+            Err(err)
+        )));
+        return;
+    }
+
+    if let Some((para_to, proof)) = response.unwrap() {
+        if para_from <= para_to {
+            trace!("Requesting para headers, # {} to {}", para_from, para_to);
+            let result = dsm
+                .get_para_headers(para_from, para_to)
+                .await
+                .map(|headers| (Arc::new(headers), Arc::new(proof)));
+            let _  = bus.send_processor_event(ProcessorEvent::ReceivedParaHeaders((para_from, relay_num, result)));
+        } else {
+            todo!()
+        }
+    } else {
+        warn!("Failed to get para headernum at {}", relay_num);
+        let _ = bus.send_processor_event(ProcessorEvent::ReceivedParaHeaders((
+            para_from,
+            relay_num,
+            Err(anyhow!("Failed to get para headernum at #{}", relay_num)),
+        )));
+    }
+}
+
+pub async fn do_request_blocks(
+    bus: Arc<Bus>,
+    dsm: Arc<DataSourceManager>,
+    from: u32,
+    desired_to: u32,
+) {
+    let to = std::cmp::min(from + 3, desired_to);
+    let result = dsm
+        .fetch_storage_changes(from, to)
+        .await;
+    let _  = bus.send_processor_event(ProcessorEvent::ReceivedBlocks((from, to, result)));
 }
 
 async fn prepare_and_broadcast(
@@ -471,7 +435,7 @@ async fn prepare_and_broadcast(
     }
     let relay_to_hash = (&headers.last().unwrap().header).hash();
 
-    let (para_prev, _) = get_para_headernum(dsm.clone(), prev_relaychain_finalized_at).await?
+    let (para_prev, _) = dsm.get_para_header_by_relay_header(prev_relaychain_finalized_at).await?
         .expect(&format!("Unknown para header for relay #{prev_relaychain_finalized_at}"));
     let (para_header, proof) = pherry::get_finalized_header_with_paraid(&relay_api, para_id, relay_to_hash.clone())
         .await?

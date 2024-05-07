@@ -10939,6 +10939,7 @@ dependencies = [
  "phactory-api",
  "phala-git-revision",
  "phala-pallets",
+ "phala-trie-storage",
  "phala-types",
  "phaxt",
  "pherry",

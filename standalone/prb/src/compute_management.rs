@@ -39,7 +39,8 @@ pub struct ComputeManagementContext {
 
 impl WorkerContext {
     pub fn is_compute_management_needed(&self) -> bool {
-        !self.is_compute_started() && !self.is_sync_only()
+        // !self.is_compute_started() && !self.is_sync_only()
+        todo!()
     }
 
     fn is_compute_started(&self) -> bool {
@@ -94,10 +95,10 @@ impl Processor {
             return;
         }
 
-        if worker.is_sync_only() {
-            trace!("[{}] Worker or Pool is sync only mode, skip compute management.", worker.uuid);
-            return;
-        }
+        // if worker.is_sync_only() {
+        //     trace!("[{}] Worker or Pool is sync only mode, skip compute management.", worker.uuid);
+        //     return;
+        // }
 
         let next_stage = worker.determinate_next_stage();
         match &next_stage {
@@ -144,10 +145,7 @@ impl Processor {
         }
 
         info!("[{}] Requesting PRuntime InitRuntimeResponse for register", worker.uuid);
-        self.add_pruntime_request(
-            worker,
-            PRuntimeRequest::PrepareRegister((true, worker.operator.clone(), false))
-        );
+        worker.register_request = Some(false);
     }
 
     fn request_add_to_pool(
@@ -246,7 +244,7 @@ pub async fn do_register(
                     "Worker Register Completed.".to_string(),
                 ))
             );
-            let _ = bus.send_pruntime_request(worker_id.clone(), PRuntimeRequest::RegularGetInfo);
+            // let _ = bus.send_pruntime_request(worker_id.clone(), PRuntimeRequest::RegularGetInfo);
         },
         Err(err) => {
             error!("[{}] Worker Register Failed: {}", worker_id, err);
