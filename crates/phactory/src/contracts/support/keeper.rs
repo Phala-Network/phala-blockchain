@@ -11,7 +11,10 @@ use crate::{
     im_helpers::{ordmap_for_each_mut, OrdMap},
 };
 
-type ContractMap = OrdMap<AccountId, Contract>;
+// size_of::<Contract>() == 1064, if we don't box it, it would exceed the stack capacity
+// when inserting data, even if we have an 8MB stack size. Not sure why the OrdMap::insert
+// increases the size so significantly.
+type ContractMap = OrdMap<AccountId, Box<Contract>>;
 
 #[derive(Default, Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
 pub struct ContractsKeeper {
@@ -24,7 +27,8 @@ pub struct ContractsKeeper {
 
 impl ContractsKeeper {
     pub fn insert(&mut self, contract: Contract) {
-        self.contracts.insert(contract.address().clone(), contract);
+        self.contracts
+            .insert(contract.address().clone(), Box::new(contract));
     }
 
     pub fn keys(&self) -> impl Iterator<Item = &AccountId> {
@@ -32,11 +36,13 @@ impl ContractsKeeper {
     }
 
     pub fn get_mut(&mut self, id: &AccountId) -> Option<&mut Contract> {
-        self.contracts.get_mut(id)
+        let boxed = self.contracts.get_mut(id)?;
+        Some(&mut *boxed)
     }
 
     pub fn get(&self, id: &AccountId) -> Option<&Contract> {
-        self.contracts.get(id)
+        let boxed = self.contracts.get(id)?;
+        Some(&*boxed)
     }
 
     #[allow(clippy::len_without_is_empty)]
@@ -56,11 +62,11 @@ impl ContractsKeeper {
         #[allow(clippy::iter_kv_map)]
         std::mem::take(&mut self.contracts)
             .into_iter()
-            .map(|(_, v)| v)
+            .map(|(_, v)| *v)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&AccountId, &Contract)> {
-        self.contracts.iter()
+        self.contracts.iter().map(|(k, v)| (k, &**v))
     }
 
     pub fn apply_local_cache_quotas(&self) {
@@ -73,7 +79,7 @@ pub(super) trait ToWeight {
     fn to_weight(&self) -> u32;
 }
 
-impl ToWeight for Contract {
+impl ToWeight for Box<Contract> {
     fn to_weight(&self) -> u32 {
         self.weight
     }
