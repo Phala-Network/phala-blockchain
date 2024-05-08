@@ -37,12 +37,12 @@ impl ContractsKeeper {
 
     pub fn get_mut(&mut self, id: &AccountId) -> Option<&mut Contract> {
         let boxed = self.contracts.get_mut(id)?;
-        Some(&mut *boxed)
+        Some(boxed)
     }
 
     pub fn get(&self, id: &AccountId) -> Option<&Contract> {
         let boxed = self.contracts.get(id)?;
-        Some(&*boxed)
+        Some(boxed)
     }
 
     #[allow(clippy::len_without_is_empty)]
