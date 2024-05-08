@@ -31,8 +31,8 @@ use phala_types::{
     ChallengeHandlerInfo, EncryptedWorkerKey, HandoverChallenge, SignedContentType,
     VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfoV2,
 };
-use pink_loader::types::{AccountId, ExecSideEffects, ExecutionMode};
 use phala_types::{DcapChallengeHandlerInfo, DcapHandoverChallenge};
+use pink_loader::types::{AccountId, ExecSideEffects, ExecutionMode};
 use sp_application_crypto::UncheckedFrom;
 use sp_core::hashing::blake2_256;
 use tracing::{error, info};

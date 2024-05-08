@@ -1,6 +1,6 @@
 [package]
 name = "phactory"
-version = "2.2.0"
+version = "2.2.1"
 edition = "2018"
 resolver = "2"
 
