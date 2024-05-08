@@ -639,7 +639,7 @@ pub struct ComputingEconomics<MsgChan> {
     system_events: TypedReceiver<SystemEvent>,
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     #[cfg_attr(not(test), codec(skip))]
-    workers: OrdMap<WorkerPublicKey, WorkerInfo>,
+    workers: OrdMap<WorkerPublicKey, Box<WorkerInfo>>,
     #[codec(skip)]
     tokenomic_params: tokenomic::Params,
     #[serde(skip, default)]
@@ -710,12 +710,12 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
     pub fn dump_workers_state(&self) -> Vec<(WorkerPublicKey, pb::WorkerState)> {
         self.workers
             .values()
-            .map(|info| (info.state.pubkey, info.into()))
+            .map(|info| (info.state.pubkey, (&**info).into()))
             .collect()
     }
 
     pub fn worker_state(&self, pubkey: &WorkerPublicKey) -> Option<pb::WorkerState> {
-        self.workers.get(pubkey).map(Into::into)
+        self.workers.get(pubkey).map(|info| (&**info).into())
     }
 
     pub fn will_process_block(&mut self, block: &BlockInfo<'_>) {
@@ -1019,7 +1019,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
             let _ = self
                 .workers
                 .entry(*pubkey)
-                .or_insert_with(|| WorkerInfo::new(*pubkey));
+                .or_insert_with(|| Box::new(WorkerInfo::new(*pubkey)));
         }
 
         let log_on = log::log_enabled!(log::Level::Debug);
