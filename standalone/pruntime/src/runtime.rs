@@ -91,7 +91,7 @@ pub(crate) async fn ecall_connect_sidevm(
     let contract_id = hex::decode(id.trim_start_matches("0x"))
         .map_err(|err| (Status::BadRequest, err.to_string()))?;
     let Some(command_tx) = APPLICATION
-        .lock_phactory(false, false)
+        .lock_phactory(true, false)
         .map_err(|err| (Status::InternalServerError, err.to_string()))?
         .sidevm_command_sender(&contract_id)
     else {

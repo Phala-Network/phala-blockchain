@@ -10158,7 +10158,7 @@ dependencies = [
 
 [[package]]
 name = "phala-rocket-middleware"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "log",
  "rocket",
@@ -12325,7 +12325,7 @@ dependencies = [
 
 [[package]]
 name = "rustfmt-snippet"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "proc-macro2",
 ]
