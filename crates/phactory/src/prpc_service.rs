@@ -1315,6 +1315,7 @@ impl<Platform: pal::Platform> RpcService<Platform> {
         let guard = self.phactory.lock().unwrap();
         debug!(target: "phactory::lock", "Locked phactory");
         if !allow_rcu && guard.rcu_dispatching {
+            warn!(target: "phactory::lock", "RCU in progress, returning error");
             return Err(from_display(
                 "RCU in progress, please try the request again later",
             ));
