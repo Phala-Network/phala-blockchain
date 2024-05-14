@@ -1,6 +1,6 @@
 # Phala Blockchain
 
-![Rust](https://github.com/Phala-Network/phala-blockchain/workflows/Build/badge.svg)
+![Build](https://github.com/Phala-Network/phala-blockchain/actions/workflows/build.yml/badge.svg)
 
 Phala Network is the offchain computing protocol, powering the decentralized execution layer for AI agents.
 
