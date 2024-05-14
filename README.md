@@ -1,24 +1,8 @@
 # Phala Blockchain
 
-<img align="right" width="320" src="docs/static/web3 foundation_grants_badge_black.svg" alt="Funded by the web3 foundation">
-
 ![Rust](https://github.com/Phala-Network/phala-blockchain/workflows/Build/badge.svg)
 
-Phala Network is a decentralized offchain computing protocol aiming to build the Web3 Cloud. This repo includes:
-
-- `node/`: the main development blockchain built on Substrate
-- `standalone/pherry/`: the message relayer to connect the blockchain and pRuntime
-- `standalone/pruntime/`: the contract execution kernel running inside TEE enclave
-
-## Overview
-
-![](docs/static/phala-design.png)
-
-The **blockchain** is the central component of the system. It records commands (confidential contract invocation), serves as the pRuntime registry, runs the native token and on-chain governance modules.
-
-**pherry** is the message relayer. It connects the blockchain and pRuntime. It passes the block data from the chain to pRuntime and passes pRuntime side effects back to the chain. A multi-client version of the runtime bridge is being developed [here](https://github.com/Phala-Network/runtime-bridge) and now in alpha version.
-
-**pRuntime** (Phala Network Secure Enclave Runtime) is a runtime to execute confidential smart contracts, based on confidential computing.
+Phala Network is the offchain computing protocol, powering the decentralized execution layer for AI agents.
 
 ## Native Build
 
@@ -89,7 +73,7 @@ Please refer to [the run scripts](./scripts/run)
 
 ## External Resources
 
-- [phala-wiki](https://github.com/Phala-Network/phala-wiki): The technical documentation.
+- [Docs](https://docs.phala.network): Phala Network Documentations
+- [Security Audit](./audit): Audit reports
 - [phala-docker](https://github.com/Phala-Network/phala-docker): The production dockerfiles, including the blockchain, pherry, and pRuntime.
-- [Code Bounty Program](https://forum.phala.network/t/topic/2045)
 - [Responsible Disclosure](./docs/responsible-disclosure.md)
