@@ -118,8 +118,9 @@ pub type CachedHeadersToSync = (HeadersToSync, Option<u32>, Option<Vec<Vec<u8>>>
 #[derive(Clone)]
 pub enum DataSourceCacheItem {
     InitRuntimeRequest(InitRuntimeRequest),
-    StorageChanges(Blocks),
+    StorageChanges(Vec<Arc<phactory_api::blocks::BlockHeaderWithChanges>>),
     ParaHeaderByRelayHeight(Option<(u32, Vec<Vec<u8>>)>),
+    ParaHeader(phactory_api::blocks::BlockHeader),
     ParaHeadersToSyncWithoutProof(ParaHeadersToSync),
 }
 
@@ -130,7 +131,11 @@ impl DataSourceCacheItem {
                 (e.encoded_len() as f64 * CACHE_SIZE_EXPANSION) as _
             }
             DataSourceCacheItem::StorageChanges(e) => {
-                (e.encoded_len() as f64 * CACHE_SIZE_EXPANSION) as _
+                let mut sum = 0 as usize;
+                for item in e {
+                    sum += size_of_val(&(*item));
+                }
+                (sum as f64 * CACHE_SIZE_EXPANSION) as _
             }
             DataSourceCacheItem::ParaHeaderByRelayHeight(e) => match e {
                 None => 16,
@@ -138,6 +143,9 @@ impl DataSourceCacheItem {
                     let bytes_len = e.iter().flatten().collect::<Vec<_>>().len();
                     ((e.len() + 1) * size_of_val(e)) + bytes_len
                 }
+            },
+            DataSourceCacheItem::ParaHeader(e) => {
+                std::mem::size_of_val(e) + 16
             },
             DataSourceCacheItem::ParaHeadersToSyncWithoutProof(e) => {
                 (e.encoded_len() as f64 * CACHE_SIZE_EXPANSION) as _
@@ -696,10 +704,10 @@ impl DataSourceManager {
             pherry::fetch_storage_changes(&para_api, None, from, to).await
         }?;
 
-        let ret = Blocks::new(ret);
+        let ret = ret.into_iter().map(|b| Arc::new(b)).collect::<Vec<_>>();
         Ok(Arc::new(DataSourceCacheItem::StorageChanges(ret)))
     }
-    pub async fn fetch_storage_changes(self: Arc<Self>, from: u32, to: u32) -> Result<Blocks> {
+    pub async fn fetch_storage_changes(self: Arc<Self>, from: u32, to: u32) -> Result<Vec<Arc<phactory_api::blocks::BlockHeaderWithChanges>>> {
         let key = format!("sc:{from}:{to}");
         let cache = self.cache.clone();
         match cache
@@ -761,57 +769,77 @@ impl DataSourceManager {
         }
     }
 
-    pub async fn do_get_para_headers(
+    pub async fn do_get_para_header(
         self: Arc<Self>,
-        from: u32,
-        to: u32,
+        num: u32,
     ) -> Result<Arc<DataSourceCacheItem>> {
-        if let Some(hc) = use_parachain_hc!(self) {
-            let count = to - from + 1;
-            if let Ok(d) = hc.get_parachain_headers(from, count).await {
-                let d = ParaHeadersToSync::new(d, vec![]);
-                return Ok(Arc::new(
-                    DataSourceCacheItem::ParaHeadersToSyncWithoutProof(d),
-                ));
-            }
-        }
         let para_api = use_parachain_api!(self, true).ok_or(NoValidDataSource)?;
-        let mut d = vec![];
-        for b in from..=to {
-            let num = subxt_types::BlockNumber::from(subxt_types::NumberOrHex::Number(b as _));
-            let hash = para_api
-                .rpc()
-                .block_hash(Some(num))
-                .await?
-                .ok_or(BlockHashNotFound(b))?;
-            let header = para_api
-                .rpc()
-                .header(Some(hash))
-                .await?
-                .ok_or(BlockNotFound(b))?;
-            d.push(header.convert_to());
-        }
-        let d = ParaHeadersToSync::new(d, vec![]);
+        let block_num = subxt_types::BlockNumber::from(subxt_types::NumberOrHex::Number(num as _));
+        let hash = para_api
+            .rpc()
+            .block_hash(Some(block_num))
+            .await?
+            .ok_or(BlockHashNotFound(num))?;
+        let header = para_api
+            .rpc()
+            .header(Some(hash))
+            .await?
+            .ok_or(BlockNotFound(num))?;
         Ok(Arc::new(
-            DataSourceCacheItem::ParaHeadersToSyncWithoutProof(d),
+            DataSourceCacheItem::ParaHeader(header.convert_to()),
         ))
     }
+
     pub async fn get_para_headers(
         self: Arc<Self>,
         from: u32,
         to: u32,
-    ) -> Result<ParaHeadersToSync> {
-        let key = format!("ph:{from}:{to}");
+    ) -> Result<Vec<phactory_api::blocks::BlockHeader>> {
         let cache = self.cache.clone();
-        match cache
-            .try_get_with(key, self.clone().do_get_para_headers(from, to))
-            .await
-        {
-            Ok(ret) => match *ret {
-                DataSourceCacheItem::ParaHeadersToSyncWithoutProof(ref data) => Ok(data.clone()),
-                _ => Err(UnknownErrorFromCache.into()),
-            },
-            Err(e) => Err(anyhow!(e.to_string())),
+
+        let mut headers = vec![];
+        for b in from..=to {
+            let key = format!("ph:{b}");
+            match cache.get(&key).await {
+                Some(item) => match *item {
+                    DataSourceCacheItem::ParaHeader(ref header) => headers.push(header.clone()),
+                    _ => break,
+                },
+                _ => break,
+            }
         }
+
+        let from = headers.last().map(|h| h.number + 1).unwrap_or(from);
+        if from > to {
+            return Ok(headers);
+        }
+
+        if let Some(hc) = use_parachain_hc!(self) {
+            let count = to - from + 1;
+            if let Ok(remain_headers) = hc.get_parachain_headers(from, count).await {
+                for header in &remain_headers {
+                    let key = format!("ph:{}", header.number);
+                    cache.insert(key, DataSourceCacheItem::ParaHeader(header.clone()).into()).await;
+                    headers.push(header.clone());
+                }
+                return Ok(headers);
+            }
+        }
+
+        for b in from..=to {
+            let key = format!("ph:{b}");
+            match cache
+                .try_get_with(key, self.clone().do_get_para_header(b))
+                .await
+            {
+                Ok(item) => match *item {
+                    DataSourceCacheItem::ParaHeader(ref header) => headers.push(header.clone()),
+                    _ => return Err(UnknownErrorFromCache.into()),
+                },
+                Err(e) => return Err(anyhow!(e.to_string())),
+            }
+        }
+
+        Ok(headers)
     }
 }

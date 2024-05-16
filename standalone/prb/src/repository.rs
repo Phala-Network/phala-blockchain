@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use sp_consensus_grandpa::AuthorityList;
 use core::time::Duration;
+use std::borrow::BorrowMut;
 use futures::StreamExt;
 use log::{debug, error, info, trace, warn};
 use phaxt::ChainApi;
@@ -55,11 +56,13 @@ impl SyncRequest {
     }
 
     pub fn create_from_para_headers(
-        para_headers: ParaHeadersToSync,
+        para_headers: Vec<phactory_api::blocks::BlockHeader>,
+        proof: Vec<Vec<u8>>,
         from: u32,
         to: u32,
         relay_at: u32,
     ) -> Self {
+        let para_headers = ParaHeadersToSync::new(para_headers, proof);
         Self {
             para_headers: Some(para_headers),
             manifest: SyncRequestManifest {
@@ -94,10 +97,15 @@ impl SyncRequest {
     }
 
     pub fn create_from_blocks(
-        blocks: Blocks,
+        blocks: Vec<Arc<phactory_api::blocks::BlockHeaderWithChanges>>,
         from: u32,
         to: u32
     ) -> Self {
+        let blocks = blocks
+            .into_iter()
+            .map(|b| phactory_api::blocks::BlockHeaderWithChanges::clone(&b))
+            .collect::<Vec<_>>();
+        let blocks = Blocks::new(blocks);
         Self {
             blocks: Some(blocks),
             manifest: SyncRequestManifest {
@@ -407,9 +415,9 @@ async fn generate_sync_request(
                 .get_para_headers(info.para_headernum, para_headernum)
                 .await
                 .map(|mut headers| {
-                    headers.proof = proof;
                     SyncRequest::create_from_para_headers(
                         headers,
+                        proof,
                         info.para_headernum,
                         para_headernum,
                         info.headernum - 1,
