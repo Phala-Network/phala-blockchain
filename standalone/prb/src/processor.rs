@@ -1016,16 +1016,17 @@ impl Processor {
             trace!("[{}] Synced updated, next: {}", worker.uuid, worker.blocknum);
         }
 
+        if worker.is_registered() && info.blocknum.is_some() && worker.para_headernum == worker.blocknum {
+            trace!("[{}] Dispatched a block, requesting EgressMessages", worker.uuid);
+            self.add_pruntime_request(worker, PRuntimeRequest::GetEgressMessages);
+        }
+
         if !worker.is_reached_chaintip(&self.chaintip) {
             trace!("[{}] Not at chaintip, requesting next sync", worker.uuid);
             self.request_next_sync(worker);
         } else {
             trace!("[{}] Reached to chaintip!", worker.uuid);
             worker.pending_broadcast = true;
-            if worker.is_registered() && info.blocknum.is_some() {
-                trace!("[{}] Dispatched a block, requesting EgressMessages", worker.uuid);
-                self.add_pruntime_request(worker, PRuntimeRequest::GetEgressMessages);
-            }
             if worker.is_compute_management_needed() {
                 trace!("[{}] Requesting compute management", worker.uuid);
                 self.request_compute_management(worker);
