@@ -1,6 +1,5 @@
 import { type ApiPromise, Keyring } from '@polkadot/api'
 import { type KeyringPair } from '@polkadot/keyring/types'
-import type { Result, U64 } from '@polkadot/types'
 import { Enum, Map, Option, Text, U8aFixed, Vec } from '@polkadot/types'
 import { AccountId } from '@polkadot/types/interfaces'
 import { BN } from '@polkadot/util'
@@ -9,9 +8,11 @@ import systemAbi from './abis/system.json'
 import { PinkContractPromise } from './contracts/PinkContract'
 import { PinkLoggerContractPromise } from './contracts/PinkLoggerContract'
 import { type PhalaTypesVersionedWorkerEndpoints, ackFirst } from './ha/ack-first'
+import { KeyringPairProvider } from './providers/KeyringPairProvider'
 import { type CertificateData, signCertificate } from './pruntime/certificate'
 import createPruntimeClient from './pruntime/createPruntimeClient'
 import { pruntime_rpc } from './pruntime/proto'
+import type { SystemContract } from './types'
 
 export class UnexpectedEndpointError extends Error {}
 
@@ -85,7 +86,7 @@ export class OnChainRegistry {
   #alice: KeyringPair | undefined
   #cert: CertificateData | undefined
 
-  #systemContract: PinkContractPromise | undefined
+  #systemContract: SystemContract | undefined
   #loggerContract: PinkLoggerContractPromise | undefined
 
   constructor(api: ApiPromise) {
@@ -113,7 +114,7 @@ export class OnChainRegistry {
   }
 
   get phactory() {
-    if (!this.#ready || !this.#phactory) {
+    if (!this.#phactory) {
       throw new Error('You need initialize OnChainRegistry first.')
     }
     return this.#phactory
@@ -183,11 +184,14 @@ export class OnChainRegistry {
   public async getClusterInfoById(clusterId: string) {
     const result = (await this.api.query.phalaPhatContracts.clusters(clusterId)) as Option<ClusterInfo>
     if (result.isNone) {
-      return null
+      return undefined
     }
     return result.unwrap()
   }
 
+  /**
+   * @deprecated
+   */
   public async getClusters(clusterId?: string) {
     if (clusterId) {
       const result = (await this.api.query.phalaPhatContracts.clusters(clusterId)) as Option<ClusterInfo>
@@ -200,6 +204,9 @@ export class OnChainRegistry {
     }
   }
 
+  /**
+   * @deprecated
+   */
   public async getEndpoints(workerId?: U8aFixed | string) {
     if (workerId) {
       if (typeof workerId !== 'string') {
@@ -214,6 +221,9 @@ export class OnChainRegistry {
     })
   }
 
+  /**
+   * @deprecated
+   */
   public async getClusterWorkers(clusterId?: string): Promise<WorkerInfo[]> {
     let _clusterId = clusterId || this.clusterId
     if (!_clusterId) {
@@ -264,8 +274,16 @@ export class OnChainRegistry {
     if (systemContractId) {
       const systemContractKey = await this.getContractKey(systemContractId)
       if (systemContractKey) {
-        this.#systemContract = new PinkContractPromise(this.api, this, systemAbi, systemContractId, systemContractKey)
-        this.#loggerContract = await PinkLoggerContractPromise.create(this.api, this, this.#systemContract)
+        const provider = await KeyringPairProvider.create(this.api, this.alice)
+        this.#systemContract = new PinkContractPromise(
+          this.api,
+          this,
+          systemAbi,
+          systemContractId,
+          systemContractKey,
+          provider
+        )
+        this.#loggerContract = await PinkLoggerContractPromise.create(this)
       } else {
         throw new Error(`System contract not found: ${systemContractId}`)
       }
@@ -311,8 +329,8 @@ export class OnChainRegistry {
             v1: [endpoint],
           },
         }
-        this.#ready = true
         await this.prepareSystemOrThrows(clusterInfo)
+        this.#ready = true
         return
       }
 
@@ -361,8 +379,8 @@ export class OnChainRegistry {
                 v1: [phactory.endpoint],
               },
             }
-            this.#ready = true
             await this.prepareSystemOrThrows(clusterInfo)
+            this.#ready = true
           } else {
             throw new Error(`Unknown strategy: ${args[0].strategy}`)
           }
@@ -406,8 +424,8 @@ export class OnChainRegistry {
               default: pruntimeURL,
             },
           }
-          this.#ready = true
           await this.prepareSystemOrThrows(clusterInfo)
+          this.#ready = true
         } else {
           const worker = args[0] as WorkerInfo
           const clusterInfo = await this.getClusterInfoById(worker.clusterId)
@@ -418,8 +436,8 @@ export class OnChainRegistry {
           this.clusterId = worker.clusterId
           this.clusterInfo = clusterInfo
           this.workerInfo = worker
-          this.#ready = true
           await this.prepareSystemOrThrows(clusterInfo)
+          this.#ready = true
         }
         return
       }
@@ -509,8 +527,16 @@ export class OnChainRegistry {
     if (systemContractId) {
       const systemContractKey = await this.getContractKey(systemContractId)
       if (systemContractKey) {
-        this.#systemContract = new PinkContractPromise(this.api, this, systemAbi, systemContractId, systemContractKey)
-        this.#loggerContract = await PinkLoggerContractPromise.create(this.api, this, this.#systemContract)
+        const provider = await KeyringPairProvider.create(this.api, this.alice)
+        this.#systemContract = new PinkContractPromise(
+          this.api,
+          this,
+          systemAbi,
+          systemContractId,
+          systemContractKey,
+          provider
+        )
+        this.#loggerContract = await PinkLoggerContractPromise.create(this)
       } else {
         throw new Error(`System contract not found: ${systemContractId}`)
       }
@@ -556,12 +582,12 @@ export class OnChainRegistry {
       system.query['system::freeBalanceOf'](cert.address, { cert }, address),
     ])
     return {
-      total: (totalBalanceOf as Result<U64, any>).asOk.toBn(),
-      free: (freeBalanceOf as Result<U64, any>).asOk.toBn(),
+      total: totalBalanceOf.asOk,
+      free: freeBalanceOf.asOk,
     }
   }
 
-  transferToCluster(address: string | AccountId, amount: number | string | BN) {
+  transferToCluster(address: string | AccountId, amount: number | string | BN | bigint) {
     return this.api.tx.phalaPhatContracts.transferToCluster(amount, this.clusterId, address)
   }
 
@@ -578,5 +604,9 @@ export class OnChainRegistry {
 
   get pruntimeURL() {
     return this.workerInfo?.endpoints.default
+  }
+
+  get isEvmAccountMappingSupported() {
+    return !!this.api.consts?.evmAccountMapping?.eip712Name
   }
 }
