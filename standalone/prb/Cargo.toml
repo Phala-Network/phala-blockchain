@@ -50,3 +50,7 @@ derive_more = { version = "0.99", default-features = false, features = ["display
 prpc = { path = "../../crates/prpc", default-features = false }
 rayon = "1.10.0"
 thread-priority = "0.16.0"
+phala-trie-storage = { path = "../../crates/phala-trie-storage", default-features = false, features = ["serde"] }
+sp-externalities = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0" }
+sp-state-machine     = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0" }
+runtime = { path = "../../standalone/runtime", package = "phala-node-runtime", default-features = false, features = ["std"] }

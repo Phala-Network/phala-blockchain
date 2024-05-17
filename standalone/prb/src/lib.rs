@@ -17,5 +17,7 @@ pub mod worker;
 pub mod worker_status;
 mod compute_management;
 
+extern crate runtime as chain;
+
 #[subxt::subxt(runtime_metadata_path = "./artifacts/khala_metadata.scale")]
 pub mod khala {}

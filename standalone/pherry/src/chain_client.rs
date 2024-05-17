@@ -77,7 +77,7 @@ pub async fn fetch_genesis_storage(api: &ParachainApi) -> Result<Vec<(Vec<u8>, V
     fetch_genesis_storage_at(api, hash).await
 }
 
-async fn fetch_genesis_storage_at(
+pub async fn fetch_genesis_storage_at(
     api: &ParachainApi,
     hash: Option<sp_core::H256>,
 ) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {

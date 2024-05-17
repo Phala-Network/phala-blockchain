@@ -20,6 +20,7 @@ use phactory_api::prpc::{
 };
 use phala_pallets::pallet_computation::{SessionInfo, WorkerState};
 use phala_pallets::registry::WorkerInfoV2;
+use phala_trie_storage::TrieStorage;
 use phala_types::messaging::MessageOrigin;
 use sp_core::crypto::{AccountId32, ByteArray};
 use sp_core::sr25519::Public as Sr25519Public;
@@ -325,12 +326,6 @@ pub enum WorkerEvent {
     PRuntimeRequest(PRuntimeRequest),
     #[display(fmt = "PRuntimeResponse")]
     PRuntimeResponse(Result<PRuntimeResponse, prpc::client::Error>),
-    #[display(fmt = "UpdateWorkerInfo")]
-    UpdateWorkerInfo(WorkerInfoV2<AccountId32>),
-    #[display(fmt = "UpdateSessionId")]
-    UpdateSessionId(Option<AccountId32>),
-    #[display(fmt = "UpdateSessionInfo")]
-    UpdateSessionInfo(Option<SessionInfo>),
     #[display(fmt = "RepositoryLoadStateRequest")]
     RepositoryLoadStateRequest,
     #[display(fmt = "RepositoryPreloadRequest")]
@@ -363,10 +358,42 @@ pub enum ProcessorEvent {
     BroadcastSync((SyncRequest, ChaintipInfo)),
     #[display(fmt = "RequestUpdateSessionInfo")]
     RequestUpdateSessionInfo,
+    #[display(fmt = "ReceivedParaChainState")]
+    ReceivedParaChainState(Vec<(Vec<u8>, Vec<u8>)>),
+    #[display(fmt = "ReceivedParaStorageChanges")]
+    ReceivedParaStorageChanges(phactory_api::blocks::StorageChanges),
 }
 
 pub type ProcessorRx = mpsc::Receiver<ProcessorEvent>;
 pub type ProcessorTx = mpsc::Sender<ProcessorEvent>;
+
+#[derive(Default)]
+struct Storage (TrieStorage<phactory_api::blocks::RuntimeHasher>);
+impl Storage {
+    pub fn execute_with<R>(&self, f: impl FnOnce() -> R) -> R {
+        let backend = self.0.as_trie_backend();
+        let mut overlay = sp_state_machine::OverlayedChanges::default();
+        let mut ext = sp_state_machine::Ext::new(&mut overlay, backend, None);
+        sp_externalities::set_and_run_with_externalities(&mut ext, f)
+    }
+
+    pub fn mq_sequence(&self, sender: &MessageOrigin) -> u64 {
+        self.execute_with(|| phala_pallets::mq::OffchainIngress::<chain::Runtime>::get(sender))
+            .unwrap_or(0)
+    }
+
+    pub fn worker_info(&self, worker: &phala_types::WorkerPublicKey) -> Option<WorkerInfoV2<AccountId32>> {
+        self.execute_with(|| phala_pallets::registry::Workers::<chain::Runtime>::get(worker))
+    }
+
+    pub fn session_id(&self, worker: &phala_types::WorkerPublicKey) -> Option<AccountId32> {
+        self.execute_with(|| phala_pallets::pallet_computation::WorkerBindings::<chain::Runtime>::get(worker))
+    }
+
+    pub fn session_info(&self, session: &AccountId32) -> Option<SessionInfo> {
+        self.execute_with(|| phala_pallets::pallet_computation::Sessions::<chain::Runtime>::get(session))
+    }
+}
 
 pub struct Processor {
     pub rx: ProcessorRx,
@@ -384,6 +411,8 @@ pub struct Processor {
     pub init_runtime_request_dcap: InitRuntimeRequest,
 
     pub chaintip: ChaintipInfo,
+
+    storage: Storage,
 }
 
 impl Processor {
@@ -397,6 +426,13 @@ impl Processor {
     ) -> Self {
         let ias_init_runtime_request = dsm.clone().get_init_runtime_default_request(Some(phala_types::AttestationProvider::Ias)).await.unwrap();
         let dcap_init_runtime_request = dsm.clone().get_init_runtime_default_request(Some(phala_types::AttestationProvider::Dcap)).await.unwrap();
+
+        let mut storage = Storage::default();
+        let pairs = pherry::chain_client::fetch_genesis_storage_at(
+            &use_parachain_api!(dsm, false).unwrap(),
+            None,
+        ).await.unwrap();
+        storage.0.load(pairs.into_iter());
 
         Self {
             rx,
@@ -417,6 +453,8 @@ impl Processor {
                 relaychain: use_relaychain_api!(dsm, false).unwrap().latest_finalized_block_number().await.unwrap(),
                 parachain: use_parachain_api!(dsm, false).unwrap().latest_finalized_block_number().await.unwrap(),
             },
+
+            storage,
         }
     }
 
@@ -528,10 +566,6 @@ impl Processor {
                     self.chaintip = info;
                 },
                 ProcessorEvent::RequestUpdateSessionInfo => {
-                    info!("Received RequestUpdateSessionInfo");
-                    let mut worker_info_requests = Vec::<(String, Sr25519Public)>::new();
-                    let mut session_id_requests = Vec::<(String, Sr25519Public)>::new();
-                    let mut session_info_requests = Vec::<(String, AccountId32)>::new();
                     for worker in workers.values_mut() {
                         if !worker.is_registered() {
                             continue;
@@ -541,45 +575,28 @@ impl Processor {
                             None => continue,
                         };
 
-                        let initial_score = worker.worker_info.as_ref().and_then(|info| info.initial_score);
-                        if initial_score.is_none() {
-                            trace!("[{}] Requesting ChainStatus: WorkerInfoV2", worker.uuid);
-                            worker_info_requests.push((worker.uuid.clone(), public_key));
-                            continue;
-                        }
-                        match &worker.session_id {
-                            Some(session_id) => {
-                                trace!("[{}] Requesting ChainStatus: SessionInfo", worker.uuid);
-                                session_info_requests.push((worker.uuid.clone(), session_id.clone()));
-                            },
-                            None => {
-                                trace!("[{}] Requesting ChainStatus: SessionId", worker.uuid);
-                                session_id_requests.push((worker.uuid.clone(), public_key));
-                            },
+                        if let Some(worker_info) = self.storage.worker_info(&public_key) {
+                            worker.worker_info = Some(worker_info);
+                            if let Some(session_id) = self.storage.session_id(&public_key) {
+                                worker.worker_status.session_info = self.storage.session_info(&session_id);
+                                worker.session_id = Some(session_id.into());
+                                worker.update_session_info_count = worker.update_session_info_count.saturating_add(1);
+                            }
+                            worker.update_session_id_count = worker.update_session_id_count.saturating_add(1);
                         }
                     }
-
-                    if !worker_info_requests.is_empty() {
-                        tokio::spawn(do_update_worker_info(
-                            self.bus.clone(),
-                            self.dsm.clone(),
-                            worker_info_requests,
-                        ));
-                    }
-                    if !session_id_requests.is_empty() {
-                        tokio::spawn(do_update_session_id(
-                            self.bus.clone(),
-                            self.dsm.clone(),
-                            session_id_requests,
-                        ));
-                    }
-                    if !session_info_requests.is_empty() {
-                        tokio::spawn(do_update_session_info(
-                            self.bus.clone(),
-                            self.dsm.clone(),
-                            session_info_requests,
-                        ));
-                    }
+                },
+                ProcessorEvent::ReceivedParaChainState(pairs) => {
+                    self.storage.0.load(pairs.into_iter());
+                    debug!("Applied new full set for processor chain state cache.");
+                },
+                ProcessorEvent::ReceivedParaStorageChanges(changes) => {
+                    let (state_root, transaction) = self.storage.0.calc_root_if_changes(
+                        &changes.main_storage_changes,
+                        &changes.child_storage_changes,
+                    );
+                    self.storage.0.apply_changes(state_root, transaction);
+                    debug!("Applied delta set for processor chain state cache.");
                 },
             }
             let cost = start_time.elapsed().as_micros();
@@ -696,30 +713,6 @@ impl Processor {
                 trace!("[{}] Pending PRuntimeRequest Count: {}", worker.uuid, worker.pending_requests.len());
                 if let Some(request) = worker.pending_requests.pop_front() {
                     self.execute_pruntime_request(worker, request);
-                }
-            },
-            WorkerEvent::UpdateWorkerInfo(worker_info) => {
-                trace!("[{}] Received UpdateWorkerInfo", worker.uuid);
-                worker.worker_info = Some(worker_info);
-            },
-            WorkerEvent::UpdateSessionId(session_id) => {
-                trace!("[{}] Received UpdateSessionId", worker.uuid);
-                worker.update_session_id_count = worker.update_session_id_count.saturating_add(1);
-                if session_id.is_some() {
-                    worker.session_id = session_id;
-                    self.send_worker_status(worker);
-                } else if worker.session_id.is_some() {
-                    warn!("[{}] Received a none session_id, but we already have.", worker.uuid);
-                }
-            },
-            WorkerEvent::UpdateSessionInfo(session_info) => {
-                trace!("[{}] Received UpdateSessionInfo", worker.uuid);
-                worker.update_session_info_count = worker.update_session_info_count.saturating_add(1);
-                if session_info.is_some() {
-                    worker.worker_status.session_info = session_info;
-                    self.send_worker_status(worker);
-                } else if worker.worker_status.session_info.is_some() {
-                    warn!("[{}] Received a none session_info, but we already have.", worker.uuid);
                 }
             },
             WorkerEvent::RepositoryLoadStateRequest => {
@@ -1139,11 +1132,19 @@ impl Processor {
             },
         };
 
-        for (sender, messages) in messages {
+        for (sender, mut messages) in messages {
             if messages.is_empty() {
                 trace!("[{}] Received empty messages for sender {}", worker.uuid, sender);
                 continue;
             }
+
+            let next_mq = self.storage.mq_sequence(&sender);
+            messages.retain(|m| m.sequence >= next_mq);
+            if messages.is_empty() {
+                trace!("[{}] Filtered out messages older than next_mq #{} for sender {}", worker.uuid, next_mq, sender);
+                continue;
+            }
+
             let _ = self.bus.send_messages_event(
                 MessagesEvent::SyncMessages((
                     worker.uuid.clone(),

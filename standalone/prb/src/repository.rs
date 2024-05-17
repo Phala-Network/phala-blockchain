@@ -1,7 +1,6 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use sp_consensus_grandpa::AuthorityList;
 use core::time::Duration;
-use std::borrow::BorrowMut;
 use futures::StreamExt;
 use log::{debug, error, info, trace, warn};
 use phaxt::ChainApi;
@@ -195,6 +194,8 @@ impl Repository {
             warn!("{} keys was deleted.", count);
         }
 
+        let mut full_state_dispatched = false;
+
         'forever: loop {
             let relay_api = match use_relaychain_api!(self.dsm, false) {
                 Some(instance) => instance,
@@ -254,8 +255,31 @@ impl Repository {
                     prev_finalized_at,
                     self.next_number - 1,
                 ).await;
-                if let Err(err) = broadcast_result {
-                    error!("Met error when try to prepare and broadcast headers. {err}");
+                match broadcast_result {
+                    Ok((para_from, para_to)) => {
+                        if para_from <= para_to {
+                            let res = send_storage_changes(
+                                self.bus.clone(),
+                                self.dsm.clone(),
+                                para_from,
+                                para_to,
+                                full_state_dispatched,
+                            ).await;
+                            match res {
+                                Ok(_) => {
+                                    full_state_dispatched = true;
+                                },
+                                Err(err) => {
+                                    error!("Met error when try to prepare parachain state. {err}");
+                                    full_state_dispatched = false;
+                                },
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        error!("Met error when try to prepare and broadcast headers. {err}");
+                        full_state_dispatched = false;
+                    }
                 }
             }
         }
@@ -331,7 +355,13 @@ pub async fn get_load_state_request(
     public_key: Sr25519Public,
     prefer_number: u32,
 ) {
-    let para_api = use_parachain_api!(dsm, true).unwrap();
+    let para_api = match use_parachain_api!(dsm, true) {
+        Some(api) => api,
+        None => {
+            let _ = bus.send_worker_mark_error(worker_id, "No valid non-pruned parachain connection.".to_string());
+            return;
+        },
+    };
     match pherry::chain_client::search_suitable_genesis_for_worker(&para_api, &public_key, Some(prefer_number)).await {
         Ok((block_number, state)) => {
             let request = ChainState::new(block_number, state);
@@ -414,7 +444,7 @@ async fn generate_sync_request(
             return dsm
                 .get_para_headers(info.para_headernum, para_headernum)
                 .await
-                .map(|mut headers| {
+                .map(|headers| {
                     SyncRequest::create_from_para_headers(
                         headers,
                         proof,
@@ -459,7 +489,7 @@ async fn prepare_and_broadcast(
     para_id: u32,
     prev_relaychain_finalized_at: u32,
     curr_relaychain_finalized_at: u32,
-) -> Result<()> {
+) -> Result<(u32, u32)> {
     let relay_api = use_relaychain_api!(dsm, false).expect("should have relaychain api");
     let para_api = use_parachain_api!(dsm, false).expect("should have parachain api");
 
@@ -499,7 +529,6 @@ async fn prepare_and_broadcast(
             relay_to
         )
     } else {
-        let _ = bus.send_processor_event(ProcessorEvent::RequestUpdateSessionInfo);
         let para_headers = pherry::get_parachain_headers(&para_api, None, para_from, para_to).await?;
         info!("Broadcasting header: relaychain from {} to {}, parachain from {} to {}.",
             relay_from, relay_to, para_from, para_to);
@@ -519,5 +548,37 @@ async fn prepare_and_broadcast(
         },
     )));
 
+    Ok((para_from, para_to))
+}
+
+async fn send_storage_changes(
+    bus: Arc<Bus>,
+    dsm: Arc<DataSourceManager>,
+    from: u32,
+    to: u32,
+    full_dispatched: bool,
+) -> Result<()> {
+    if full_dispatched {
+        let changes = dsm.fetch_storage_changes(from, to).await?
+            .into_iter()
+            .map(|b| b.storage_changes.clone())
+            .collect::<Vec<_>>();
+        for change in changes {
+            let _ = bus.send_processor_event(ProcessorEvent::ReceivedParaStorageChanges(change));
+        }
+        info!("Sent # {}-{} storage change to processor for chain state cache.", from, to);
+    } else {
+        let para_api = use_parachain_api!(dsm, true).expect("should have parachain api");
+        let to_hash = para_api
+            .rpc()
+            .block_hash(Some(to.into()))
+            .await
+            .context("Failed to resolve block number")?
+            .ok_or_else(|| anyhow!("Block number {to} not found"))?;
+        let pairs = pherry::chain_client::fetch_genesis_storage_at(&para_api, Some(to_hash)).await?;
+        let _ = bus.send_processor_event(ProcessorEvent::ReceivedParaChainState(pairs));
+        info!("Sent chain state for #{} to processor for chain state cache.", to);
+    }
+    let _ = bus.send_processor_event(ProcessorEvent::RequestUpdateSessionInfo);
     Ok(())
 }
