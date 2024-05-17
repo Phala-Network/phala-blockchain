@@ -264,12 +264,19 @@ pub async fn master_loop(
                         continue;
                     },
                 };
+                let mut send_back_err = None;
                 match sender_context.pending_messages.get_mut(&sequence) {
                     Some(ctx) => {
-                        ctx.state = match &result {
+                        ctx.state = match result {
                             Ok(_) => MessageState::Successful,
                             Err(err) => {
                                 let err_str = err.to_string();
+
+                                // do not show on website if it's the first error
+                                if ctx.prev_try_count > 0 {
+                                    send_back_err = Some(err);
+                                }
+
                                 if err_str.contains("Tx timed out!") {
                                     MessageState::Timeout
                                 } else {
@@ -283,7 +290,7 @@ pub async fn master_loop(
                         continue;
                     },
                 };
-                if let Err(err) = result {
+                if let Some(err) = send_back_err {
                     error!("[{}] sync offchain message completed with error. {}", sender, err);
                     let _ = bus.send_worker_update_message(
                         worker_id,
