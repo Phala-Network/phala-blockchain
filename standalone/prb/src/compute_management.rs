@@ -205,6 +205,10 @@ pub async fn do_register(
         Some(attestation) => attestation,
         None => {
             error!("[{}] Worker has no attestation.", worker_id);
+            let _ = bus.send_worker_mark_error(
+                worker_id,
+                "Failed to register: worker has no attestation".to_string(),
+            );
             return;
         },
     };

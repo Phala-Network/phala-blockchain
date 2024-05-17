@@ -11,7 +11,7 @@ use crate::{use_parachain_api, use_relaychain_api};
 use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState};
 use crate::worker_status::WorkerStatusUpdate;
 use anyhow::Result;
-use chrono::{DateTime, Duration, Timelike, Utc};
+use chrono::{DateTime, Duration, Utc};
 use derive_more::Display;
 use log::{debug, error, info, trace, warn};
 use phactory_api::prpc::{
@@ -804,9 +804,15 @@ impl Processor {
         &mut self,
         worker: &mut WorkerContext,
     ) {
+        let mut status = worker.worker_status.clone();
+        if let Some(info) = status.phactory_info.as_mut() {
+            info.headernum = worker.headernum;
+            info.para_headernum = worker.para_headernum;
+            info.blocknum = worker.blocknum;
+        }
         let _ = self.bus.send_worker_status_event((
             worker.uuid.clone(),
-            WorkerStatusUpdate::Update(worker.worker_status.clone()),
+            WorkerStatusUpdate::Update(status),
         ));
     }
 
