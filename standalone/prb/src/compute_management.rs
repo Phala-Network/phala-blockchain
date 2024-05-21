@@ -146,7 +146,7 @@ impl Processor {
         &mut self,
         worker: &mut WorkerContext,
     ) {
-        if worker.update_session_id_count == 0 {
+        if !worker.session_updated {
             trace!("[{}] Never try updating SessionId. Skip continuing compute management.", worker.uuid);
             return;
         }
@@ -170,11 +170,6 @@ impl Processor {
         &mut self,
         worker: &mut WorkerContext,
     ) {
-        if worker.update_session_info_count == 0 {
-            trace!("[{}] Never try updating SessionInfo. Skip continuing computation determination.", worker.uuid);
-            return;
-        }
-
         if matches!(worker.compute_management_context.as_ref().unwrap().stage, ComputeManagementStage::StartComputing) {
             trace!("[{}] StartComputing has been requested, waiting for session_info", worker.uuid);
             return;

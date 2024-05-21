@@ -9,7 +9,7 @@ use paste::paste;
 use phactory_api::prpc::{HeadersToSync, ParaHeadersToSync};
 use phactory_api::{
     blocks::GenesisBlockInfo,
-    prpc::{Blocks, InitRuntimeRequest, Message},
+    prpc::{InitRuntimeRequest, Message},
 };
 use phala_types::AttestationProvider;
 use phaxt::subxt::rpc::types as subxt_types;

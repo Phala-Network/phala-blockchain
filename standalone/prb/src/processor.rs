@@ -74,8 +74,7 @@ pub struct WorkerContext {
     pub stopped: bool,
 
     pub compute_management_context: Option<ComputeManagementContext>,
-    pub update_session_id_count: usize,
-    pub update_session_info_count: usize,
+    pub session_updated: bool,
 }
 
 impl WorkerContext {
@@ -127,8 +126,7 @@ impl WorkerContext {
             stopped: false,
 
             compute_management_context: None,
-            update_session_id_count: 0,
-            update_session_info_count: 0,
+            session_updated: false,
         }
     }
 
@@ -466,7 +464,7 @@ impl Processor {
         loop {
             let event = match self.rx.recv() {
                 Ok(event) => event,
-                Err(err) => break,
+                Err(_) => break,
             };
 
             let start_time = Instant::now();
@@ -580,10 +578,13 @@ impl Processor {
                             if let Some(session_id) = self.storage.session_id(&public_key) {
                                 worker.worker_status.session_info = self.storage.session_info(&session_id);
                                 worker.session_id = Some(session_id.into());
-                                worker.update_session_info_count = worker.update_session_info_count.saturating_add(1);
+                            } else {
+                                worker.worker_status.session_info = None;
+                                worker.session_id = None;
                             }
-                            worker.update_session_id_count = worker.update_session_id_count.saturating_add(1);
+                            worker.session_updated = true;
                         }
+                        self.send_worker_status(worker);
                     }
                 },
                 ProcessorEvent::ReceivedParaChainState(pairs) => {
@@ -822,11 +823,11 @@ impl Processor {
     ) {
         let _ = self.bus.send_worker_status_event((
             worker.uuid.clone(),
-            WorkerStatusUpdate::UpdateSyncInfo(SyncInfo {
-                headernum: Some(worker.headernum),
-                para_headernum: Some(worker.para_headernum),
-                blocknum: Some(worker.blocknum),
-            }),
+            WorkerStatusUpdate::UpdateSyncInfo((
+                worker.headernum,
+                worker.para_headernum,
+                worker.blocknum,
+            )),
         ));
     }
 

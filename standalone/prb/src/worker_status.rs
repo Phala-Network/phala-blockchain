@@ -1,5 +1,4 @@
 use crate::api::WorkerStatus;
-use crate::processor::SyncInfo;
 use crate::worker::WorkerLifecycleState;
 use crate::wm::WorkerManagerContext;
 use std::sync::Arc;
@@ -10,7 +9,7 @@ pub enum WorkerStatusUpdate {
     Update(WorkerStatus),
     UpdateMessage(String),
     UpdateStateAndMessage((WorkerLifecycleState, String)),
-    UpdateSyncInfo(SyncInfo),
+    UpdateSyncInfo((u32, u32, u32)),
     Delete,
 }
 
@@ -47,23 +46,13 @@ pub async fn update_worker_status(
                     status.last_message = message;
                 });
             },
-            WorkerStatusUpdate::UpdateSyncInfo(sync_info) => {
+            WorkerStatusUpdate::UpdateSyncInfo((headernum, para_headernum, blocknum)) => {
                 status_map.entry(worker_id).and_modify(|status| {
-                    if let Some(headernum) = sync_info.headernum {
-                        status.phactory_info.as_mut().map(|info| {
-                            info.headernum = headernum + 1;
-                        });
-                    }
-                    if let Some(para_headernum) = sync_info.para_headernum {
-                        status.phactory_info.as_mut().map(|info| {
-                            info.para_headernum = para_headernum + 1;
-                        });
-                    }
-                    if let Some(blocknum) = sync_info.blocknum {
-                        status.phactory_info.as_mut().map(|info| {
-                            info.blocknum = blocknum + 1;
-                        });
-                    }
+                    status.phactory_info.as_mut().map(|info| {
+                        info.headernum = headernum;
+                        info.para_headernum = para_headernum;
+                        info.blocknum = blocknum;
+                    });
                 });
 
             },
