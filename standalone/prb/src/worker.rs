@@ -431,6 +431,7 @@ impl WorkerContext {
         Ok(())
     }
 
+    #[allow(unused_assignments)]
     async fn handle_on_preparing(c: WrappedWorkerContext) -> Result<()> {
         set_worker_message!(c, "Reached latest finalized height, start preparing...");
         let (lm, worker, pr) = extract_essential_values!(c);
@@ -519,6 +520,7 @@ impl WorkerContext {
             txm.clone().add_worker(pid, pubkey).await?;
         }
 
+        let mut first_run = true;
         set_worker_message!(c, "Waiting for session info to update...");
         loop {
             let cc = c.clone();
@@ -539,6 +541,30 @@ impl WorkerContext {
                         set_worker_message!(c, "Worker is cooling down!");
                     }
                     _ => {
+                        if first_run {
+                          // Check on-chain stake vs. configured stake and update if different
+                          let stake_query = storage(
+                              "PhalaComputation",
+                              "Stakes",
+                              vec![Value::from_bytes(worker_binding.as_ref().unwrap())],
+                          );
+                          let stake_onchain: Option<u128> = fetch_storage_bytes(&api, &stake_query).await?;
+                          if let Some(onchain_stake) = stake_onchain {
+                            info!("Stake: {:?}, {:?} on-chain", &worker.stake.parse::<u128>().unwrap(), &onchain_stake);
+                            match onchain_stake {
+                              onchain_stake if onchain_stake < worker.stake.parse::<u128>().unwrap() => {
+                                set_worker_message!(c, "Adjusting on-chain stake...");
+                                txm.clone().restart_computing(pid, pubkey, worker.stake).await?;
+                                Self::set_state(c.clone(), WorkerLifecycleState::Working).await;
+                              }
+                              onchain_stake if onchain_stake > worker.stake.parse::<u128>().unwrap() => {
+                                set_worker_message!(c, "Error on-chain stake higher, than configured...");
+                              }
+                              _ => (),
+                            }
+                          }
+                          first_run = false;
+                        }
                         Self::set_state(c.clone(), WorkerLifecycleState::Working).await;
                     }
                 }

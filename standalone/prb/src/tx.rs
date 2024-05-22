@@ -625,6 +625,24 @@ impl TxManager {
         );
         self.clone().send_to_queue(pid, tx_payload, desc).await
     }
+    pub async fn restart_computing(
+        self: Arc<Self>,
+        pid: u64,
+        worker: Sr25519Public,
+        stake: String,
+    ) -> Result<()> {
+        let desc = format!(
+            "Restart computing for 0x{} with stake of {} in pool #{pid}.",
+            worker.encode_hex::<String>(),
+            &stake
+        );
+        let tx_payload = EncodedPayload::new(
+            "PhalaStakePoolv2",
+            "restart_computing",
+            (pid, Encoded(worker.encode()), stake.parse::<u128>()?).encode(),
+        );
+        self.clone().send_to_queue(pid, tx_payload, desc).await
+    }
     pub async fn stop_computing(self: Arc<Self>, pid: u64, worker: Sr25519Public) -> Result<()> {
         let desc = format!(
             "Stop computing for 0x{} in pool #{pid}.",
