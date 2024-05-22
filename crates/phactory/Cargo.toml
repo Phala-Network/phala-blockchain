@@ -26,7 +26,7 @@ phala-mq = { path = "../phala-mq" }
 phala-serde-more = { path = "../phala-serde-more" }
 
 phala-crypto = { path = "../phala-crypto", features = ["getrandom", "stream"] }
-prpc = { path = "../prpc" }
+prpc = { version = "0.1" }
 pink-loader = { path = "../pink/loader" }
 pink-chain-extension = { path = "../pink/chain-extension" }
 pink = { path = "../pink/pink" }

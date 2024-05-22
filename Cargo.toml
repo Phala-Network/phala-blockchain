@@ -53,8 +53,6 @@ members = [
 	"crates/phala-node-rpc-ext",
 	"crates/phala-types",
 	"crates/phala-git-revision",
-	"crates/prpc",
-	"crates/prpc-build",
 	"crates/phactory",
 	"crates/phactory/api",
 	"crates/phactory/pal",
