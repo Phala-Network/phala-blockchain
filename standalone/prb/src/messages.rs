@@ -96,7 +96,7 @@ impl MessageContext {
 }
 
 pub struct SenderContext {
-    sender: MessageOrigin,
+    // sender: MessageOrigin,
     node_next_sequence: u64,
     pending_messages: HashMap<u64, MessageContext>,
 }
@@ -178,7 +178,7 @@ pub async fn master_loop(
                     Vacant(entry) => match next_sequence {
                         Some(next_sequence) => {
                             entry.insert(SenderContext {
-                                sender: sender.clone(),
+                                // sender: sender.clone(),
                                 node_next_sequence: next_sequence,
                                 pending_messages: HashMap::new(),
                             })

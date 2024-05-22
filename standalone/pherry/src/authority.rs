@@ -106,7 +106,7 @@ pub fn verify_with_prev_authority_set(set_id: u64, authorities: &AuthorityList, 
         bail!("Invalid commit target in grandpa justification");
     }
     justification
-        .verify(set_id, &authorities)
+        .verify(set_id, authorities)
         .context("Failed to verify justification")?;
     info!(
         "Verified grandpa justification at block {}, auth_id={}",

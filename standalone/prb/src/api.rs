@@ -182,9 +182,7 @@ async fn handle_get_worker_status(
 ) -> ApiResult<(StatusCode, Json<WorkerStatusResponse>)> {
     let map = ctx.worker_status_map.clone();
     let map = map.lock().await;
-    let workers = map.values()
-        .into_iter()
-        .map(|status| status.clone())
+    let workers = map.values().cloned()
         .collect::<Vec<WorkerStatus>>();
     Ok((StatusCode::OK, Json(WorkerStatusResponse { workers })))
 }

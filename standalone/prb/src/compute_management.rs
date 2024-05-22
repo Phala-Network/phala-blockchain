@@ -67,7 +67,7 @@ impl WorkerContext {
             return ComputeManagementStage::StartComputing;
         }
 
-        return ComputeManagementStage::Completed;
+        ComputeManagementStage::Completed
     }
 }
 
@@ -119,7 +119,7 @@ impl Processor {
             },
         }
 
-        if &worker.compute_management_context.as_ref().unwrap().stage != &next_stage {
+        if worker.compute_management_context.as_ref().unwrap().stage != next_stage {
             info!("[{}] Updating ComputeManagementStage from {} to {}",
                 worker.uuid, worker.compute_management_context.as_ref().unwrap().stage, next_stage);
         }
@@ -161,8 +161,8 @@ impl Processor {
             self.bus.clone(),
             self.txm.clone(),
             worker.uuid.clone(),
-            worker.pool_id.clone(),
-            worker.public_key().unwrap().clone(),
+            worker.pool_id,
+            worker.public_key().unwrap(),
         ));
     }
 
@@ -180,8 +180,8 @@ impl Processor {
             self.bus.clone(),
             self.txm.clone(),
             worker.uuid.clone(),
-            worker.pool_id.clone(),
-            worker.public_key().unwrap().clone(),
+            worker.pool_id,
+            worker.public_key().unwrap(),
             worker.worker_status.worker.stake.clone()
         ));
     }
@@ -245,7 +245,6 @@ pub async fn do_register(
                 worker_id,
                 err.to_string(),
             );
-            return;
         },
     }
 }

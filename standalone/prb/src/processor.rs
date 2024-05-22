@@ -172,10 +172,7 @@ impl WorkerContext {
             .as_ref()
             .map(|info| &info.state);
         match state {
-            Some(state) => match state {
-                WorkerState::Ready => false,
-                _ => true,
-            },
+            Some(state) => !matches!(state, WorkerState::Ready),
             None => false,
         }
     }
@@ -338,6 +335,7 @@ pub enum WorkerEvent {
     MarkError((DateTime<Utc>, String)),
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Display)]
 pub enum ProcessorEvent {
     #[display(fmt = "AddWorker({})", "_0.0.id")]
@@ -442,7 +440,7 @@ impl Processor {
 
             allow_fast_sync: !args.disable_fast_sync,
             pccs_url: args.pccs_url.clone(),
-            pccs_timeout_secs: args.pccs_timeout.clone(),
+            pccs_timeout_secs: args.pccs_timeout,
 
             init_runtime_request_ias: ias_init_runtime_request,
             init_runtime_request_dcap: dcap_init_runtime_request,
@@ -577,7 +575,7 @@ impl Processor {
                             worker.worker_info = Some(worker_info);
                             if let Some(session_id) = self.storage.session_id(&public_key) {
                                 worker.worker_status.session_info = self.storage.session_info(&session_id);
-                                worker.session_id = Some(session_id.into());
+                                worker.session_id = Some(session_id);
                             } else {
                                 worker.worker_status.session_info = None;
                                 worker.session_id = None;
@@ -813,7 +811,7 @@ impl Processor {
         }
         let _ = self.bus.send_worker_status_event((
             worker.uuid.clone(),
-            WorkerStatusUpdate::Update(status),
+            WorkerStatusUpdate::Update(status.into()),
         ));
     }
 
@@ -969,10 +967,10 @@ impl Processor {
                     self.bus.clone(),
                     self.txm.clone(),
                     worker.uuid.clone(),
-                    worker.pool_id.clone(),
+                    worker.pool_id,
                     response,
                     self.pccs_url.clone(),
-                    self.pccs_timeout_secs.clone(),
+                    self.pccs_timeout_secs,
                 ));
             },
             PRuntimeResponse::GetEgressMessages(response) => {
@@ -983,7 +981,7 @@ impl Processor {
                     self.bus.clone(),
                     self.txm.clone(),
                     worker.uuid.clone(),
-                    worker.pool_id.clone(),
+                    worker.pool_id,
                     response,
                 ));
             },
@@ -1099,7 +1097,7 @@ impl Processor {
             self.update_worker_state_and_message(
                 worker,
                 WorkerLifecycleState::HasError(err_msg.to_string()),
-                &err_msg,
+                err_msg,
                 None,
             );
             return;
@@ -1187,18 +1185,18 @@ impl Processor {
                 ));
             },
             WorkerLifecycleCommand::ShouldForceRegister => {
-                self.update_worker_message(worker, &"Requesting ForceRegister...", None);
+                self.update_worker_message(worker, "Requesting ForceRegister...", None);
                 self.add_pruntime_request(
                     worker,
                     PRuntimeRequest::PrepareRegister((true, worker.operator.clone(), true)),
                 );
             },
             WorkerLifecycleCommand::ShouldUpdateEndpoint(endpoints) => {
-                self.update_worker_message(worker, &"Requesting UpdateEndpoint...", None);
+                self.update_worker_message(worker, "Requesting UpdateEndpoint...", None);
                 self.add_pruntime_request(worker, PRuntimeRequest::SignEndpoints(endpoints));
             },
             WorkerLifecycleCommand::ShouldTakeCheckpoint => {
-                self.update_worker_message(worker, &"Requesting TakeCheckpoint...", None);
+                self.update_worker_message(worker, "Requesting TakeCheckpoint...", None);
                 self.add_pruntime_request(worker, PRuntimeRequest::TakeCheckpoint);
             },
         }
@@ -1226,12 +1224,12 @@ async fn dispatch_pruntime_request(
         PRuntimeRequest::PrepareLifecycle => {
             client.get_info(())
                 .await
-                .map(|response| PRuntimeResponse::PrepareLifecycle(response))
+                .map(PRuntimeResponse::PrepareLifecycle)
         },
         PRuntimeRequest::InitRuntime(request) => {
             client.init_runtime(request)
                 .await
-                .map(|response| PRuntimeResponse::InitRuntime(response))
+                .map(PRuntimeResponse::InitRuntime)
         },
         PRuntimeRequest::LoadChainState(request) => {
             client.load_chain_state(request)
@@ -1241,18 +1239,18 @@ async fn dispatch_pruntime_request(
         PRuntimeRequest::Sync(request) => {
             do_sync_request(client, request)
                 .await
-                .map(|response| PRuntimeResponse::Sync(response))
+                .map(PRuntimeResponse::Sync)
         },
         PRuntimeRequest::RegularGetInfo => {
             client.get_info(())
                 .await
-                .map(|response| PRuntimeResponse::RegularGetInfo(response))
+                .map(PRuntimeResponse::RegularGetInfo)
         },
         PRuntimeRequest::PrepareRegister((force_refresh_ra, operator, _)) => {
             let request = GetRuntimeInfoRequest::new(force_refresh_ra, operator);
             client.get_runtime_info(request)
                 .await
-                .map(|response| PRuntimeResponse::PrepareRegister(response))
+                .map(PRuntimeResponse::PrepareRegister)
         },
         PRuntimeRequest::GetEgressMessages => {
             client.get_egress_messages(())

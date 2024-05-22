@@ -6,7 +6,7 @@ use anyhow::Result;
 use tokio::sync::mpsc;
 
 pub enum WorkerStatusUpdate {
-    Update(WorkerStatus),
+    Update(Box<WorkerStatus>),
     UpdateMessage(String),
     UpdateStateAndMessage((WorkerLifecycleState, String)),
     UpdateSyncInfo((u32, u32, u32)),
@@ -33,7 +33,7 @@ pub async fn update_worker_status(
         let mut status_map = status_map.lock().await;
         match update {
             WorkerStatusUpdate::Update(status) => {
-                status_map.insert(worker_id, status);
+                status_map.insert(worker_id, *status);
             },
             WorkerStatusUpdate::UpdateMessage(message) => {
                 status_map.entry(worker_id).and_modify(|status| {
@@ -48,11 +48,11 @@ pub async fn update_worker_status(
             },
             WorkerStatusUpdate::UpdateSyncInfo((headernum, para_headernum, blocknum)) => {
                 status_map.entry(worker_id).and_modify(|status| {
-                    status.phactory_info.as_mut().map(|info| {
+                    if let Some(info) = status.phactory_info.as_mut() {
                         info.headernum = headernum;
                         info.para_headernum = para_headernum;
                         info.blocknum = blocknum;
-                    });
+                    }
                 });
 
             },

@@ -132,7 +132,7 @@ impl DataSourceCacheItem {
                 (e.encoded_len() as f64 * CACHE_SIZE_EXPANSION) as _
             }
             DataSourceCacheItem::StorageChanges(e) => {
-                let mut sum = 0 as usize;
+                let mut sum = 0_usize;
                 for item in e {
                     sum += item.encoded_size();
                 }
@@ -704,7 +704,7 @@ impl DataSourceManager {
             pherry::fetch_storage_changes(&para_api, None, from, to).await
         }?;
 
-        let ret = ret.into_iter().map(|b| Arc::new(b)).collect::<Vec<_>>();
+        let ret = ret.into_iter().map(Arc::new).collect::<Vec<_>>();
         Ok(Arc::new(DataSourceCacheItem::StorageChanges(ret)))
     }
     pub async fn fetch_storage_changes(self: Arc<Self>, from: u32, to: u32) -> Result<Vec<Arc<phactory_api::blocks::BlockHeaderWithChanges>>> {

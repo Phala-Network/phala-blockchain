@@ -301,9 +301,9 @@ impl Repository {
                 break Ok(())
             }
 
-            let mut try_count = 0 as usize;
+            let mut try_count = 0_usize;
             let headers = loop {
-                let headers = pherry::get_headers(&relay_api, self.next_number).await?;
+                let headers = pherry::get_headers(relay_api, self.next_number).await?;
                 let last_header = headers.last().unwrap();
                 debug!("Got {} headers from node. Last one: #{}", headers.len(), last_header.header.number);
                 let justifications = last_header.justification.as_ref().expect("last header from proof api should has justification");
@@ -507,13 +507,13 @@ async fn prepare_and_broadcast(
     if headers.last().expect("should have headers").header.number != relay_to {
         return Err(anyhow!("first header from DB is not match the prev one"));
     }
-    let relay_to_hash = (&headers.last().unwrap().header).hash();
+    let relay_to_hash = headers.last().unwrap().header.hash();
 
     let (para_prev, _) = get_para_headernum(dsm.clone(), prev_relaychain_finalized_at).await?
-        .expect(&format!("Unknown para header for relay #{prev_relaychain_finalized_at}"));
-    let (para_header, proof) = pherry::get_finalized_header_with_paraid(&relay_api, para_id, relay_to_hash.clone())
+        .unwrap_or_else(|| panic!("Unknown para header for relay #{prev_relaychain_finalized_at}"));
+    let (para_header, proof) = pherry::get_finalized_header_with_paraid(&relay_api, para_id, relay_to_hash)
         .await?
-        .expect(&format!("Unknown para header for relay #{relay_to} {relay_to_hash}"));
+        .unwrap_or_else(|| panic!("Unknown para header for relay #{relay_to} {relay_to_hash}"));
     let para_to = para_header.number;
 
     if para_to < para_prev {

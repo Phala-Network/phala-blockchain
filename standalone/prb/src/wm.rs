@@ -59,7 +59,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         dsm.clone(),
         headers_db.clone(),
     ).await.unwrap();
-    let _ = repository.background(true, args.verify_saved_headers).await.unwrap();
+    repository.background(true, args.verify_saved_headers).await.unwrap();
 
     if args.download_headers_only {
         headers_db.cancel_all_background_work(true);

@@ -11,7 +11,7 @@ fn encode_u32(val: u32) -> [u8; 4] {
     use byteorder::{ByteOrder, BigEndian};
     let mut buf = [0; 4];
     BigEndian::write_u32(&mut buf, val);
-    return buf;
+    buf
 }
 
 pub fn find_valid_num(db: &DB, start_at: u32, set_id: u64, need_verify: bool) -> (u32, u64, Option<AuthorityList>) {
@@ -33,6 +33,7 @@ pub fn find_valid_num(db: &DB, start_at: u32, set_id: u64, need_verify: bool) ->
     (next_number, current_set_id, current_authorities)
 }
 
+#[allow(clippy::type_complexity)]
 pub fn verify(
     result: core::result::Result<(Box<[u8]>, Box<[u8]>), rocksdb::Error>,
     set_id: u64,
@@ -80,8 +81,10 @@ pub fn get_current_point(db: Arc<DB>, num: u32) -> Option<HeadersToSync> {
     if let Some(Ok((_, value))) = iter.next() {
         match HeadersToSync::decode(&mut &value[..]) {
             Ok(headers) => return Some(headers),
-            Err(_) => {},
-        };
+            Err(err) => {
+                error!("Failed to decode HeadersToSync. {err}");
+            },
+        }
     }
     None
 }
@@ -91,8 +94,10 @@ pub fn get_previous_authority_set_change_number(db: Arc<DB>, num:u32) -> Option<
     if let Some(Ok((_, value))) = iter.next() {
         match HeadersToSync::decode(&mut &value[..]) {
             Ok(headers) => return Some(headers.last().unwrap().header.number),
-            Err(_) => {},
-        };
+            Err(err) => {
+                error!("Failed to decode HeadersToSync. {err}");
+            },
+        }
     }
     None
 }
@@ -167,12 +172,10 @@ pub fn delete_from(
     headers_db: &DB,
     next_number: u32,
 ) -> u32 {
-    let mut count = 0 as u32;
-    for result in headers_db.iterator(rocksdb::IteratorMode::From(&encode_u32(next_number), rocksdb::Direction::Forward)) {
-        if let Ok((key, _)) = result {
-            let _ = headers_db.delete(key);
-            count += 1;
-        }
+    let mut count = 0_u32;
+    for (key, _) in headers_db.iterator(rocksdb::IteratorMode::From(&encode_u32(next_number), rocksdb::Direction::Forward)).flatten() {
+        let _ = headers_db.delete(key);
+        count += 1;
     }
     count
 }
