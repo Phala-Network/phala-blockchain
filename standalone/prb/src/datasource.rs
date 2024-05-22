@@ -5,6 +5,7 @@ use jsonrpsee::{
     client_transport::ws::{Uri, WsTransportClientBuilder},
 };
 use log::{debug, error, info, warn};
+use parity_scale_codec::Encode;
 use paste::paste;
 use phactory_api::prpc::{HeadersToSync, ParaHeadersToSync};
 use phactory_api::{
@@ -133,7 +134,7 @@ impl DataSourceCacheItem {
             DataSourceCacheItem::StorageChanges(e) => {
                 let mut sum = 0 as usize;
                 for item in e {
-                    sum += size_of_val(&(*item));
+                    sum += item.encoded_size();
                 }
                 (sum as f64 * CACHE_SIZE_EXPANSION) as _
             }
@@ -145,7 +146,7 @@ impl DataSourceCacheItem {
                 }
             },
             DataSourceCacheItem::ParaHeader(e) => {
-                std::mem::size_of_val(e) + 16
+                (e.encoded_size() as f64 * CACHE_SIZE_EXPANSION) as _
             },
             DataSourceCacheItem::ParaHeadersToSyncWithoutProof(e) => {
                 (e.encoded_len() as f64 * CACHE_SIZE_EXPANSION) as _
