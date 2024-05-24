@@ -23,42 +23,45 @@ pub async fn update_worker_status(
     mut rx: WorkerStatusRx,
 ) -> Result<()> {
     loop {
-        let event = rx.recv().await;
-        if event.is_none() {
+        let mut events = vec![];
+        let received_count = rx.recv_many(&mut events, 65536).await;
+        if received_count == 0 {
             break
         }
 
-        let (worker_id, update) = event.unwrap();
         let status_map = ctx.worker_status_map.clone();
         let mut status_map = status_map.lock().await;
-        match update {
-            WorkerStatusUpdate::Update(status) => {
-                status_map.insert(worker_id, *status);
-            },
-            WorkerStatusUpdate::UpdateMessage(message) => {
-                status_map.entry(worker_id).and_modify(|status| {
-                    status.last_message = message;
-                });
-            },
-            WorkerStatusUpdate::UpdateStateAndMessage((state, message)) => {
-                status_map.entry(worker_id).and_modify(|status| {
-                    status.state = state;
-                    status.last_message = message;
-                });
-            },
-            WorkerStatusUpdate::UpdateSyncInfo((headernum, para_headernum, blocknum)) => {
-                status_map.entry(worker_id).and_modify(|status| {
-                    if let Some(info) = status.phactory_info.as_mut() {
-                        info.headernum = headernum;
-                        info.para_headernum = para_headernum;
-                        info.blocknum = blocknum;
-                    }
-                });
 
-            },
-            WorkerStatusUpdate::Delete => {
-                status_map.remove(&worker_id);
-            },
+        for (worker_id, update) in events {
+            match update {
+                WorkerStatusUpdate::Update(status) => {
+                    status_map.insert(worker_id, *status);
+                },
+                WorkerStatusUpdate::UpdateMessage(message) => {
+                    status_map.entry(worker_id).and_modify(|status| {
+                        status.last_message = message;
+                    });
+                },
+                WorkerStatusUpdate::UpdateStateAndMessage((state, message)) => {
+                    status_map.entry(worker_id).and_modify(|status| {
+                        status.state = state;
+                        status.last_message = message;
+                    });
+                },
+                WorkerStatusUpdate::UpdateSyncInfo((headernum, para_headernum, blocknum)) => {
+                    status_map.entry(worker_id).and_modify(|status| {
+                        if let Some(info) = status.phactory_info.as_mut() {
+                            info.headernum = headernum;
+                            info.para_headernum = para_headernum;
+                            info.blocknum = blocknum;
+                        }
+                    });
+
+                },
+                WorkerStatusUpdate::Delete => {
+                    status_map.remove(&worker_id);
+                },
+            }
         }
         drop(status_map);
     }
