@@ -483,6 +483,10 @@ impl Processor {
                                 let _ = self.bus.send_messages_event(
                                     MessagesEvent::RemoveSender(MessageOrigin::Worker(public_key))
                                 );
+                                let _ = self.bus.send_worker_status_event((
+                                    worker_id.clone(),
+                                    WorkerStatusUpdate::Delete
+                                ));
                             }
                         },
                         None => {
@@ -617,9 +621,12 @@ impl Processor {
                 if worker.worker_status.worker.endpoint != updated_worker.endpoint {
                     worker.client = Arc::new(crate::pruntime::create_client(updated_worker.endpoint.clone()));
                 }
-                if worker.worker_status.worker.enabled != updated_worker.enabled {
-                    let message = format!("Restarting due to switching {}, need to wait about {} seconds",
-                        if updated_worker.enabled { "enabled" } else { "disabled" },
+                if worker.worker_status.worker.enabled != updated_worker.enabled ||
+                    worker.worker_status.worker.sync_only != updated_worker.sync_only
+                {
+                    let message = format!("Restarting due to switching {}, {}, need to wait about {} seconds",
+                        if updated_worker.enabled { "Enabled" } else { "Disabled" },
+                        if updated_worker.sync_only { "SyncOnly" } else { "Compute" },
                         RESTART_WORKER_COOL_PERIOD.num_seconds() + 5
                     );
                     self.update_worker_state_and_message(worker, WorkerLifecycleState::Restarting, &message, None);
