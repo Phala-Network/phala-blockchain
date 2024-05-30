@@ -424,7 +424,7 @@ impl Processor {
         let dcap_init_runtime_request = dsm.clone().get_init_runtime_default_request(Some(phala_types::AttestationProvider::Dcap)).await.unwrap();
 
         let mut storage = Storage::default();
-        let pairs = pherry::chain_client::fetch_genesis_storage_at(
+        let pairs = pherry::chain_client::fetch_storage_at(
             &use_parachain_api!(dsm, false).unwrap(),
             None,
         ).await.unwrap();

@@ -74,16 +74,20 @@ pub async fn fetch_storage_changes(
 /// Fetch the genesis storage.
 pub async fn fetch_genesis_storage(api: &ParachainApi) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
     let hash = Some(api.genesis_hash());
-    fetch_genesis_storage_at(api, hash).await
+    fetch_storage_at(api, hash).await
 }
 
-pub async fn fetch_genesis_storage_at(
+pub async fn fetch_storage_at(
     api: &ParachainApi,
     hash: Option<sp_core::H256>,
 ) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
+    let hash = match hash {
+        Some(h) => h,
+        None => api.rpc().finalized_head().await?,
+    };
     let response = api
         .extra_rpc()
-        .storage_pairs(StorageKey(vec![]), hash)
+        .storage_pairs(StorageKey(vec![]), Some(hash))
         .await?;
     let storage = response.into_iter().map(|(k, v)| (k.0, v.0)).collect();
     Ok(storage)
@@ -139,7 +143,7 @@ pub async fn search_suitable_genesis_for_worker(
         .await
         .context("Failed to resolve block number")?
         .ok_or_else(|| anyhow::anyhow!("Block number {block} not found"))?;
-    let genesis = fetch_genesis_storage_at(api, Some(block_hash))
+    let genesis = fetch_storage_at(api, Some(block_hash))
         .await
         .context("Failed to fetch genesis storage")?;
     Ok((block, genesis))

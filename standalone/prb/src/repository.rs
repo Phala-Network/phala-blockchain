@@ -575,7 +575,7 @@ async fn send_storage_changes(
             .await
             .context("Failed to resolve block number")?
             .ok_or_else(|| anyhow!("Block number {to} not found"))?;
-        let pairs = pherry::chain_client::fetch_genesis_storage_at(&para_api, Some(to_hash)).await?;
+        let pairs = pherry::chain_client::fetch_storage_at(&para_api, Some(to_hash)).await?;
         let _ = bus.send_processor_event(ProcessorEvent::ReceivedParaChainState(pairs));
         info!("Sent chain state for #{} to processor for chain state cache.", to);
     }
