@@ -201,16 +201,8 @@ impl WorkerContext {
         chaintip: &ChaintipInfo,
     ) -> bool {
         self.blocknum == self.para_headernum
-            && self.headernum == chaintip.relaychain + 1
-            && self.para_headernum == chaintip.parachain + 1
-    }
-
-    pub fn is_reached_para_chaintip(
-        &self,
-        chaintip: &ChaintipInfo,
-    ) -> bool {
-        self.blocknum == self.para_headernum
-            &&self.para_headernum == chaintip.parachain + 1
+            && self.headernum > chaintip.relaychain
+            && self.para_headernum > chaintip.parachain
     }
 
     pub fn is_sync_only(&self) -> bool {
@@ -552,6 +544,8 @@ impl Processor {
                                 worker.pending_broadcast = false;
                                 trace!("[{}] Accepted BroadcastSyncRequest", worker.uuid);
                                 self.add_pruntime_request(worker, PRuntimeRequest::Sync(request.clone()));
+                            } else {
+                                debug!("[{}] Worker is at chaintip but not match the incoming BroadcastSync request.", worker.uuid);
                             }
                         } else {
                             worker.pending_broadcast = false;
@@ -864,6 +858,7 @@ impl Processor {
                     self.request_next_sync(worker);
                 } else {
                     trace!("[{}] Ignoring the empty sync request.", worker.uuid);
+                    worker.pending_broadcast = true;
                 }
                 return;
             } else if !worker.is_match(&sync_request.manifest) {
