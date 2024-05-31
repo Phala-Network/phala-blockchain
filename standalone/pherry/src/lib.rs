@@ -23,6 +23,7 @@ use sp_consensus_grandpa::SetId;
 use subxt::config::{substrate::Era, Header as _};
 
 pub use authority::get_authority_with_proof_at;
+pub use authority::verify_with_prev_authority_set;
 
 mod authority;
 mod endpoint;
@@ -503,8 +504,6 @@ async fn req_dispatch_block(
 
 const GRANDPA_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"FRNK";
 
-#[allow(clippy::too_many_arguments)]
-
 pub async fn get_finalized_header(
     api: &RelaychainApi,
     para_api: &ParachainApi,
@@ -514,7 +513,7 @@ pub async fn get_finalized_header(
     get_finalized_header_with_paraid(api, para_id, last_header_hash).await
 }
 
-async fn get_finalized_header_with_paraid(
+pub async fn get_finalized_header_with_paraid(
     api: &RelaychainApi,
     para_id: u32,
     last_header_hash: Hash,
@@ -545,7 +544,7 @@ async fn get_finalized_header_with_paraid(
     Ok(Some((para_fin_header, header_proof)))
 }
 
-async fn get_parachain_header_from_relaychain_at(
+pub async fn get_parachain_header_from_relaychain_at(
     relay_api: &RelaychainApi,
     para_api: &ParachainApi,
     cache_client: &Option<CacheClient>,
@@ -576,11 +575,10 @@ async fn get_parachain_header_from_relaychain_at(
     Err(anyhow!("No parachain header was found at {}", block_number))
 }
 
-async fn sync_headers(
-    pr: &PrClient,
+pub async fn get_headers(
     api: &RelaychainApi,
     from: BlockNumber,
-) -> Result<()> {
+) -> Result<Vec<HeaderToSync>> {
     let first_header = get_header_at(api, Some(from)).await?;
     let mut headers = vec![
         HeaderToSync {
@@ -601,14 +599,65 @@ async fn sync_headers(
     );
 
     let last_header = headers.last_mut().expect("Already filled at least one header");
-    let last_number = last_header.header.number;
     last_header.justification = Some(finality_proof.justification);
 
-    info!("sending a batch of {} headers (last: {})", headers.len(), last_number);
+    Ok(headers)
+}
+
+async fn sync_headers(
+    pr: &PrClient,
+    api: &RelaychainApi,
+    from: BlockNumber,
+) -> Result<()> {
+    let headers = get_headers(api, from).await?;
+
+    info!("sending a batch of {} headers (last: {})", headers.len(), headers.last().unwrap().header.number);
     let relay_synced_to = req_sync_header(pr, headers).await?;
     info!("  ..sync_header: {:?}", relay_synced_to);
 
     Ok(())
+}
+
+pub async fn get_parachain_headers(
+    para_api: &ParachainApi,
+    cache: Option<&CacheClient>,
+    from: BlockNumber,
+    to: BlockNumber,
+) -> Result<Vec<Header>> {
+    let mut para_headers = if let Some(cache) = cache {
+        let count = to - from + 1;
+        cache
+            .get_parachain_headers(from, count)
+            .await
+            .unwrap_or_default()
+    } else {
+        vec![]
+    };
+    if para_headers.is_empty() {
+        info!("parachain headers not found in cache");
+        for b in from..=to {
+            info!("fetching parachain header {}", b);
+            let num = subxt::rpc::types::BlockNumber::from(NumberOrHex::Number(b.into()));
+            let hash = para_api.rpc().block_hash(Some(num)).await?;
+            let hash = match hash {
+                Some(hash) => hash,
+                None => {
+                    info!("Hash not found for block {}, fetch it next turn", b);
+                    return Ok(para_headers);
+                }
+            };
+            let header = para_api
+                .rpc()
+                .header(Some(hash))
+                .await?
+                .ok_or(Error::BlockNotFound)?;
+            para_headers.push(header.convert_to());
+        }
+    } else {
+        info!("Got {} parachain headers from cache", para_headers.len());
+    }
+    Ok(para_headers)
+
 }
 
 async fn sync_parachain_header(
@@ -626,37 +675,9 @@ async fn sync_parachain_header(
     if next_headernum > para_fin_block_number {
         return Ok(next_headernum - 1);
     }
-    let mut para_headers = if let Some(cache) = cache {
-        let count = para_fin_block_number - next_headernum + 1;
-        cache
-            .get_parachain_headers(next_headernum, count)
-            .await
-            .unwrap_or_default()
-    } else {
-        vec![]
-    };
+    let para_headers = get_parachain_headers(para_api, cache, next_headernum, para_fin_block_number).await?;
     if para_headers.is_empty() {
-        info!("parachain headers not found in cache");
-        for b in next_headernum..=para_fin_block_number {
-            info!("fetching parachain header {}", b);
-            let num = subxt::rpc::types::BlockNumber::from(NumberOrHex::Number(b.into()));
-            let hash = para_api.rpc().block_hash(Some(num)).await?;
-            let hash = match hash {
-                Some(hash) => hash,
-                None => {
-                    info!("Hash not found for block {}, fetch it next turn", b);
-                    return Ok(next_headernum - 1);
-                }
-            };
-            let header = para_api
-                .rpc()
-                .header(Some(hash))
-                .await?
-                .ok_or(Error::BlockNotFound)?;
-            para_headers.push(header.convert_to());
-        }
-    } else {
-        info!("Got {} parachain headers from cache", para_headers.len());
+        return Ok(next_headernum - 1)
     }
     let r = req_sync_para_header(pr, para_headers, header_proof).await?;
     info!("..req_sync_para_header: {:?}", r);

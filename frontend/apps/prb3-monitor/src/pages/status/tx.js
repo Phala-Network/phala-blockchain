@@ -138,7 +138,7 @@ export default function WorkerStatusPage() {
         <div className={css({height: '100%', margin: '0 20px 20px'})}>
           <StatefulDataTable
             initialSortIndex={0}
-            initialSortDirection="ASC"
+            initialSortDirection="DESC"
             resizableColumnWidths
             columns={columns}
             rows={data?.txs || []}

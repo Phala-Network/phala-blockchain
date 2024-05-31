@@ -3,26 +3,24 @@ use crate::datasource::WrappedDataSourceManager;
 pub use crate::khala;
 use crate::khala::runtime_types::khala_parachain_runtime::ProxyType;
 use crate::khala::utility::events::ItemFailed;
+use crate::pool_operator::*;
 use crate::tx::TxManagerError::*;
 use crate::use_parachain_api;
 use anyhow::{anyhow, Error, Result};
 use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 use hex::ToHex;
-use lazy_static::lazy_static;
 use log::{debug, error};
 use moka_cht::HashMap;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Encode;
 use phactory_api::prpc::GetEndpointResponse;
 use phala_types::messaging::SignedMessage;
 use phaxt::dynamic::tx::EncodedPayload;
+use phaxt::rpc::ExtraRpcExt;
 use pherry::mk_params;
-use rocksdb::{DBCompactionStyle, DBWithThreadMode, MultiThreaded, Options};
-use schnorrkel::keys::Keypair;
 use serde::{Deserialize, Serialize};
-use sp_core::crypto::{AccountId32, Ss58AddressFormat, Ss58Codec};
-use sp_core::sr25519::{Pair as Sr25519Pair, Public as Sr25519Public};
-use sp_core::Pair;
+use sp_core::crypto::AccountId32;
+use sp_core::sr25519::Public as Sr25519Public;
 use std::collections::{HashMap as StdHashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
 use std::path::Path;
@@ -36,46 +34,12 @@ use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
 
-static PHALA_SS58_FORMAT_U8: u8 = 30;
-static TX_LONGEVITY: u64 = 16;
+static TX_LONGEVITY: u64 = 4;
 static TX_TIP: u128 = 0;
-
-lazy_static! {
-    static ref PHALA_SS58_FORMAT: Ss58AddressFormat = Ss58AddressFormat::from(PHALA_SS58_FORMAT_U8);
-}
 
 static TX_QUEUE_CHUNK_SIZE: usize = 30;
 static TX_QUEUE_CHUNK_TIMEOUT_IN_MS: u64 = 1000;
-static TX_TIMEOUT: u64 = 30000;
-
-static PO_LIST: &str = "po_list";
-static PO_BY_PID: &str = "po:pid:";
-
-pub type DB = DBWithThreadMode<MultiThreaded>;
-
-pub fn get_options(max_open_files: Option<i32>) -> Options {
-    // Current tuning based off of the total ordered example, flash
-    // storage example on
-    // https://github.com/facebook/rocksdb/wiki/RocksDB-Tuning-Guide
-    let mut opts = Options::default();
-    opts.create_if_missing(true);
-    opts.set_compaction_style(DBCompactionStyle::Level);
-    opts.set_write_buffer_size(67_108_864); // 64mb
-    opts.set_max_write_buffer_number(3);
-    opts.set_target_file_size_base(67_108_864); // 64mb
-    opts.set_level_zero_file_num_compaction_trigger(8);
-    opts.set_level_zero_slowdown_writes_trigger(17);
-    opts.set_level_zero_stop_writes_trigger(24);
-    opts.set_num_levels(4);
-    opts.set_max_bytes_for_level_base(536_870_912); // 512mb
-    opts.set_max_bytes_for_level_multiplier(8.0);
-
-    if let Some(max_open_files) = max_open_files {
-        opts.set_max_open_files(max_open_files);
-    }
-
-    opts
-}
+static TX_TIMEOUT_SECS: u64 = 60;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum TransactionState {
@@ -313,10 +277,13 @@ impl TxManager {
             }
 
             for (pid, v) in tx_map {
-                if let Err(e) = self.clone().wrap_send_tx_group(pid, v).await {
-                    error!("wrap_send_tx_group: {e}");
-                    std::process::exit(255);
-                }
+                let txm = self.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = txm.wrap_send_tx_group(pid, v).await {
+                        error!("wrap_send_tx_group: {e}");
+                        std::process::exit(255);
+                    }
+                });
             }
 
             let mut running_txs = self.running_txs.lock().await;
@@ -431,34 +398,25 @@ impl TxManager {
 
         let mut encoded = Vec::new();
         call.encode_call_data_to(&metadata, &mut encoded)?;
-        debug!("sending tx: 0x{}, with nonce={}", hex::encode(&encoded), api.tx().account_nonce(signer.account_id()).await?);
+        let nonce = api.extra_rpc().account_nonce(signer.account_id()).await?;
+        debug!("sending tx: 0x{}, with nonce={}", hex::encode(&encoded), nonce);
 
-        // In pRBv3, transactions are queued, there is always only 1 running transaction for each pool,
-        // and a dedicate account is always required for each pRB/pherry instance,
-        // hence we should not worry about nonce and use the expected value on the chain storage.
         let params = mk_params(&api, TX_LONGEVITY, TX_TIP).await?;
-        let tx = api
+        let tx_progress = api
             .tx()
-            .create_signed(&call, &signer, params)
-            .await?
+            .create_signed_with_nonce(&call, &signer, nonce, params)?
             .submit_and_watch()
             .await?;
 
-        let tx = tokio::select! {
-            t = tx.wait_for_in_block() => {
-                Some(t?)
-            }
-            _ = tokio::time::sleep(Duration::from_millis(TX_TIMEOUT)) => {
-                None
-            }
+        let tx_and_timeout = tokio::spawn(tokio::time::timeout(
+            Duration::from_secs(TX_TIMEOUT_SECS),
+            tx_progress.wait_for_finalized()
+        )).await?;
+        let tx = match tx_and_timeout {
+            Ok(tx) => tx,
+            Err(_) => anyhow::bail!("Tx timed out!"),
         };
-
-        let tx = if let Some(tx) = tx {
-            tx
-        } else {
-            anyhow::bail!("Tx timed out!");
-        };
-        let tx = tx.wait_for_success().await?;
+        let tx = tx?.wait_for_success().await?;
 
         if proxied {
             let event_proxy = tx
@@ -534,7 +492,7 @@ impl TxManager {
         let mut pending_txs = self.pending_txs.lock().await;
 
         let id = self.tx_count.fetch_add(1, Ordering::SeqCst);
-        debug!("send_to_queue: {:?}", &id);
+        debug!("send_to_queue: {:?}, desc: {}", id, desc);
 
         pending_txs.push_back(id);
         drop(pending_txs);
@@ -592,7 +550,8 @@ impl TxManager {
     ) -> Result<()> {
         let encoded = signed_message.encode();
         let tx_payload = EncodedPayload::new("PhalaMq", "sync_offchain_message", encoded);
-        let desc = format!("Sync offchain message to chain for pool #{pid}.");
+        let desc = format!("Sync offchain message #{} from {}.",
+            signed_message.sequence, signed_message.message.sender);
         self.clone().send_to_queue(pid, tx_payload, desc).await
     }
     pub async fn add_worker(self: Arc<Self>, pid: u64, pubkey: Sr25519Public) -> Result<()> {
@@ -636,124 +595,5 @@ impl TxManager {
             (pid, Encoded(worker.encode())).encode(),
         );
         self.clone().send_to_queue(pid, tx_payload, desc).await
-    }
-}
-
-#[derive(Clone)]
-pub struct PoolOperator {
-    pub pid: u64,
-    pub pair: Sr25519Pair,
-    pub proxied: Option<AccountId32>,
-}
-
-#[derive(Clone, Encode, Decode)]
-pub struct PoolOperatorForEncode {
-    pub pid: u64,
-    pub pair: [u8; 96],
-    pub proxied: Option<AccountId32>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct PoolOperatorForSerialize {
-    pub pid: u64,
-    pub operator_account_id: String,
-    pub proxied_account_id: Option<String>,
-}
-
-impl From<&PoolOperator> for PoolOperatorForSerialize {
-    fn from(v: &PoolOperator) -> Self {
-        let operator_account_id: AccountId32 = v.pair.public().into();
-        let operator_account_id = operator_account_id.to_ss58check_with_version(*PHALA_SS58_FORMAT);
-        let proxied_account_id = v
-            .proxied
-            .as_ref()
-            .map(|a| a.to_ss58check_with_version(*PHALA_SS58_FORMAT));
-        Self {
-            pid: v.pid,
-            operator_account_id,
-            proxied_account_id,
-        }
-    }
-}
-
-impl From<&PoolOperator> for PoolOperatorForEncode {
-    fn from(v: &PoolOperator) -> Self {
-        let pair = v.pair.as_ref().to_bytes();
-        Self {
-            pid: v.pid,
-            pair,
-            proxied: v.proxied.clone(),
-        }
-    }
-}
-
-impl From<&PoolOperatorForEncode> for PoolOperator {
-    fn from(v: &PoolOperatorForEncode) -> Self {
-        let pair = Sr25519Pair::from(Keypair::from_bytes(v.pair.as_ref()).expect("parse key"));
-        Self {
-            pid: v.pid,
-            pair,
-            proxied: v.proxied.clone(),
-        }
-    }
-}
-
-pub trait PoolOperatorAccess {
-    fn get_pid_list(&self) -> Result<Vec<u64>>;
-    fn set_pid_list(&self, new_list: Vec<u64>) -> Result<Vec<u64>>;
-    fn get_all_po(&self) -> Result<Vec<PoolOperator>>;
-    fn get_po(&self, pid: u64) -> Result<Option<PoolOperator>>;
-    fn set_po(&self, pid: u64, po: PoolOperator) -> Result<PoolOperator>;
-}
-
-impl PoolOperatorAccess for DB {
-    fn get_pid_list(&self) -> Result<Vec<u64>> {
-        let key = PO_LIST.to_string();
-        let l = self.get(key)?;
-        if l.is_none() {
-            return Ok(Vec::new());
-        }
-        let mut l = &l.unwrap()[..];
-        let l: Vec<u64> = Vec::decode(&mut l)?;
-        Ok(l)
-    }
-    fn set_pid_list(&self, new_list: Vec<u64>) -> Result<Vec<u64>> {
-        let key = PO_LIST.to_string();
-        let b = new_list.encode();
-        self.put(key, b)?;
-        self.get_pid_list()
-    }
-    fn get_all_po(&self) -> Result<Vec<PoolOperator>> {
-        let curr_pid_list = self.get_pid_list()?;
-        let mut ret = Vec::new();
-        for id in curr_pid_list {
-            let i = self
-                .get_po(id)?
-                .ok_or(anyhow!(format!("po record #{id} not found!")))?;
-            ret.push(i);
-        }
-        Ok(ret)
-    }
-    fn get_po(&self, pid: u64) -> Result<Option<PoolOperator>> {
-        let key = format!("{PO_BY_PID}:{pid}");
-        let b = self.get(key)?;
-        if b.is_none() {
-            return Ok(None);
-        }
-        let mut b = &b.unwrap()[..];
-        let po = PoolOperatorForEncode::decode(&mut b)?;
-        Ok(Some((&po).into()))
-    }
-    fn set_po(&self, pid: u64, po: PoolOperator) -> Result<PoolOperator> {
-        let mut pl = self.get_pid_list()?;
-        pl.retain(|&i| i != pid);
-        pl.push(pid);
-        let key = format!("{PO_BY_PID}:{pid}");
-        let b = PoolOperatorForEncode::from(&po);
-        let b = b.encode();
-        self.put(key, b)?;
-        let r = self.get_po(pid)?;
-        let _ = self.set_pid_list(pl)?;
-        Ok(r.unwrap())
     }
 }

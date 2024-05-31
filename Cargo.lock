@@ -1982,9 +1982,9 @@ dependencies = [
 
 [[package]]
 name = "chrono"
-version = "0.4.31"
+version = "0.4.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f2c685bad3eb3d45a01354cedb7d5faa66194d1d58ba6e267a8de788f79db38"
+checksum = "8eaf5903dcbc0a39312feb77df2ff4c76387d591b9fc7b04a238dcf8bb62639a"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
@@ -1992,7 +1992,7 @@ dependencies = [
  "num-traits",
  "serde",
  "wasm-bindgen",
- "windows-targets 0.48.0",
+ "windows-targets 0.52.3",
 ]
 
 [[package]]
@@ -10921,8 +10921,10 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
+ "byteorder",
  "chrono",
  "clap 4.4.12",
+ "derive_more",
  "env_logger 0.10.0",
  "futures",
  "hex",
@@ -10936,11 +10938,15 @@ dependencies = [
  "paste",
  "phactory-api",
  "phala-git-revision",
+ "phala-node-runtime",
  "phala-pallets",
+ "phala-trie-storage",
  "phala-types",
  "phaxt",
  "pherry",
+ "prpc",
  "rand 0.8.5",
+ "rayon",
  "reqwest",
  "rocksdb",
  "schnorrkel",
@@ -10949,8 +10955,11 @@ dependencies = [
  "serde_yaml",
  "sp-consensus-grandpa",
  "sp-core 21.0.0",
+ "sp-externalities 0.19.0",
+ "sp-state-machine",
  "subxt",
  "thiserror",
+ "thread-priority",
  "tokio",
  "tokio-stream",
  "url",
@@ -11642,9 +11651,9 @@ checksum = "60a357793950651c4ed0f3f52338f53b2f809f32d83a07f72909fa13e4c6c1e3"
 
 [[package]]
 name = "rayon"
-version = "1.7.0"
+version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d2df5196e37bcc87abebc0053e20787d73847bb33134a69841207dd0a47f03b"
+checksum = "b418a60154510ca1a002a752ca9714984e21e4241e804d32555251faf8b78ffa"
 dependencies = [
  "either",
  "rayon-core",
@@ -11652,14 +11661,12 @@ dependencies = [
 
 [[package]]
 name = "rayon-core"
-version = "1.11.0"
+version = "1.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b8f95bd6966f5c87776639160a66bd8ab9895d9d4ab01ddba9fc60661aebe8d"
+checksum = "1465873a3dfdaa8ae7cb14b4383657caab0b3e8a0aa9ae8e04b044854c8dfce2"
 dependencies = [
- "crossbeam-channel",
  "crossbeam-deque",
  "crossbeam-utils",
- "num_cpus",
 ]
 
 [[package]]
@@ -14981,7 +14988,7 @@ dependencies = [
 [[package]]
 name = "sp-crypto-ec-utils"
 version = "0.10.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cc1e6ac301ea88e3cb3253a84e4c6aa28f2d8f87"
+source = "git+https://github.com/paritytech/polkadot-sdk#305d311d5c732fcc4629f3295768f1ed44ef434c"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-377-ext",
@@ -15031,7 +15038,7 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "14.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cc1e6ac301ea88e3cb3253a84e4c6aa28f2d8f87"
+source = "git+https://github.com/paritytech/polkadot-sdk#305d311d5c732fcc4629f3295768f1ed44ef434c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -15064,7 +15071,7 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.25.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cc1e6ac301ea88e3cb3253a84e4c6aa28f2d8f87"
+source = "git+https://github.com/paritytech/polkadot-sdk#305d311d5c732fcc4629f3295768f1ed44ef434c"
 dependencies = [
  "environmental",
  "parity-scale-codec",
@@ -15283,7 +15290,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface"
 version = "24.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cc1e6ac301ea88e3cb3253a84e4c6aa28f2d8f87"
+source = "git+https://github.com/paritytech/polkadot-sdk#305d311d5c732fcc4629f3295768f1ed44ef434c"
 dependencies = [
  "bytes",
  "impl-trait-for-tuples",
@@ -15328,7 +15335,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "17.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cc1e6ac301ea88e3cb3253a84e4c6aa28f2d8f87"
+source = "git+https://github.com/paritytech/polkadot-sdk#305d311d5c732fcc4629f3295768f1ed44ef434c"
 dependencies = [
  "Inflector",
  "expander",
@@ -15426,7 +15433,7 @@ checksum = "54c78c5a66682568cc7b153603c5d01a2cc8f5c221c7b1e921517a0eef18ae05"
 [[package]]
 name = "sp-std"
 version = "14.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cc1e6ac301ea88e3cb3253a84e4c6aa28f2d8f87"
+source = "git+https://github.com/paritytech/polkadot-sdk#305d311d5c732fcc4629f3295768f1ed44ef434c"
 
 [[package]]
 name = "sp-storage"
@@ -15458,7 +15465,7 @@ dependencies = [
 [[package]]
 name = "sp-storage"
 version = "19.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cc1e6ac301ea88e3cb3253a84e4c6aa28f2d8f87"
+source = "git+https://github.com/paritytech/polkadot-sdk#305d311d5c732fcc4629f3295768f1ed44ef434c"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
@@ -15508,12 +15515,12 @@ dependencies = [
 [[package]]
 name = "sp-tracing"
 version = "16.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cc1e6ac301ea88e3cb3253a84e4c6aa28f2d8f87"
+source = "git+https://github.com/paritytech/polkadot-sdk#305d311d5c732fcc4629f3295768f1ed44ef434c"
 dependencies = [
  "parity-scale-codec",
  "tracing",
  "tracing-core",
- "tracing-subscriber 0.2.25",
+ "tracing-subscriber 0.3.18",
 ]
 
 [[package]]
@@ -15623,13 +15630,11 @@ dependencies = [
 [[package]]
 name = "sp-wasm-interface"
 version = "20.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cc1e6ac301ea88e3cb3253a84e4c6aa28f2d8f87"
+source = "git+https://github.com/paritytech/polkadot-sdk#305d311d5c732fcc4629f3295768f1ed44ef434c"
 dependencies = [
- "anyhow",
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
- "wasmtime",
 ]
 
 [[package]]
@@ -16637,6 +16642,20 @@ name = "thousands"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bf63baf9f5039dadc247375c29eb13706706cfde997d0330d05aa63a77d8820"
+
+[[package]]
+name = "thread-priority"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a617e9eeeb20448b01a8e2427fb80dfbc9c49d79a1de3b11f25731edbf547e3c"
+dependencies = [
+ "bitflags 2.4.0",
+ "cfg-if",
+ "libc",
+ "log",
+ "rustversion",
+ "winapi",
+]
 
 [[package]]
 name = "thread_local"

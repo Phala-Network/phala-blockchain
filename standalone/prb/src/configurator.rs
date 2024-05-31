@@ -1,13 +1,15 @@
 use crate::api::ApiError::{PoolNotFound, WriteFailed};
 use crate::api::OkResponse;
+use crate::bus::Bus;
 use crate::cli::{AccountType, ConfigCliArgs, ConfigCommands};
-use crate::db;
-use crate::db::{
+use crate::inv_db;
+use crate::inv_db::{
     add_worker, get_all_pools, get_all_pools_with_workers, get_pool_by_pid,
     get_pool_by_pid_with_workers, get_worker_by_name, remove_worker, setup_inventory_db,
     update_worker, WrappedDb,
 };
-use crate::tx::{get_options, PoolOperator, PoolOperatorAccess, PoolOperatorForSerialize, DB};
+use crate::pool_operator::{get_options, PoolOperator, PoolOperatorAccess, PoolOperatorForSerialize, DB};
+use crate::processor::{ProcessorEvent, WorkerEvent};
 use anyhow::{anyhow, Context, Result};
 use schnorrkel::SecretKey;
 use sp_core::crypto::{AccountId32, Ss58Codec};
@@ -23,7 +25,7 @@ pub async fn cli_main(args: ConfigCliArgs) -> Result<()> {
 
     match &args.command {
         ConfigCommands::AddPool { pid, .. } => {
-            db::add_pool(db.clone(), args.command.clone())?;
+            inv_db::add_pool(db.clone(), args.command.clone())?;
             let p = get_pool_by_pid(db.clone(), *pid)?;
             if let Some(p) = p {
                 let p = serde_json::to_string_pretty(&p)?;
@@ -31,10 +33,10 @@ pub async fn cli_main(args: ConfigCliArgs) -> Result<()> {
             }
         }
         ConfigCommands::RemovePool { pid } => {
-            db::remove_pool(db.clone(), *pid)?;
+            inv_db::remove_pool(db.clone(), *pid)?;
         }
         ConfigCommands::UpdatePool { pid, .. } => {
-            db::update_pool(db.clone(), args.command.clone())?;
+            inv_db::update_pool(db.clone(), args.command.clone())?;
             let p = get_pool_by_pid(db.clone(), *pid)?;
             if let Some(p) = p {
                 let p = serde_json::to_string_pretty(&p)?;
@@ -143,11 +145,11 @@ pub async fn cli_main(args: ConfigCliArgs) -> Result<()> {
     Ok(())
 }
 
-pub async fn api_handler(db: WrappedDb, po_db: Arc<DB>, command: ConfigCommands) -> Result<String> {
+pub async fn api_handler(db: WrappedDb, po_db: Arc<DB>, bus: Arc<Bus>, command: ConfigCommands) -> Result<String> {
     let ok = OkResponse::default();
     match command.clone() {
         ConfigCommands::AddPool { pid, .. } => {
-            db::add_pool(db.clone(), command)?;
+            inv_db::add_pool(db.clone(), command)?;
             let p = get_pool_by_pid(db.clone(), pid)?;
             if let Some(p) = p {
                 let p = serde_json::to_string_pretty(&p)?;
@@ -156,13 +158,15 @@ pub async fn api_handler(db: WrappedDb, po_db: Arc<DB>, command: ConfigCommands)
             anyhow::bail!(WriteFailed);
         }
         ConfigCommands::RemovePool { pid } => {
-            db::remove_pool(db.clone(), pid)?;
+            inv_db::remove_pool(db.clone(), pid)?;
+            let _ = bus.send_processor_event(ProcessorEvent::UpdatePool((pid, None)));
             Ok(serde_json::to_string_pretty(&ok)?)
         }
         ConfigCommands::UpdatePool { pid, .. } => {
-            db::update_pool(db.clone(), command)?;
+            inv_db::update_pool(db.clone(), command)?;
             let p = get_pool_by_pid(db.clone(), pid)?;
             if let Some(p) = p {
+                let _ = bus.send_processor_event(ProcessorEvent::UpdatePool((pid, Some(p.clone()))));
                 let p = serde_json::to_string_pretty(&p)?;
                 return Ok(p);
             }
@@ -198,6 +202,12 @@ pub async fn api_handler(db: WrappedDb, po_db: Arc<DB>, command: ConfigCommands)
             add_worker(db.clone(), command)?;
             let mut v = get_worker_by_name(db.clone(), name)?.context("Failed to add!")?;
             v.pid = Some(pid);
+            let _ = bus.send_processor_event(ProcessorEvent::AddWorker((
+                v.clone(),
+                get_pool_by_pid(db.clone(), pid).unwrap().map(|p| p.sync_only),
+                po_db.get_po(pid)?.map(|po| po.operator()),
+                crate::pruntime::create_client(v.endpoint.clone()),
+            )));
             let v = serde_json::to_string_pretty(&v)?;
             Ok(v)
         }
@@ -214,11 +224,14 @@ pub async fn api_handler(db: WrappedDb, po_db: Arc<DB>, command: ConfigCommands)
             };
             let mut v = get_worker_by_name(db.clone(), new_name)?.context("Failed to add!")?;
             v.pid = Some(pid);
+            let _ = bus.send_worker_event(v.id.clone(), WorkerEvent::UpdateWorker(v.clone()));
             let v = serde_json::to_string_pretty(&v)?;
             Ok(v)
         }
         ConfigCommands::RemoveWorker { name } => {
+            let worker = get_worker_by_name(db.clone(), name.clone())?.expect("Worker not found.");
             remove_worker(db, name)?;
+            let _ = bus.send_processor_event(ProcessorEvent::DeleteWorker(worker.id.clone()));
             Ok(serde_json::to_string_pretty(&ok)?)
         }
         ConfigCommands::GetAllPoolOperators => {
@@ -262,6 +275,7 @@ pub async fn api_handler(db: WrappedDb, po_db: Arc<DB>, command: ConfigCommands)
                 },
             };
             let po = po_db.set_po(pid, po)?;
+            let _ = bus.send_processor_event(ProcessorEvent::UpdatePoolOperator((pid, Some(po.operator()))));
             let po = serde_json::to_string_pretty::<PoolOperatorForSerialize>(&(&po).into())?;
             Ok(po)
         }

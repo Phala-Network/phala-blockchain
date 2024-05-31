@@ -1,12 +1,10 @@
-use crate::api::ApiError::{InconsistentData, LifecycleManagerNotInitialized, WorkerNotFound};
 use crate::cli::{ConfigCommands, WorkerManagerCliArgs};
 use crate::configurator::api_handler;
-use crate::db::Worker;
+use crate::inv_db::Worker;
+use crate::processor::WorkerEvent;
 use crate::tx::Transaction;
-use crate::wm::WorkerManagerMessage::ShouldResetLifecycleManager;
-use crate::wm::{send_to_main_channel, WrappedWorkerManagerContext};
-use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState, WrappedWorkerContext};
-use anyhow::anyhow;
+use crate::wm::WrappedWorkerManagerContext;
+use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState};
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -21,8 +19,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 type AppContext = State<WrappedWorkerManagerContext>;
 
@@ -130,9 +126,6 @@ impl From<anyhow::Error> for ApiError {
     }
 }
 
-pub type WorkerContexts = Vec<WrappedWorkerContext>;
-pub type WrappedWorkerContexts = Arc<Mutex<WorkerContexts>>;
-
 pub async fn start_api_server(
     ctx: WrappedWorkerManagerContext,
     args: WorkerManagerCliArgs,
@@ -151,6 +144,7 @@ pub async fn start_api_server(
             put(handle_force_register_workers),
         )
         .route("/workers/update_endpoints", put(handle_update_endpoints))
+        .route("/workers/take_checkpoint", put(handle_take_checkpoint))
         .route("/tx/status", get(handle_get_tx_status))
         .fallback(handle_get_root)
         .with_state(ctx);
@@ -179,66 +173,33 @@ async fn handle_get_wm_status() -> Json<WmStatusResponse> {
     })
 }
 
-async fn handle_restart_wm(State(ctx): AppContext) -> ApiResult<(StatusCode, Json<OkResponse>)> {
-    let tx = ctx.current_lifecycle_tx.clone();
-    let tx = tx.lock().await;
-    let tx_move = tx.as_ref().ok_or(LifecycleManagerNotInitialized)?.clone();
-    drop(tx);
-    send_to_main_channel(tx_move, ShouldResetLifecycleManager).await?;
-    Ok((StatusCode::OK, Json(OkResponse::default())))
+async fn handle_restart_wm() -> ApiResult<(StatusCode, Json<OkResponse>)> {
+    Ok((StatusCode::METHOD_NOT_ALLOWED, Json(OkResponse::default())))
 }
 
 async fn handle_get_worker_status(
     State(ctx): AppContext,
 ) -> ApiResult<(StatusCode, Json<WorkerStatusResponse>)> {
-    let w = ctx.workers.clone();
-    let w = w.lock().await;
-    let mut workers = Vec::new();
-    for w in w.iter() {
-        let w = w.clone();
-        let w = w.read().await;
-        workers.push(WorkerStatus {
-            worker: w.worker.clone(),
-            state: w.state.clone(),
-            phactory_info: w.info.clone(),
-            last_message: w.last_message.clone(),
-            session_info: w.session_info.clone(),
-        })
-    }
+    let map = ctx.worker_status_map.clone();
+    let map = map.lock().await;
+    let workers = map.values().cloned()
+        .collect::<Vec<WorkerStatus>>();
     Ok((StatusCode::OK, Json(WorkerStatusResponse { workers })))
-}
-
-async fn get_workers_by_id_vec<S: Into<String>>(
-    ctx: &WrappedWorkerManagerContext,
-    ids: impl IntoIterator<Item = S>,
-) -> ApiResult<Vec<WrappedWorkerContext>> {
-    let worker_map = ctx.worker_map.clone();
-    let worker_map = worker_map.lock().await;
-    let mut c: Vec<WrappedWorkerContext> = vec![];
-    for id in ids {
-        let id = id.into();
-        c.push(worker_map.get(&id).ok_or(WorkerNotFound(id))?.clone())
-    }
-    Ok(c)
 }
 
 async fn handle_restart_specific_workers(
     State(ctx): State<WrappedWorkerManagerContext>,
     Json(payload): Json<IdsRequest>,
 ) -> ApiResult<(StatusCode, Json<OkResponse>)> {
-    for c in get_workers_by_id_vec(&ctx, &payload.ids).await? {
-        let c = c.read().await;
-        match &c.state {
-            WorkerLifecycleState::Restarting => drop(c),
-            _ => {
-                let tx = c.tx.clone();
-                drop(c);
-                tx.send(WorkerLifecycleCommand::ShouldRestart)
-                    .map_err(|e| anyhow!(e.to_string()))?;
-            }
-        }
+    let bus = ctx.bus.clone();
+    for worker_id in payload.ids {
+        let _ = bus.send_worker_event(
+            worker_id,
+            WorkerEvent::WorkerLifecycleCommand(
+                WorkerLifecycleCommand::ShouldRestart
+            )
+        );
     }
-
     Ok((StatusCode::OK, Json(OkResponse::default())))
 }
 
@@ -246,12 +207,14 @@ async fn handle_force_register_workers(
     State(ctx): State<WrappedWorkerManagerContext>,
     Json(payload): Json<IdsRequest>,
 ) -> ApiResult<(StatusCode, Json<OkResponse>)> {
-    for c in get_workers_by_id_vec(&ctx, &payload.ids).await? {
-        let c = c.read().await;
-        let tx = c.tx.clone();
-        drop(c);
-        tx.send(WorkerLifecycleCommand::ShouldForceRegister)
-            .map_err(|e| anyhow!(e.to_string()))?;
+    let bus = ctx.bus.clone();
+    for worker_id in payload.ids {
+        let _ = bus.send_worker_event(
+            worker_id,
+            WorkerEvent::WorkerLifecycleCommand(
+                WorkerLifecycleCommand::ShouldForceRegister
+            )
+        );
     }
     Ok((StatusCode::OK, Json(OkResponse::default())))
 }
@@ -271,27 +234,30 @@ async fn handle_update_endpoints(
     State(ctx): State<WrappedWorkerManagerContext>,
     Json(payload): Json<UpdateEndpointsRequest>,
 ) -> ApiResult<(StatusCode, Json<OkResponse>)> {
-    for (idx, c) in get_workers_by_id_vec(&ctx, payload.requests.iter().map(|i| i.id.as_str()))
-        .await?
-        .iter()
-        .enumerate()
-    {
-        let c = c.read().await;
-        match &c.state {
-            WorkerLifecycleState::Working | WorkerLifecycleState::GatekeeperWorking => {
-                let tx = c.tx.clone();
-                drop(c);
-                tx.send(WorkerLifecycleCommand::ShouldUpdateEndpoint(
-                    payload
-                        .requests
-                        .get(idx)
-                        .map(|i| i.endpoints.clone())
-                        .ok_or(InconsistentData)?,
-                ))
-                .map_err(|e| anyhow!(e.to_string()))?;
-            }
-            _ => drop(c),
-        }
+    let bus = ctx.bus.clone();
+    for request in payload.requests {
+        let _ = bus.send_worker_event(
+            request.id.clone(),
+            WorkerEvent::WorkerLifecycleCommand(
+                WorkerLifecycleCommand::ShouldUpdateEndpoint(request.endpoints)
+            )
+        );
+    }
+    Ok((StatusCode::OK, Json(OkResponse::default())))
+}
+
+async fn handle_take_checkpoint(
+    State(ctx): State<WrappedWorkerManagerContext>,
+    Json(payload): Json<IdsRequest>,
+) -> ApiResult<(StatusCode, Json<OkResponse>)> {
+        let bus = ctx.bus.clone();
+    for worker_id in payload.ids {
+        let _ = bus.send_worker_event(
+            worker_id,
+            WorkerEvent::WorkerLifecycleCommand(
+                WorkerLifecycleCommand::ShouldTakeCheckpoint
+            )
+        );
     }
     Ok((StatusCode::OK, Json(OkResponse::default())))
 }
@@ -309,6 +275,7 @@ async fn handle_config_wm(
 ) -> ApiResult<String> {
     let po_db = ctx.txm.db.clone();
     let inv_db = ctx.inv_db.clone();
-    let ret = api_handler(inv_db, po_db, payload).await?;
+    let bus = ctx.bus.clone();
+    let ret = api_handler(inv_db, po_db, bus, payload).await?;
     Ok(ret)
 }

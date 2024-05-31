@@ -7,7 +7,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["rt", "sync"] }
 reqwest = { version = "0.11", features = ["json"] }
 serde = { version = "1.0.144", features = ["derive"] }
 env_logger = "0.10.0"
@@ -29,7 +29,7 @@ pherry = { path = "../pherry" }
 jsonrpsee = { version = "0.16", features = ["full"] }
 paste = "1.0.12"
 axum = { version = "0.6.17", features = ["macros"] }
-chrono = "0.4.24"
+chrono = "0.4.35"
 hex = "0.4.3"
 phala-types = { path = "../../crates/phala-types" }
 phala-git-revision = { path = "../../crates/phala-git-revision" }
@@ -44,3 +44,13 @@ moka-cht = "0.5.0"
 async-trait = "0.1.68"
 schnorrkel = "0.9"
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0", default-features = false, features = [ "full_crypto" ] }
+
+byteorder = "1.5.0"
+derive_more = { version = "0.99", default-features = false, features = ["display"] }
+prpc = { path = "../../crates/prpc", default-features = false }
+rayon = "1.10.0"
+thread-priority = "0.16.0"
+phala-trie-storage = { path = "../../crates/phala-trie-storage", default-features = false, features = ["serde"] }
+sp-externalities = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0" }
+sp-state-machine     = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0" }
+runtime = { path = "../../standalone/runtime", package = "phala-node-runtime", default-features = false, features = ["std"] }

@@ -3,6 +3,7 @@ use crate::wm::wm;
 use clap::{Parser, Subcommand, ValueEnum};
 use log::debug;
 use serde::{Deserialize, Serialize};
+//use std::io::Write;
 
 #[derive(Parser, Debug, Clone)]
 #[command(name="prb", version, about="Phala Runtime Bridge Worker Manager", long_about = None)]
@@ -41,10 +42,30 @@ pub struct WorkerManagerCliArgs {
     /// Timeout in seconds of PCCS server to get collateral
     #[arg(long, env, default_value = "10")]
     pub pccs_timeout: u64,
+
+    /// download headers db only
+    #[arg(long, env)]
+    pub download_headers_only: bool,
+
+    #[arg(long, env)]
+    pub verify_saved_headers: bool,
 }
 
 pub async fn start_wm() {
-    env_logger::builder()
+    env_logger::Builder::new()
+    /*
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "{}:{} {} [{}] - {}",
+                record.file().unwrap_or("unknown"),
+                record.line().unwrap_or(0),
+                chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
+                record.level(),
+                record.args()
+            )
+        })
+        */
         .filter_level(log::LevelFilter::Info)
         .format_timestamp_micros()
         .parse_default_env()
