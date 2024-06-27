@@ -46,6 +46,9 @@ fixed-sqrt = { version = "0.2", default-features = false }
 
 sgx-attestation = { path = "../../crates/sgx-attestation", default-features = false, features = ["verify"] }
 
+[dependencies.wapod-eco-types]
+path = "/home/kvin/codes/chain/phala/wapo/wapod-eco-types"
+
 [dev-dependencies]
 frame-support-test = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0" }
 assert_matches = "1.4.0"

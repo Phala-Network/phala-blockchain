@@ -18,6 +18,7 @@ pub mod phat;
 pub mod puppets;
 pub mod registry;
 pub mod stake_pool;
+pub mod wapod_workers;
 
 use compute::{base_pool, computation, pool_proxy, stake_pool_v2, vault, wrapped_balances};
 
