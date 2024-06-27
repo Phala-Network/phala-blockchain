@@ -960,41 +960,98 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                 tokenomic.challenge_time_last = challenge_time;
                 tokenomic.iteration_last = iterations;
 
-                let payout = if worker_info.unresponsive {
-                    trace!(
+                Self::update_v_and_payout(
+                    &self.tokenomic_params,
+                    block,
+                    &mut self.eco_cache,
+                    worker_info,
+                    event_listener,
+                );
+            }
+            WorkingReportEvent::HeartbeatV3 { iterations, .. } => {
+                let Some(worker_info) = self.workers.get_mut(&worker_pubkey) else {
+                    error!(
                         target: "gk_computing",
-                        "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
-                        hex::encode(worker_info.state.pubkey)
+                        "Unknown worker {} sent a {:?}",
+                        hex::encode(worker_pubkey),
+                        event
                     );
-                    worker_info
-                        .tokenomic
-                        .update_v_recover(block.now_ms, block.block_number);
-                    fp!(0)
-                } else {
-                    trace!(
-                        target: "gk_computing",
-                        "[{}] heartbeat handling case2: Idle, successful heartbeat, report to pallet",
-                        hex::encode(worker_info.state.pubkey)
-                    );
-                    let (payout, treasury) = worker_info.tokenomic.update_v_heartbeat(
-                        &self.tokenomic_params,
-                        self.eco_cache.sum_share,
-                        block.now_ms,
-                        block.block_number,
-                    );
-
-                    // NOTE: keep the reporting order (vs the one while computing stop).
-                    self.eco_cache.report.settle.push(SettleInfo {
-                        pubkey: worker_pubkey,
-                        v: worker_info.tokenomic.v.to_bits(),
-                        payout: payout.to_bits(),
-                        treasury: treasury.to_bits(),
-                    });
-                    payout
+                    return;
                 };
-                event_listener.emit_event(EconomicEvent::Heartbeat { payout }, worker_info);
+                if worker_info.state.working_state.is_none() {
+                    trace!(
+                        target: "gk_computing",
+                        "[{}] Computing already stopped, ignore the heartbeat.",
+                        hex::encode(worker_info.state.pubkey)
+                    );
+                    return;
+                };
+                if worker_info.waiting_heartbeats.is_empty() {
+                    trace!(
+                        target: "gk_computing",
+                        "[{}] Unexpected heartbeat response received, ignore it.",
+                        hex::encode(worker_info.state.pubkey)
+                    );
+                    return;
+                }
+                worker_info.waiting_heartbeats.clear();
+                worker_info.heartbeat_flag = true;
+
+                let tokenomic = &mut worker_info.tokenomic;
+                tokenomic.update_p_instant(block.now_ms, iterations, false);
+                tokenomic.challenge_time_last = block.now_ms;
+                tokenomic.iteration_last = iterations;
+
+                Self::update_v_and_payout(
+                    &self.tokenomic_params,
+                    block,
+                    &mut self.eco_cache,
+                    worker_info,
+                    event_listener,
+                );
             }
         }
+    }
+
+    fn update_v_and_payout(
+        tokenomic_params: &tokenomic::Params,
+        block: &BlockInfo<'_>,
+        eco_cache: &mut EconomicCalcCache,
+        worker_info: &mut WorkerInfo,
+        event_listener: &mut impl EconomicEventListener,
+    ) {
+        let payout = if worker_info.unresponsive {
+            trace!(
+                target: "gk_computing",
+                "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
+                hex::encode(worker_info.state.pubkey)
+            );
+            worker_info
+                .tokenomic
+                .update_v_recover(block.now_ms, block.block_number);
+            fp!(0)
+        } else {
+            trace!(
+                target: "gk_computing",
+                "[{}] heartbeat handling case2: Idle, successful heartbeat, report to pallet",
+                hex::encode(worker_info.state.pubkey)
+            );
+            let (payout, treasury) = worker_info.tokenomic.update_v_heartbeat(
+                tokenomic_params,
+                eco_cache.sum_share,
+                block.now_ms,
+                block.block_number,
+            );
+
+            eco_cache.report.settle.push(SettleInfo {
+                pubkey: worker_info.state.pubkey,
+                v: worker_info.tokenomic.v.to_bits(),
+                payout: payout.to_bits(),
+                treasury: treasury.to_bits(),
+            });
+            payout
+        };
+        event_listener.emit_event(EconomicEvent::Heartbeat { payout }, worker_info);
     }
 
     fn process_system_event(
@@ -1614,6 +1671,15 @@ pub mod tests {
             };
             self.say(message)
         }
+
+        fn heartbeat_v3(&mut self, session_id: u32, iterations: u64) {
+            let message = msg::WorkingReportEvent::HeartbeatV3 {
+                session_id,
+                iterations,
+                p_instant: 0,
+            };
+            self.say(message)
+        }
     }
 
     fn with_block(block_number: chain::BlockNumber, call: impl FnOnce(&BlockInfo)) {
@@ -2103,6 +2169,198 @@ pub mod tests {
             let messages = r.gk.egress.drain_working_info_update_event();
             assert_eq!(messages.len(), 1, "Should report recover event");
             assert_eq!(messages[0], expected_message);
+        }
+    }
+
+    #[test]
+    fn heartbeat_v3_can_flush_multiple_unrespond_heartbeat() {
+        let mut r = Roles::test_roles();
+
+        with_block(1, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                confidence_level: 2,
+            }));
+            r.gk.test_process_messages(block);
+        });
+
+        assert_eq!(r.gk.workers.len(), 1);
+
+        assert!(r.get_worker(0).state.registered);
+
+        with_block(2, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::Started {
+                session_id: 1,
+                init_v: 1,
+                init_p: 100,
+            });
+            worker0.challenge();
+            r.gk.test_process_messages(block);
+        });
+
+        for i in 3..6 {
+            with_block(i, |block| {
+                let mut worker0 = r.for_worker(0);
+                worker0.challenge();
+                r.gk.test_process_messages(block);
+            });
+        }
+
+        // Force enter unresponsive
+        with_block(100, |block| {
+            r.gk.test_process_messages(block);
+        });
+
+        assert_eq!(
+            r.get_worker(0).waiting_heartbeats.len(),
+            4,
+            "There should be 4 waiting HBs"
+        );
+
+        assert!(
+            r.get_worker(0).unresponsive,
+            "The worker should be unresponsive now"
+        );
+        {
+            let offline = [r.workers[0]].to_vec();
+            let expected_message = WorkingInfoUpdateEvent {
+                block_number: 100,
+                timestamp_ms: block_ts(100),
+                offline,
+                recovered_to_online: Vec::new(),
+                settle: Vec::new(),
+            };
+            let messages = r.gk.egress.drain_working_info_update_event();
+            assert_eq!(messages.len(), 1, "Should report recover event");
+            assert_eq!(messages[0], expected_message);
+        }
+
+        with_block(101, |block| {
+            let mut worker = r.for_worker(0);
+            // Response the first challenge.
+            worker.heartbeat_v3(1, 10000000);
+            r.gk.test_process_messages(block);
+        });
+        assert_eq!(
+            r.get_worker(0).waiting_heartbeats.len(),
+            0,
+            "HBs should be cleared"
+        );
+
+        assert!(
+            !r.get_worker(0).unresponsive,
+            "The worker should be computing idle now"
+        );
+        {
+            let recovered_to_online = [r.workers[0]].to_vec();
+            let expected_message = WorkingInfoUpdateEvent {
+                block_number: 101,
+                timestamp_ms: block_ts(101),
+                offline: Vec::new(),
+                recovered_to_online,
+                settle: Vec::new(),
+            };
+            let messages = r.gk.egress.drain_working_info_update_event();
+            assert_eq!(messages.len(), 1, "Should report recover event");
+            assert_eq!(messages[0], expected_message);
+        }
+
+        with_block(102, |block| {
+            let mut worker = r.for_worker(0);
+            // Response the second challenge.
+            worker.heartbeat_v3(2, 10000000);
+            r.gk.test_process_messages(block);
+        });
+
+        assert!(
+            !r.get_worker(0).unresponsive,
+            "The worker should be computing idle now"
+        );
+        {
+            let messages = r.gk.egress.drain_working_info_update_event();
+            assert_eq!(messages.len(), 0, "Should have no report event");
+        }
+    }
+
+    #[test]
+    fn heartbeat_v3_should_be_paid_out() {
+        let mut r = Roles::test_roles();
+
+        with_block(1, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                confidence_level: 2,
+            }));
+            r.gk.test_process_messages(block);
+        });
+
+        assert_eq!(r.gk.workers.len(), 1);
+
+        assert!(r.get_worker(0).state.registered);
+
+        with_block(2, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::Started {
+                session_id: 1,
+                init_v: fp!(100).to_bits(),
+                init_p: 2500,
+            });
+            worker0.challenge();
+            r.gk.test_process_messages(block);
+        });
+
+        for i in 3..6 {
+            with_block(i, |block| {
+                let mut worker0 = r.for_worker(0);
+                worker0.challenge();
+                r.gk.test_process_messages(block);
+            });
+        }
+        assert_eq!(
+            r.get_worker(0).waiting_heartbeats.len(),
+            4,
+            "There should have 4 HBs"
+        );
+        assert_eq!(r.get_worker(0).tokenomic.v, fp!(100.00055963912991258423));
+
+        with_block(6, |block| {
+            let mut worker = r.for_worker(0);
+            // Response the first challenge.
+            worker.heartbeat_v3(1, 24000);
+            r.gk.test_process_messages(block);
+        });
+        assert_eq!(
+            r.get_worker(0).waiting_heartbeats.len(),
+            0,
+            "HBs should be cleared"
+        );
+
+        assert!(
+            !r.get_worker(0).unresponsive,
+            "The worker should be computing idle now"
+        );
+        {
+            let expected_message = WorkingInfoUpdateEvent {
+                block_number: 6,
+                timestamp_ms: block_ts(6),
+                offline: Vec::new(),
+                recovered_to_online: Vec::new(),
+                settle: vec![super::SettleInfo {
+                    pubkey: r.workers[0],
+                    v: fp!(100).to_bits(),
+                    payout: fp!(383.9765417372721003196).to_bits(),
+                    treasury: fp!(95.9941354343180250734).to_bits(),
+                }],
+            };
+            let messages = r.gk.egress.drain_working_info_update_event();
+            assert_eq!(messages.len(), 1, "Should report recover event");
+            assert_eq!(messages[0], expected_message);
+            assert_eq!(
+                r.get_worker(0).tokenomic.p_instant,
+                fp!(2999.9999999999999999729)
+            );
+            assert_eq!(r.get_worker(0).tokenomic.v, fp!(100));
         }
     }
 

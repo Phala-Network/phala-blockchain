@@ -143,6 +143,14 @@ pub mod messaging {
             /// Number of current deployed contracts.
             n_contracts: u32,
         },
+        HeartbeatV3 {
+            /// The computing session id.
+            session_id: u32,
+            /// Benchmark iterations since working_start_time.
+            iterations: u64,
+            /// Number of current deployed clusters.
+            p_instant: u32,
+        },
     }
 
     bind_topic!(WorkingInfoUpdateEvent<BlockNumber>, b"^phala/mining/update");
