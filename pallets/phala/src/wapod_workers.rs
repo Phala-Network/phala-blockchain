@@ -1,4 +1,4 @@
-//! The Phat Contract tokenomic module
+//! The pallet managing the wapod workers.
 
 pub use self::pallet::*;
 
@@ -138,6 +138,10 @@ pub mod pallet {
 
 	#[pallet::storage]
 	pub type WorkerLists<T> = StorageMap<_, Twox64Concat, ListId, WorkerListInfo>;
+
+	#[pallet::storage]
+	pub type WorkerListWorkers<T> =
+		StorageDoubleMap<_, Twox64Concat, ListId, Twox64Concat, WorkerPublicKey, ()>;
 
 	#[pallet::storage]
 	pub type WorkerDescriptions<T> =
