@@ -39,8 +39,8 @@ use frame_support::{
         fungible::HoldConsideration,
         tokens::{PayFromAccount, UnityAssetBalanceConversion},
         AsEnsureOriginWithArg, ConstU128, ConstU32, Currency, EitherOfDiverse, EqualPrivilegeOnly,
-        Everything, Imbalance, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, OnUnbalanced,
-        SortedMembers, WithdrawReasons, LinearStoragePrice,
+        Everything, Imbalance, InstanceFilter, KeyOwnerProofSystem, LinearStoragePrice,
+        LockIdentifier, OnUnbalanced, SortedMembers, WithdrawReasons,
     },
     weights::{
         constants::{
@@ -110,7 +110,7 @@ mod voter_bags;
 
 pub use phala_pallets::{
     pallet_base_pool, pallet_computation, pallet_mq, pallet_phat, pallet_phat_tokenomic,
-    pallet_registry, pallet_stake_pool, pallet_stake_pool_v2, pallet_vault,
+    pallet_registry, pallet_stake_pool, pallet_stake_pool_v2, pallet_vault, pallet_wapod_workers,
     pallet_wrapped_balances, puppets,
 };
 use phat_offchain_rollup::{anchor as pallet_anchor, oracle as pallet_oracle};
@@ -337,8 +337,9 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
                     | RuntimeCall::Elections(..)
                     | RuntimeCall::Treasury(..)
             ),
-            ProxyType::Staking =>
-                matches!(c, RuntimeCall::Staking(..) | RuntimeCall::FastUnstake(..)),
+            ProxyType::Staking => {
+                matches!(c, RuntimeCall::Staking(..) | RuntimeCall::FastUnstake(..))
+            }
             ProxyType::StakePoolManager => matches!(
                 c,
                 RuntimeCall::Utility { .. }
@@ -450,7 +451,7 @@ impl pallet_babe::Config for Runtime {
     type KeyOwnerProof =
         <Historical as KeyOwnerProofSystem<(KeyTypeId, pallet_babe::AuthorityId)>>::Proof;
     type EquivocationReportSystem =
-    pallet_babe::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
+        pallet_babe::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
 parameter_types! {
@@ -713,13 +714,16 @@ impl Get<Option<BalancingConfig>> for OffchainRandomBalancing {
             max => {
                 let seed = sp_io::offchain::random_seed();
                 let random = <u32>::decode(&mut TrailingZeroInput::new(&seed))
-                    .expect("input is padded with zeroes; qed") %
-                    max.saturating_add(1);
+                    .expect("input is padded with zeroes; qed")
+                    % max.saturating_add(1);
                 random as usize
-            },
+            }
         };
 
-        let config = BalancingConfig { iterations, tolerance: 0 };
+        let config = BalancingConfig {
+            iterations,
+            tolerance: 0,
+        };
         Some(config)
     }
 }
@@ -1212,7 +1216,7 @@ impl pallet_grandpa::Config for Runtime {
     type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
     type KeyOwnerProof = <Historical as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
     type EquivocationReportSystem =
-    pallet_grandpa::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
+        pallet_grandpa::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
 parameter_types! {
@@ -1280,7 +1284,7 @@ impl pallet_society::Config for Runtime {
     type ClaimPeriod = ClaimPeriod;
     type MaxLockDuration = MaxLockDuration;
     type FounderSetOrigin =
-    pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>;
+        pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>;
     type ChallengePeriod = ChallengePeriod;
     type MaxPayouts = MaxPayouts;
     type MaxBids = MaxBids;
@@ -1526,6 +1530,11 @@ impl pallet_phat_tokenomic::Config for Runtime {
     type Currency = Balances;
 }
 
+impl pallet_wapod_workers::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type Currency = Balances;
+}
+
 parameter_types! {
     pub const QueuePrefix: &'static [u8] = b"_queue/";
     pub const QueueCapacity: u32 = 128;
@@ -1626,6 +1635,7 @@ construct_runtime!(
         PhalaBasePool: pallet_base_pool,
         PhalaPhatContracts: pallet_phat,
         PhalaPhatTokenomic: pallet_phat_tokenomic,
+        PhalaWapodWorkers: pallet_wapod_workers,
 
         // Rollup and Oracles
         PhatRollupAnchor: pallet_anchor = 100,
