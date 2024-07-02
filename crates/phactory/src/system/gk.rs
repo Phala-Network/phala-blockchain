@@ -433,6 +433,9 @@ where
             GatekeeperEvent::_RepairV
             | GatekeeperEvent::_PhalaLaunched
             | GatekeeperEvent::_UnrespFix => unreachable!(),
+            GatekeeperEvent::SetStaticV { .. } => {
+                // Handled by ComputingEconomics
+            }
         }
     }
 
@@ -1178,6 +1181,11 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
             GatekeeperEvent::_RepairV
             | GatekeeperEvent::_PhalaLaunched
             | GatekeeperEvent::_UnrespFix => unreachable!(),
+            GatekeeperEvent::SetStaticV { enabled } => {
+                if origin.is_pallet() {
+                    self.tokenomic_params.set_static_v(enabled);
+                }
+            }
         }
     }
 
@@ -1185,7 +1193,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
         &mut self,
         params: phala_types::messaging::TokenomicParameters,
     ) {
-        self.tokenomic_params = params.into();
+        self.tokenomic_params.update(params);
         info!(
             target: "gk_computing",
             "Tokenomic parameter updated: {:#?}",
@@ -1348,13 +1356,16 @@ mod tokenomic {
         #[serde(with = "serde_fp")]
         payout_ration: FixedPoint,
         pub heartbeat_window: u32,
+        /// The V won't increase on IDLE if set to true
+        #[serde(default)]
+        static_v: bool,
     }
 
-    impl From<TokenomicParameters> for Params {
-        fn from(params: TokenomicParameters) -> Self {
+    impl Params {
+        pub fn update(&mut self, params: TokenomicParameters) {
             let treasury_ration = FixedPoint::from_bits(params.treasury_ratio);
             let payout_ration = fp!(1) - treasury_ration;
-            Params {
+            *self = Params {
                 rho: FixedPoint::from_bits(params.rho),
                 slash_rate: FixedPoint::from_bits(params.slash_rate),
                 budget_per_block: FixedPoint::from_bits(params.budget_per_block),
@@ -1364,7 +1375,12 @@ mod tokenomic {
                 treasury_ration,
                 payout_ration,
                 heartbeat_window: params.heartbeat_window,
-            }
+                static_v: self.static_v,
+            };
+        }
+
+        pub fn set_static_v(&mut self, enabled: bool) {
+            self.static_v = enabled;
         }
     }
 
@@ -1379,6 +1395,7 @@ mod tokenomic {
             treasury_ration: fp!(0.2),
             payout_ration: fp!(0.8),
             heartbeat_window: 10,
+            static_v: false,
         }
     }
 
@@ -1393,6 +1410,9 @@ mod tokenomic {
 
         /// case1: Idle, no event
         pub fn update_v_idle(&mut self, params: &Params) {
+            if params.static_v {
+                return;
+            }
             let cost_idle = params.cost_k * self.p_bench + params.cost_b;
             let perf_multiplier = if self.p_bench == fp!(0) {
                 fp!(1)
@@ -1418,7 +1438,7 @@ mod tokenomic {
             if sum_share == fp!(0) {
                 return NO_UPDATE;
             }
-            if self.v_deductible == fp!(0) {
+            if !params.static_v && self.v_deductible == fp!(0) {
                 return NO_UPDATE;
             }
             if block_number <= self.v_update_block {
@@ -1434,10 +1454,11 @@ mod tokenomic {
             let actual_payout = budget * params.payout_ration;
             let actual_treasury = budget * params.treasury_ration;
 
-            let actual_v_deduct = self.v_deductible.clamp(fp!(0), actual_payout);
-            self.v -= actual_v_deduct;
-
-            self.v_deductible = fp!(0);
+            if !params.static_v {
+                let actual_v_deduct = self.v_deductible.clamp(fp!(0), actual_payout);
+                self.v -= actual_v_deduct;
+                self.v_deductible = fp!(0);
+            }
             self.v_update_at = now_ms;
             self.v_update_block = block_number;
 
@@ -1892,6 +1913,92 @@ pub mod tests {
             v_snap < r.get_worker(0).tokenomic.v,
             "Worker should be rewarded"
         );
+    }
+
+    #[test]
+    fn static_v_works() {
+        let mut r = Roles::test_roles();
+        let mut block_number = 1;
+
+        r.gk.tokenomic_params.set_static_v(true);
+
+        // Register worker
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                confidence_level: 2,
+            }));
+            r.gk.test_process_messages(block);
+        });
+
+        // Start computing & send heartbeat challenge
+        block_number += 1;
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::Started {
+                session_id: 1,
+                init_v: fp!(100).to_bits(),
+                init_p: 200,
+            });
+            r.gk.test_process_messages(block);
+        });
+
+        block_number += 1;
+
+        // Normal Idle state, no event
+        let v_snap = r.get_worker(0).tokenomic.v;
+        r.gk.egress.clear();
+        with_block(block_number, |block| {
+            r.gk.test_process_messages(block);
+        });
+
+        assert!(!r.get_worker(0).unresponsive, "Worker should be online");
+        assert_eq!(
+            r.gk.egress.drain_working_info_update_event().len(),
+            0,
+            "Should not report any event"
+        );
+
+        assert!(
+            v_snap == r.get_worker(0).tokenomic.v,
+            "Worker V should not increase"
+        );
+
+        // Once again.
+        let v_snap = r.get_worker(0).tokenomic.v;
+        r.gk.egress.clear();
+        with_block(block_number, |block| {
+            r.gk.test_process_messages(block);
+        });
+
+        assert!(!r.get_worker(0).unresponsive, "Worker should be online");
+        assert_eq!(
+            r.gk.egress.drain_working_info_update_event().len(),
+            0,
+            "Should not report any event"
+        );
+        assert!(
+            v_snap == r.get_worker(0).tokenomic.v,
+            "Worker V should not increase"
+        );
+
+        block_number += 1;
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.challenge();
+            r.gk.test_process_messages(block);
+        });
+
+        block_number += 1;
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.heartbeat(1, block_number - 1, 1000000000);
+            r.gk.test_process_messages(block);
+        });
+        let egress = r.gk.egress.drain_working_info_update_event();
+        assert_eq!(egress.len(), 1, "Should payout");
+        let payout = FixedPoint::from_bits(egress[0].settle[0].payout);
+        assert_eq!(payout, fp!(285.4000288551775845473));
     }
 
     #[test]

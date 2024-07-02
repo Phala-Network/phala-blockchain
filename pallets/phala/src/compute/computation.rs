@@ -436,6 +436,9 @@ pub mod pallet {
 			nonce: u64,
 			budget: u128,
 		},
+		StaticVChanged {
+			enabled: bool,
+		},
 	}
 
 	#[pallet::error]
@@ -630,6 +633,18 @@ pub mod pallet {
 		) -> DispatchResult {
 			T::SetContractRootOrigins::ensure_origin(origin)?;
 			ContractAccount::<T>::put(account_id);
+			Ok(())
+		}
+
+		/// Enable static V.
+		///
+		/// When enabled, the V of a worker doesn't increase on IDLE.
+		#[pallet::call_index(9)]
+		#[pallet::weight(Weight::from_parts(1, 0))]
+		pub fn set_static_v(origin: OriginFor<T>, enabled: bool) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+			Self::push_message(GatekeeperEvent::SetStaticV { enabled });
+			Self::deposit_event(Event::<T>::StaticVChanged { enabled });
 			Ok(())
 		}
 	}

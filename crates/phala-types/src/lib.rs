@@ -392,6 +392,7 @@ pub mod messaging {
         /// Fix the payout duration problem in unresponsive state.
         /// Dropped in Phala. The index is reserved here for Khala+pruntime-v0 compatibility.
         _UnrespFix,
+        SetStaticV { enabled: bool },
     }
 
     impl GatekeeperEvent {
