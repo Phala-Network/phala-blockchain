@@ -48,6 +48,7 @@ sgx-attestation = { path = "../../crates/sgx-attestation", default-features = fa
 
 [dependencies.wapod-eco-types]
 path = "../../../wapo/wapod-eco-types/"
+default-features = false
 
 [dev-dependencies]
 frame-support-test = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.5.0" }
@@ -84,6 +85,7 @@ std = [
 	"serde/derive",
 	"serde/alloc",
 	"sgx-attestation/std",
+	"wapod-eco-types/std",
 ]
 runtime-benchmarks = [
 ]

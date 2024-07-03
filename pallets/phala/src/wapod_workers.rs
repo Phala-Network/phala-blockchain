@@ -5,6 +5,7 @@ pub use self::pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::{mq, registry};
+	use alloc::vec::Vec;
 	use frame_support::{
 		dispatch::DispatchResult,
 		ensure,
@@ -16,12 +17,13 @@ pub mod pallet {
 		messaging::{DecodedMessage, MessageOrigin, SystemEvent, WorkerEvent, WorkingReportEvent},
 		WorkerPublicKey,
 	};
+	use scale_info::TypeInfo;
 	use sp_runtime::{traits::Zero, SaturatedConversion};
 	use wapod_eco_types::{
 		bench_app::{MetricsToken, SignedMessage, SigningMessage},
 		crypto::CryptoProvider,
 		primitives::{BoundedString, BoundedVec},
-		ticket::{Prices, SignedWorkerDescription, TicketDescription, WorkerDescription},
+		ticket::{Prices, SignedWorkerDescription, WorkerDescription},
 	};
 
 	type BalanceOf<T> =
@@ -31,8 +33,7 @@ pub mod pallet {
 	pub type ListId = u32;
 	pub type Address = [u8; 32];
 
-	#[derive(Encode, Decode, Debug, Clone, Copy, PartialEq, Eq, MaxEncodedLen)]
-	#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+	#[derive(Encode, Decode, TypeInfo, Debug, Clone, Copy, PartialEq, Eq, MaxEncodedLen)]
 	pub struct Fraction {
 		pub numerator: u32,
 		pub denominator: u32,
@@ -48,16 +49,14 @@ pub mod pallet {
 		}
 	}
 
-	#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
-	#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
 	pub struct BenchAppInfo {
 		version: u32,
 		ticket: TicketId,
 		score_ratio: Fraction,
 	}
 
-	#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
-	#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
 	pub struct WorkerSession {
 		pub session_id: [u8; 32],
 		pub last_nonce: [u8; 32],
@@ -83,8 +82,7 @@ pub mod pallet {
 		}
 	}
 
-	#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
-	#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
 	pub enum WorkerSet {
 		Any,
 		WorkerList(ListId),
@@ -92,26 +90,24 @@ pub mod pallet {
 
 	type AcountId32 = [u8; 32];
 
-	#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
-	#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
 	pub struct TicketInfo {
 		pub system: bool,
 		pub owner: AcountId32,
 		pub workers: WorkerSet,
-		pub app_address: [u8; 32],
-		pub description: TicketDescription,
+		pub address: [u8; 32],
+		pub prices: Prices,
+		pub content_cid: BoundedString<128>,
 	}
 
-	#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
-	#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
 	pub struct WorkerListInfo {
 		pub owner: AcountId32,
 		pub prices: Prices,
 		pub description: BoundedString<1024>,
 	}
 
-	#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
-	#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
 	pub struct WorkingState {
 		session_id: u32,
 		unresponsive: bool,
@@ -248,15 +244,12 @@ pub mod pallet {
 		pub fn create_ticket(
 			origin: OriginFor<T>,
 			deposit: BalanceOf<T>,
-			description: TicketDescription,
+			address: Address,
+			content_cid: BoundedString<128>,
 			worker_list: u32,
+			prices: Prices,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			ensure!(
-				description.manifest.version == 1,
-				Error::<T>::UnsupportedManifestVersion
-			);
-			ensure!(!description.manifest.resizable, Error::<T>::NotAllowed);
 			ensure!(
 				WorkerLists::<T>::contains_key(worker_list),
 				Error::<T>::WorkerListNotFound
@@ -265,8 +258,9 @@ pub mod pallet {
 				system: false,
 				owner: owner.clone().into(),
 				workers: WorkerSet::WorkerList(worker_list),
-				app_address: description.manifest.address(sp_core::hashing::blake2_256),
-				description,
+				address,
+				content_cid,
+				prices,
 			});
 			let ticket_account = ticket_account_address(id).into();
 			<T as Config>::Currency::transfer(&owner, &ticket_account, deposit, KeepAlive)?;
@@ -278,19 +272,17 @@ pub mod pallet {
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
 		pub fn create_system_ticket(
 			origin: OriginFor<T>,
-			description: TicketDescription,
+			address: Address,
+			content_cid: BoundedString<128>,
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
-			ensure!(
-				description.manifest.version == 1,
-				Error::<T>::UnsupportedManifestVersion
-			);
 			Self::add_ticket(TicketInfo {
 				system: true,
 				owner: [0u8; 32].into(),
 				workers: WorkerSet::Any,
-				app_address: description.manifest.address(sp_core::hashing::blake2_256),
-				description,
+				address,
+				content_cid,
+				prices: Default::default(),
 			});
 			Ok(())
 		}
@@ -485,7 +477,7 @@ pub mod pallet {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 			let address = Tickets::<T>::get(ticket)
 				.ok_or(Error::<T>::TicketNotFound)?
-				.app_address;
+				.address;
 			BenchmarkApps::<T>::insert(
 				address,
 				BenchAppInfo {
