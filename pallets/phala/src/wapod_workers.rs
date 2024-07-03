@@ -29,8 +29,8 @@ pub mod pallet {
 	type BalanceOf<T> =
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
-	pub type TicketId = u32;
-	pub type ListId = u32;
+	pub type TicketId = u64;
+	pub type ListId = u64;
 	pub type Address = [u8; 32];
 
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone, Copy, PartialEq, Eq, MaxEncodedLen)]
@@ -219,14 +219,14 @@ pub mod pallet {
 
 	const TICKET_ADDRESS_PREFIX: &[u8] = b"wapod/ticket/";
 
-	fn ticket_account_address(ticket_id: u32) -> [u8; 32] {
+	fn ticket_account_address(ticket_id: TicketId) -> [u8; 32] {
 		let mut address = [0u8; 32];
 		let prefix = TICKET_ADDRESS_PREFIX;
 		address[..prefix.len()].copy_from_slice(prefix);
 		{
-			let ticket_bytes = ticket_id.to_be_bytes();
+			let ticket_id_bytes = ticket_id.to_be_bytes();
 			let offset = prefix.len();
-			address[offset..offset + ticket_bytes.len()].copy_from_slice(&ticket_bytes);
+			address[offset..offset + ticket_id_bytes.len()].copy_from_slice(&ticket_id_bytes);
 		}
 		address
 	}
@@ -246,7 +246,7 @@ pub mod pallet {
 			deposit: BalanceOf<T>,
 			address: Address,
 			content_cid: BoundedString<128>,
-			worker_list: u32,
+			worker_list: ListId,
 			prices: Prices,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
@@ -379,15 +379,19 @@ pub mod pallet {
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
 		pub fn create_worker_list(
 			origin: OriginFor<T>,
-			prices: Prices,
 			description: BoundedString<1024>,
+			prices: Prices,
+			init_workers: BoundedVec<WorkerPublicKey, 32>,
 		) -> DispatchResult {
-			let owner = ensure_signed(origin)?;
-			Self::add_worker_list(WorkerListInfo {
+			let owner = ensure_signed(origin.clone())?;
+			let id = Self::add_worker_list(WorkerListInfo {
 				owner: owner.into(),
 				prices,
 				description,
 			});
+			if init_workers.len() > 0 {
+				Self::add_workers_to_list(origin, id, init_workers)?;
+			}
 			Ok(())
 		}
 
