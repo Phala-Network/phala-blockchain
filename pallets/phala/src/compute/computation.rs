@@ -436,8 +436,14 @@ pub mod pallet {
 			nonce: u64,
 			budget: u128,
 		},
+		/// A signal is sent to enable/disable static V in GK.
 		StaticVChanged {
 			enabled: bool,
+		},
+		/// A heartbeat challenge is sent to workers.
+		HeartbeatChallenge {
+			seed: U256,
+			online_target: U256,
 		},
 	}
 
@@ -534,6 +540,10 @@ pub mod pallet {
 				seed: U256::zero(),
 				online_target: U256::MAX,
 			}));
+			Self::deposit_event(Event::<T>::HeartbeatChallenge {
+				seed: U256::zero(),
+				online_target: U256::MAX,
+			});
 			Ok(())
 		}
 
@@ -688,6 +698,10 @@ pub mod pallet {
 				online_target,
 			};
 			Self::push_message(SystemEvent::HeartbeatChallenge(seed_info));
+			Self::deposit_event(Event::<T>::HeartbeatChallenge {
+				seed,
+				online_target,
+			});
 		}
 
 		pub fn on_working_message_received(
@@ -733,7 +747,11 @@ pub mod pallet {
 						});
 						Sessions::<T>::insert(&session, session_info);
 					}
-					WorkingReportEvent::HeartbeatV3 { p_instant, iterations, .. } => {
+					WorkingReportEvent::HeartbeatV3 {
+						p_instant,
+						iterations,
+						..
+					} => {
 						let session = Self::ensure_worker_bound(&worker)?;
 						let mut session_info =
 							Self::sessions(&session).expect("Bound worker; qed.");
