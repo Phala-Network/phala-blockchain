@@ -507,6 +507,46 @@ pub mod pallet {
 			Self::deposit_event(Event::RecommendedBenchmarkAppChanged { address });
 			Ok(())
 		}
+
+		///
+		#[pallet::call_index(10)]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
+		pub fn update_session(
+			origin: OriginFor<T>,
+			worker: Address,
+			update: SessionUpdate,
+			signature: BoundedVec<u8, 128>,
+		) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+			let worker_pubkey = WorkerPublicKey(worker);
+
+			let signed_update = SignedSessionUpdate {
+				update: update.clone(),
+				signature: signature.into(),
+			};
+			ensure!(
+				signed_update.verify::<SpCrypto>(&worker_pubkey),
+				Error::<T>::SignatureVerificationFailed
+			);
+			ensure!(
+				registry::Pallet::<T>::worker_exsists(&worker_pubkey),
+				Error::<T>::InvalidWorkerPubkey
+			);
+			if let Some(session) = WorkerSessions::<T>::get(&worker_pubkey) {
+				let computed_update =
+					SessionUpdate::from_seed::<SpCrypto>(update.seed, &session.last_nonce);
+				ensure!(computed_update == update, Error::<T>::OutdatedMessage);
+			};
+			WorkerSessions::<T>::insert(
+				worker_pubkey,
+				WorkerSession {
+					session_id: update.session,
+					last_nonce: update.seed,
+					last_metrics_sn: 0,
+				},
+			);
+			return Ok(());
+		}
 	}
 
 	impl<T: Config> Pallet<T>
