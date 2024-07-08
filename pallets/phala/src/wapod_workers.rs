@@ -19,10 +19,11 @@ pub mod pallet {
 	};
 	use scale_info::TypeInfo;
 	use sp_runtime::{traits::Zero, SaturatedConversion};
-	use wapod_eco_types::{
+	use wapod_types::{
 		bench_app::{MetricsToken, SignedMessage, SigningMessage},
 		crypto::CryptoProvider,
 		primitives::{BoundedString, BoundedVec},
+		session::{SessionUpdate, SignedSessionUpdate},
 		ticket::{Prices, SignedWorkerDescription, WorkerDescription},
 	};
 
@@ -97,7 +98,7 @@ pub mod pallet {
 		pub workers: WorkerSet,
 		pub address: [u8; 32],
 		pub prices: Prices,
-		pub content_cid: BoundedString<128>,
+		pub manifest_cid: BoundedString<128>,
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
@@ -245,7 +246,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			deposit: BalanceOf<T>,
 			address: Address,
-			content_cid: BoundedString<128>,
+			manifest_cid: BoundedString<128>,
 			worker_list: ListId,
 			prices: Prices,
 		) -> DispatchResult {
@@ -259,7 +260,7 @@ pub mod pallet {
 				owner: owner.clone().into(),
 				workers: WorkerSet::WorkerList(worker_list),
 				address,
-				content_cid,
+				manifest_cid,
 				prices,
 			});
 			let ticket_account = ticket_account_address(id).into();
@@ -273,7 +274,7 @@ pub mod pallet {
 		pub fn create_system_ticket(
 			origin: OriginFor<T>,
 			address: Address,
-			content_cid: BoundedString<128>,
+			manifest_cid: BoundedString<128>,
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 			Self::add_ticket(TicketInfo {
@@ -281,7 +282,7 @@ pub mod pallet {
 				owner: [0u8; 32].into(),
 				workers: WorkerSet::Any,
 				address,
-				content_cid,
+				manifest_cid,
 				prices: Default::default(),
 			});
 			Ok(())
