@@ -1925,6 +1925,12 @@ impl_runtime_apis! {
         }
     }
 
+    impl pallet_wapod_workers::WapodWorkersApi<Block, Balance> for Runtime {
+        fn balance_of_ticket(ticket_id: pallet_wapod_workers::TicketId) -> Balance {
+            PhalaWapodWorkers::balance_of_ticket(ticket_id)
+        }
+    }
+
     impl sp_session::SessionKeys<Block> for Runtime {
         fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
             SessionKeys::generate(seed)

@@ -639,4 +639,24 @@ pub mod pallet {
 			Ok(())
 		}
 	}
+
+	// For runtime api
+	impl<T: Config> Pallet<T>
+	where
+		T: mq::Config,
+		T::AccountId: Into<AcountId32> + From<AcountId32>,
+	{
+		pub fn balance_of_ticket(ticket_id: TicketId) -> BalanceOf<T> {
+			let account = ticket_account_address(ticket_id).into();
+			<T as Config>::Currency::free_balance(&account)
+		}
+	}
+}
+
+sp_api::decl_runtime_apis! {
+	/// The API of the wapod workers pallet.
+	pub trait WapodWorkersApi<Balance> where Balance: codec::Codec {
+		/// Get balance of given ticket.
+		fn balance_of_ticket(ticket_id: TicketId) -> Balance;
+	}
 }
