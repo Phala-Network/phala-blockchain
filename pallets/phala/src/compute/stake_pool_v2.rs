@@ -422,8 +422,7 @@ pub mod pallet {
 			let session: T::AccountId = pool_sub_account(pid, &pubkey);
 
 			// bind worker with worker
-			computation::pallet::Pallet::<T>::bind(session.clone(), pubkey)
-				.or(Err(Error::<T>::FailedToBindSessionAndWorker))?;
+			computation::pallet::Pallet::<T>::bind(session.clone(), pubkey)?;
 
 			// Save the preimage of the sub-account,
 			// the lifecycle of the preimage should be the same with the worker record,
