@@ -114,7 +114,7 @@ pub mod pallet {
 	pub struct SettlementInfo {
 		pub current_session_id: [u8; 32],
 		pub current_session_paid: Balance,
-		pub hist_paid: Balance,
+		pub total_paid: Balance,
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
@@ -145,7 +145,7 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type Tickets<T: Config> = StorageMap<_, Twox64Concat, TicketId, TicketInfo>;
 
-	/// Settlement information for each ticket.
+	/// Settlement information for each (ticket, worker) pair.
 	#[pallet::storage]
 	pub type TicketSettlementInfo<T: Config> = StorageDoubleMap<
 		_,
@@ -329,6 +329,8 @@ pub mod pallet {
 				<T as Config>::Currency::transfer(&ticket_account, &owner, deposit, AllowDeath)?;
 			}
 			Tickets::<T>::remove(ticket_id);
+			// TODO: remove the remaining entries
+			_ = TicketSettlementInfo::<T>::clear_prefix(ticket_id, 64, None);
 			Self::deposit_event(Event::TicketClosed { id: ticket_id });
 			Ok(())
 		}
@@ -360,7 +362,7 @@ pub mod pallet {
 
 			let VersionedAppsMetrics::V0(all_metrics) = message.metrics;
 
-			let worker_session = {
+			let worker_info = {
 				// ensure the session matches
 				let MetricsToken { session, sn, nonce } = all_metrics.token;
 				let Some(mut session_info) = WorkerSessions::<T>::get(&worker_pubkey) else {
@@ -383,18 +385,24 @@ pub mod pallet {
 			{
 				// update metrics for each ticket
 
-				// Max of 64 entries
+				// Up to 64 entries
 				let claim_map: BTreeMap<_, _> = message.claim_map.into_iter().collect();
 
-				// Max of 64 entries
-				for m in all_metrics.apps {
-					let ticket_ids = claim_map.get(&m.address).ok_or(Error::<T>::NotAllowed)?;
-					// Max of 3 entries
+				// Up to 64 entries
+				for metrics in all_metrics.apps {
+					let ticket_ids = claim_map
+						.get(&metrics.address)
+						.ok_or(Error::<T>::NotAllowed)?;
+					// Up to 5 entries
 					for ticket_id in ticket_ids.iter() {
 						let ticket =
 							Tickets::<T>::get(ticket_id).ok_or(Error::<T>::TicketNotFound)?;
 
-						ensure!(ticket.address == m.address, Error::<T>::NotAllowed);
+						if ticket.prices.is_empty() {
+							continue;
+						}
+
+						ensure!(ticket.address == metrics.address, Error::<T>::NotAllowed);
 						match ticket.workers {
 							WorkerSet::Any => (),
 							WorkerSet::WorkerList(list_id) => {
@@ -409,19 +417,15 @@ pub mod pallet {
 							TicketSettlementInfo::<T>::get(ticket_id, &worker_pubkey);
 
 						// Pay out and update the settlement infomation
-						let cost = ticket.prices.cost_of(&m);
-						let pay_out;
-						if settlement.current_session_id != m.session {
-							settlement.hist_paid += settlement.current_session_paid;
+						let cost = ticket.prices.cost_of(&metrics);
+						if settlement.current_session_id != metrics.session {
+							settlement.current_session_id = metrics.session;
 							settlement.current_session_paid = cost;
-							settlement.current_session_id = m.session;
-							pay_out = 0_u128;
-						} else {
-							pay_out = cost.saturating_sub(settlement.current_session_paid);
-						};
+						}
+						let pay_out = cost.saturating_sub(settlement.current_session_paid);
 						if pay_out > 0 {
 							let ticket_account = ticket_account_address(*ticket_id).into();
-							let reward_account = worker_session.reward_receiver.into();
+							let reward_account = worker_info.reward_receiver.into();
 							let transfer_result = <T as Config>::Currency::transfer(
 								&ticket_account,
 								&reward_account,
@@ -431,6 +435,8 @@ pub mod pallet {
 							match transfer_result {
 								Ok(_) => {
 									settlement.current_session_paid = cost;
+									settlement.total_paid =
+										settlement.total_paid.saturating_add(pay_out);
 									Self::deposit_event(Event::Settled {
 										ticket_id: *ticket_id,
 										worker: worker_pubkey,
