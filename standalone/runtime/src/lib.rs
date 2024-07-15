@@ -1532,7 +1532,6 @@ impl pallet_phat_tokenomic::Config for Runtime {
 
 impl pallet_wapod_workers::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    type Currency = Balances;
 }
 
 parameter_types! {

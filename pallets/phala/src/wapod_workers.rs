@@ -4,7 +4,8 @@ pub use self::pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use crate::{mq, registry};
+	// MARK: - Imports
+	use crate::{mq, registry, PhalaConfig};
 	use alloc::collections::BTreeMap;
 	use alloc::vec::Vec;
 	use frame_support::{
@@ -19,24 +20,23 @@ pub mod pallet {
 		WorkerPublicKey,
 	};
 	use scale_info::TypeInfo;
-	use sp_runtime::{traits::Zero, SaturatedConversion};
+	use sp_runtime::{traits::Zero, SaturatedConversion, Saturating};
 	use wapod_types::{
 		bench_app::{BenchScore, SignedMessage, SigningMessage},
-		crypto::CryptoProvider,
+		crypto::{verify::Verifiable, CryptoProvider},
 		metrics::{MetricsToken, SignedAppsMetrics, VersionedAppsMetrics},
 		primitives::{BoundedString, BoundedVec},
 		session::{SessionUpdate, SignedSessionUpdate},
-		ticket::{Prices, SignedWorkerDescription, WorkerDescription},
+		ticket::{Balance, Prices, SignedWorkerDescription, WorkerDescription},
 	};
 
+	// MARK: - Types
 	type BalanceOf<T> =
-		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+		<<T as PhalaConfig>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 	pub type TicketId = u64;
 	pub type ListId = u64;
 	pub type Address = [u8; 32];
-	pub type Balance = u128;
-	type AcountId32 = [u8; 32];
 
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone, Copy, PartialEq, Eq, MaxEncodedLen)]
 	pub struct Fraction {
@@ -61,11 +61,11 @@ pub mod pallet {
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
-	pub struct WorkerSession {
+	pub struct WorkerSession<AccountId> {
 		pub session_id: [u8; 32],
 		pub last_nonce: [u8; 32],
 		pub last_metrics_sn: u64,
-		pub reward_receiver: AcountId32,
+		pub reward_receiver: AccountId,
 	}
 
 	struct SpCrypto;
@@ -94,24 +94,24 @@ pub mod pallet {
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
-	pub struct TicketInfo {
+	pub struct TicketInfo<AccountId> {
 		pub system: bool,
-		pub owner: AcountId32,
+		pub owner: Option<AccountId>,
 		pub workers: WorkerSet,
-		pub address: [u8; 32],
+		pub address: Address,
 		pub prices: Prices,
 		pub manifest_cid: BoundedString<128>,
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
-	pub struct WorkerListInfo {
-		pub owner: AcountId32,
+	pub struct WorkerListInfo<AccountId> {
+		pub owner: AccountId,
 		pub prices: Prices,
 		pub description: BoundedString<1024>,
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen, Default)]
-	pub struct SettlementInfo {
+	pub struct SettlementInfo<Balance> {
 		pub current_session_id: [u8; 32],
 		pub current_session_paid: Balance,
 		pub total_paid: Balance,
@@ -125,11 +125,13 @@ pub mod pallet {
 		last_update_time: i64,
 	}
 
+	// MARK: - Pallet config
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: frame_system::Config + PhalaConfig {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		type Currency: Currency<Self::AccountId>;
 	}
+
+	// MARK: - Pallet storage
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 
@@ -143,7 +145,7 @@ pub mod pallet {
 	/// Active tickets.
 	/// Each ticket holds a payment infomation to a target app address. Multiple ticket can pay for a same app at the sametime.
 	#[pallet::storage]
-	pub type Tickets<T: Config> = StorageMap<_, Twox64Concat, TicketId, TicketInfo>;
+	pub type Tickets<T: Config> = StorageMap<_, Twox64Concat, TicketId, TicketInfo<T::AccountId>>;
 
 	/// Settlement information for each (ticket, worker) pair.
 	#[pallet::storage]
@@ -153,18 +155,19 @@ pub mod pallet {
 		TicketId,
 		Twox64Concat,
 		WorkerPublicKey,
-		SettlementInfo,
+		SettlementInfo<BalanceOf<T>>,
 		ValueQuery,
 	>;
 
 	#[pallet::storage]
-	pub type NextWorkerListId<T: Config> = StorageValue<_, ListId, ValueQuery>;
+	pub type NextWorkerListId<T> = StorageValue<_, ListId, ValueQuery>;
 
 	/// Worker lists.
 	///
 	/// A worker list is a collection of workers that with the same price.
 	#[pallet::storage]
-	pub type WorkerLists<T> = StorageMap<_, Twox64Concat, ListId, WorkerListInfo>;
+	pub type WorkerLists<T: Config> =
+		StorageMap<_, Twox64Concat, ListId, WorkerListInfo<T::AccountId>>;
 
 	/// Concrete workers associated to worker list.
 	#[pallet::storage]
@@ -178,7 +181,8 @@ pub mod pallet {
 
 	/// V3 information about workers.
 	#[pallet::storage]
-	pub type WorkerSessions<T> = StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerSession>;
+	pub type WorkerSessions<T: Config> =
+		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerSession<T::AccountId>>;
 
 	/// Working state of wapod workers. V2 compatible.
 	#[pallet::storage]
@@ -192,6 +196,7 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type RecommendedBenchmarkApp<T> = StorageValue<_, Address>;
 
+	// MARK: - Pallet error
 	#[pallet::error]
 	pub enum Error<T> {
 		UnsupportedManifestVersion,
@@ -206,8 +211,11 @@ pub mod pallet {
 		InvalidMessageSender,
 		PriceMismatch,
 		SessionMismatch,
+		InvalidRewardReceiver,
+		InvalidParameter,
 	}
 
+	// MARK: - Pallet events
 	#[pallet::event]
 	#[pallet::generate_deposit(fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -240,44 +248,189 @@ pub mod pallet {
 		Settled {
 			ticket_id: TicketId,
 			worker: WorkerPublicKey,
-			paid: Balance,
-			session_cost: Balance,
+			paid: BalanceOf<T>,
+			session_cost: BalanceOf<T>,
 			paid_to: T::AccountId,
 		},
 		SettleFailed {
 			ticket_id: TicketId,
 			worker: WorkerPublicKey,
-			paid: Balance,
-			session_cost: Balance,
+			paid: BalanceOf<T>,
+			session_cost: BalanceOf<T>,
 		},
 		WorkerSessionUpdated {
 			worker: WorkerPublicKey,
 			session: [u8; 32],
 		},
+		HeartbeatV3 {
+			worker: WorkerPublicKey,
+			session_id: u32,
+			iterations: u64,
+			p_instant: u32,
+		},
 	}
 
-	const TICKET_ADDRESS_PREFIX: &[u8] = b"wapod/ticket/";
-
-	fn ticket_account_address(ticket_id: TicketId) -> [u8; 32] {
-		let mut address = [0u8; 32];
-		let prefix = TICKET_ADDRESS_PREFIX;
-		address[..prefix.len()].copy_from_slice(prefix);
-		{
-			let ticket_id_bytes = ticket_id.to_be_bytes();
-			let offset = prefix.len();
-			address[offset..offset + ticket_id_bytes.len()].copy_from_slice(&ticket_id_bytes);
-		}
-		address
+	pub fn ticket_account_address<T>(ticket_id: TicketId) -> T
+	where
+		T: Encode + Decode,
+	{
+		wapod_types::ticket::ticket_account_address(ticket_id, crate::hashing::blake2_256)
 	}
 
+	// MARK: - Pallet calls
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
 	where
 		T: mq::Config,
 		T: registry::Config,
-		T::AccountId: Into<AcountId32> + From<AcountId32>,
 		BalanceOf<T>: From<Balance>,
 	{
+		// MARK: - Worker management
+
+		/// Set worker description
+		#[pallet::call_index(0)]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
+		pub fn worker_set_description(
+			origin: OriginFor<T>,
+			signed_description: SignedWorkerDescription,
+		) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+			let worker_pubkey = WorkerPublicKey(signed_description.worker_pubkey);
+			// Worker price can only be set once
+			ensure!(
+				!WorkerDescriptions::<T>::contains_key(&worker_pubkey),
+				Error::<T>::NotAllowed
+			);
+			ensure!(
+				registry::Pallet::<T>::worker_exsists(&worker_pubkey),
+				Error::<T>::InvalidWorkerPubkey
+			);
+			ensure!(
+				signed_description.verify::<SpCrypto>(),
+				Error::<T>::SignatureVerificationFailed
+			);
+			WorkerDescriptions::<T>::insert(&worker_pubkey, signed_description.worker_description);
+			Self::deposit_event(Event::WorkerDescriptionSet {
+				worker: worker_pubkey,
+			});
+			Ok(())
+		}
+
+		/// Update worker session
+		///
+		/// When a worker restarts or resets, it should update the session with the new session id.
+		#[pallet::call_index(1)]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
+		pub fn worker_update_session(
+			origin: OriginFor<T>,
+			update: SignedSessionUpdate,
+		) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+			ensure!(
+				update.verify::<SpCrypto>(),
+				Error::<T>::SignatureVerificationFailed
+			);
+			let worker_pubkey = WorkerPublicKey(update.public_key);
+			ensure!(
+				registry::Pallet::<T>::worker_exsists(&worker_pubkey),
+				Error::<T>::InvalidWorkerPubkey
+			);
+			let update = update.update;
+			if let Some(session) = WorkerSessions::<T>::get(&worker_pubkey) {
+				let computed_session =
+					SessionUpdate::session_from_seed::<SpCrypto>(update.seed, &session.last_nonce);
+				ensure!(
+					computed_session == update.session,
+					Error::<T>::OutdatedMessage
+				);
+			};
+			let Ok(reward_receiver) = Decode::decode(&mut &update.reward_receiver[..]) else {
+				return Err(Error::<T>::InvalidRewardReceiver.into());
+			};
+			WorkerSessions::<T>::insert(
+				worker_pubkey,
+				WorkerSession {
+					session_id: update.session,
+					last_nonce: update.seed,
+					last_metrics_sn: 0,
+					reward_receiver,
+				},
+			);
+			Self::deposit_event(Event::WorkerSessionUpdated {
+				worker: worker_pubkey,
+				session: update.session,
+			});
+			return Ok(());
+		}
+
+		/// Create a new worker list
+		#[pallet::call_index(2)]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
+		pub fn worker_list_create(
+			origin: OriginFor<T>,
+			description: BoundedString<1024>,
+			prices: Prices,
+			init_workers: BoundedVec<WorkerPublicKey, 32>,
+		) -> DispatchResult {
+			let owner = ensure_signed(origin.clone())?;
+			let id = Self::add_worker_list(WorkerListInfo {
+				owner: owner.into(),
+				prices,
+				description,
+			});
+			if init_workers.len() > 0 {
+				Self::worker_list_add_workers(origin, id, init_workers)?;
+			}
+			Ok(())
+		}
+
+		/// Add a worker to a worker list
+		#[pallet::call_index(3)]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
+		pub fn worker_list_add_workers(
+			origin: OriginFor<T>,
+			list_id: ListId,
+			workers: BoundedVec<WorkerPublicKey, 32>,
+		) -> DispatchResult {
+			let owner = ensure_signed(origin)?;
+			let list_info = WorkerLists::<T>::get(list_id).ok_or(Error::<T>::WorkerListNotFound)?;
+			ensure!(owner == list_info.owner.into(), Error::<T>::NotAllowed);
+			for worker in workers.iter() {
+				let Some(worker_info) = WorkerDescriptions::<T>::get(worker) else {
+					return Err(Error::<T>::WorkerNotFound.into());
+				};
+				ensure!(
+					worker_info.prices == Default::default()
+						|| worker_info.prices == list_info.prices,
+					Error::<T>::PriceMismatch
+				);
+				WorkerListWorkers::<T>::insert(list_id, worker, ());
+			}
+			Self::deposit_event(Event::WorkersAddedToList {
+				list_id,
+				workers: workers.into(),
+			});
+			Ok(())
+		}
+
+		/// Remove a worker from a worker list
+		#[pallet::call_index(4)]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
+		pub fn worker_list_remove_worker(
+			origin: OriginFor<T>,
+			list_id: ListId,
+			worker: WorkerPublicKey,
+		) -> DispatchResult {
+			let owner = ensure_signed(origin)?;
+			let list_info = WorkerLists::<T>::get(list_id).ok_or(Error::<T>::WorkerListNotFound)?;
+			ensure!(owner == list_info.owner.into(), Error::<T>::NotAllowed);
+			WorkerListWorkers::<T>::remove(list_id, worker);
+			Self::deposit_event(Event::WorkerRemovedFromList { list_id, worker });
+			Ok(())
+		}
+
+		// MARK: - Tickets
+
 		/// Create a new ticket
 		///
 		/// deposit: the deposit to be paid to the ticket account
@@ -285,9 +438,9 @@ pub mod pallet {
 		///	manifest_cid: the IPFS CID of the manifest of the target app
 		///	worker_list: the worker list that the ticket is allowed to be settled by.
 		/// prices: the resource prices of the ticket. If is recommended to use the prices of the worker list or else the ticket may be rejected by workers.
-		#[pallet::call_index(0)]
+		#[pallet::call_index(5)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn create_ticket(
+		pub fn ticket_create(
 			origin: OriginFor<T>,
 			deposit: BalanceOf<T>,
 			address: Address,
@@ -301,32 +454,37 @@ pub mod pallet {
 			};
 			let id = Self::add_ticket(TicketInfo {
 				system: false,
-				owner: owner.clone().into(),
+				owner: Some(owner.clone()),
 				workers: WorkerSet::WorkerList(worker_list),
 				address,
 				manifest_cid,
 				prices: prices.merge(&list_info.prices),
 			});
-			let ticket_account = ticket_account_address(id).into();
-			<T as Config>::Currency::transfer(&owner, &ticket_account, deposit, KeepAlive)?;
+			let ticket_account = ticket_account_address(id);
+			<T as PhalaConfig>::Currency::transfer(&owner, &ticket_account, deposit, KeepAlive)?;
 			Ok(())
 		}
 
 		/// Close a ticket
 		///
 		/// The state of the ticket will be removed and the deposit will be refunded to the owner.
-		#[pallet::call_index(2)]
+		#[pallet::call_index(6)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn close_ticket(origin: OriginFor<T>, ticket_id: TicketId) -> DispatchResult {
+		pub fn ticket_close(origin: OriginFor<T>, ticket_id: TicketId) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			let info = Tickets::<T>::get(ticket_id).ok_or(Error::<T>::TicketNotFound)?;
-			ensure!(owner == info.owner.into(), Error::<T>::NotAllowed);
+			ensure!(Some(&owner) == info.owner.as_ref(), Error::<T>::NotAllowed);
 
 			// Refund the deposit
-			let ticket_account = ticket_account_address(ticket_id).into();
-			let deposit = <T as Config>::Currency::free_balance(&ticket_account);
+			let ticket_account = ticket_account_address(ticket_id);
+			let deposit = <T as PhalaConfig>::Currency::free_balance(&ticket_account);
 			if !deposit.is_zero() {
-				<T as Config>::Currency::transfer(&ticket_account, &owner, deposit, AllowDeath)?;
+				<T as PhalaConfig>::Currency::transfer(
+					&ticket_account,
+					&owner,
+					deposit,
+					AllowDeath,
+				)?;
 			}
 			Tickets::<T>::remove(ticket_id);
 			// TODO: remove the remaining entries
@@ -339,12 +497,9 @@ pub mod pallet {
 		///
 		/// message: a worker signed message that contains the metrics of apps.
 		/// The message will be verified and the metrics will be used to settle the corresponding tickets.
-		#[pallet::call_index(3)]
+		#[pallet::call_index(7)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn submit_app_metrics(
-			origin: OriginFor<T>,
-			message: SignedAppsMetrics,
-		) -> DispatchResult {
+		pub fn ticket_settle(origin: OriginFor<T>, message: SignedAppsMetrics) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 			let worker_pubkey = {
 				// signature verification
@@ -417,18 +572,17 @@ pub mod pallet {
 							TicketSettlementInfo::<T>::get(ticket_id, &worker_pubkey);
 
 						// Pay out and update the settlement infomation
-						let cost = ticket.prices.cost_of(&metrics);
+						let cost = ticket.prices.cost_of(&metrics).into();
 						if settlement.current_session_id != metrics.session {
 							settlement.current_session_id = metrics.session;
 							settlement.current_session_paid = cost;
 						}
 						let pay_out = cost.saturating_sub(settlement.current_session_paid);
-						if pay_out > 0 {
-							let ticket_account = ticket_account_address(*ticket_id).into();
-							let reward_account = worker_info.reward_receiver.into();
-							let transfer_result = <T as Config>::Currency::transfer(
+						if !pay_out.is_zero() {
+							let ticket_account = ticket_account_address(*ticket_id);
+							let transfer_result = <T as PhalaConfig>::Currency::transfer(
 								&ticket_account,
-								&reward_account,
+								&worker_info.reward_receiver,
 								pay_out.into(),
 								KeepAlive,
 							);
@@ -442,7 +596,7 @@ pub mod pallet {
 										worker: worker_pubkey,
 										paid: pay_out.into(),
 										session_cost: cost.into(),
-										paid_to: reward_account,
+										paid_to: worker_info.reward_receiver.clone(),
 									});
 								}
 								Err(_) => {
@@ -459,20 +613,24 @@ pub mod pallet {
 					}
 				}
 			}
-			let todo = "reorder the pallet calls";
 			Ok(())
 		}
 
+		// MARK: - Benchmark
+
 		/// Submit benchmark score
 		///
-		/// This call is used to submit the benchmark app score of a worker. The score is used to simulate pruntime v2 worker heartbeat.
-		/// The init_score of the worker will also be updated according to the score.
+		/// This call is used to submit the benchmark app score of a worker.
+		/// if as_init_score == ture, the score will be used to update the worker init score.
+		/// else the score will be used to simulate the worker's v2 heartbeat.
 		///
 		/// message: a worker signed message that contains the benchmark score.
-		#[pallet::call_index(4)]
+		///
+		#[pallet::call_index(8)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn submit_bench_message(
+		pub fn benchmark_submit_score(
 			origin: OriginFor<T>,
+			as_init_score: bool,
 			message: SignedMessage,
 		) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
@@ -503,11 +661,15 @@ pub mod pallet {
 					Self::update_metrics_token(&worker_pubkey, &metrics_token)?;
 
 					// Update the worker init score
-					let gas_6secs = gas_per_second.saturating_mul(6);
-					let score = bench_app_info.score_ratio.saturating_mul_u64(gas_6secs);
-					let p_init = registry::Pallet::<T>::update_worker_score(&worker_pubkey, score);
-					// If the worker is scheduled working by the chain, simulate a heartbeat message.
-					if let Some(mut working_state) = WorkingWorkers::<T>::get(&worker_pubkey) {
+					if as_init_score {
+						let gas_6secs = gas_per_second.saturating_mul(6);
+						let score = bench_app_info.score_ratio.saturating_mul_u64(gas_6secs);
+						registry::Pallet::<T>::update_worker_init_score(&worker_pubkey, score);
+					} else if let Some(mut working_state) = WorkingWorkers::<T>::get(&worker_pubkey)
+					{
+						let p_init =
+							registry::Pallet::<T>::worker_init_score(&worker_pubkey).unwrap_or(0);
+						// If the worker is scheduled working by the chain, simulate a heartbeat message.
 						let delta_time = now - working_state.last_update_time;
 						if delta_time <= 0 {
 							return Ok(());
@@ -527,6 +689,12 @@ pub mod pallet {
 							p_instant,
 						};
 						mq::Pallet::<T>::push_bound_message(worker, worker_report);
+						Self::deposit_event(Event::HeartbeatV3 {
+							worker: worker_pubkey,
+							session_id: working_state.session_id,
+							iterations,
+							p_instant,
+						});
 
 						working_state.last_iterations = iterations;
 						working_state.last_update_time = now;
@@ -537,101 +705,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Create a new worker list
-		#[pallet::call_index(5)]
-		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn create_worker_list(
-			origin: OriginFor<T>,
-			description: BoundedString<1024>,
-			prices: Prices,
-			init_workers: BoundedVec<WorkerPublicKey, 32>,
-		) -> DispatchResult {
-			let owner = ensure_signed(origin.clone())?;
-			let id = Self::add_worker_list(WorkerListInfo {
-				owner: owner.into(),
-				prices,
-				description,
-			});
-			if init_workers.len() > 0 {
-				Self::add_workers_to_list(origin, id, init_workers)?;
-			}
-			Ok(())
-		}
-
-		/// Add a worker to a worker list
-		#[pallet::call_index(6)]
-		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn add_workers_to_list(
-			origin: OriginFor<T>,
-			list_id: ListId,
-			workers: BoundedVec<WorkerPublicKey, 32>,
-		) -> DispatchResult {
-			let owner = ensure_signed(origin)?;
-			let list_info = WorkerLists::<T>::get(list_id).ok_or(Error::<T>::WorkerListNotFound)?;
-			ensure!(owner == list_info.owner.into(), Error::<T>::NotAllowed);
-			for worker in workers.iter() {
-				let Some(worker_info) = WorkerDescriptions::<T>::get(worker) else {
-					return Err(Error::<T>::WorkerNotFound.into());
-				};
-				ensure!(
-					worker_info.prices == Default::default()
-						|| worker_info.prices == list_info.prices,
-					Error::<T>::PriceMismatch
-				);
-				WorkerListWorkers::<T>::insert(list_id, worker, ());
-			}
-			Self::deposit_event(Event::WorkersAddedToList {
-				list_id,
-				workers: workers.into(),
-			});
-			Ok(())
-		}
-
-		/// Remove a worker from a worker list
-		#[pallet::call_index(7)]
-		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn remove_worker_from_list(
-			origin: OriginFor<T>,
-			list_id: ListId,
-			worker: WorkerPublicKey,
-		) -> DispatchResult {
-			let owner = ensure_signed(origin)?;
-			let list_info = WorkerLists::<T>::get(list_id).ok_or(Error::<T>::WorkerListNotFound)?;
-			ensure!(owner == list_info.owner.into(), Error::<T>::NotAllowed);
-			WorkerListWorkers::<T>::remove(list_id, worker);
-			Self::deposit_event(Event::WorkerRemovedFromList { list_id, worker });
-			Ok(())
-		}
-
-		/// Set worker description
-		#[pallet::call_index(8)]
-		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn set_worker_description(
-			origin: OriginFor<T>,
-			signed_description: SignedWorkerDescription,
-		) -> DispatchResult {
-			let _ = ensure_signed(origin)?;
-			let worker_pubkey = WorkerPublicKey(signed_description.worker_pubkey);
-			// Worker price can only be set once
-			ensure!(
-				!WorkerDescriptions::<T>::contains_key(&worker_pubkey),
-				Error::<T>::NotAllowed
-			);
-			ensure!(
-				registry::Pallet::<T>::worker_exsists(&worker_pubkey),
-				Error::<T>::InvalidWorkerPubkey
-			);
-			ensure!(
-				signed_description.verify::<SpCrypto>(),
-				Error::<T>::SignatureVerificationFailed
-			);
-			WorkerDescriptions::<T>::insert(&worker_pubkey, signed_description.worker_description);
-			Self::deposit_event(Event::WorkerDescriptionSet {
-				worker: worker_pubkey,
-			});
-			Ok(())
-		}
-
 		/// Add a benchmark app (governance only)
 		///
 		/// address: the address of the benchmark app
@@ -639,16 +712,19 @@ pub mod pallet {
 		///	score_ratio: the ratio of mapping gas to score
 		#[pallet::call_index(9)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn add_benchmark_app(
+		pub fn benchmark_add_app(
 			origin: OriginFor<T>,
 			address: Address,
 			manifest_cid: BoundedString<128>,
 			score_ratio: Fraction,
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
+
+			ensure!(score_ratio.denominator > 0, Error::<T>::InvalidParameter);
+
 			let ticket = Self::add_ticket(TicketInfo {
 				system: true,
-				owner: [0u8; 32].into(),
+				owner: None,
 				workers: WorkerSet::Any,
 				address,
 				manifest_cid,
@@ -670,10 +746,7 @@ pub mod pallet {
 		/// address: the address of the recommended benchmark app
 		#[pallet::call_index(10)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn set_recommended_benchmark_app(
-			origin: OriginFor<T>,
-			address: Address,
-		) -> DispatchResult {
+		pub fn benchmark_set_recommended(origin: OriginFor<T>, address: Address) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 			RecommendedBenchmarkApp::<T>::set(Some(address));
 			Self::deposit_event(Event::RecommendedBenchmarkAppChanged { address });
@@ -683,73 +756,24 @@ pub mod pallet {
 		/// Combine add_benchmark_app and set_recommended_benchmark_app
 		#[pallet::call_index(11)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn set_benchmark_app(
+		pub fn benchmark_set_app(
 			origin: OriginFor<T>,
 			address: Address,
 			manifest_cid: BoundedString<128>,
 			score_ratio: Fraction,
 		) -> DispatchResult {
-			Self::add_benchmark_app(origin.clone(), address, manifest_cid, score_ratio)?;
-			Self::set_recommended_benchmark_app(origin, address)
-		}
-
-		/// Update worker session
-		///
-		/// When a worker restarts or resets, it should update the session with the new session id.
-		#[pallet::call_index(12)]
-		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn update_session(
-			origin: OriginFor<T>,
-			worker: Address,
-			update: SessionUpdate,
-			signature: BoundedVec<u8, 128>,
-		) -> DispatchResult {
-			let _ = ensure_signed(origin)?;
-			let worker_pubkey = WorkerPublicKey(worker);
-
-			let signed_update = SignedSessionUpdate {
-				update: update.clone(),
-				signature: signature.into(),
-			};
-			ensure!(
-				signed_update.verify::<SpCrypto>(&worker_pubkey),
-				Error::<T>::SignatureVerificationFailed
-			);
-			ensure!(
-				registry::Pallet::<T>::worker_exsists(&worker_pubkey),
-				Error::<T>::InvalidWorkerPubkey
-			);
-			if let Some(session) = WorkerSessions::<T>::get(&worker_pubkey) {
-				let computed_session =
-					SessionUpdate::session_from_seed::<SpCrypto>(update.seed, &session.last_nonce);
-				ensure!(
-					computed_session == update.session,
-					Error::<T>::OutdatedMessage
-				);
-			};
-			WorkerSessions::<T>::insert(
-				worker_pubkey,
-				WorkerSession {
-					session_id: update.session,
-					last_nonce: update.seed,
-					last_metrics_sn: 0,
-					reward_receiver: update.reward_receiver,
-				},
-			);
-			Self::deposit_event(Event::WorkerSessionUpdated {
-				worker: worker_pubkey,
-				session: update.session,
-			});
-			return Ok(());
+			Self::benchmark_add_app(origin.clone(), address, manifest_cid, score_ratio)?;
+			Self::benchmark_set_recommended(origin, address)
 		}
 	}
+
+	// MARK: Support functions
 
 	impl<T: Config> Pallet<T>
 	where
 		T: mq::Config,
-		T::AccountId: Into<AcountId32> + From<AcountId32>,
 	{
-		fn add_ticket(info: TicketInfo) -> TicketId {
+		fn add_ticket(info: TicketInfo<T::AccountId>) -> TicketId {
 			let id = {
 				let id = NextTicketId::<T>::get();
 				NextTicketId::<T>::put(id.wrapping_add(1));
@@ -760,7 +784,7 @@ pub mod pallet {
 			id
 		}
 
-		fn add_worker_list(info: WorkerListInfo) -> ListId {
+		fn add_worker_list(info: WorkerListInfo<T::AccountId>) -> ListId {
 			let id = {
 				let id = NextWorkerListId::<T>::get();
 				NextWorkerListId::<T>::put(id.wrapping_add(1));
@@ -835,15 +859,14 @@ pub mod pallet {
 		}
 	}
 
-	// For runtime api
+	// MARK: Runtime api
 	impl<T: Config> Pallet<T>
 	where
 		T: mq::Config,
-		T::AccountId: Into<AcountId32> + From<AcountId32>,
 	{
 		pub fn balance_of_ticket(ticket_id: TicketId) -> BalanceOf<T> {
-			let account = ticket_account_address(ticket_id).into();
-			<T as Config>::Currency::free_balance(&account)
+			let account = ticket_account_address(ticket_id);
+			<T as PhalaConfig>::Currency::free_balance(&account)
 		}
 	}
 }

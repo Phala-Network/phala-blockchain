@@ -934,7 +934,7 @@ pub mod pallet {
 			Workers::<T>::contains_key(worker_pubkey)
 		}
 
-		pub fn update_worker_score(worker_pubkey: &WorkerPublicKey, score: u64) -> u64 {
+		pub fn update_worker_init_score(worker_pubkey: &WorkerPublicKey, score: u64) {
 			let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
 
 			const MAX_SCORE: u32 = 6000;
@@ -954,7 +954,12 @@ pub mod pallet {
 				pubkey: *worker_pubkey,
 				init_score: score,
 			});
-			score as u64
+		}
+
+		pub fn worker_init_score(worker_pubkey: &WorkerPublicKey) -> Option<u64> {
+			Workers::<T>::get(worker_pubkey)?
+				.initial_score
+				.map(|s| s as u64)
 		}
 
 		pub fn on_message_received(message: DecodedMessage<RegistryEvent>) -> DispatchResult {
@@ -976,7 +981,7 @@ pub mod pallet {
 
 					let score = iterations / ((now - start_time) / 1000);
 					let score = score * 6; // iterations per 6s
-					Self::update_worker_score(&worker_pubkey, score);
+					Self::update_worker_init_score(&worker_pubkey, score);
 				}
 				RegistryEvent::MasterPubkey { master_pubkey } => {
 					let gatekeepers = Gatekeeper::<T>::get();

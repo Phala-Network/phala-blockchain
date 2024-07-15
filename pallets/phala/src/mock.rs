@@ -3,7 +3,7 @@ use crate::{
 	utils::attestation_legacy::{
 		Attestation, AttestationValidator, Error as AttestationError, IasFields,
 	},
-	vault, wrapped_balances,
+	vault, wapod_workers, wrapped_balances,
 };
 
 use frame_support::{
@@ -46,6 +46,7 @@ frame_support::construct_runtime!(
 		PhalaWrappedBalances: wrapped_balances::{Pallet, Event<T>},
 		PhalaBasePool: base_pool::{Pallet, Event<T>},
 		PhalaStakePool: stake_pool::{Event<T>},
+		PhalaWapodWorkers: wapod_workers::{Pallet, Call, Storage, Event<T>},
 		Preimage: pallet_preimage::{Event<T>},
 	}
 );
@@ -392,6 +393,10 @@ impl base_pool::Config for Test {
 impl stake_pool::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
+}
+
+impl wapod_workers::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
 }
 
 pub struct MockValidator;
