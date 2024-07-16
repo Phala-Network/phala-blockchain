@@ -10571,7 +10571,9 @@ dependencies = [
 
 [[package]]
 name = "wapod-types"
-version = "0.1.0"
+version = "0.1.0-dev.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1af243243426435872a873bb893bbbbc4865caa88d6d4c8856d717a3fcd7094"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
