@@ -1,4 +1,7 @@
 //! The pallet managing the wapod workers.
+//!
+//! This pallet is responsible for managing worker descriptions, sessions, and tickets.
+//! It also handles worker lists, benchmarking, and settlement of tickets.
 
 pub use self::pallet::*;
 
@@ -24,7 +27,10 @@ pub mod pallet {
 	use wapod_types::{
 		bench_app::{BenchScore, SignedMessage, SigningMessage},
 		crypto::{verify::Verifiable, CryptoProvider},
-		metrics::{MetricsToken, SignedAppsMetrics, VersionedAppsMetrics},
+		metrics::{
+			AppMetrics, AppsMetrics, ClaimMap, MetricsToken, SignedAppsMetrics,
+			VersionedAppsMetrics,
+		},
 		primitives::{BoundedString, BoundedVec},
 		session::{SessionUpdate, SignedSessionUpdate},
 		ticket::{Balance, Prices, SignedWorkerDescription, WorkerDescription},
@@ -36,6 +42,7 @@ pub mod pallet {
 
 	pub type TicketId = u64;
 	pub type ListId = u64;
+	/// Address type used for apps and workers.
 	pub type Address = [u8; 32];
 
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone, Copy, PartialEq, Eq, MaxEncodedLen)]
@@ -45,6 +52,7 @@ pub mod pallet {
 	}
 
 	impl Fraction {
+		/// Performs a saturating multiplication of the fraction with a u64 value.
 		fn saturating_mul_u64(&self, rhs: u64) -> u64 {
 			let rhs = rhs as u128;
 			let numerator = self.numerator as u128;
@@ -54,21 +62,30 @@ pub mod pallet {
 		}
 	}
 
+	/// Information about a benchmark app.
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
 	pub struct BenchAppInfo {
+		/// The ticket id used to deploy the benchmark app.
 		ticket: TicketId,
+		/// The ratio of mapping gas to score.
 		score_ratio: Fraction,
 	}
 
+	/// Represents a worker's session information. When a worker restarts, it creates a new session.
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
 	pub struct WorkerSession<AccountId> {
+		/// The session id of the worker.
 		pub session_id: [u8; 32],
+		/// The nonce that last used in metrics report.
 		pub last_nonce: [u8; 32],
+		/// The last metrics sequence number.
 		pub last_metrics_sn: u64,
+		/// The account id that receives the ticket reward.
 		pub reward_receiver: AccountId,
 	}
 
-	struct SpCrypto;
+	/// Cryptographic provider for signature verification.
+	pub struct SpCrypto;
 	impl CryptoProvider for SpCrypto {
 		fn sr25519_verify(public_key: &[u8], message: &[u8], signature: &[u8]) -> bool {
 			let Ok(public_key) = public_key.try_into() else {
@@ -87,41 +104,67 @@ pub mod pallet {
 		}
 	}
 
+	/// Defines the set of workers that a ticket can be deployed to.
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
 	pub enum WorkerSet {
+		/// The ticket can be deployed to any worker.
 		Any,
+		/// The ticket can be deployed to workers in the specified list.
 		WorkerList(ListId),
 	}
 
+	/// Information about a ticket.
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
 	pub struct TicketInfo<AccountId> {
+		/// If true, the ticket is a system (benchmark) ticket.
 		pub system: bool,
+		/// The account id of the ticket owner.
+		/// None if the ticket is a system ticket.
 		pub owner: Option<AccountId>,
+		/// The set of workers that the ticket can be deployed to.
 		pub workers: WorkerSet,
+		/// The address of the target app.
 		pub address: Address,
+		/// The resource prices of the ticket.
 		pub prices: Prices,
+		/// The IPFS CID of the target app's manifest.
 		pub manifest_cid: BoundedString<128>,
 	}
 
+	/// Information about a worker list.
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
 	pub struct WorkerListInfo<AccountId> {
+		/// The account id of the list owner.
 		pub owner: AccountId,
+		/// The resource prices of the workers in the list.
 		pub prices: Prices,
+		/// The description of the list.
 		pub description: BoundedString<1024>,
 	}
 
+	/// Settlement information for a ticket and worker pair.
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen, Default)]
 	pub struct SettlementInfo<Balance> {
+		/// The current session id of the App.
 		pub current_session_id: [u8; 32],
+		/// The total amount paid in the current App session.
+		/// If the ticket is created after the worker's session, this value will be initialized
+		/// to the cost calculated from the first metrics report but without actual payment.
 		pub current_session_paid: Balance,
+		/// The total amount paid to the worker.
 		pub total_paid: Balance,
 	}
 
+	/// Represents the computation state of a worker. V2 compatible.
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
-	pub struct WorkingState {
+	pub struct ComputationState {
+		/// The id of the current computation session.
 		session_id: u32,
+		/// Whether the worker is unresponsive.
 		unresponsive: bool,
+		/// The number of iterations in the last heartbeat.
 		last_iterations: u64,
+		/// The time of the last heartbeat.
 		last_update_time: i64,
 	}
 
@@ -129,6 +172,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config + PhalaConfig {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type Crypto: CryptoProvider;
 	}
 
 	// MARK: - Pallet storage
@@ -139,11 +183,13 @@ pub mod pallet {
 	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
+	/// The next ticket ID to use.
 	#[pallet::storage]
 	pub type NextTicketId<T: Config> = StorageValue<_, TicketId, ValueQuery>;
 
 	/// Active tickets.
-	/// Each ticket holds a payment infomation to a target app address. Multiple ticket can pay for a same app at the sametime.
+	/// Each ticket holds payment information for a target app address.
+	/// Multiple tickets can pay for the same app at the same time.
 	#[pallet::storage]
 	pub type Tickets<T: Config> = StorageMap<_, Twox64Concat, TicketId, TicketInfo<T::AccountId>>;
 
@@ -159,6 +205,7 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	/// The next worker list ID to use.
 	#[pallet::storage]
 	pub type NextWorkerListId<T> = StorageValue<_, ListId, ValueQuery>;
 
@@ -169,7 +216,7 @@ pub mod pallet {
 	pub type WorkerLists<T: Config> =
 		StorageMap<_, Twox64Concat, ListId, WorkerListInfo<T::AccountId>>;
 
-	/// Concrete workers associated to worker list.
+	/// Workers associated to worker list.
 	#[pallet::storage]
 	pub type WorkerListWorkers<T> =
 		StorageDoubleMap<_, Twox64Concat, ListId, Twox64Concat, WorkerPublicKey, ()>;
@@ -186,7 +233,7 @@ pub mod pallet {
 
 	/// Working state of wapod workers. V2 compatible.
 	#[pallet::storage]
-	pub type WorkingWorkers<T> = StorageMap<_, Twox64Concat, WorkerPublicKey, WorkingState>;
+	pub type ComputationWorkers<T> = StorageMap<_, Twox64Concat, WorkerPublicKey, ComputationState>;
 
 	/// Allowed app addresses that used to benchmark workers.
 	#[pallet::storage]
@@ -197,9 +244,10 @@ pub mod pallet {
 	pub type RecommendedBenchmarkApp<T> = StorageValue<_, Address>;
 
 	// MARK: - Pallet error
+
+	/// Errors that can occur in this pallet.
 	#[pallet::error]
 	pub enum Error<T> {
-		UnsupportedManifestVersion,
 		NotAllowed,
 		WorkerNotFound,
 		WorkerListNotFound,
@@ -216,35 +264,34 @@ pub mod pallet {
 	}
 
 	// MARK: - Pallet events
+
+	/// Events emitted by this pallet.
 	#[pallet::event]
 	#[pallet::generate_deposit(fn deposit_event)]
 	pub enum Event<T: Config> {
-		TicketCreated {
-			id: TicketId,
-		},
-		TicketClosed {
-			id: TicketId,
-		},
-		WorkerListCreated {
-			id: ListId,
-		},
+		/// A new ticket was created.
+		TicketCreated { id: TicketId },
+		/// A ticket was closed.
+		TicketClosed { id: TicketId },
+		/// A new worker list was created.
+		WorkerListCreated { id: ListId },
+		/// Some workers were added to a list.
 		WorkersAddedToList {
 			list_id: ListId,
 			workers: Vec<WorkerPublicKey>,
 		},
+		/// A worker was removed from a list.
 		WorkerRemovedFromList {
 			list_id: ListId,
 			worker: WorkerPublicKey,
 		},
-		WorkerDescriptionSet {
-			worker: WorkerPublicKey,
-		},
-		BenchmarkAppAdded {
-			address: Address,
-		},
-		RecommendedBenchmarkAppChanged {
-			address: Address,
-		},
+		/// A worker's description was set.
+		WorkerDescriptionSet { worker: WorkerPublicKey },
+		/// A benchmark app was added.
+		BenchmarkAppAdded { address: Address },
+		/// The recommended benchmark app was changed.
+		RecommendedBenchmarkAppChanged { address: Address },
+		/// A ticket was settled.
 		Settled {
 			ticket_id: TicketId,
 			worker: WorkerPublicKey,
@@ -252,25 +299,31 @@ pub mod pallet {
 			session_cost: BalanceOf<T>,
 			paid_to: T::AccountId,
 		},
+		/// A settlement failed.
 		SettleFailed {
 			ticket_id: TicketId,
 			worker: WorkerPublicKey,
 			paid: BalanceOf<T>,
 			session_cost: BalanceOf<T>,
 		},
+		/// A worker's session was updated.
 		WorkerSessionUpdated {
 			worker: WorkerPublicKey,
 			session: [u8; 32],
 		},
+		/// A simulated heartbeat was emitted (V3).
 		HeartbeatV3 {
 			worker: WorkerPublicKey,
+			/// The computation session id.
 			session_id: u32,
+			/// The v2 iterations converted from gas consumed.
 			iterations: u64,
+			/// The p_instant is estimated by the pallet, might not be the same as the GK state.
 			p_instant: u32,
 		},
 	}
 
-	pub fn ticket_account_address<T>(ticket_id: TicketId) -> T
+	fn ticket_account_address<T>(ticket_id: TicketId) -> T
 	where
 		T: Encode + Decode,
 	{
@@ -287,10 +340,16 @@ pub mod pallet {
 	{
 		// MARK: - Worker management
 
-		/// Set worker description
+		/// Sets the description and price for a worker.
+		///
+		/// This function allows setting the description for a worker, which can only be done once.
+		/// The description must be signed by the worker via its RPC.
+		///
+		/// # Parameters
+		/// - `signed_description`: A signed description of the worker.
 		#[pallet::call_index(0)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn worker_set_description(
+		pub fn worker_description_set(
 			origin: OriginFor<T>,
 			signed_description: SignedWorkerDescription,
 		) -> DispatchResult {
@@ -306,7 +365,7 @@ pub mod pallet {
 				Error::<T>::InvalidWorkerPubkey
 			);
 			ensure!(
-				signed_description.verify::<SpCrypto>(),
+				signed_description.verify::<T::Crypto>(),
 				Error::<T>::SignatureVerificationFailed
 			);
 			WorkerDescriptions::<T>::insert(&worker_pubkey, signed_description.worker_description);
@@ -316,18 +375,22 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Update worker session
+		/// Updates the session for a worker.
 		///
-		/// When a worker restarts or resets, it should update the session with the new session id.
+		/// This function should be called when a worker restarts or resets to update its session with a new session ID.
+		/// The new session must be initiated with the last nonce on-chain to ensure the session is not lanched before the last metrics report.
+		///
+		/// # Parameters
+		/// - `update`: A signed session update containing the new session information.
 		#[pallet::call_index(1)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn worker_update_session(
+		pub fn worker_session_update(
 			origin: OriginFor<T>,
 			update: SignedSessionUpdate,
 		) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 			ensure!(
-				update.verify::<SpCrypto>(),
+				update.verify::<T::Crypto>(),
 				Error::<T>::SignatureVerificationFailed
 			);
 			let worker_pubkey = WorkerPublicKey(update.public_key);
@@ -338,7 +401,7 @@ pub mod pallet {
 			let update = update.update;
 			if let Some(session) = WorkerSessions::<T>::get(&worker_pubkey) {
 				let computed_session =
-					SessionUpdate::session_from_seed::<SpCrypto>(update.seed, &session.last_nonce);
+					SessionUpdate::session_from_seed::<T::Crypto>(update.seed, &session.last_nonce);
 				ensure!(
 					computed_session == update.session,
 					Error::<T>::OutdatedMessage
@@ -363,7 +426,14 @@ pub mod pallet {
 			return Ok(());
 		}
 
-		/// Create a new worker list
+		/// Creates a new worker list.
+		///
+		/// This function creates a new worker list with specified description, prices, and initial workers.
+		///
+		/// # Parameters
+		/// - `description`: A string describing the worker list.
+		/// - `prices`: The resource prices for each worker in the list.
+		/// - `init_workers`: An optional list of initial workers to add to the list.
 		#[pallet::call_index(2)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
 		pub fn worker_list_create(
@@ -384,7 +454,11 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Add a worker to a worker list
+		/// Adds workers to an existing worker list.
+		///
+		/// # Parameters
+		/// - `list_id`: The ID of the worker list to add workers to.
+		/// - `workers`: A vector of worker public keys to add to the list.
 		#[pallet::call_index(3)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
 		pub fn worker_list_add_workers(
@@ -413,7 +487,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Remove a worker from a worker list
+		/// Removes a worker from a worker list.
 		#[pallet::call_index(4)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
 		pub fn worker_list_remove_worker(
@@ -431,13 +505,19 @@ pub mod pallet {
 
 		// MARK: - Tickets
 
-		/// Create a new ticket
+		/// Creates a new ticket for an application.
 		///
-		/// deposit: the deposit to be paid to the ticket account
-		/// address: the address of the target app. It must match the address of the manifest, otherwise the ticket will be rejected by workers.
-		///	manifest_cid: the IPFS CID of the manifest of the target app
-		///	worker_list: the worker list that the ticket is allowed to be settled by.
-		/// prices: the resource prices of the ticket. If is recommended to use the prices of the worker list or else the ticket may be rejected by workers.
+		/// The address must match the address of the target application. Otherwise, this call will not fail but the ticket will not be settled,
+		/// and the worker will likely reject the ticket.
+		///
+		/// # Parameters
+		/// - `deposit`: The amount to be deposited into the ticket account.
+		/// - `address`: The address of the target application.
+		/// - `manifest_cid`: The IPFS CID of the application manifest.
+		/// - `worker_list`: The ID of the worker list allowed to settle this ticket.
+		/// - `prices`:
+		/// 	The resource prices for the ticket. This will be merged with the prices of the worker list while settling the ticket.
+		/// 	Leave None for the field to use the prices of the worker list.
 		#[pallet::call_index(5)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
 		pub fn ticket_create(
@@ -465,9 +545,10 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Close a ticket
+		/// Closes an ticket.
 		///
-		/// The state of the ticket will be removed and the deposit will be refunded to the owner.
+		/// # Parameters
+		/// - `ticket_id`: The ID of the ticket to be closed.
 		#[pallet::call_index(6)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
 		pub fn ticket_close(origin: OriginFor<T>, ticket_id: TicketId) -> DispatchResult {
@@ -493,18 +574,24 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Submit app metrics
+		/// Submits application metrics for settlement.
 		///
-		/// message: a worker signed message that contains the metrics of apps.
-		/// The message will be verified and the metrics will be used to settle the corresponding tickets.
+		/// This function allows workers to submit signed metrics for applications, which are used to settle tickets.
+		///
+		/// # Parameters
+		/// - `message`: A signed message containing the application metrics.
 		#[pallet::call_index(7)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn ticket_settle(origin: OriginFor<T>, message: SignedAppsMetrics) -> DispatchResult {
+		pub fn ticket_settle(
+			origin: OriginFor<T>,
+			message: SignedAppsMetrics,
+			claim_map: ClaimMap,
+		) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 			let worker_pubkey = {
 				// signature verification
 				ensure!(
-					message.verify::<SpCrypto>(),
+					message.verify::<T::Crypto>(),
 					Error::<T>::SignatureVerificationFailed
 				);
 				let worker_pubkey = WorkerPublicKey(message.worker_pubkey);
@@ -541,13 +628,13 @@ pub mod pallet {
 				// update metrics for each ticket
 
 				// Up to 64 entries
-				let claim_map: BTreeMap<_, _> = message.claim_map.into_iter().collect();
+				let claim_map: BTreeMap<_, _> = claim_map.into_iter().collect();
 
 				// Up to 64 entries
 				for metrics in all_metrics.apps {
-					let ticket_ids = claim_map
-						.get(&metrics.address)
-						.ok_or(Error::<T>::NotAllowed)?;
+					let Some(ticket_ids) = claim_map.get(&metrics.address) else {
+						continue;
+					};
 					// Up to 5 entries
 					for ticket_id in ticket_ids.iter() {
 						let ticket =
@@ -618,24 +705,23 @@ pub mod pallet {
 
 		// MARK: - Benchmark
 
-		/// Submit benchmark score
+		/// Submits a benchmark score for a worker.
 		///
-		/// This call is used to submit the benchmark app score of a worker.
-		/// if as_init_score == ture, the score will be used to update the worker init score.
-		/// else the score will be used to simulate the worker's v2 heartbeat.
+		/// This function allows submitting a benchmark score for a worker, which can be used to update the worker's initial score or simulate a V2 heartbeat.
 		///
-		/// message: a worker signed message that contains the benchmark score.
-		///
+		/// # Parameters
+		/// - `as_init_score`: If true, the score will update the worker's initial score; otherwise, it will simulate a V2 heartbeat.
+		/// - `message`: A signed message containing the benchmark score.
 		#[pallet::call_index(8)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn benchmark_submit_score(
+		pub fn benchmark_score_submit(
 			origin: OriginFor<T>,
 			as_init_score: bool,
 			message: SignedMessage,
 		) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 			ensure!(
-				message.verify::<SpCrypto>(),
+				message.verify::<T::Crypto>(),
 				Error::<T>::SignatureVerificationFailed
 			);
 			let worker_pubkey = WorkerPublicKey(message.worker_pubkey);
@@ -662,21 +748,27 @@ pub mod pallet {
 
 					// Update the worker init score
 					if as_init_score {
-						let gas_6secs = gas_per_second.saturating_mul(6);
-						let score = bench_app_info.score_ratio.saturating_mul_u64(gas_6secs);
+						let iterations_per_sec = bench_app_info
+							.score_ratio
+							.saturating_mul_u64(gas_per_second);
+						let score = iterations_per_sec.saturating_mul(6);
 						registry::Pallet::<T>::update_worker_init_score(&worker_pubkey, score);
-					} else if let Some(mut working_state) = WorkingWorkers::<T>::get(&worker_pubkey)
+					} else if let Some(mut computation_state) =
+						ComputationWorkers::<T>::get(&worker_pubkey)
 					{
+						// If the worker is scheduled computing by the chain, simulate a heartbeat message.
 						let p_init =
 							registry::Pallet::<T>::worker_init_score(&worker_pubkey).unwrap_or(0);
-						// If the worker is scheduled working by the chain, simulate a heartbeat message.
-						let delta_time = now - working_state.last_update_time;
-						if delta_time <= 0 {
-							return Ok(());
-						}
 						let iterations =
 							bench_app_info.score_ratio.saturating_mul_u64(gas_consumed);
-						let delta_iterations = iterations - working_state.last_iterations;
+						let delta_time = now - computation_state.last_update_time;
+						if delta_time <= 0 {
+							computation_state.last_iterations = iterations;
+							ComputationWorkers::<T>::insert(&worker_pubkey, computation_state);
+							return Ok(());
+						}
+						let delta_iterations = iterations - computation_state.last_iterations;
+						let iter_per_sec = delta_iterations / delta_time as u64;
 						let p_instant = delta_iterations / delta_time as u64 * 6;
 						let p_max = p_init * 120 / 100;
 						let p_instant = p_instant.min(p_max) as u32;
@@ -685,34 +777,37 @@ pub mod pallet {
 						// Minic the worker heartbeat message
 						let worker_report = WorkingReportEvent::HeartbeatV3 {
 							iterations,
-							session_id: working_state.session_id,
+							session_id: computation_state.session_id,
 							p_instant,
 						};
 						mq::Pallet::<T>::push_bound_message(worker, worker_report);
 						Self::deposit_event(Event::HeartbeatV3 {
 							worker: worker_pubkey,
-							session_id: working_state.session_id,
+							session_id: computation_state.session_id,
 							iterations,
 							p_instant,
 						});
 
-						working_state.last_iterations = iterations;
-						working_state.last_update_time = now;
-						WorkingWorkers::<T>::insert(&worker_pubkey, working_state);
+						computation_state.last_iterations = iterations;
+						computation_state.last_update_time = now;
+						ComputationWorkers::<T>::insert(&worker_pubkey, computation_state);
 					}
 				}
 			};
 			Ok(())
 		}
 
-		/// Add a benchmark app (governance only)
+		/// Adds a new benchmark application (governance only).
 		///
-		/// address: the address of the benchmark app
-		/// manifest_cid: the IPFS CID of the manifest of the benchmark app
-		///	score_ratio: the ratio of mapping gas to score
+		/// This function allows the governance to add a new benchmark application to the whitelist.
+		///
+		/// # Parameters
+		/// - `address`: The address of the benchmark application.
+		/// - `manifest_cid`: The IPFS CID of the application manifest.
+		/// - `score_ratio`: The ratio for mapping gas to score.
 		#[pallet::call_index(9)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn benchmark_add_app(
+		pub fn benchmark_app_add(
 			origin: OriginFor<T>,
 			address: Address,
 			manifest_cid: BoundedString<128>,
@@ -741,29 +836,42 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Set recommended benchmark app (governance only)
+		/// Sets the recommended benchmark application (governance only).
 		///
-		/// address: the address of the recommended benchmark app
+		/// # Parameters
+		/// - `address`: The address of the recommended benchmark application.
 		#[pallet::call_index(10)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn benchmark_set_recommended(origin: OriginFor<T>, address: Address) -> DispatchResult {
+		pub fn benchmark_app_set_recommended(
+			origin: OriginFor<T>,
+			address: Address,
+		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 			RecommendedBenchmarkApp::<T>::set(Some(address));
 			Self::deposit_event(Event::RecommendedBenchmarkAppChanged { address });
 			Ok(())
 		}
 
-		/// Combine add_benchmark_app and set_recommended_benchmark_app
+		/// Combine benchmark_app_add and benchmark_app_set_recommended
 		#[pallet::call_index(11)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn benchmark_set_app(
+		pub fn benchmark_app_set(
 			origin: OriginFor<T>,
 			address: Address,
 			manifest_cid: BoundedString<128>,
 			score_ratio: Fraction,
 		) -> DispatchResult {
-			Self::benchmark_add_app(origin.clone(), address, manifest_cid, score_ratio)?;
-			Self::benchmark_set_recommended(origin, address)
+			Self::benchmark_app_add(origin.clone(), address, manifest_cid, score_ratio)?;
+			Self::benchmark_app_set_recommended(origin, address)
+		}
+
+		/// Remove a benchmark application from the whitelist (governance only).
+		#[pallet::call_index(12)]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
+		pub fn benchmark_app_remove(origin: OriginFor<T>, address: Address) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+			BenchmarkApps::<T>::remove(address);
+			Ok(())
 		}
 	}
 
@@ -827,9 +935,9 @@ pub mod pallet {
 				WorkerEvent::BenchStart { duration: _ } => (),
 				WorkerEvent::BenchScore(_) => (),
 				WorkerEvent::Started { session_id, .. } => {
-					WorkingWorkers::<T>::insert(
+					ComputationWorkers::<T>::insert(
 						&worker_pubkey,
-						WorkingState {
+						ComputationState {
 							session_id,
 							unresponsive: false,
 							last_iterations: 0,
@@ -838,17 +946,17 @@ pub mod pallet {
 					);
 				}
 				WorkerEvent::Stopped => {
-					WorkingWorkers::<T>::remove(&worker_pubkey);
+					ComputationWorkers::<T>::remove(&worker_pubkey);
 				}
 				WorkerEvent::EnterUnresponsive => {
-					WorkingWorkers::<T>::mutate(&worker_pubkey, |state| {
+					ComputationWorkers::<T>::mutate(&worker_pubkey, |state| {
 						if let Some(state) = state {
 							state.unresponsive = true;
 						}
 					});
 				}
 				WorkerEvent::ExitUnresponsive => {
-					WorkingWorkers::<T>::mutate(&worker_pubkey, |state| {
+					ComputationWorkers::<T>::mutate(&worker_pubkey, |state| {
 						if let Some(state) = state {
 							state.unresponsive = false;
 						}
@@ -869,12 +977,743 @@ pub mod pallet {
 			<T as PhalaConfig>::Currency::free_balance(&account)
 		}
 	}
-}
 
-sp_api::decl_runtime_apis! {
-	/// The API of the wapod workers pallet.
-	pub trait WapodWorkersApi<Balance> where Balance: codec::Codec {
-		/// Get balance of given ticket.
-		fn balance_of_ticket(ticket_id: TicketId) -> Balance;
+	sp_api::decl_runtime_apis! {
+		/// The API of the wapod workers pallet.
+		pub trait WapodWorkersApi<Balance> where Balance: codec::Codec {
+			/// Get balance of given ticket.
+			fn balance_of_ticket(ticket_id: TicketId) -> Balance;
+		}
+	}
+
+	// MARK: - Tests
+
+	#[cfg(test)]
+	mod tests {
+		use super::*;
+		use crate::mock::{
+			ecdh_pubkey, elapse_seconds, new_test_ext, set_block_1, take_events, take_messages,
+			worker_pubkey, BlockNumber, MockCrypto, RuntimeEvent as TestEvent,
+			RuntimeOrigin as Origin, Test,
+		};
+		// Pallets
+		use crate::mock::{PhalaComputation, PhalaRegistry, PhalaWapodWorkers, System};
+		use frame_support::{assert_err, assert_ok};
+		use phala_types::messaging::WorkerEventWithKey;
+		use wapod_types::{
+			bench_app::{BenchScore, SignedMessage, SigningMessage},
+			crypto::{verify::Verifiable, CryptoProvider},
+			metrics::{
+				AppMetrics, AppsMetrics, ClaimMap, MetricsToken, SignedAppsMetrics,
+				VersionedAppsMetrics,
+			},
+			primitives::{BoundedString, BoundedVec},
+			session::{SessionUpdate, SignedSessionUpdate},
+			ticket::{Balance, Prices, SignedWorkerDescription, WorkerDescription},
+		};
+
+		fn setup_workers(n: u8) {
+			for i in 1..=n {
+				let worker = worker_pubkey(i);
+				assert_ok!(PhalaRegistry::force_register_worker(
+					Origin::root(),
+					worker,
+					ecdh_pubkey(1),
+					Some(1)
+				));
+			}
+		}
+
+		struct Events(Vec<TestEvent>);
+
+		impl Events {
+			fn take() -> Self {
+				Self(take_events())
+			}
+			fn has(&self, event: impl Into<TestEvent>) -> bool {
+				let event = event.into();
+				self.0.iter().any(|x| x == &event)
+			}
+			fn find_settlement_for(
+				&self,
+				ticket: TicketId,
+				worker: WorkerPublicKey,
+			) -> Option<Balance> {
+				for event in self.0.iter() {
+					if let TestEvent::PhalaWapodWorkers(Event::<Test>::Settled {
+						ticket_id,
+						worker: worker_id,
+						paid,
+						..
+					}) = event
+					{
+						if ticket_id == &ticket && worker_id == &worker {
+							return Some(*paid);
+						}
+					}
+				}
+				None
+			}
+			fn find_heartbeat_v3(&self, worker: WorkerPublicKey) -> Option<(u64, u32)> {
+				for event in self.0.iter() {
+					if let TestEvent::PhalaWapodWorkers(Event::<Test>::HeartbeatV3 {
+						worker: worker_id,
+						session_id: _,
+						iterations,
+						p_instant,
+					}) = event
+					{
+						if worker_id == &worker {
+							return Some((*iterations, *p_instant));
+						}
+					}
+				}
+				None
+			}
+		}
+
+		fn create_worker_list() -> ListId {
+			create_worker_list_with_price(Prices::default())
+		}
+
+		fn create_worker_list_with_price(prices: Prices) -> ListId {
+			let result = PhalaWapodWorkers::worker_list_create(
+				Origin::signed(1),
+				"my list".to_string().into(),
+				prices,
+				vec![].into(),
+			);
+			assert_ok!(result);
+
+			let mut list_id = None;
+			for event in take_events() {
+				if let TestEvent::PhalaWapodWorkers(Event::<Test>::WorkerListCreated { id }) = event
+				{
+					list_id = Some(id);
+				}
+			}
+			list_id.expect("No WorkerListCreated event emitted")
+		}
+
+		fn setup_worker_list(n: u8, prices: Prices) -> ListId {
+			for id in 1..=n {
+				let result = PhalaWapodWorkers::worker_description_set(
+					Origin::signed(1),
+					SignedWorkerDescription {
+						worker_pubkey: worker_pubkey(id).0,
+						worker_description: WorkerDescription {
+							prices: prices.clone(),
+							description: "my worker".to_string().into(),
+						},
+						signature: b"valid".to_vec().into(),
+					},
+				);
+				assert_ok!(result);
+			}
+
+			let list_id = create_worker_list_with_price(prices);
+			let result = PhalaWapodWorkers::worker_list_add_workers(
+				Origin::signed(1),
+				list_id,
+				(1..=n)
+					.into_iter()
+					.map(worker_pubkey)
+					.collect::<Vec<_>>()
+					.into(),
+			);
+			assert_ok!(result);
+			for id in 1..=n {
+				assert!(WorkerListWorkers::<Test>::contains_key(
+					list_id,
+					&worker_pubkey(id)
+				))
+			}
+			list_id
+		}
+
+		#[test]
+		fn can_not_set_worker_description_without_register() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+
+				let result = PhalaWapodWorkers::worker_description_set(
+					Origin::signed(1),
+					SignedWorkerDescription {
+						worker_pubkey: worker_pubkey(0).0,
+						worker_description: WorkerDescription {
+							prices: Prices::default(),
+							description: "my worker".to_string().into(),
+						},
+						signature: b"valid".to_vec().into(),
+					},
+				);
+
+				assert_err!(result, Error::<Test>::InvalidWorkerPubkey);
+			});
+		}
+
+		#[test]
+		fn can_set_worker_description() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+
+				let result = PhalaWapodWorkers::worker_description_set(
+					Origin::signed(1),
+					SignedWorkerDescription {
+						worker_pubkey: worker_pubkey(1).0,
+						worker_description: WorkerDescription {
+							prices: Prices::default(),
+							description: "my worker".to_string().into(),
+						},
+						signature: b"valid".to_vec().into(),
+					},
+				);
+
+				assert_ok!(result);
+
+				let events = Events::take();
+				assert!(events.has(Event::WorkerDescriptionSet {
+					worker: worker_pubkey(1)
+				}));
+			});
+		}
+
+		#[test]
+		fn can_not_update_session_without_register() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+
+				let result = PhalaWapodWorkers::worker_session_update(
+					Origin::signed(1),
+					SignedSessionUpdate {
+						public_key: worker_pubkey(0).0,
+						update: SessionUpdate {
+							session: [1; 32],
+							seed: [1; 32],
+							reward_receiver: [1; 32].to_vec().into(),
+						},
+						signature: b"valid".to_vec().into(),
+					},
+				);
+
+				assert_err!(result, Error::<Test>::InvalidWorkerPubkey);
+			});
+		}
+
+		#[test]
+		fn can_update_session_first_time() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+
+				let result = PhalaWapodWorkers::worker_session_update(
+					Origin::signed(1),
+					SignedSessionUpdate {
+						public_key: worker_pubkey(1).0,
+						update: SessionUpdate {
+							session: [1; 32],
+							seed: [1; 32],
+							reward_receiver: [1; 32].to_vec().into(),
+						},
+						signature: b"valid".to_vec().into(),
+					},
+				);
+
+				assert_ok!(result);
+
+				let events = Events::take();
+				assert!(events.has(Event::WorkerSessionUpdated {
+					worker: worker_pubkey(1),
+					session: [1; 32],
+				}));
+			});
+		}
+
+		#[test]
+		fn can_not_update_session_second_time_with_incorrect_nonce() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+
+				let result = PhalaWapodWorkers::worker_session_update(
+					Origin::signed(1),
+					SignedSessionUpdate {
+						public_key: worker_pubkey(1).0,
+						update: SessionUpdate {
+							session: [1; 32],
+							seed: [1; 32],
+							reward_receiver: [1; 32].to_vec().into(),
+						},
+						signature: b"valid".to_vec().into(),
+					},
+				);
+
+				assert_ok!(result);
+
+				let result = PhalaWapodWorkers::worker_session_update(
+					Origin::signed(1),
+					SignedSessionUpdate {
+						public_key: worker_pubkey(1).0,
+						update: SessionUpdate {
+							session: [1; 32],
+							seed: [2; 32],
+							reward_receiver: [1; 32].to_vec().into(),
+						},
+						signature: b"valid".to_vec().into(),
+					},
+				);
+
+				assert_err!(result, Error::<Test>::OutdatedMessage);
+
+				let last_nonce = WorkerSessions::<Test>::get(&worker_pubkey(1))
+					.unwrap()
+					.last_nonce;
+				let seed = [2; 32];
+
+				// Can update session with correct nonce.
+				let result = PhalaWapodWorkers::worker_session_update(
+					Origin::signed(1),
+					SignedSessionUpdate {
+						public_key: worker_pubkey(1).0,
+						update: SessionUpdate {
+							session: SessionUpdate::session_from_seed::<MockCrypto>(
+								seed,
+								&last_nonce,
+							),
+							seed,
+							reward_receiver: [1; 32].to_vec().into(),
+						},
+						signature: b"valid".to_vec().into(),
+					},
+				);
+				assert_ok!(result);
+			});
+		}
+
+		#[test]
+		fn can_not_add_worker_without_price_to_list() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+
+				let list_id = create_worker_list();
+
+				let result = PhalaWapodWorkers::worker_list_add_workers(
+					Origin::signed(1),
+					list_id,
+					vec![worker_pubkey(1)].into(),
+				);
+
+				assert_err!(result, Error::<Test>::WorkerNotFound);
+			});
+		}
+
+		#[test]
+		fn can_not_add_worker_to_list_when_price_mismatch() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+
+				let result = PhalaWapodWorkers::worker_description_set(
+					Origin::signed(1),
+					SignedWorkerDescription {
+						worker_pubkey: worker_pubkey(1).0,
+						worker_description: WorkerDescription {
+							prices: Prices {
+								tip_price: Some(1),
+								..Default::default()
+							},
+							description: "my worker".to_string().into(),
+						},
+						signature: b"valid".to_vec().into(),
+					},
+				);
+				assert_ok!(result);
+
+				let list_id = create_worker_list();
+
+				let result = PhalaWapodWorkers::worker_list_add_workers(
+					Origin::signed(1),
+					list_id,
+					vec![worker_pubkey(1)].into(),
+				);
+
+				assert_err!(result, Error::<Test>::PriceMismatch);
+			});
+		}
+
+		#[test]
+		fn can_add_worker_to_list() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+
+				let result = PhalaWapodWorkers::worker_description_set(
+					Origin::signed(1),
+					SignedWorkerDescription {
+						worker_pubkey: worker_pubkey(1).0,
+						worker_description: WorkerDescription {
+							prices: Prices::default(),
+							description: "my worker".to_string().into(),
+						},
+						signature: b"valid".to_vec().into(),
+					},
+				);
+				assert_ok!(result);
+
+				let list_id = create_worker_list();
+
+				let result = PhalaWapodWorkers::worker_list_add_workers(
+					Origin::signed(1),
+					list_id,
+					vec![worker_pubkey(1)].into(),
+				);
+
+				assert_ok!(result);
+
+				let events = Events::take();
+				assert!(events.has(Event::WorkersAddedToList {
+					list_id,
+					workers: vec![worker_pubkey(1)].into()
+				}));
+			});
+		}
+
+		#[test]
+		fn can_remove_worker_from_list() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+
+				let result = PhalaWapodWorkers::worker_description_set(
+					Origin::signed(1),
+					SignedWorkerDescription {
+						worker_pubkey: worker_pubkey(1).0,
+						worker_description: WorkerDescription {
+							prices: Prices::default(),
+							description: "my worker".to_string().into(),
+						},
+						signature: b"valid".to_vec().into(),
+					},
+				);
+				assert_ok!(result);
+
+				let list_id = create_worker_list();
+
+				let result = PhalaWapodWorkers::worker_list_add_workers(
+					Origin::signed(1),
+					list_id,
+					vec![worker_pubkey(1)].into(),
+				);
+				assert_ok!(result);
+
+				let result = PhalaWapodWorkers::worker_list_remove_worker(
+					Origin::signed(1),
+					list_id,
+					worker_pubkey(1),
+				);
+				assert_ok!(result);
+
+				let events = Events::take();
+				assert!(events.has(Event::WorkerRemovedFromList {
+					list_id,
+					worker: worker_pubkey(1)
+				}));
+			});
+		}
+
+		#[test]
+		fn can_create_ticket() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+
+				let list_id = create_worker_list();
+
+				let result = PhalaWapodWorkers::ticket_create(
+					Origin::signed(1),
+					0,
+					[1; 32],
+					"manifest".to_string().into(),
+					list_id,
+					Prices::default(),
+				);
+				assert_ok!(result);
+
+				let events = Events::take();
+				assert!(events.has(Event::TicketCreated { id: 0 }));
+			});
+		}
+
+		#[test]
+		fn can_close_ticket() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+
+				let list_id = create_worker_list();
+
+				let result = PhalaWapodWorkers::ticket_create(
+					Origin::signed(1),
+					0,
+					[1; 32],
+					"manifest".to_string().into(),
+					list_id,
+					Prices::default(),
+				);
+				assert_ok!(result);
+
+				let result = PhalaWapodWorkers::ticket_close(Origin::signed(1), 0);
+				assert_ok!(result);
+
+				let events = Events::take();
+				assert!(events.has(Event::TicketClosed { id: 0 }));
+			});
+		}
+
+		#[test]
+		fn can_settle_ticket() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+
+				setup_workers(1);
+
+				let gas_price = 1;
+				let tip_price = 2;
+				let gas_consumed = 20;
+				let tip = 10;
+				let prices = Prices {
+					gas_price: Some(gas_price),
+					tip_price: Some(tip_price),
+					..Default::default()
+				};
+				let reward = tip as u128 * tip_price + gas_consumed as u128 * gas_price;
+				let reward_receiver = 42_u64;
+				let app_address = [2; 32];
+				let list_id = setup_worker_list(1, prices);
+				let claim_map = BoundedVec::from(vec![(app_address, vec![list_id].into())]);
+
+				assert_ok!(PhalaWapodWorkers::worker_session_update(
+					Origin::signed(1),
+					SignedSessionUpdate {
+						public_key: worker_pubkey(1).0,
+						update: SessionUpdate {
+							session: [1; 32],
+							seed: [1; 32],
+							reward_receiver: reward_receiver.encode().into(),
+						},
+						signature: b"valid".to_vec().into(),
+					},
+				));
+
+				assert_ok!(PhalaWapodWorkers::ticket_create(
+					Origin::signed(1),
+					100,
+					app_address,
+					"manifest".to_string().into(),
+					list_id,
+					Prices::default(),
+				));
+
+				assert!(WorkerListWorkers::<Test>::contains_key(
+					list_id,
+					&worker_pubkey(1)
+				));
+
+				let result = PhalaWapodWorkers::ticket_settle(
+					Origin::signed(1),
+					SignedAppsMetrics {
+						worker_pubkey: worker_pubkey(1).0,
+						metrics: VersionedAppsMetrics::V0(AppsMetrics {
+							token: MetricsToken {
+								session: [1; 32],
+								sn: 1,
+								nonce: [1; 32],
+							},
+							apps: vec![AppMetrics {
+								address: app_address,
+								session: [1; 32],
+								tip,
+								gas_consumed,
+								..Default::default()
+							}]
+							.into(),
+						}),
+						signature: b"valid".to_vec().into(),
+					},
+					claim_map.clone(),
+				);
+				assert_ok!(result);
+
+				// No payment for the first commit
+				let events = Events::take();
+				let paid = events.find_settlement_for(0, worker_pubkey(1));
+				assert_eq!(paid, None);
+
+				let result = PhalaWapodWorkers::ticket_settle(
+					Origin::signed(1),
+					SignedAppsMetrics {
+						worker_pubkey: worker_pubkey(1).0,
+						metrics: VersionedAppsMetrics::V0(AppsMetrics {
+							token: MetricsToken {
+								session: [1; 32],
+								sn: 2,
+								nonce: [1; 32],
+							},
+							apps: vec![AppMetrics {
+								address: app_address,
+								session: [1; 32],
+								tip: tip * 2,
+								gas_consumed: gas_consumed * 2,
+								..Default::default()
+							}]
+							.into(),
+						}),
+						signature: b"valid".to_vec().into(),
+					},
+					claim_map,
+				);
+				assert_ok!(result);
+				// Should pay for the second commit
+				let events = Events::take();
+				let paid = events.find_settlement_for(0, worker_pubkey(1));
+				assert_eq!(paid, Some(reward));
+			});
+		}
+
+		#[test]
+		fn can_submit_benchmark_score() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+
+				let gas_per_second = 500;
+				let timestamp_secs = 10;
+				let gas_consumed = gas_per_second * timestamp_secs;
+				let app_address = [2; 32];
+				let receiver = 42u64;
+
+				let metrics_token = MetricsToken {
+					session: [1; 32],
+					sn: 1,
+					nonce: [1; 32],
+				};
+
+				// set up the benchmark app
+				assert_ok!(PhalaWapodWorkers::benchmark_app_set(
+					Origin::root(),
+					app_address,
+					"manifest".to_string().into(),
+					Fraction {
+						numerator: 1,
+						denominator: 10,
+					},
+				));
+
+				// set up worker session
+				assert_ok!(PhalaWapodWorkers::worker_session_update(
+					Origin::signed(1),
+					SignedSessionUpdate {
+						public_key: worker_pubkey(1).0,
+						update: SessionUpdate {
+							session: [1; 32],
+							seed: [1; 32],
+							reward_receiver: receiver.encode().into(),
+						},
+						signature: b"valid".to_vec().into(),
+					},
+				));
+
+				let message = SignedMessage {
+					worker_pubkey: worker_pubkey(1).0,
+					app_address,
+					signature: b"valid".to_vec().into(),
+					message: SigningMessage::BenchScore(BenchScore {
+						gas_per_second,
+						gas_consumed,
+						timestamp_secs,
+						metrics_token,
+					}),
+				};
+
+				let result = PhalaWapodWorkers::benchmark_score_submit(
+					Origin::signed(1),
+					true,
+					message.clone(),
+				);
+				assert_ok!(result);
+				let init_score = PhalaRegistry::worker_init_score(&worker_pubkey(1));
+				assert_eq!(init_score, Some(300));
+
+				take_events();
+
+				// simulate a V2 heartbeat
+				PhalaWapodWorkers::on_worker_event_received(DecodedMessage {
+					sender: MessageOrigin::Pallet(vec![]),
+					destination: vec![].into(),
+					payload: SystemEvent::WorkerEvent(WorkerEventWithKey {
+						pubkey: worker_pubkey(1),
+						event: WorkerEvent::Started {
+							init_p: 1000,
+							init_v: 2000,
+							session_id: 1,
+						},
+					}),
+				})
+				.expect("Failed to send mq message");
+
+				let message = SignedMessage {
+					worker_pubkey: worker_pubkey(1).0,
+					app_address,
+					signature: b"valid".to_vec().into(),
+					message: SigningMessage::BenchScore(BenchScore {
+						gas_per_second,
+						gas_consumed: gas_consumed * 2,
+						timestamp_secs: timestamp_secs * 2,
+						metrics_token: MetricsToken {
+							session: [1; 32],
+							sn: 2,
+							nonce: [1; 32],
+						},
+					}),
+				};
+
+				assert_ok!(PhalaWapodWorkers::benchmark_score_submit(
+					Origin::signed(1),
+					false,
+					message
+				));
+				// No heartbeat the first time
+				let events = Events::take();
+				assert!(events.find_heartbeat_v3(worker_pubkey(1)).is_none());
+
+				elapse_seconds(timestamp_secs);
+
+				let message = SignedMessage {
+					worker_pubkey: worker_pubkey(1).0,
+					app_address,
+					signature: b"valid".to_vec().into(),
+					message: SigningMessage::BenchScore(BenchScore {
+						gas_per_second,
+						gas_consumed: gas_consumed * 3,
+						timestamp_secs: timestamp_secs * 3,
+						metrics_token: MetricsToken {
+							session: [1; 32],
+							sn: 3,
+							nonce: [1; 32],
+						},
+					}),
+				};
+				assert_ok!(PhalaWapodWorkers::benchmark_score_submit(
+					Origin::signed(1),
+					false,
+					message
+				));
+				let events = Events::take();
+				let (iterations, p_instant) = events.find_heartbeat_v3(worker_pubkey(1)).unwrap();
+				assert_eq!((iterations, p_instant), (1500, 300));
+			});
+		}
 	}
 }
