@@ -354,7 +354,7 @@ pub mod pallet {
 			let worker_pubkey = WorkerPublicKey(signed_description.worker_pubkey);
 			// Worker price can only be set once
 			ensure!(
-				!WorkerDescriptions::<T>::contains_key(&worker_pubkey),
+				!WorkerDescriptions::<T>::contains_key(worker_pubkey),
 				Error::<T>::NotAllowed
 			);
 			ensure!(
@@ -365,7 +365,7 @@ pub mod pallet {
 				signed_description.verify::<T::Crypto>(),
 				Error::<T>::SignatureVerificationFailed
 			);
-			WorkerDescriptions::<T>::insert(&worker_pubkey, signed_description.worker_description);
+			WorkerDescriptions::<T>::insert(worker_pubkey, signed_description.worker_description);
 			Self::deposit_event(Event::WorkerDescriptionSet {
 				worker: worker_pubkey,
 			});
@@ -396,7 +396,7 @@ pub mod pallet {
 				Error::<T>::InvalidWorkerPubkey
 			);
 			let update = update.update;
-			if let Some(session) = WorkerSessions::<T>::get(&worker_pubkey) {
+			if let Some(session) = WorkerSessions::<T>::get(worker_pubkey) {
 				let computed_session =
 					SessionUpdate::session_from_seed::<T::Crypto>(update.seed, &session.last_nonce);
 				ensure!(
@@ -441,11 +441,11 @@ pub mod pallet {
 		) -> DispatchResult {
 			let owner = ensure_signed(origin.clone())?;
 			let id = Self::add_worker_list(WorkerListInfo {
-				owner: owner.into(),
+				owner,
 				prices,
 				description,
 			});
-			if init_workers.len() > 0 {
+			if !init_workers.is_empty() {
 				Self::worker_list_add_workers(origin, id, init_workers)?;
 			}
 			Ok(())
@@ -465,7 +465,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			let list_info = WorkerLists::<T>::get(list_id).ok_or(Error::<T>::WorkerListNotFound)?;
-			ensure!(owner == list_info.owner.into(), Error::<T>::NotAllowed);
+			ensure!(owner == list_info.owner, Error::<T>::NotAllowed);
 			for worker in workers.iter() {
 				let Some(worker_info) = WorkerDescriptions::<T>::get(worker) else {
 					return Err(Error::<T>::WorkerNotFound.into());
@@ -494,7 +494,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			let list_info = WorkerLists::<T>::get(list_id).ok_or(Error::<T>::WorkerListNotFound)?;
-			ensure!(owner == list_info.owner.into(), Error::<T>::NotAllowed);
+			ensure!(owner == list_info.owner, Error::<T>::NotAllowed);
 			WorkerListWorkers::<T>::remove(list_id, worker);
 			Self::deposit_event(Event::WorkerRemovedFromList { list_id, worker });
 			Ok(())
@@ -604,7 +604,7 @@ pub mod pallet {
 			let worker_info = {
 				// ensure the session matches
 				let MetricsToken { session, sn, nonce } = all_metrics.token;
-				let Some(mut session_info) = WorkerSessions::<T>::get(&worker_pubkey) else {
+				let Some(mut session_info) = WorkerSessions::<T>::get(worker_pubkey) else {
 					return Err(Error::<T>::WorkerNotFound.into());
 				};
 				ensure!(
@@ -617,7 +617,7 @@ pub mod pallet {
 				);
 				session_info.last_nonce = nonce;
 				session_info.last_metrics_sn = sn;
-				WorkerSessions::<T>::insert(&worker_pubkey, &session_info);
+				WorkerSessions::<T>::insert(worker_pubkey, &session_info);
 				session_info
 			};
 
@@ -646,14 +646,14 @@ pub mod pallet {
 							WorkerSet::Any => (),
 							WorkerSet::WorkerList(list_id) => {
 								ensure!(
-									WorkerListWorkers::<T>::contains_key(list_id, &worker_pubkey),
+									WorkerListWorkers::<T>::contains_key(list_id, worker_pubkey),
 									Error::<T>::NotAllowed
 								);
 							}
 						}
 
 						let mut settlement =
-							TicketSettlementInfo::<T>::get(ticket_id, &worker_pubkey);
+							TicketSettlementInfo::<T>::get(ticket_id, worker_pubkey);
 
 						// Pay out and update the settlement infomation
 						let cost = ticket.prices.cost_of(&metrics).into();
@@ -667,7 +667,7 @@ pub mod pallet {
 							let transfer_result = <T as PhalaConfig>::Currency::transfer(
 								&ticket_account,
 								&worker_info.reward_receiver,
-								pay_out.into(),
+								pay_out,
 								KeepAlive,
 							);
 							match transfer_result {
@@ -678,8 +678,8 @@ pub mod pallet {
 									Self::deposit_event(Event::Settled {
 										ticket_id: *ticket_id,
 										worker: worker_pubkey,
-										paid: pay_out.into(),
-										session_cost: cost.into(),
+										paid: pay_out,
+										session_cost: cost,
 										paid_to: worker_info.reward_receiver.clone(),
 									});
 								}
@@ -687,13 +687,13 @@ pub mod pallet {
 									Self::deposit_event(Event::SettleFailed {
 										ticket_id: *ticket_id,
 										worker: worker_pubkey,
-										paid: pay_out.into(),
-										session_cost: cost.into(),
+										paid: pay_out,
+										session_cost: cost,
 									});
 								}
 							}
 						}
-						TicketSettlementInfo::<T>::insert(ticket_id, &worker_pubkey, settlement);
+						TicketSettlementInfo::<T>::insert(ticket_id, worker_pubkey, settlement);
 					}
 				}
 			}
@@ -727,7 +727,7 @@ pub mod pallet {
 				Error::<T>::InvalidWorkerPubkey
 			);
 			let bench_app_info =
-				BenchmarkApps::<T>::get(&message.app_address).ok_or(Error::<T>::InvalidBenchApp)?;
+				BenchmarkApps::<T>::get(message.app_address).ok_or(Error::<T>::InvalidBenchApp)?;
 			match message.message {
 				SigningMessage::BenchScore(BenchScore {
 					gas_per_second,
@@ -751,7 +751,7 @@ pub mod pallet {
 						let score = iterations_per_sec.saturating_mul(6);
 						registry::Pallet::<T>::update_worker_init_score(&worker_pubkey, score);
 					} else if let Some(mut computation_state) =
-						ComputationWorkers::<T>::get(&worker_pubkey)
+						ComputationWorkers::<T>::get(worker_pubkey)
 					{
 						// If the worker is scheduled computing by the chain, simulate a heartbeat message.
 						let p_init =
@@ -761,14 +761,14 @@ pub mod pallet {
 						let delta_time = now - computation_state.last_update_time;
 						if delta_time <= 0 {
 							computation_state.last_iterations = iterations;
-							ComputationWorkers::<T>::insert(&worker_pubkey, computation_state);
+							ComputationWorkers::<T>::insert(worker_pubkey, computation_state);
 							return Ok(());
 						}
 						let delta_iterations = iterations - computation_state.last_iterations;
 						let p_instant = delta_iterations / delta_time as u64 * 6;
 						let p_max = p_init * 120 / 100;
 						let p_instant = p_instant.min(p_max) as u32;
-						let worker = MessageOrigin::Worker(worker_pubkey.into());
+						let worker = MessageOrigin::Worker(worker_pubkey);
 
 						// Minic the worker heartbeat message
 						let worker_report = WorkingReportEvent::HeartbeatV3 {
@@ -786,7 +786,7 @@ pub mod pallet {
 
 						computation_state.last_iterations = iterations;
 						computation_state.last_update_time = now;
-						ComputationWorkers::<T>::insert(&worker_pubkey, computation_state);
+						ComputationWorkers::<T>::insert(worker_pubkey, computation_state);
 					}
 				}
 			};
@@ -932,7 +932,7 @@ pub mod pallet {
 				WorkerEvent::BenchScore(_) => (),
 				WorkerEvent::Started { session_id, .. } => {
 					ComputationWorkers::<T>::insert(
-						&worker_pubkey,
+						worker_pubkey,
 						ComputationState {
 							session_id,
 							unresponsive: false,
@@ -942,17 +942,17 @@ pub mod pallet {
 					);
 				}
 				WorkerEvent::Stopped => {
-					ComputationWorkers::<T>::remove(&worker_pubkey);
+					ComputationWorkers::<T>::remove(worker_pubkey);
 				}
 				WorkerEvent::EnterUnresponsive => {
-					ComputationWorkers::<T>::mutate(&worker_pubkey, |state| {
+					ComputationWorkers::<T>::mutate(worker_pubkey, |state| {
 						if let Some(state) = state {
 							state.unresponsive = true;
 						}
 					});
 				}
 				WorkerEvent::ExitUnresponsive => {
-					ComputationWorkers::<T>::mutate(&worker_pubkey, |state| {
+					ComputationWorkers::<T>::mutate(worker_pubkey, |state| {
 						if let Some(state) = state {
 							state.unresponsive = false;
 						}
@@ -1108,17 +1108,13 @@ pub mod pallet {
 			let result = PhalaWapodWorkers::worker_list_add_workers(
 				Origin::signed(1),
 				list_id,
-				(1..=n)
-					.into_iter()
-					.map(worker_pubkey)
-					.collect::<Vec<_>>()
-					.into(),
+				(1..=n).map(worker_pubkey).collect::<Vec<_>>().into(),
 			);
 			assert_ok!(result);
 			for id in 1..=n {
 				assert!(WorkerListWorkers::<Test>::contains_key(
 					list_id,
-					&worker_pubkey(id)
+					worker_pubkey(id)
 				))
 			}
 			list_id
@@ -1259,7 +1255,7 @@ pub mod pallet {
 
 				assert_err!(result, Error::<Test>::OutdatedMessage);
 
-				let last_nonce = WorkerSessions::<Test>::get(&worker_pubkey(1))
+				let last_nonce = WorkerSessions::<Test>::get(worker_pubkey(1))
 					.unwrap()
 					.last_nonce;
 				let seed = [2; 32];
@@ -1368,7 +1364,7 @@ pub mod pallet {
 				let events = Events::take();
 				assert!(events.has(Event::WorkersAddedToList {
 					list_id,
-					workers: vec![worker_pubkey(1)].into()
+					workers: vec![worker_pubkey(1)],
 				}));
 			});
 		}
@@ -1511,7 +1507,7 @@ pub mod pallet {
 
 				assert!(WorkerListWorkers::<Test>::contains_key(
 					list_id,
-					&worker_pubkey(1)
+					worker_pubkey(1)
 				));
 
 				let result = PhalaWapodWorkers::ticket_settle(

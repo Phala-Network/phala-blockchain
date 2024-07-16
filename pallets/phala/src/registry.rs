@@ -981,7 +981,7 @@ pub mod pallet {
 
 					let score = iterations / ((now - start_time) / 1000);
 					let score = score * 6; // iterations per 6s
-					Self::update_worker_init_score(&worker_pubkey, score);
+					Self::update_worker_init_score(worker_pubkey, score);
 				}
 				RegistryEvent::MasterPubkey { master_pubkey } => {
 					let gatekeepers = Gatekeeper::<T>::get();
