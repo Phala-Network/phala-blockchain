@@ -27,10 +27,7 @@ pub mod pallet {
 	use wapod_types::{
 		bench_app::{BenchScore, SignedMessage, SigningMessage},
 		crypto::{verify::Verifiable, CryptoProvider},
-		metrics::{
-			AppMetrics, AppsMetrics, ClaimMap, MetricsToken, SignedAppsMetrics,
-			VersionedAppsMetrics,
-		},
+		metrics::{ClaimMap, MetricsToken, SignedAppsMetrics, VersionedAppsMetrics},
 		primitives::{BoundedString, BoundedVec},
 		session::{SessionUpdate, SignedSessionUpdate},
 		ticket::{Balance, Prices, SignedWorkerDescription, WorkerDescription},
@@ -768,7 +765,6 @@ pub mod pallet {
 							return Ok(());
 						}
 						let delta_iterations = iterations - computation_state.last_iterations;
-						let iter_per_sec = delta_iterations / delta_time as u64;
 						let p_instant = delta_iterations / delta_time as u64 * 6;
 						let p_max = p_init * 120 / 100;
 						let p_instant = p_instant.min(p_max) as u32;
@@ -992,22 +988,19 @@ pub mod pallet {
 	mod tests {
 		use super::*;
 		use crate::mock::{
-			ecdh_pubkey, elapse_seconds, new_test_ext, set_block_1, take_events, take_messages,
-			worker_pubkey, BlockNumber, MockCrypto, RuntimeEvent as TestEvent,
+			ecdh_pubkey, elapse_seconds, new_test_ext, set_block_1, take_events, worker_pubkey,
+			MockCrypto, PhalaRegistry, PhalaWapodWorkers, RuntimeEvent as TestEvent,
 			RuntimeOrigin as Origin, Test,
 		};
 		// Pallets
-		use crate::mock::{PhalaComputation, PhalaRegistry, PhalaWapodWorkers, System};
 		use frame_support::{assert_err, assert_ok};
 		use phala_types::messaging::WorkerEventWithKey;
 		use wapod_types::{
 			bench_app::{BenchScore, SignedMessage, SigningMessage},
-			crypto::{verify::Verifiable, CryptoProvider},
 			metrics::{
-				AppMetrics, AppsMetrics, ClaimMap, MetricsToken, SignedAppsMetrics,
-				VersionedAppsMetrics,
+				AppMetrics, AppsMetrics, MetricsToken, SignedAppsMetrics, VersionedAppsMetrics,
 			},
-			primitives::{BoundedString, BoundedVec},
+			primitives::BoundedVec,
 			session::{SessionUpdate, SignedSessionUpdate},
 			ticket::{Balance, Prices, SignedWorkerDescription, WorkerDescription},
 		};
