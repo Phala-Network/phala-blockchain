@@ -889,7 +889,7 @@ fn test_add_worker() {
 		assert_ok!(PhalaStakePoolv2::create(RuntimeOrigin::signed(1)));
 		assert_noop!(
 			PhalaStakePoolv2::add_worker(RuntimeOrigin::signed(1), 1, worker1),
-			stake_pool_v2::Error::<Test>::FailedToBindSessionAndWorker
+			computation::Error::<Test>::DuplicateBoundWorker
 		);
 	});
 }

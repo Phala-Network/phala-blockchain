@@ -523,7 +523,7 @@ pub mod pallet {
 			address: Address,
 			manifest_cid: BoundedString<128>,
 			worker_list: ListId,
-			prices: Prices,
+			prices: Box<Prices>,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			let Some(list_info) = WorkerLists::<T>::get(worker_list) else {
@@ -1430,7 +1430,7 @@ pub mod pallet {
 					[1; 32],
 					"manifest".to_string().into(),
 					list_id,
-					Prices::default(),
+					Default::default(),
 				);
 				assert_ok!(result);
 
@@ -1453,7 +1453,7 @@ pub mod pallet {
 					[1; 32],
 					"manifest".to_string().into(),
 					list_id,
-					Prices::default(),
+					Default::default(),
 				);
 				assert_ok!(result);
 
@@ -1506,7 +1506,7 @@ pub mod pallet {
 					app_address,
 					"manifest".to_string().into(),
 					list_id,
-					Prices::default(),
+					Default::default(),
 				));
 
 				assert!(WorkerListWorkers::<Test>::contains_key(
