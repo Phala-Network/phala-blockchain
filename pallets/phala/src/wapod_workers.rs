@@ -9,9 +9,9 @@ pub use self::pallet::*;
 pub mod pallet {
 	// MARK: - Imports
 	use crate::{mq, registry, PhalaConfig};
+	use alloc::boxed::Box;
 	use alloc::collections::BTreeMap;
 	use alloc::vec::Vec;
-	use alloc::boxed::Box;
 	use frame_support::{
 		dispatch::DispatchResult,
 		ensure,
@@ -79,7 +79,7 @@ pub mod pallet {
 		/// The last metrics sequence number.
 		pub last_metrics_sn: u64,
 		/// The account id that receives the ticket reward.
-		pub reward_receiver: AccountId,
+		pub recipient: AccountId,
 	}
 
 	/// Cryptographic provider for signature verification.
@@ -293,15 +293,15 @@ pub mod pallet {
 		Settled {
 			ticket_id: TicketId,
 			worker: WorkerPublicKey,
-			paid: BalanceOf<T>,
+			payout: BalanceOf<T>,
+			recipient: T::AccountId,
 			session_cost: BalanceOf<T>,
-			paid_to: T::AccountId,
 		},
 		/// A settlement failed.
 		SettleFailed {
 			ticket_id: TicketId,
 			worker: WorkerPublicKey,
-			paid: BalanceOf<T>,
+			payout: BalanceOf<T>,
 			session_cost: BalanceOf<T>,
 		},
 		/// A worker's session was updated.
@@ -399,22 +399,22 @@ pub mod pallet {
 			let update = update.update;
 			if let Some(session) = WorkerSessions::<T>::get(worker_pubkey) {
 				let computed_session =
-					SessionUpdate::session_from_seed::<T::Crypto>(update.seed, &session.last_nonce);
+					SessionUpdate::calc_session_id::<T::Crypto>(update.nonce, &session.last_nonce);
 				ensure!(
 					computed_session == update.session,
 					Error::<T>::OutdatedMessage
 				);
 			};
-			let Ok(reward_receiver) = Decode::decode(&mut &update.reward_receiver[..]) else {
+			let Ok(recipient) = Decode::decode(&mut &update.recipient[..]) else {
 				return Err(Error::<T>::InvalidRewardReceiver.into());
 			};
 			WorkerSessions::<T>::insert(
 				worker_pubkey,
 				WorkerSession {
 					session_id: update.session,
-					last_nonce: update.seed,
+					last_nonce: update.nonce,
 					last_metrics_sn: 0,
-					reward_receiver,
+					recipient,
 				},
 			);
 			Self::deposit_event(Event::WorkerSessionUpdated {
@@ -662,33 +662,33 @@ pub mod pallet {
 							settlement.current_session_id = metrics.session;
 							settlement.current_session_paid = cost;
 						}
-						let pay_out = cost.saturating_sub(settlement.current_session_paid);
-						if !pay_out.is_zero() {
+						let payout = cost.saturating_sub(settlement.current_session_paid);
+						if !payout.is_zero() {
 							let ticket_account = ticket_account_address(*ticket_id);
 							let transfer_result = <T as PhalaConfig>::Currency::transfer(
 								&ticket_account,
-								&worker_info.reward_receiver,
-								pay_out,
+								&worker_info.recipient,
+								payout,
 								KeepAlive,
 							);
 							match transfer_result {
 								Ok(_) => {
 									settlement.current_session_paid = cost;
 									settlement.total_paid =
-										settlement.total_paid.saturating_add(pay_out);
+										settlement.total_paid.saturating_add(payout);
 									Self::deposit_event(Event::Settled {
 										ticket_id: *ticket_id,
 										worker: worker_pubkey,
-										paid: pay_out,
+										payout,
 										session_cost: cost,
-										paid_to: worker_info.reward_receiver.clone(),
+										recipient: worker_info.recipient.clone(),
 									});
 								}
 								Err(_) => {
 									Self::deposit_event(Event::SettleFailed {
 										ticket_id: *ticket_id,
 										worker: worker_pubkey,
-										paid: pay_out,
+										payout,
 										session_cost: cost,
 									});
 								}
@@ -1037,12 +1037,12 @@ pub mod pallet {
 					if let TestEvent::PhalaWapodWorkers(Event::<Test>::Settled {
 						ticket_id,
 						worker: worker_id,
-						paid,
+						payout,
 						..
 					}) = event
 					{
 						if ticket_id == &ticket && worker_id == &worker {
-							return Some(*paid);
+							return Some(*payout);
 						}
 					}
 				}
@@ -1180,8 +1180,8 @@ pub mod pallet {
 						public_key: worker_pubkey(0).0,
 						update: SessionUpdate {
 							session: [1; 32],
-							seed: [1; 32],
-							reward_receiver: [1; 32].to_vec().into(),
+							nonce: [1; 32],
+							recipient: [1; 32].to_vec().into(),
 						},
 						signature: b"valid".to_vec().into(),
 					},
@@ -1203,8 +1203,8 @@ pub mod pallet {
 						public_key: worker_pubkey(1).0,
 						update: SessionUpdate {
 							session: [1; 32],
-							seed: [1; 32],
-							reward_receiver: [1; 32].to_vec().into(),
+							nonce: [1; 32],
+							recipient: [1; 32].to_vec().into(),
 						},
 						signature: b"valid".to_vec().into(),
 					},
@@ -1232,8 +1232,8 @@ pub mod pallet {
 						public_key: worker_pubkey(1).0,
 						update: SessionUpdate {
 							session: [1; 32],
-							seed: [1; 32],
-							reward_receiver: [1; 32].to_vec().into(),
+							nonce: [1; 32],
+							recipient: [1; 32].to_vec().into(),
 						},
 						signature: b"valid".to_vec().into(),
 					},
@@ -1247,8 +1247,8 @@ pub mod pallet {
 						public_key: worker_pubkey(1).0,
 						update: SessionUpdate {
 							session: [1; 32],
-							seed: [2; 32],
-							reward_receiver: [1; 32].to_vec().into(),
+							nonce: [2; 32],
+							recipient: [1; 32].to_vec().into(),
 						},
 						signature: b"valid".to_vec().into(),
 					},
@@ -1259,7 +1259,7 @@ pub mod pallet {
 				let last_nonce = WorkerSessions::<Test>::get(worker_pubkey(1))
 					.unwrap()
 					.last_nonce;
-				let seed = [2; 32];
+				let nonce = [2; 32];
 
 				// Can update session with correct nonce.
 				let result = PhalaWapodWorkers::worker_session_update(
@@ -1267,12 +1267,12 @@ pub mod pallet {
 					SignedSessionUpdate {
 						public_key: worker_pubkey(1).0,
 						update: SessionUpdate {
-							session: SessionUpdate::session_from_seed::<MockCrypto>(
-								seed,
+							session: SessionUpdate::calc_session_id::<MockCrypto>(
+								nonce,
 								&last_nonce,
 							),
-							seed,
-							reward_receiver: [1; 32].to_vec().into(),
+							nonce,
+							recipient: [1; 32].to_vec().into(),
 						},
 						signature: b"valid".to_vec().into(),
 					},
@@ -1479,7 +1479,7 @@ pub mod pallet {
 					..Default::default()
 				};
 				let reward = tip as u128 * tip_price + gas_consumed as u128 * gas_price;
-				let reward_receiver = 42_u64;
+				let recipient = 42_u64;
 				let app_address = [2; 32];
 				let list_id = setup_worker_list(1, prices);
 				let claim_map = BoundedVec::from(vec![(app_address, vec![list_id].into())]);
@@ -1490,8 +1490,8 @@ pub mod pallet {
 						public_key: worker_pubkey(1).0,
 						update: SessionUpdate {
 							session: [1; 32],
-							seed: [1; 32],
-							reward_receiver: reward_receiver.encode().into(),
+							nonce: [1; 32],
+							recipient: recipient.encode().into(),
 						},
 						signature: b"valid".to_vec().into(),
 					},
@@ -1538,8 +1538,8 @@ pub mod pallet {
 
 				// No payment for the first commit
 				let events = Events::take();
-				let paid = events.find_settlement_for(0, worker_pubkey(1));
-				assert_eq!(paid, None);
+				let payout = events.find_settlement_for(0, worker_pubkey(1));
+				assert_eq!(payout, None);
 
 				let result = PhalaWapodWorkers::ticket_settle(
 					Origin::signed(1),
@@ -1567,8 +1567,8 @@ pub mod pallet {
 				assert_ok!(result);
 				// Should pay for the second commit
 				let events = Events::take();
-				let paid = events.find_settlement_for(0, worker_pubkey(1));
-				assert_eq!(paid, Some(reward));
+				let payout = events.find_settlement_for(0, worker_pubkey(1));
+				assert_eq!(payout, Some(reward));
 			});
 		}
 
@@ -1608,8 +1608,8 @@ pub mod pallet {
 						public_key: worker_pubkey(1).0,
 						update: SessionUpdate {
 							session: [1; 32],
-							seed: [1; 32],
-							reward_receiver: receiver.encode().into(),
+							nonce: [1; 32],
+							recipient: receiver.encode().into(),
 						},
 						signature: b"valid".to_vec().into(),
 					},
