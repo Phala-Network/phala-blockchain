@@ -11,6 +11,7 @@ pub mod pallet {
 	use crate::{mq, registry, PhalaConfig};
 	use alloc::collections::BTreeMap;
 	use alloc::vec::Vec;
+	use alloc::boxed::Box;
 	use frame_support::{
 		dispatch::DispatchResult,
 		ensure,
