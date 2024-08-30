@@ -209,7 +209,7 @@ fn compute_era(block_number: u64) -> core::result::Result<Era, Error> {
 ///
 /// An extended version of `create_transaction`, fine-grain
 #[allow(clippy::too_many_arguments)]
-pub fn  create_transaction_ext<T: Encode>(
+pub fn create_transaction_ext<T: Encode>(
     signer: &[u8; 32],
     public_key: &[u8; 32],
     nonce: u64,
@@ -221,7 +221,7 @@ pub fn  create_transaction_ext<T: Encode>(
     era: Era,
     tip: u128,
     mode: u8,
-    metadata_hash: Option<[u8;32]>,
+    metadata_hash: Option<[u8; 32]>,
 ) -> core::result::Result<Vec<u8>, Error> {
     let additional_params = (
         spec_version,
