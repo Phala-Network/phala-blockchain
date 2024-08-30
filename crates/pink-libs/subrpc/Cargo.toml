@@ -23,10 +23,10 @@ hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 pink = { version = "0.4.1", path = "../../pink/pink", default-features = false }
 sp-core-hashing = { version = "9", default-features = false }
 
-serde = { version = "1.0.140", default-features = false, features = ["derive", "alloc"]}
+serde = { version = "1.0.209", default-features = false, features = ["derive", "alloc"]}
 pink-json = { version = "0.4", default-features = false }
 
-ss58-registry = { version = "1.33.0", default-features = false }
+ss58-registry = { version = "1.47.0", default-features = false }
 base58 = { version = "0.2.0", default-features = false }
 
 [dev-dependencies]
