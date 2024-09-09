@@ -220,14 +220,17 @@ pub fn create_transaction_ext<T: Encode>(
     call_data: UnsignedExtrinsic<T>,
     era: Era,
     tip: u128,
+    mode: u8,
+    metadata_hash: Option<[u8; 32]>,
 ) -> core::result::Result<Vec<u8>, Error> {
     let additional_params = (
         spec_version,
         transaction_version,
         genesis_hash,
         era_checkpoint,
+        metadata_hash,
     );
-    let extra = (era, Compact(nonce), Compact(tip));
+    let extra = (era, Compact(nonce), Compact(tip), mode);
 
     let mut bytes = Vec::new();
     call_data.encode_to(&mut bytes);
@@ -309,6 +312,12 @@ pub fn create_transaction<T: Encode>(
         Some(n) => n,
         _ => get_next_nonce(rpc_node, &addr)?,
     };
+    // new fields added by RFC78 for the signed extension.
+    // more information here: https://polkadot-fellows.github.io/RFCs/approved/0078-merkleized-metadata.html#inclusion-in-an-extrinsic
+    // the mode is either 0 which means to not include the metadata hash in the signed data or the mode is 1 to include the metadata hash in V1.
+    let mode = 0;
+    // Included in the signed data is an Option<[u8; 32]>. Depending on the mode the value is either None or Some(metadata_hash).
+    let metadata_hash = None;
 
     let call_data = UnsignedExtrinsic {
         pallet_id,
@@ -326,6 +335,8 @@ pub fn create_transaction<T: Encode>(
         call_data,
         era,
         tip,
+        mode,
+        metadata_hash,
     )
 }
 
