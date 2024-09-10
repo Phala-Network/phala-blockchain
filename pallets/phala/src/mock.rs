@@ -3,7 +3,7 @@ use crate::{
 	utils::attestation_legacy::{
 		Attestation, AttestationValidator, Error as AttestationError, IasFields,
 	},
-	vault, wrapped_balances,
+	vault, wapod_workers, wrapped_balances,
 };
 
 use frame_support::{
@@ -20,11 +20,28 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 	BuildStorage,
 };
+use wapod_types::crypto::CryptoProvider;
 
 pub(crate) type Balance = u128;
 
 type Block = frame_system::mocking::MockBlock<Test>;
 pub(crate) type BlockNumber = u64;
+
+pub struct MockCrypto;
+impl CryptoProvider for MockCrypto {
+	fn sr25519_verify(_public_key: &[u8], _message: &[u8], signature: &[u8]) -> bool {
+		if signature.starts_with(b"valid") {
+			return true;
+		}
+		false
+	}
+	fn keccak_256(data: &[u8]) -> [u8; 32] {
+		sp_io::hashing::keccak_256(data)
+	}
+	fn blake2b_256(data: &[u8]) -> [u8; 32] {
+		sp_io::hashing::blake2_256(data)
+	}
+}
 
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
@@ -46,6 +63,7 @@ frame_support::construct_runtime!(
 		PhalaWrappedBalances: wrapped_balances::{Pallet, Event<T>},
 		PhalaBasePool: base_pool::{Pallet, Event<T>},
 		PhalaStakePool: stake_pool::{Event<T>},
+		PhalaWapodWorkers: wapod_workers::{Pallet, Call, Storage, Event<T>},
 		Preimage: pallet_preimage::{Event<T>},
 	}
 );
@@ -392,6 +410,11 @@ impl base_pool::Config for Test {
 impl stake_pool::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
+}
+
+impl wapod_workers::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type Crypto = MockCrypto;
 }
 
 pub struct MockValidator;

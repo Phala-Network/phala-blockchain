@@ -34,3 +34,4 @@ bindgen         = "0.66"
 [patch.crates-io]
 # TODO.kevin: Move back to crates.io once it released 1.0
 derive_more = { version = "0.99.17", git = "https://github.com/JelteF/derive_more" }
+proc-macro-crate = { git = "https://github.com/kvinwang/proc-macro-crate", branch = "update-toml" }

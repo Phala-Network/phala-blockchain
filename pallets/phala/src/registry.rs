@@ -930,6 +930,38 @@ pub mod pallet {
 			Ok(())
 		}
 
+		pub fn worker_exsists(worker_pubkey: &WorkerPublicKey) -> bool {
+			Workers::<T>::contains_key(worker_pubkey)
+		}
+
+		pub fn update_worker_init_score(worker_pubkey: &WorkerPublicKey, score: u64) {
+			let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
+
+			const MAX_SCORE: u32 = 6000;
+			let score = MAX_SCORE.min(score as u32);
+
+			Workers::<T>::mutate(worker_pubkey, |val| {
+				if let Some(val) = val {
+					val.initial_score = Some(score);
+					val.last_updated = now / 1000;
+				}
+			});
+			Self::push_message(SystemEvent::new_worker_event(
+				*worker_pubkey,
+				WorkerEvent::BenchScore(score),
+			));
+			Self::deposit_event(Event::<T>::InitialScoreSet {
+				pubkey: *worker_pubkey,
+				init_score: score,
+			});
+		}
+
+		pub fn worker_init_score(worker_pubkey: &WorkerPublicKey) -> Option<u64> {
+			Workers::<T>::get(worker_pubkey)?
+				.initial_score
+				.map(|s| s as u64)
+		}
+
 		pub fn on_message_received(message: DecodedMessage<RegistryEvent>) -> DispatchResult {
 			let worker_pubkey = match &message.sender {
 				MessageOrigin::Worker(key) => key,
@@ -947,26 +979,9 @@ pub mod pallet {
 						return Err(Error::<T>::InvalidBenchReport.into());
 					}
 
-					const MAX_SCORE: u32 = 6000;
 					let score = iterations / ((now - start_time) / 1000);
 					let score = score * 6; // iterations per 6s
-					let score = MAX_SCORE.min(score as u32);
-
-					Workers::<T>::mutate(worker_pubkey, |val| {
-						if let Some(val) = val {
-							val.initial_score = Some(score);
-							val.last_updated = now / 1000;
-						}
-					});
-
-					Self::push_message(SystemEvent::new_worker_event(
-						*worker_pubkey,
-						WorkerEvent::BenchScore(score),
-					));
-					Self::deposit_event(Event::<T>::InitialScoreSet {
-						pubkey: *worker_pubkey,
-						init_score: score,
-					});
+					Self::update_worker_init_score(worker_pubkey, score);
 				}
 				RegistryEvent::MasterPubkey { master_pubkey } => {
 					let gatekeepers = Gatekeeper::<T>::get();

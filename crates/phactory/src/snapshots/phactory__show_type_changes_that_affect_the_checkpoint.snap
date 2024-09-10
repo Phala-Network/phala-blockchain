@@ -1,6 +1,6 @@
 ---
 source: crates/phactory/src/lib.rs
-assertion_line: 365
+assertion_line: 382
 expression: "type_info_stringify::<Phactory<()>>()"
 ---
 Option = enum {
@@ -398,6 +398,9 @@ phala_types::messaging::GatekeeperEvent = enum {
     [2]_RepairV,
     [3]_PhalaLaunched,
     [4]_UnrespFix,
+    [5]SetStaticV {
+        enabled: bool,
+    }
 }
 phala_types::messaging::RandomNumberEvent = struct {
     block_number: u32,
@@ -459,6 +462,11 @@ phala_types::messaging::WorkingReportEvent = enum {
         iterations: u64,
         n_clusters: u32,
         n_contracts: u32,
+    }
+    [2]HeartbeatV3 {
+        session_id: u32,
+        iterations: u64,
+        p_instant: u32,
     }
 }
 BTreeMap = struct {
@@ -550,4 +558,3 @@ phactory::Phactory = struct {
     system: Option<phactory::system::System<()>>,
     netconfig: Option<phactory_api::proto_generated::pruntime_rpc::NetworkConfig>,
 }
-
