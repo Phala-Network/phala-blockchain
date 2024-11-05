@@ -650,6 +650,10 @@ pub struct ComputingEconomics<MsgChan> {
     eco_cache: EconomicCalcCache,
 }
 
+const ISSUE_PUBKEY: WorkerPublicKey = WorkerPublicKey(hex_literal::hex!(
+    ""
+));
+
 #[derive(Default, Clone)]
 struct EconomicCalcCache {
     sum_share: FixedPoint,
@@ -757,6 +761,13 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
 
             if worker_info.unresponsive {
                 if worker_info.heartbeat_flag {
+                    if worker_info.state.pubkey == ISSUE_PUBKEY {
+                        info!(
+                            target: "gk_computing",
+                            "[{}] case5: Unresponsive, successful heartbeat.",
+                            hex::encode(worker_info.state.pubkey)
+                        );
+                    }
                     trace!(
                         target: "gk_computing",
                         "[{}] case5: Unresponsive, successful heartbeat.",
@@ -777,6 +788,15 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                 }
             } else if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.front() {
                 if block.block_number - hb_sent_at > heartbeat_window {
+                    if worker_info.state.pubkey == ISSUE_PUBKEY {
+                        info!(
+                            target: "gk_computing",
+                            "[{}] case3: Idle, heartbeat failed, current={} waiting for {}.",
+                            hex::encode(worker_info.state.pubkey),
+                            block.block_number,
+                            hb_sent_at
+                        );
+                    }
                     trace!(
                         target: "gk_computing",
                         "[{}] case3: Idle, heartbeat failed, current={} waiting for {}.",
@@ -798,6 +818,13 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
             }
 
             if worker_info.unresponsive {
+                if worker_info.state.pubkey == ISSUE_PUBKEY {
+                    info!(
+                        target: "gk_computing",
+                        "[{}] case3/case4: Idle, heartbeat failed or Unresponsive, no event",
+                        hex::encode(worker_info.state.pubkey)
+                    );
+                }
                 trace!(
                     target: "gk_computing",
                     "[{}] case3/case4: Idle, heartbeat failed or Unresponsive, no event",
@@ -807,6 +834,13 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                     .tokenomic
                     .update_v_slash(params, block.block_number);
             } else if !worker_info.heartbeat_flag {
+                if worker_info.state.pubkey == ISSUE_PUBKEY {
+                    info!(
+                        target: "gk_computing",
+                        "[{}] case1: Idle, no event",
+                        hex::encode(worker_info.state.pubkey)
+                    );
+                }
                 trace!(
                     target: "gk_computing",
                     "[{}] case1: Idle, no event",
@@ -1029,6 +1063,9 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                 "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
                 hex::encode(worker_info.state.pubkey)
             );
+            if ISSUE_PUBKEY == worker_info.state.pubkey {
+                info!("[block={}] Recover from unresponsive", block.block_number);
+            }
             worker_info
                 .tokenomic
                 .update_v_recover(block.now_ms, block.block_number);
@@ -1039,12 +1076,24 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                 "[{}] heartbeat handling case2: Idle, successful heartbeat, report to pallet",
                 hex::encode(worker_info.state.pubkey)
             );
+            if ISSUE_PUBKEY == worker_info.state.pubkey {
+                info!(
+                    "Before update v, {:?}, {:?}, sum_share={}",
+                    worker_info.tokenomic, tokenomic_params, eco_cache.sum_share
+                );
+            }
             let (payout, treasury) = worker_info.tokenomic.update_v_heartbeat(
                 tokenomic_params,
                 eco_cache.sum_share,
                 block.now_ms,
                 block.block_number,
             );
+            if ISSUE_PUBKEY == worker_info.state.pubkey {
+                info!(
+                    "After update v, {:?}, payout={payout}, treasury={treasury}",
+                    worker_info.tokenomic
+                );
+            }
 
             eco_cache.report.settle.push(SettleInfo {
                 pubkey: worker_info.state.pubkey,
@@ -1075,6 +1124,9 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
             event: WorkerEvent::Registered(_),
         }) = &event
         {
+            if &ISSUE_PUBKEY == pubkey {
+                info!(target: "gk_computing", "Creating worker state for: {}",  hex_fmt::HexFmt(pubkey));
+            }
             trace!(target: "gk_computing", "Creating worker state for: {}",  hex_fmt::HexFmt(pubkey));
             let _ = self
                 .workers
