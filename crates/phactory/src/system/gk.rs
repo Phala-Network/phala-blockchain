@@ -994,7 +994,9 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
 
                 let payout = if worker_info.unresponsive {
                     if ISSUE_PUBKEY == worker_info.state.pubkey {
-                        info!("[block={}] Recover from unresponsive", block.block_number);
+                        info!(
+                            target: "gk_computing",
+                            "[block={}] Recover from unresponsive", block.block_number);
                     }
                     trace!(
                         target: "gk_computing",
@@ -1013,6 +1015,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                     );
                     if ISSUE_PUBKEY == worker_info.state.pubkey {
                         info!(
+                            target: "gk_computing",
                             "Before update v, {:?}, {:?}, sum_share={}",
                             worker_info.tokenomic, tokenomic_params, self.eco_cache.sum_share
                         );
@@ -1025,6 +1028,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                     );
                     if ISSUE_PUBKEY == worker_info.state.pubkey {
                         info!(
+                            target: "gk_computing",
                             "After update v, {:?}, payout={payout}, treasury={treasury}",
                             worker_info.tokenomic
                         );
