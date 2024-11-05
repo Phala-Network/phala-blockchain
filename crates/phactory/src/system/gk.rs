@@ -647,9 +647,7 @@ pub struct ComputingEconomics<MsgChan> {
     eco_cache: EconomicCalcCache,
 }
 
-const ISSUE_PUBKEY: WorkerPublicKey = WorkerPublicKey(hex_literal::hex!(
-    ""
-));
+const ISSUE_PUBKEY: WorkerPublicKey = WorkerPublicKey(hex_literal::hex!(""));
 
 #[derive(Default, Clone)]
 struct EconomicCalcCache {
@@ -995,6 +993,9 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                 tokenomic.iteration_last = iterations;
 
                 let payout = if worker_info.unresponsive {
+                    if ISSUE_PUBKEY == worker_info.state.pubkey {
+                        info!("[block={}] Recover from unresponsive", block.block_number);
+                    }
                     trace!(
                         target: "gk_computing",
                         "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
@@ -1010,12 +1011,24 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                         "[{}] heartbeat handling case2: Idle, successful heartbeat, report to pallet",
                         hex::encode(worker_info.state.pubkey)
                     );
+                    if ISSUE_PUBKEY == worker_info.state.pubkey {
+                        info!(
+                            "Before update v, {:?}, {:?}, sum_share={}",
+                            worker_info.tokenomic, tokenomic_params, self.eco_cache.sum_share
+                        );
+                    }
                     let (payout, treasury) = worker_info.tokenomic.update_v_heartbeat(
                         &self.tokenomic_params,
                         self.eco_cache.sum_share,
                         block.now_ms,
                         block.block_number,
                     );
+                    if ISSUE_PUBKEY == worker_info.state.pubkey {
+                        info!(
+                            "After update v, {:?}, payout={payout}, treasury={treasury}",
+                            worker_info.tokenomic
+                        );
+                    }
 
                     // NOTE: keep the reporting order (vs the one while computing stop).
                     self.eco_cache.report.settle.push(SettleInfo {
@@ -1029,61 +1042,6 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                 event_listener.emit_event(EconomicEvent::Heartbeat { payout }, worker_info);
             }
         }
-    }
-
-    fn update_v_and_payout(
-        tokenomic_params: &tokenomic::Params,
-        block: &BlockInfo<'_>,
-        eco_cache: &mut EconomicCalcCache,
-        worker_info: &mut WorkerInfo,
-        event_listener: &mut impl EconomicEventListener,
-    ) {
-        let payout = if worker_info.unresponsive {
-            trace!(
-                target: "gk_computing",
-                "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
-                hex::encode(worker_info.state.pubkey)
-            );
-            if ISSUE_PUBKEY == worker_info.state.pubkey {
-                info!("[block={}] Recover from unresponsive", block.block_number);
-            }
-            worker_info
-                .tokenomic
-                .update_v_recover(block.now_ms, block.block_number);
-            fp!(0)
-        } else {
-            trace!(
-                target: "gk_computing",
-                "[{}] heartbeat handling case2: Idle, successful heartbeat, report to pallet",
-                hex::encode(worker_info.state.pubkey)
-            );
-            if ISSUE_PUBKEY == worker_info.state.pubkey {
-                info!(
-                    "Before update v, {:?}, {:?}, sum_share={}",
-                    worker_info.tokenomic, tokenomic_params, eco_cache.sum_share
-                );
-            }
-            let (payout, treasury) = worker_info.tokenomic.update_v_heartbeat(
-                tokenomic_params,
-                eco_cache.sum_share,
-                block.now_ms,
-                block.block_number,
-            );
-            if ISSUE_PUBKEY == worker_info.state.pubkey {
-                info!(
-                    "After update v, {:?}, payout={payout}, treasury={treasury}",
-                    worker_info.tokenomic
-                );
-            }
-            eco_cache.report.settle.push(SettleInfo {
-                pubkey: worker_info.state.pubkey,
-                v: worker_info.tokenomic.v.to_bits(),
-                payout: payout.to_bits(),
-                treasury: treasury.to_bits(),
-            });
-            payout
-        };
-        event_listener.emit_event(EconomicEvent::Heartbeat { payout }, worker_info);
     }
 
     fn process_system_event(
