@@ -154,6 +154,24 @@ pub fn get_block_hash(
     Ok(H256(hash))
 }
 
+/// Gets the latest hash of the finalized header
+pub fn get_finalized_head(
+    rpc_node: &str,
+) -> core::result::Result<H256, Error> {
+    let data = format!(
+        r#"{{"id":1, "jsonrpc":"2.0", "method": "chain_getFinalizedHead"}}"#
+    )
+        .into_bytes();
+    let resp_body = call_rpc(rpc_node, data)?;
+    let genesis_hash: GenesisHash = json::from_slice(&resp_body).or(Err(Error::InvalidBody))?;
+    // bypass prefix 0x
+    let genesis_hash_result = &genesis_hash.result[2..];
+    let decoded_hash = hex::decode(genesis_hash_result).or(Err(Error::InvalidBody))?;
+    let hash: [u8; 32] = decoded_hash.try_into().or(Err(Error::InvalidBody))?;
+    Ok(H256(hash))
+}
+
+
 /// Gets revalant block header by given block hash
 /// Only work with chains define generic patterns like `Header<u32, BlakeTwo256>`
 pub fn get_header(
@@ -420,6 +438,13 @@ mod tests {
             hex::encode(genesis_hash),
             "b0a8d493285c2df73290dfb7e61f870f17b41801197a149ca93654499ea3dafe"
         );
+    }
+
+    #[test]
+    fn can_get_finalized_head() {
+        pink_chain_extension::mock_ext::mock_all_ext();
+        let finalized_head = get_finalized_head("https://kusama-rpc.polkadot.io");
+        assert!(finalized_head.is_ok(), "failed to query finalized_head");
     }
 
     #[test]
