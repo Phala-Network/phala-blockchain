@@ -395,6 +395,7 @@ pub mod pallet {
 				return Ok(());
 			};
 			// Try to withdraw from the upstream stake pools
+			let mut pools_to_remove = Vec::new();
 			for pid in vault.invest_pools.iter() {
 				let stake_pool = ensure_stake_pool::<T>(*pid)?;
 				let mut total_shares = Zero::zero();
@@ -409,31 +410,41 @@ pub mod pallet {
 					let nft_guard = base_pool::Pallet::<T>::get_nft_attr_guard(
 						stake_pool.basepool.cid,
 						withdraw.nft_id,
-					)?;
+					).expect("get nftattr should always success; qed.");
 					total_shares += nft_guard.attr.shares;
 				}
-				pallet_uniques::Pallet::<T>::owned_in_collection(
-					&stake_pool.basepool.cid,
-					&vault.basepool.pool_account_id,
-				)
-				.for_each(|nftid| {
-					let property_guard =
-						base_pool::Pallet::<T>::get_nft_attr_guard(stake_pool.basepool.cid, nftid)
-							.expect("get nft should not fail: qed.");
+
+				// Skip this pool if it has no valid investment
+				let should_withdraw = if let Some(nft_id) = base_pool::Pallet::<T>::merge_nft_for_staker(
+					stake_pool.basepool.cid,
+					vault.basepool.pool_account_id.clone(),
+					stake_pool.basepool.pid,
+				)? {
+					let property_guard = base_pool::Pallet::<T>::get_nft_attr_guard(
+						stake_pool.basepool.cid,
+						nft_id,
+					).expect("get nft should not fail: qed.");
 					let property = &property_guard.attr;
 					if !base_pool::is_nondust_balance(property.shares) {
 						let _ = base_pool::Pallet::<T>::burn_nft(
 							&base_pool::pallet_id::<T::AccountId>(),
 							stake_pool.basepool.cid,
-							nftid,
+							nft_id,
 						);
-						return;
+						false
+					} else {
+						total_shares += property.shares;
+						base_pool::is_nondust_balance(total_shares)
 					}
-					total_shares += property.shares;
-				});
-				if !base_pool::is_nondust_balance(total_shares) {
+				} else {
+					false
+				};
+
+				if !should_withdraw {
+					pools_to_remove.push(*pid);
 					continue;
 				}
+
 				stake_pool_v2::Pallet::<T>::withdraw(
 					Origin::<T>::Signed(vault.basepool.owner.clone()).into(),
 					stake_pool.basepool.pid,
@@ -441,6 +452,13 @@ pub mod pallet {
 					Some(vault_pid),
 				)?;
 			}
+
+			// Clean up invest_pools list
+			if !pools_to_remove.is_empty() {
+				vault.invest_pools.retain(|pid| !pools_to_remove.contains(pid));
+				base_pool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(vault.clone()));
+			}
+
 			VaultLocks::<T>::insert(vault_pid, ());
 			Self::deposit_event(Event::<T>::ForceShutdown {
 				pid: vault_pid,
