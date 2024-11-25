@@ -2291,6 +2291,85 @@ fn vault_owner_reward_settle_when_contribute_withdraw() {
 	});
 }
 
+#[test]
+fn vault_force_withdraw_with_dust_investment() {
+    new_test_ext().execute_with(|| {
+        mock_asset_id();
+        assert_ok!(PhalaWrappedBalances::wrap(
+            RuntimeOrigin::signed(1),
+            500 * DOLLARS
+        ));
+        set_block_1();
+        setup_workers(1);
+        setup_stake_pool_with_workers(1, &[1]); // pid = 0
+        let vault1 = setup_vault(99);
+
+        // Account1 contributes 100 PHA to vault1
+        assert_ok!(PhalaVault::contribute(
+            RuntimeOrigin::signed(1),
+            vault1,
+            100 * DOLLARS,
+        ));
+
+        // Vault1 contributes a normal amount to pool0
+        assert_ok!(PhalaStakePoolv2::contribute(
+            RuntimeOrigin::signed(99),
+            0,
+            100 * DOLLARS,
+            Some(vault1),
+        ));
+
+        // Start computing to lock some stake
+        assert_ok!(PhalaStakePoolv2::start_computing(
+            RuntimeOrigin::signed(1),
+            0,
+            worker_pubkey(1),
+            100 * DOLLARS
+        ));
+
+        // Withdraw almost all shares from pool0, leaving dust
+        assert_ok!(PhalaStakePoolv2::withdraw(
+            RuntimeOrigin::signed(99),
+            0,
+            100 * DOLLARS - 1,
+            Some(vault1),
+        ));
+
+        // The remaining 1 share should be considered dust and removed
+        // But vault1 still has pool0 in its invest_pools list
+        let vault = ensure_vault::<Test>(vault1).unwrap();
+        assert!(vault.invest_pools.contains(&0));
+
+        // Account1 requests withdrawal from vault1
+        assert_ok!(PhalaVault::withdraw(
+            RuntimeOrigin::signed(1),
+            vault1,
+            100 * DOLLARS,
+        ));
+
+        // Wait for 3x grace period to trigger force withdrawal
+        elapse_cool_down();
+        elapse_cool_down();
+        elapse_cool_down();
+        elapse_seconds(1);
+
+        // This should not panic even though the NFT in pool0 doesn't exist anymore
+        let _ = take_events();
+        assert_ok!(PhalaVault::check_and_maybe_force_withdraw(
+            RuntimeOrigin::signed(1),
+            vault1
+        ));
+        insta::assert_debug_snapshot!(take_events());
+
+        // Verify the vault is locked
+        assert!(vault::VaultLocks::<Test>::contains_key(vault1));
+
+        // After force withdrawal, the invest_pools should be empty since the only pool had no shares
+        let vault = ensure_vault::<Test>(vault1).unwrap();
+        assert!(vault.invest_pools.is_empty(), "invest_pools should be cleaned up");
+    });
+}
+
 fn mock_asset_id() {
 	<pallet_assets::pallet::Pallet<Test> as Create<u64>>::create(
 		<Test as wrapped_balances::Config>::WPhaAssetId::get(),
