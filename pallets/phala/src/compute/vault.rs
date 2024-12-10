@@ -425,23 +425,25 @@ pub mod pallet {
 						nft_id,
 					).expect("get nft should not fail: qed.");
 					let property = &property_guard.attr;
-					if !base_pool::is_nondust_balance(property.shares) {
-						let _ = base_pool::Pallet::<T>::burn_nft(
-							&base_pool::pallet_id::<T::AccountId>(),
-							stake_pool.basepool.cid,
-							nft_id,
-						);
-						false
+					total_shares += property.shares;
+					if base_pool::is_nondust_balance(property.shares) {
+						true
 					} else {
-						total_shares += property.shares;
-						base_pool::is_nondust_balance(total_shares)
+						if (!base_pool::is_nondust_balance(total_shares)) {
+							let _ = base_pool::Pallet::<T>::burn_nft(
+								&base_pool::pallet_id::<T::AccountId>(),
+								stake_pool.basepool.cid,
+								nft_id,
+							);
+							pools_to_remove.push(*pid);
+						}
+						false
 					}
 				} else {
 					false
 				};
 
 				if !should_withdraw {
-					pools_to_remove.push(*pid);
 					continue;
 				}
 
