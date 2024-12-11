@@ -780,13 +780,6 @@ pub mod pallet {
 				who.clone(),
 				pool_info.basepool.pid,
 			)?;
-			let nft_id = maybe_nft_id.ok_or(Error::<T>::NoNftToWithdraw)?;
-			// The nft instance must be wrote to Nft storage at the end of the function
-			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
-			// is called. Or the property of the nft will be overwrote incorrectly.
-			let mut nft_guard =
-				base_pool::Pallet::<T>::get_nft_attr_guard(pool_info.basepool.cid, nft_id)?;
-			let nft = &mut nft_guard.attr;
 			let in_queue_shares = match pool_info
 				.basepool
 				.withdraw_queue
@@ -803,10 +796,33 @@ pub mod pallet {
 				}
 				None => Zero::zero(),
 			};
+			ensure!(maybe_nft_id.is_some() || in_queue_shares > Zero::zero(), Error::<T>::NoNftToWithdraw);
+			let nft_id = match maybe_nft_id {
+				Some(nft_id) => nft_id,
+				// An nft is necessary to initiate a smaller withdrawal
+				None => base_pool::Pallet::<T>::mint_nft(
+					pool_info.basepool.cid,
+					who.clone(),
+					Zero::zero(),
+					pool_info.basepool.pid,
+				)?,
+			};
+			// The nft instance must be wrote to Nft storage at the end of the function
+			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
+			// is called. Or the property of the nft will be overwrote incorrectly.
+			let mut nft_guard =
+				base_pool::Pallet::<T>::get_nft_attr_guard(pool_info.basepool.cid, nft_id)?;
+			let nft = &mut nft_guard.attr;
 			ensure!(
 				base_pool::is_nondust_balance(shares) && (shares <= nft.shares + in_queue_shares),
 				Error::<T>::InvalidWithdrawalAmount
 			);
+			if let Some(vault_pid) = as_vault {
+				let mut vault_info = ensure_vault::<T>(vault_pid)?;
+				if !vault_info.invest_pools.contains(&pid) {
+					vault_info.invest_pools.push(pid);
+				}
+			}
 			base_pool::Pallet::<T>::try_withdraw(
 				&mut pool_info.basepool,
 				nft,

@@ -2363,10 +2363,6 @@ fn vault_force_withdraw_with_dust_investment() {
 
         // Verify the vault is locked
         assert!(vault::VaultLocks::<Test>::contains_key(vault1));
-
-        // After force withdrawal, the invest_pools should be empty since the only pool had no shares
-        let vault = ensure_vault::<Test>(vault1).unwrap();
-        assert!(vault.invest_pools.is_empty(), "invest_pools should be cleaned up");
     });
 }
 

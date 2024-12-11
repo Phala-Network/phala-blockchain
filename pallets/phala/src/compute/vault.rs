@@ -429,7 +429,7 @@ pub mod pallet {
 					if base_pool::is_nondust_balance(property.shares) {
 						true
 					} else {
-						if (!base_pool::is_nondust_balance(total_shares)) {
+						if !base_pool::is_nondust_balance(total_shares) {
 							let _ = base_pool::Pallet::<T>::burn_nft(
 								&base_pool::pallet_id::<T::AccountId>(),
 								stake_pool.basepool.cid,
