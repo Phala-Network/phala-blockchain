@@ -19,7 +19,7 @@ service PhactoryAPI {
   // Sync a combined batch of relaychain & parachain headers
   // NOTE:
   //   - The two latest headers MUST be aligned with each other by the `Para.Heads` read from the relaychain storage.
-  //   - The operation is not guarenteed to be atomical. If the parachain header is rejected, the already synced relaychain
+  //   - The operation is not guaranteed to be atomical. If the parachain header is rejected, the already synced relaychain
   //     headers will keep it's progress.
   rpc SyncCombinedHeaders (CombinedHeadersToSync) returns (HeadersSyncedTo) {}
 
@@ -121,7 +121,7 @@ service PhactoryAPI {
   // Get networks statistics for contracts
   rpc Statistics (StatisticsReqeust) returns (StatisticsResponse) {}
 
-  // Generage a request to send to anthor worker in the same cluster to get the cluster state.
+  //Generate a request to send to another worker in the same cluster to get the cluster state.
   rpc GenerateClusterStateRequest (google.protobuf.Empty) returns (SaveClusterStateArguments) {}
 
   // Save the current cluster state to filesystem
@@ -298,7 +298,7 @@ message InitRuntimeRequest {
   // The parachain's genesis storage state.
   // @codec scale crate::blocks::StorageState
   bytes encoded_genesis_state = 4;
-  // The operator of of this worker, which has the permission to bind it's miner.
+  // The operator of this worker, which has the permission to bind it's miner.
   // @codec scale chain::AccountId
   optional bytes encoded_operator = 5;
   // Init the runtime for parachain.
@@ -312,7 +312,7 @@ message InitRuntimeRequest {
 message GetRuntimeInfoRequest {
   // Force to refresh the RA report.
   bool force_refresh_ra = 1;
-  // Reset the operator of of this worker.
+  // Reset the operator of this worker.
   // @codec scale chain::AccountId
   optional bytes encoded_operator = 2;
 }
@@ -376,7 +376,7 @@ message Certificate {
   // The body of the certificate
   // @codec scale crate::crypto::CertificateBody
   bytes encoded_body = 1;
-  // An optinal signature of the body signed by a parent certificate.
+  // An optional signature of the body signed by a parent certificate.
   // @boxed
   Signature signature = 2;
 }
