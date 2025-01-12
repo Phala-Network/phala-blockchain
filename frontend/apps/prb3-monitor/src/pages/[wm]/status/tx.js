@@ -92,7 +92,7 @@ export default function WorkerStatusPage() {
     ret.txs = [...ret.running_txs, ...ret.pending_txs, ...ret.past_txs].map((data) => ({data, id: data.id}));
     return ret;
   }, [rawFetcher]);
-  const {data, isLoading, mutate} = useSWR(`tx_status_${currWm?.name}`, fetcher, {refreshInterval: 6000});
+  const {data, isLoading, mutate} = useSWR(`tx_status_${currWm?.key}`, fetcher, {refreshInterval: 6000});
 
   return (
     <>

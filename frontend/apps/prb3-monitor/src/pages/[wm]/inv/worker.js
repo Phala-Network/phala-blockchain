@@ -10,30 +10,41 @@ import useSWR from 'swr';
 import {toaster} from 'baseui/toast';
 import {PageWrapper} from '@/utils';
 import {FiEdit, FiTrash2} from 'react-icons/fi';
+import * as yup from 'yup';
+import {useFormik} from 'formik';
 import {Modal, ModalBody, ModalButton, ModalFooter, ModalHeader} from 'baseui/modal';
 import {FormControl} from 'baseui/form-control';
 import {Input} from 'baseui/input';
-import * as yup from 'yup';
 import {Checkbox} from 'baseui/checkbox';
-import {useFormik} from 'formik';
 
 const columns = [
+  StringColumn({
+    title: 'Name',
+    mapDataToValue: (data) => data.name,
+  }),
   CategoricalColumn({
     title: 'PID',
     mapDataToValue: (data) => data.pid.toString(),
   }),
   StringColumn({
-    title: 'Name',
-    mapDataToValue: (data) => data.name,
+    title: 'Endpoint',
+    mapDataToValue: (data) => data.endpoint,
   }),
-
-  BooleanColumn({
-    title: 'Sync only mode',
-    mapDataToValue: (data) => data.sync_only,
+  StringColumn({
+    title: 'Stake',
+    mapDataToValue: (data) => data.stake,
   }),
   BooleanColumn({
     title: 'Enabled',
     mapDataToValue: (data) => data.enabled,
+  }),
+  BooleanColumn({
+    title: 'GK mode',
+    mapDataToValue: (data) => data.gatekeeper,
+  }),
+  BooleanColumn({
+    title: 'Sync only mode',
+    mapDataToValue: (data) => data.sync_only,
   }),
   StringColumn({
     title: 'UUID',
@@ -41,23 +52,24 @@ const columns = [
   }),
 ];
 
-export default function PoolInvPage() {
+export default function WorkerInvPage() {
   const [css] = useStyletron();
+
   const currWm = useAtomValue(currentWmAtom);
   const rawFetcher = useAtomValue(currentFetcherAtom);
   const fetcher = useCallback(async () => {
     const req = {
       url: '/wm/config',
       method: 'POST',
-      data: {GetAllPools: null},
+      data: {GetAllPoolsWithWorkers: null},
     };
     const res = await rawFetcher(req);
-    return res.data.map((data) => ({
-      data,
-      id: data.id,
-    }));
+    return res.data
+      .map((i) => i.workers)
+      .flat()
+      .map((data) => ({id: data.id, data}));
   }, [rawFetcher]);
-  const {data, isLoading, mutate} = useSWR(`inv_pool_${currWm?.name}`, fetcher, {refreshInterval: 6000});
+  const {data, isLoading, mutate} = useSWR(`inv_workers_${currWm?.key}`, fetcher, {refreshInterval: 6000});
   const [currModalItem, setCurrModalItem] = useState(null);
   const [isModalOpen, setModalOpen] = useState(false);
   const onModalClose = (reset) => {
@@ -71,7 +83,7 @@ export default function PoolInvPage() {
     <>
       <InputModal onClose={onModalClose} isOpen={isModalOpen} initialValue={currModalItem} />
       <Head>
-        <title>{currWm ? currWm.name + ' - ' : ''}Pool Config</title>
+        <title>{currWm ? currWm.name + ' - ' : ''}Worker Config</title>
       </Head>
       <PageWrapper>
         <div
@@ -90,7 +102,7 @@ export default function PoolInvPage() {
                 }),
               },
             }}
-            title={`Inventory - Pools (${data?.length || 0})`}
+            title={`Inventory - Workers (${data?.length || 0})`}
             navButton={
               isLoading
                 ? {
@@ -110,8 +122,8 @@ export default function PoolInvPage() {
               {
                 label: 'Add',
                 onClick: () => {
-                  setModalOpen(true);
                   setCurrModalItem(null);
+                  setModalOpen(true);
                 },
               },
             ]}
@@ -137,7 +149,7 @@ export default function PoolInvPage() {
                 renderIcon: () => <FiTrash2 />,
                 onClick: async ({
                   row: {
-                    data: {pid},
+                    data: {name},
                   },
                 }) => {
                   if (confirm('Are you sure?')) {
@@ -145,7 +157,7 @@ export default function PoolInvPage() {
                       await rawFetcher({
                         url: '/wm/config',
                         method: 'POST',
-                        data: {RemovePool: {pid}},
+                        data: {RemoveWorker: {name}},
                       });
                     } catch (e) {
                       toaster.negative(e.response?.data?.message || e?.toString());
@@ -168,10 +180,13 @@ export default function PoolInvPage() {
 
 const validationSchema = yup
   .object({
-    pid: yup.number().positive().integer().required(),
     name: yup.string().required(),
+    endpoint: yup.string().required(),
+    stake: yup.number().positive().integer().required(),
+    pid: yup.number().positive().integer().required(),
     sync_only: yup.boolean(),
     disabled: yup.boolean(),
+    gatekeeper: yup.boolean(),
   })
   .required();
 
@@ -181,17 +196,22 @@ const InputModal = ({initialValue, isOpen, onClose}) => {
   const formik = useFormik({
     validationSchema,
     initialValues: {
-      pid: undefined,
       name: '',
+      endpoint: '',
+      stake: undefined,
+      pid: undefined,
       sync_only: false,
       disabled: false,
+      gatekeeper: false,
     },
     onSubmit: async (values) => {
       try {
         await rawFetcher({
           url: '/wm/config',
           method: 'POST',
-          data: isEdit ? {UpdatePool: values} : {AddPool: values},
+          data: isEdit
+            ? {UpdateWorker: {...values, new_name: values.name, name: initialValue.name}}
+            : {AddWorker: values},
         });
         toaster.positive('Success');
         onClose(formik.resetForm);
@@ -206,10 +226,13 @@ const InputModal = ({initialValue, isOpen, onClose}) => {
       return;
     }
     formik.setValues({
-      pid: initialValue.pid,
       name: initialValue.name,
+      endpoint: initialValue.endpoint,
+      stake: initialValue.stake,
+      pid: initialValue.pid,
       sync_only: initialValue.sync_only,
       disabled: initialValue.disabled,
+      gatekeeper: initialValue.gatekeeper,
     });
   }, [initialValue]);
   const close = () => onClose(formik.resetForm);
@@ -217,26 +240,34 @@ const InputModal = ({initialValue, isOpen, onClose}) => {
   return (
     <Modal isOpen={isOpen} closeable={false} autoFocus onClose={close}>
       <form onSubmit={formik.handleSubmit}>
-        <ModalHeader>{isEdit ? 'Edit Pool' : 'New Pool'}</ModalHeader>
+        <ModalHeader>{isEdit ? `Edit Worker (${initialValue.name})` : 'New Worker'}</ModalHeader>
         <ModalBody>
-          <FormControl label="PID" error={formik.errors.pid || null}>
-            <Input
-              size="mini"
-              name="pid"
-              disabled={isEdit}
-              onChange={formik.handleChange}
-              value={formik.values.pid}
-              type="number"
-            />
-          </FormControl>
           <FormControl label="Name" error={formik.errors.name || null}>
             <Input size="mini" name="name" onChange={formik.handleChange} value={formik.values.name} type="text" />
+          </FormControl>
+          <FormControl label="Endpoint" error={formik.errors.endpoint || null}>
+            <Input
+              size="mini"
+              name="endpoint"
+              onChange={formik.handleChange}
+              value={formik.values.endpoint}
+              type="text"
+            />
+          </FormControl>
+          <FormControl label="Stake" error={formik.errors.stake || null}>
+            <Input size="mini" name="stake" onChange={formik.handleChange} value={formik.values.stake} type="text" />
+          </FormControl>
+          <FormControl label="PID" error={formik.errors.pid || null}>
+            <Input size="mini" name="pid" onChange={formik.handleChange} value={formik.values.pid} type="number" />
           </FormControl>
           <Checkbox name="disabled" onChange={formik.handleChange} checked={formik.values.disabled}>
             Disabled
           </Checkbox>
           <Checkbox name="sync_only" onChange={formik.handleChange} checked={formik.values.sync_only}>
             Sync Only
+          </Checkbox>
+          <Checkbox name="gatekeeper" onChange={formik.handleChange} checked={formik.values.gatekeeper}>
+            Gatekeeper
           </Checkbox>
         </ModalBody>
         <ModalFooter>
