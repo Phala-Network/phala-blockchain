@@ -14,7 +14,11 @@ import {useStyletron} from 'baseui';
 
 const WmSelector = ({isOpen, onClose}) => {
   const allWm = useAtomValue(allWmAtom);
-  const setCurrWm = useSetAtom(currentWmIdAtom);
+  const setCurrWm = (key) => {
+    const parts = document.location.pathname.split('/');
+    parts[1] = key;
+    document.location.href = parts.join('/');
+  };
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <ModalHeader>Select WM</ModalHeader>
@@ -22,7 +26,7 @@ const WmSelector = ({isOpen, onClose}) => {
         <StatefulMenu
           items={allWm}
           onItemSelect={({item}) => {
-            setCurrWm(item.name);
+            setCurrWm(item.key);
             onClose();
           }}
           overrides={{
@@ -84,8 +88,8 @@ export default function Nav() {
             content={() => (
               <StatefulMenu
                 items={[
-                  {label: 'Workers', url: '/status/worker'},
-                  {label: 'Transactions', url: '/status/tx'},
+                  {label: 'Workers', url: `/${currWm.key}/status/worker`},
+                  {label: 'Transactions', url: `/${currWm.key}/status/tx`},
                 ]}
                 onItemSelect={({item: i}) => router.push(i.url)}
               />
@@ -107,10 +111,10 @@ export default function Nav() {
                 items={[
                   {
                     label: 'Workers',
-                    url: '/inv/worker',
+                    url: `/${currWm.key}/inv/worker`,
                   },
-                  {label: 'Pools', url: '/inv/pool'},
-                  {label: 'Pool Operators', url: '/inv/po'},
+                  {label: 'Pools', url: `/${currWm.key}/inv/pool`},
+                  {label: 'Pool Operators', url: `/${currWm.key}/inv/po`},
                 ]}
                 onItemSelect={({item: i}) => router.push(i.url)}
               />
