@@ -110,7 +110,7 @@ This is a basic workaround using Phat Contract that can cover most of your use s
 
 ---
 
-## Adavantage Topics
+## Advantage Topics
 
 ### Sign Certificate with Browser Wallet Extensions
 
