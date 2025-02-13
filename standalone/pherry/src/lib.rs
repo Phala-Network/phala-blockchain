@@ -248,7 +248,7 @@ pub struct Args {
     load_handover_proof: bool,
 
     /// The URL of the PCCS server.
-    #[arg(long, default_value = "")]
+    #[arg(long, default_value = "https://pccs.phala.network/sgx/certification/v4/")]
     pccs_url: String,
 
     /// Timeout in seconds for connecting to PCCS server.
@@ -809,7 +809,71 @@ async fn get_finalized_header_with_paraid(
     Ok(Some((para_fin_header, header_proof)))
 }
 
+<<<<<<< HEAD
 async fn maybe_sync_waiting_parablocks(
+=======
+pub async fn get_parachain_header_from_relaychain_at(
+    relay_api: &RelaychainApi,
+    para_api: &ParachainApi,
+    cache_client: &Option<CacheClient>,
+    block_number: BlockNumber,
+) -> Result<(u32, Vec<Vec<u8>>)> {
+    if let Some(cache) = &cache_client {
+        let cached_headers = cache
+            .get_headers(block_number)
+            .await
+            .unwrap_or_default();
+        if cached_headers.len() == 1 {
+            let para_header = &cached_headers
+                .first()
+                .unwrap()
+                .para_header;
+            if let Some(para_header) = para_header {
+                return Ok((para_header.fin_header_num, para_header.proof.clone()))
+            }
+        }
+    }
+
+    let hash = get_header_hash(relay_api, Some(block_number)).await?;
+    let header = get_finalized_header(relay_api, para_api, hash).await?;
+    if let Some((header, proof)) = header {
+        return Ok((header.number, proof));
+    }
+
+    Err(anyhow!("No parachain header was found at {}", block_number))
+}
+
+pub async fn get_headers(
+    api: &RelaychainApi,
+    from: BlockNumber,
+) -> Result<Vec<HeaderToSync>> {
+    let first_header = get_header_at(api, Some(from)).await?;
+    let mut headers = vec![
+        HeaderToSync {
+            header: first_header.0.clone(),
+            justification: None
+        },
+    ];
+
+    let encoded_finality_proof = prove_finality_at(api, from).await?;
+    let finality_proof : FinalityProof<Header> = Decode::decode(&mut encoded_finality_proof.as_slice())?;
+    headers.extend(
+        finality_proof.unknown_headers
+            .iter()
+            .map(|h| HeaderToSync {
+                header: h.clone(),
+                justification: None,
+            })
+    );
+
+    let last_header = headers.last_mut().expect("Already filled at least one header");
+    last_header.justification = Some(finality_proof.justification);
+
+    Ok(headers)
+}
+
+async fn sync_headers(
+>>>>>>> d41903ff0 (Add default_value of pccs_url to Phala public PCCS)
     pr: &PrClient,
     api: &RelaychainApi,
     para_api: &ParachainApi,
