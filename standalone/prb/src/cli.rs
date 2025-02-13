@@ -36,7 +36,7 @@ pub struct WorkerManagerCliArgs {
     pub webhook_url: Option<String>,
 
     /// URL of PCCS server to get collateral
-    #[arg(long, env, default_value = "")]
+    #[arg(long, env, default_value = "https://pccs.phala.network/sgx/certification/v4/")]
     pub pccs_url: String,
 
     /// Timeout in seconds of PCCS server to get collateral

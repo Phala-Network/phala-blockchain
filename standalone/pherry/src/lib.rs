@@ -250,7 +250,7 @@ pub struct Args {
     load_handover_proof: bool,
 
     /// The URL of the PCCS server.
-    #[arg(long, default_value = "")]
+    #[arg(long, default_value = "https://pccs.phala.network/sgx/certification/v4/")]
     pccs_url: String,
 
     /// Timeout in seconds for connecting to PCCS server.
@@ -582,7 +582,7 @@ pub async fn get_headers(
     let first_header = get_header_at(api, Some(from)).await?;
     let mut headers = vec![
         HeaderToSync {
-            header: first_header.0.clone(), 
+            header: first_header.0.clone(),
             justification: None
         },
     ];
