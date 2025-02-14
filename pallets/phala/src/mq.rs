@@ -66,7 +66,7 @@ pub mod pallet {
 		pub fn sync_offchain_message(
 			origin: OriginFor<T>,
 			signed_message: SignedMessage,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			ensure_signed(origin)?;
 
 			// Check sender
@@ -89,9 +89,16 @@ pub mod pallet {
 			crate::registry::Pallet::<T>::check_message(&signed_message)?;
 			// Update ingress
 			OffchainIngress::<T>::insert(sender.clone(), expected_seq + 1);
+			// Check if is Gatekeeper
+			let is_gatekeeper = matches!(sender, phala_types::messaging::SenderId::Gatekeeper);
 			// Call dispatch_message
 			Self::dispatch_message(signed_message.message);
-			Ok(())
+
+			if is_gatekeeper {
+				Ok(Pays::No.into())
+			} else {
+				Ok(Pays::Yes.into())
+			}
 		}
 
 		// Messaging API for end user.
