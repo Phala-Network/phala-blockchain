@@ -136,7 +136,7 @@ export default function WorkerStatusPage() {
       id: data.worker.id,
     }));
   }, [rawFetcher]);
-  const {data, isLoading, mutate} = useSWR(`worker_status_${currWm?.name}`, fetcher, {refreshInterval: 6000});
+  const {data, isLoading, mutate} = useSWR(`worker_status_${currWm?.key}`, fetcher, {refreshInterval: 6000});
 
   const batchActions = useMemo(() => {
     return [
@@ -369,10 +369,10 @@ export default function WorkerStatusPage() {
                   }
             }
             actionButtons={[
-              {
-                onClick: reloadWm,
-                label: 'Restart WM',
-              },
+              // {
+              //   onClick: reloadWm,
+              //   label: 'Restart WM',
+              // },
             ]}
           />
           <div className={css({width: '12px'})} />

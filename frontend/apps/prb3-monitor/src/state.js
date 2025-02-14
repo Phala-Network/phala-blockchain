@@ -15,18 +15,33 @@ export const allWmAtomRaw = loadable(
 
 export const allWmAtom = atom((get) => {
   const r = get(allWmAtomRaw);
-  return r.data || [];
+  if (!r.data) {
+      return [];
+  }
+
+  for (const wm of r.data) {
+    wm.key = wm.name.toLowerCase()
+      .replaceAll(/[\s]+/g, '-')
+      .replaceAll(/[^a-z0-9-]/g, '')
+    ;
+  }
+
+  return r.data;
 });
 
 export const allWmAtomInObject = atom((get) => {
   const ret = {};
   for (const i of get(allWmAtom)) {
-    ret[i.name] = i;
+    ret[i.key] = i;
   }
   return ret;
 });
 
-export const currentWmIdAtom = atomWithStorage('currentWmIdAtom', '');
+export const currentWmIdAtom = atom((get) => {
+  const allWm = get(allWmAtom);
+  const wmid = document?.location.pathname.split('/')[1];
+  return wmid;
+});
 
 export const currentWmAtom = atom((get) => {
   const currentWmId = get(currentWmIdAtom);

@@ -47,7 +47,7 @@ export default function PoolOperatorInvPage() {
       id: data.pid,
     }));
   }, [rawFetcher]);
-  const {data, isLoading, mutate} = useSWR(`inv_po_${currWm?.name}`, fetcher, {refreshInterval: 6000});
+  const {data, isLoading, mutate} = useSWR(`inv_po_${currWm?.key}`, fetcher, {refreshInterval: 6000});
   const [isModalOpen, setModalOpen] = useState(false);
   const onModalClose = (reset) => {
     setModalOpen(false);
