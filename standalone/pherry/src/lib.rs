@@ -225,7 +225,7 @@ pub struct Args {
     disable_sync_waiting_paraheaders: bool,
 
     /// Attestation provider
-    #[arg(long, value_enum, default_value_t = RaOption::Ias)]
+    #[arg(long, value_enum, default_value_t = RaOption::Dcap)]
     attestation_provider: RaOption,
 
     /// Use IAS RA method, this is compatible with Pherry 1.x
