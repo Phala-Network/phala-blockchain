@@ -1,0 +1,12 @@
+{
+  "name": "on_chain_exporter",
+  "version": "1.0.0",
+  "main": "app.ts",
+  "license": "MIT",
+  "dependencies": {
+    "@phala/sdk": "0.5.1",
+    "@polkadot/api": "^10.9.1",
+    "@polkadot/types": "^10.9.1",
+    "bn.js": "^5.2.1"
+  }
+}
