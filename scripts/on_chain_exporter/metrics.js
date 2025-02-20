@@ -26,25 +26,7 @@ const phalaAccounts = {
   '432CHQ6ed9fJfkrxZDr4ocZotq8gNRkefvXayJsZAPx7fKAE': 'OVH - PHAT - PRB',
 };
 
-const khalaAccounts = {
-  '436H4jat7TobTbNYLdSJ3cmNy9K4frmE4Yuc4R2nNnaf56DL': 'Reward Account',
-
-  //'44nahXbDbTT2n7dPFiwhh3VXJTVU6QeLfufZuDin8gnAmpsj': 'Crosswire - 1 Rotterdam (NL)',
-  //'437f5a2y6FFT9NCKp166zSSMFxgPSq1mSWQy3xhfWwUo9Bz4': 'Crosswire - 2 Amsterdam (NL)',
-  //'44Ts6ZBCu6yCnncJyFpsQAtPvUC9wgrUpwWJDPmMjEpceZYE': 'Crosswire - 3 Dusseldorf (DE)',
-  //'41rFAFhxf3nUAAhZXyQh2diFb6LZvxMQnrDnw3uGuTS6GKmm': 'Crosswire - 4 Dusseldorf (DE)',
-  '43cPs4dWRNwfrqzMPKFQjewvkx6djemjbzwa1ZzYZcwe2TdM': 'HE - Fremont-L',
-  '44tHNY4vuTxc1PBsS3eAxFUY4avJEmx6AMcwBswr7sDH7XMC': 'HE - Fremont-R',
-  // '459LKVLV2U6fdtQLQ9ZXhojEQm9ncfqN76YRbR3CiJpCL3yb', // Zhe
-  '44vn1X95id7xt7xnbjvXgG9E6R4hmgKzXSa4QLBpkziyXz1x': 'Doyle Home',
-  // '42ha5pLkXGLg4M1aFkvBsbLWbmMYvgdCRetgUjSAMZ7swG53', // QC-0
-  // '42sydUvocBuEorweEPqxY5vZae1VaTtWoJFiKMrPbRamy2BL', // QC-1
-  // '457agnQ9yVdbdP5J57HHaUsBmwWogFeK7JCVSKd8bs5FxxKv', // QC-2
-  '3zoj1DEpKUvZdmFZtYri5WTLMeufLZCNEP8iY6VYkbUoG2i2': 'OVH - PHAT-4 - GK',
-};
-
 const PHALA_RPC_ENDPOINT = Deno.env.get('PHALA_RPC_ENDPOINT') ?? 'wss://priv-api.phala.network/phala/ws';
-const KHALA_RPC_ENDPOINT = Deno.env.get('KHALA_RPC_ENDPOINT') ?? 'wss://priv-api.phala.network/khala/ws';
 
 const sleep = (t) => new Promise(r => setTimeout(r, t))
 
@@ -53,15 +35,6 @@ export const registry = Registry.default;
 const getInfoLoop = async () => {
   const api = await ApiPromise.create({
     provider: new WsProvider(PHALA_RPC_ENDPOINT),
-    types: {
-        ...Phala.types,
-        ...typeDefinitions,
-        CheckMqSequence: null,
-    },
-    noInitWarn: true,
-  });
-  const khalaApi = await ApiPromise.create({
-    provider: new WsProvider(KHALA_RPC_ENDPOINT),
     types: {
         ...Phala.types,
         ...typeDefinitions,
@@ -88,6 +61,12 @@ const getInfoLoop = async () => {
   const circulationGauge = Gauge.with({
     name: 'circulation',
     help: 'total circulation',
+    labels: ['chain']
+  });
+
+  const circulationUpdatedAtGauge = Gauge.with({
+    name: 'circulation_updated_at',
+    help: 'Circulation Updated At',
     labels: ['chain']
   });
 
@@ -122,24 +101,10 @@ const getInfoLoop = async () => {
       .set(pha.toNumber());
     }
 
-    for (const accountId in khalaAccounts) {
-      const name = khalaAccounts[accountId];
-      const { data: { free } } = await khalaApi.query.system.account(accountId);
-      const pha = free.div(new BN('1000000000'));
-      freeBalance.labels({
-        chain: 'khala',
-        account: accountId,
-        name: name,
-      })
-      .set(pha.toNumber());
-    }
-
-    await fetch_circulation("https://pha-circulation-server.vercel.app/api/all", circulationGauge);
+    await fetch_circulation("https://pha-circulation-server.vercel.app/api/all", circulationGauge, circulationUpdatedAtGauge);
 
     const phalaTokenomicUpdatedTime = await fetchTokenomicUpdatedTime('phala');
     tokenomicUpdatedAtGauge.labels({chain: 'phala'}).set(phalaTokenomicUpdatedTime);
-    const khalaTokenomicUpdatedTime = await fetchTokenomicUpdatedTime('khala')
-    tokenomicUpdatedAtGauge.labels({chain: 'khala'}).set(khalaTokenomicUpdatedTime);
 
     console.log('A round of fetch completed. Sleep 15 seconds.');
     await sleep(60_000)
@@ -148,15 +113,16 @@ const getInfoLoop = async () => {
 
 export const getInfoLoopPromise = getInfoLoop()
 
-async function fetch_circulation(url, circulationGauge) {
+async function fetch_circulation(url, circulationGauge, circulationUpdatedAtGauge) {
   try {
     const res = await fetch(url, { method: 'GET' });
     if (res.ok) {
       const cir = await res.json();
       circulationGauge.labels({chain: 'phala'}).set(cir.phala.circulation);
-      circulationGauge.labels({chain: 'khala'}).set(cir.khala.circulation);
+      circulationUpdatedAtGauge.labels({chain: 'phala'}).set(Date.parse(cir.phala.timestamp));
       circulationGauge.labels({chain: 'ethereum'}).set(cir.ethereum.circulation);
-      circulationGauge.labels({}).set(cir.totalCirculation);
+      circulationUpdatedAtGauge.labels({chain: 'ethereum'}).set(Date.parse(cir.ethereum.timestamp));
+      circulationGauge.labels({chain: 'total'}).set(cir.totalCirculation);
     } else {
       console.error(`HTTP error! Status: ${res.status}`)
     }
