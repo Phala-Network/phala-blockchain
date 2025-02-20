@@ -4,7 +4,7 @@
 entrypoint = "pruntime"
 
 [loader]
-entrypoint = "file:{{ libos }}"
+entrypoint.uri = "file:{{ libos }}"
 log_level = "{{ log_level }}"
 argv = ["pruntime"]
 insecure__use_cmdline_argv = true
@@ -67,7 +67,6 @@ uri = "file:{{ pink_runtime_dir }}"
 
 [sgx]
 debug = false
-nonpie_binary = true
 enclave_size = "2G"
 thread_num = 32
 max_threads = 128
