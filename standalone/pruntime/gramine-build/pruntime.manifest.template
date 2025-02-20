@@ -6,7 +6,7 @@ entrypoint = "pruntime"
 [loader]
 entrypoint = "file:{{ libos }}"
 log_level = "{{ log_level }}"
-argv0_override = "pruntime"
+argv = ["pruntime"]
 insecure__use_cmdline_argv = true
 
 [sys]
