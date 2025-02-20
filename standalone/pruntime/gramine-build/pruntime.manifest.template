@@ -68,7 +68,6 @@ uri = "file:{{ pink_runtime_dir }}"
 [sgx]
 debug = false
 enclave_size = "2G"
-thread_num = 32
 max_threads = 128
 remote_attestation = "{{ ra_type }}"
 {% if ra_type == "epid" %}
