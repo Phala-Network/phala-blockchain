@@ -7,7 +7,6 @@ entrypoint = "pruntime"
 entrypoint.uri = "file:{{ libos }}"
 log_level = "{{ log_level }}"
 argv = ["pruntime"]
-insecure__use_cmdline_argv = true
 
 [sys]
 {#
