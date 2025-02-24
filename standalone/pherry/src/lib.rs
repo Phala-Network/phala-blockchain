@@ -226,7 +226,7 @@ pub struct Args {
     disable_sync_waiting_paraheaders: bool,
 
     /// Attestation provider
-    #[arg(long, value_enum, default_value_t = RaOption::Ias)]
+    #[arg(long, value_enum, default_value_t = RaOption::Dcap)]
     attestation_provider: RaOption,
 
     /// Use IAS RA method, this is compatible with Pherry 1.x
@@ -249,7 +249,7 @@ pub struct Args {
     load_handover_proof: bool,
 
     /// The URL of the PCCS server.
-    #[arg(long, default_value = "")]
+    #[arg(long, default_value = "https://pccs.phala.network/sgx/certification/v4/")]
     pccs_url: String,
 
     /// Timeout in seconds for connecting to PCCS server.
