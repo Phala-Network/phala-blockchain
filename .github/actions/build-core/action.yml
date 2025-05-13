@@ -13,7 +13,7 @@ runs:
       run: cargo build -vv --profile ${{ inputs.profile }}
       shell: bash
     - name: Save core-blockchain binaries
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: core-blockchain-binaries
         path: |

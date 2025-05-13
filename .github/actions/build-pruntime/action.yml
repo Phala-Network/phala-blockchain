@@ -11,7 +11,7 @@ runs:
       run: make -C ./standalone/pruntime/
       shell: bash
     - name: Save pruntime binaries
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: pruntime-binaries
         path: |
