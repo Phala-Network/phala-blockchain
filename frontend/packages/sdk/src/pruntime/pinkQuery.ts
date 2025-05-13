@@ -51,6 +51,6 @@ export async function pinkQuery(
   const { data: encryptedResult, iv } = phalaTypes.createType<IEncryptedData>('EncryptedData', res.encodedEncryptedData)
   const data = hexAddPrefix(decrypt(encryptedResult.toString(), agreement.agreementKey, iv))
   const resp = phalaTypes.createType<InkResponse>('InkResponse', data)
-  const blocknum = res.blocknum;
+  const blocknum = res.blocknum
   return [resp, blocknum]
 }

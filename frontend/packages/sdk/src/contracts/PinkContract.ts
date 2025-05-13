@@ -470,7 +470,9 @@ export class PinkContractPromise<
 
     const agreement = new WorkerAgreementKey(this.phatRegistry.remotePubkey!)
 
-    const inkQueryInternal = async (origin: string | AccountId | Uint8Array): Promise<ContractCallOutcome & { blocknum: number }> => {
+    const inkQueryInternal = async (
+      origin: string | AccountId | Uint8Array
+    ): Promise<ContractCallOutcome & { blocknum: number }> => {
       if (typeof origin === 'string') {
         assert(origin === cert.address, 'origin must be the same as the certificate address')
       } else if (origin.hasOwnProperty('verify') && origin.hasOwnProperty('adddress')) {
