@@ -609,9 +609,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     ) -> RpcResult<
         impl Future<Output = RpcResult<(pb::ContractQueryResponse, Option<ExecSideEffects>)>>,
     > {
+        let current_block = self.get_info().blocknum - 1;
         // Validate signature
         let origin = if let Some(sig) = &request.signature {
-            let current_block = self.get_info().blocknum - 1;
             // At most two level cert chain supported
             match sig.verify(
                 &request.encoded_encrypted_data,
@@ -687,7 +687,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             )
             .map_err(from_debug)?;
 
-            Ok((pb::ContractQueryResponse::new(encrypted_resp), effects))
+            Ok((
+                pb::ContractQueryResponse::new(encrypted_resp, current_block),
+                effects,
+            ))
         })
     }
 
