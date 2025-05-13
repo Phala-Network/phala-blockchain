@@ -45,7 +45,7 @@ export async function estimateContract(
 
   const cert = await provider.signCertificate()
 
-  const [clusterBalance, onchainBalance, inkResponse] = await Promise.all([
+  const [clusterBalance, onchainBalance, [inkResponse, _]] = await Promise.all([
     client.getClusterBalance(provider.address),
     client.api.query.system.account<FrameSystemAccountInfo>(provider.address),
     pinkQuery(client.phactory, argument, inkMessage.toHex(), cert),

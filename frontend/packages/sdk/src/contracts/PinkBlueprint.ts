@@ -326,7 +326,7 @@ export class PinkBlueprintPromise {
         options.deposit,
         options.transfer
       )
-      const response = await pinkQuery(this.phatRegistry.phactory, agreement, payload.toHex(), cert)
+      const [response, blocknumber] = await pinkQuery(this.phatRegistry.phactory, agreement, payload.toHex(), cert)
       if (response.result.isErr) {
         return phalaTypes.createType<InkQueryError>('InkQueryError', response.result.asErr.toHex())
       }

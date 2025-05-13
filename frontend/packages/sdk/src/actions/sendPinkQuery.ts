@@ -37,7 +37,7 @@ export async function sendPinkQuery<TResult extends Codec = Codec>(
   const argument = new WorkerAgreementKey(client.workerInfo.pubkey)
 
   const cert = await provider.signCertificate()
-  const inkResponse = await pinkQuery(client.phactory, argument, inkMessage.toHex(), cert)
+  const [inkResponse, blocknumber] = await pinkQuery(client.phactory, argument, inkMessage.toHex(), cert)
 
   if (inkResponse.result.isErr) {
     // @FIXME: not sure this is enough as not yet tested

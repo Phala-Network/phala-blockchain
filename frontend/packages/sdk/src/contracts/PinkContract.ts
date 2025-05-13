@@ -29,6 +29,7 @@ import signAndSend from '../utils/signAndSend'
 
 export type PinkContractCallOutcome<ResultType> = {
   output: ResultType
+  blocknum: number
 } & Omit<ContractCallOutcome, 'output'>
 
 export interface ILooseResult<O, E extends Codec = Codec> extends IEnum {
@@ -469,7 +470,7 @@ export class PinkContractPromise<
 
     const agreement = new WorkerAgreementKey(this.phatRegistry.remotePubkey!)
 
-    const inkQueryInternal = async (origin: string | AccountId | Uint8Array): Promise<ContractCallOutcome> => {
+    const inkQueryInternal = async (origin: string | AccountId | Uint8Array): Promise<ContractCallOutcome & { blocknum: number }> => {
       if (typeof origin === 'string') {
         assert(origin === cert.address, 'origin must be the same as the certificate address')
       } else if (origin.hasOwnProperty('verify') && origin.hasOwnProperty('adddress')) {
@@ -485,7 +486,7 @@ export class PinkContractPromise<
         options.transfer,
         options.estimating !== undefined ? !!options.estimating : isEstimating
       )
-      const inkResponse = await pinkQuery(this.phatRegistry.phactory, agreement, payload.toHex(), cert)
+      const [inkResponse, blocknum] = await pinkQuery(this.phatRegistry.phactory, agreement, payload.toHex(), cert)
       if (inkResponse.result.isErr) {
         // @FIXME: not sure this is enough as not yet tested
         throw new Error(`InkResponse Error: ${inkResponse.result.asErr.toString()}`)
@@ -511,6 +512,7 @@ export class PinkContractPromise<
               )
             : null,
         result,
+        blocknum,
         storageDeposit,
       }
     }
