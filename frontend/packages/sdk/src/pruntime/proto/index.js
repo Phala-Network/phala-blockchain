@@ -1484,6 +1484,7 @@ $root.pruntime_rpc = (function() {
          * @property {number|null} [safeModeLevel] PhactoryInfo safeModeLevel
          * @property {number|Long|null} [currentBlockTime] PhactoryInfo currentBlockTime
          * @property {string|null} [maxSupportedPinkRuntimeVersion] PhactoryInfo maxSupportedPinkRuntimeVersion
+         * @property {Array.<string>|null} [supportedAttestationMethods] PhactoryInfo supportedAttestationMethods
          */
 
         /**
@@ -1495,6 +1496,7 @@ $root.pruntime_rpc = (function() {
          * @param {pruntime_rpc.IPhactoryInfo=} [properties] Properties to set
          */
         function PhactoryInfo(properties) {
+            this.supportedAttestationMethods = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -1677,6 +1679,14 @@ $root.pruntime_rpc = (function() {
          */
         PhactoryInfo.prototype.maxSupportedPinkRuntimeVersion = "";
 
+        /**
+         * PhactoryInfo supportedAttestationMethods.
+         * @member {Array.<string>} supportedAttestationMethods
+         * @memberof pruntime_rpc.PhactoryInfo
+         * @instance
+         */
+        PhactoryInfo.prototype.supportedAttestationMethods = $util.emptyArray;
+
         // OneOf field names bound to virtual getters and setters
         var $oneOfFields;
 
@@ -1781,6 +1791,9 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 26, wireType 0 =*/208).uint64(message.currentBlockTime);
             if (message.maxSupportedPinkRuntimeVersion != null && Object.hasOwnProperty.call(message, "maxSupportedPinkRuntimeVersion"))
                 writer.uint32(/* id 27, wireType 2 =*/218).string(message.maxSupportedPinkRuntimeVersion);
+            if (message.supportedAttestationMethods != null && message.supportedAttestationMethods.length)
+                for (var i = 0; i < message.supportedAttestationMethods.length; ++i)
+                    writer.uint32(/* id 28, wireType 2 =*/226).string(message.supportedAttestationMethods[i]);
             return writer;
         };
 
@@ -1903,6 +1916,12 @@ $root.pruntime_rpc = (function() {
                         message.maxSupportedPinkRuntimeVersion = reader.string();
                         break;
                     }
+                case 28: {
+                        if (!(message.supportedAttestationMethods && message.supportedAttestationMethods.length))
+                            message.supportedAttestationMethods = [];
+                        message.supportedAttestationMethods.push(reader.string());
+                        break;
+                    }
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -2017,6 +2036,13 @@ $root.pruntime_rpc = (function() {
             if (message.maxSupportedPinkRuntimeVersion != null && message.hasOwnProperty("maxSupportedPinkRuntimeVersion"))
                 if (!$util.isString(message.maxSupportedPinkRuntimeVersion))
                     return "maxSupportedPinkRuntimeVersion: string expected";
+            if (message.supportedAttestationMethods != null && message.hasOwnProperty("supportedAttestationMethods")) {
+                if (!Array.isArray(message.supportedAttestationMethods))
+                    return "supportedAttestationMethods: array expected";
+                for (var i = 0; i < message.supportedAttestationMethods.length; ++i)
+                    if (!$util.isString(message.supportedAttestationMethods[i]))
+                        return "supportedAttestationMethods: string[] expected";
+            }
             return null;
         };
 
@@ -2106,6 +2132,13 @@ $root.pruntime_rpc = (function() {
                     message.currentBlockTime = new $util.LongBits(object.currentBlockTime.low >>> 0, object.currentBlockTime.high >>> 0).toNumber(true);
             if (object.maxSupportedPinkRuntimeVersion != null)
                 message.maxSupportedPinkRuntimeVersion = String(object.maxSupportedPinkRuntimeVersion);
+            if (object.supportedAttestationMethods) {
+                if (!Array.isArray(object.supportedAttestationMethods))
+                    throw TypeError(".pruntime_rpc.PhactoryInfo.supportedAttestationMethods: array expected");
+                message.supportedAttestationMethods = [];
+                for (var i = 0; i < object.supportedAttestationMethods.length; ++i)
+                    message.supportedAttestationMethods[i] = String(object.supportedAttestationMethods[i]);
+            }
             return message;
         };
 
@@ -2122,6 +2155,8 @@ $root.pruntime_rpc = (function() {
             if (!options)
                 options = {};
             var object = {};
+            if (options.arrays || options.defaults)
+                object.supportedAttestationMethods = [];
             if (options.defaults) {
                 object.initialized = false;
                 object.registered = false;
@@ -2217,6 +2252,11 @@ $root.pruntime_rpc = (function() {
                     object.currentBlockTime = options.longs === String ? $util.Long.prototype.toString.call(message.currentBlockTime) : options.longs === Number ? new $util.LongBits(message.currentBlockTime.low >>> 0, message.currentBlockTime.high >>> 0).toNumber(true) : message.currentBlockTime;
             if (message.maxSupportedPinkRuntimeVersion != null && message.hasOwnProperty("maxSupportedPinkRuntimeVersion"))
                 object.maxSupportedPinkRuntimeVersion = message.maxSupportedPinkRuntimeVersion;
+            if (message.supportedAttestationMethods && message.supportedAttestationMethods.length) {
+                object.supportedAttestationMethods = [];
+                for (var j = 0; j < message.supportedAttestationMethods.length; ++j)
+                    object.supportedAttestationMethods[j] = message.supportedAttestationMethods[j];
+            }
             return object;
         };
 
@@ -5298,6 +5338,7 @@ $root.pruntime_rpc = (function() {
          * @memberof pruntime_rpc
          * @interface IContractQueryResponse
          * @property {Uint8Array|null} [encodedEncryptedData] ContractQueryResponse encodedEncryptedData
+         * @property {number|null} [blocknum] ContractQueryResponse blocknum
          */
 
         /**
@@ -5322,6 +5363,14 @@ $root.pruntime_rpc = (function() {
          * @instance
          */
         ContractQueryResponse.prototype.encodedEncryptedData = $util.newBuffer([]);
+
+        /**
+         * ContractQueryResponse blocknum.
+         * @member {number} blocknum
+         * @memberof pruntime_rpc.ContractQueryResponse
+         * @instance
+         */
+        ContractQueryResponse.prototype.blocknum = 0;
 
         /**
          * Creates a new ContractQueryResponse instance using the specified properties.
@@ -5349,6 +5398,8 @@ $root.pruntime_rpc = (function() {
                 writer = $Writer.create();
             if (message.encodedEncryptedData != null && Object.hasOwnProperty.call(message, "encodedEncryptedData"))
                 writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.encodedEncryptedData);
+            if (message.blocknum != null && Object.hasOwnProperty.call(message, "blocknum"))
+                writer.uint32(/* id 2, wireType 0 =*/16).uint32(message.blocknum);
             return writer;
         };
 
@@ -5385,6 +5436,10 @@ $root.pruntime_rpc = (function() {
                 switch (tag >>> 3) {
                 case 1: {
                         message.encodedEncryptedData = reader.bytes();
+                        break;
+                    }
+                case 2: {
+                        message.blocknum = reader.uint32();
                         break;
                     }
                 default:
@@ -5425,6 +5480,9 @@ $root.pruntime_rpc = (function() {
             if (message.encodedEncryptedData != null && message.hasOwnProperty("encodedEncryptedData"))
                 if (!(message.encodedEncryptedData && typeof message.encodedEncryptedData.length === "number" || $util.isString(message.encodedEncryptedData)))
                     return "encodedEncryptedData: buffer expected";
+            if (message.blocknum != null && message.hasOwnProperty("blocknum"))
+                if (!$util.isInteger(message.blocknum))
+                    return "blocknum: integer expected";
             return null;
         };
 
@@ -5445,6 +5503,8 @@ $root.pruntime_rpc = (function() {
                     $util.base64.decode(object.encodedEncryptedData, message.encodedEncryptedData = $util.newBuffer($util.base64.length(object.encodedEncryptedData)), 0);
                 else if (object.encodedEncryptedData.length >= 0)
                     message.encodedEncryptedData = object.encodedEncryptedData;
+            if (object.blocknum != null)
+                message.blocknum = object.blocknum >>> 0;
             return message;
         };
 
@@ -5461,7 +5521,7 @@ $root.pruntime_rpc = (function() {
             if (!options)
                 options = {};
             var object = {};
-            if (options.defaults)
+            if (options.defaults) {
                 if (options.bytes === String)
                     object.encodedEncryptedData = "";
                 else {
@@ -5469,8 +5529,12 @@ $root.pruntime_rpc = (function() {
                     if (options.bytes !== Array)
                         object.encodedEncryptedData = $util.newBuffer(object.encodedEncryptedData);
                 }
+                object.blocknum = 0;
+            }
             if (message.encodedEncryptedData != null && message.hasOwnProperty("encodedEncryptedData"))
                 object.encodedEncryptedData = options.bytes === String ? $util.base64.encode(message.encodedEncryptedData, 0, message.encodedEncryptedData.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedEncryptedData) : message.encodedEncryptedData;
+            if (message.blocknum != null && message.hasOwnProperty("blocknum"))
+                object.blocknum = message.blocknum;
             return object;
         };
 
@@ -7215,7 +7279,9 @@ $root.pruntime_rpc = (function() {
          * @property {string|null} [id] ClusterInfo id
          * @property {string|null} [runtimeVersion] ClusterInfo runtimeVersion
          * @property {string|null} [stateRoot] ClusterInfo stateRoot
-         * @property {Array.<string>|null} [contracts] ClusterInfo contracts
+         * @property {string|null} [systemContract] ClusterInfo systemContract
+         * @property {string|null} [loggerContract] ClusterInfo loggerContract
+         * @property {number|Long|null} [numberOfContracts] ClusterInfo numberOfContracts
          */
 
         /**
@@ -7227,7 +7293,6 @@ $root.pruntime_rpc = (function() {
          * @param {pruntime_rpc.IClusterInfo=} [properties] Properties to set
          */
         function ClusterInfo(properties) {
-            this.contracts = [];
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -7259,12 +7324,28 @@ $root.pruntime_rpc = (function() {
         ClusterInfo.prototype.stateRoot = "";
 
         /**
-         * ClusterInfo contracts.
-         * @member {Array.<string>} contracts
+         * ClusterInfo systemContract.
+         * @member {string} systemContract
          * @memberof pruntime_rpc.ClusterInfo
          * @instance
          */
-        ClusterInfo.prototype.contracts = $util.emptyArray;
+        ClusterInfo.prototype.systemContract = "";
+
+        /**
+         * ClusterInfo loggerContract.
+         * @member {string} loggerContract
+         * @memberof pruntime_rpc.ClusterInfo
+         * @instance
+         */
+        ClusterInfo.prototype.loggerContract = "";
+
+        /**
+         * ClusterInfo numberOfContracts.
+         * @member {number|Long} numberOfContracts
+         * @memberof pruntime_rpc.ClusterInfo
+         * @instance
+         */
+        ClusterInfo.prototype.numberOfContracts = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
 
         /**
          * Creates a new ClusterInfo instance using the specified properties.
@@ -7296,9 +7377,12 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.runtimeVersion);
             if (message.stateRoot != null && Object.hasOwnProperty.call(message, "stateRoot"))
                 writer.uint32(/* id 3, wireType 2 =*/26).string(message.stateRoot);
-            if (message.contracts != null && message.contracts.length)
-                for (var i = 0; i < message.contracts.length; ++i)
-                    writer.uint32(/* id 4, wireType 2 =*/34).string(message.contracts[i]);
+            if (message.systemContract != null && Object.hasOwnProperty.call(message, "systemContract"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.systemContract);
+            if (message.loggerContract != null && Object.hasOwnProperty.call(message, "loggerContract"))
+                writer.uint32(/* id 6, wireType 2 =*/50).string(message.loggerContract);
+            if (message.numberOfContracts != null && Object.hasOwnProperty.call(message, "numberOfContracts"))
+                writer.uint32(/* id 7, wireType 0 =*/56).uint64(message.numberOfContracts);
             return writer;
         };
 
@@ -7345,10 +7429,16 @@ $root.pruntime_rpc = (function() {
                         message.stateRoot = reader.string();
                         break;
                     }
-                case 4: {
-                        if (!(message.contracts && message.contracts.length))
-                            message.contracts = [];
-                        message.contracts.push(reader.string());
+                case 5: {
+                        message.systemContract = reader.string();
+                        break;
+                    }
+                case 6: {
+                        message.loggerContract = reader.string();
+                        break;
+                    }
+                case 7: {
+                        message.numberOfContracts = reader.uint64();
                         break;
                     }
                 default:
@@ -7395,13 +7485,15 @@ $root.pruntime_rpc = (function() {
             if (message.stateRoot != null && message.hasOwnProperty("stateRoot"))
                 if (!$util.isString(message.stateRoot))
                     return "stateRoot: string expected";
-            if (message.contracts != null && message.hasOwnProperty("contracts")) {
-                if (!Array.isArray(message.contracts))
-                    return "contracts: array expected";
-                for (var i = 0; i < message.contracts.length; ++i)
-                    if (!$util.isString(message.contracts[i]))
-                        return "contracts: string[] expected";
-            }
+            if (message.systemContract != null && message.hasOwnProperty("systemContract"))
+                if (!$util.isString(message.systemContract))
+                    return "systemContract: string expected";
+            if (message.loggerContract != null && message.hasOwnProperty("loggerContract"))
+                if (!$util.isString(message.loggerContract))
+                    return "loggerContract: string expected";
+            if (message.numberOfContracts != null && message.hasOwnProperty("numberOfContracts"))
+                if (!$util.isInteger(message.numberOfContracts) && !(message.numberOfContracts && $util.isInteger(message.numberOfContracts.low) && $util.isInteger(message.numberOfContracts.high)))
+                    return "numberOfContracts: integer|Long expected";
             return null;
         };
 
@@ -7423,13 +7515,19 @@ $root.pruntime_rpc = (function() {
                 message.runtimeVersion = String(object.runtimeVersion);
             if (object.stateRoot != null)
                 message.stateRoot = String(object.stateRoot);
-            if (object.contracts) {
-                if (!Array.isArray(object.contracts))
-                    throw TypeError(".pruntime_rpc.ClusterInfo.contracts: array expected");
-                message.contracts = [];
-                for (var i = 0; i < object.contracts.length; ++i)
-                    message.contracts[i] = String(object.contracts[i]);
-            }
+            if (object.systemContract != null)
+                message.systemContract = String(object.systemContract);
+            if (object.loggerContract != null)
+                message.loggerContract = String(object.loggerContract);
+            if (object.numberOfContracts != null)
+                if ($util.Long)
+                    (message.numberOfContracts = $util.Long.fromValue(object.numberOfContracts)).unsigned = true;
+                else if (typeof object.numberOfContracts === "string")
+                    message.numberOfContracts = parseInt(object.numberOfContracts, 10);
+                else if (typeof object.numberOfContracts === "number")
+                    message.numberOfContracts = object.numberOfContracts;
+                else if (typeof object.numberOfContracts === "object")
+                    message.numberOfContracts = new $util.LongBits(object.numberOfContracts.low >>> 0, object.numberOfContracts.high >>> 0).toNumber(true);
             return message;
         };
 
@@ -7446,12 +7544,17 @@ $root.pruntime_rpc = (function() {
             if (!options)
                 options = {};
             var object = {};
-            if (options.arrays || options.defaults)
-                object.contracts = [];
             if (options.defaults) {
                 object.id = "";
                 object.runtimeVersion = "";
                 object.stateRoot = "";
+                object.systemContract = "";
+                object.loggerContract = "";
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.numberOfContracts = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.numberOfContracts = options.longs === String ? "0" : 0;
             }
             if (message.id != null && message.hasOwnProperty("id"))
                 object.id = message.id;
@@ -7459,11 +7562,15 @@ $root.pruntime_rpc = (function() {
                 object.runtimeVersion = message.runtimeVersion;
             if (message.stateRoot != null && message.hasOwnProperty("stateRoot"))
                 object.stateRoot = message.stateRoot;
-            if (message.contracts && message.contracts.length) {
-                object.contracts = [];
-                for (var j = 0; j < message.contracts.length; ++j)
-                    object.contracts[j] = message.contracts[j];
-            }
+            if (message.systemContract != null && message.hasOwnProperty("systemContract"))
+                object.systemContract = message.systemContract;
+            if (message.loggerContract != null && message.hasOwnProperty("loggerContract"))
+                object.loggerContract = message.loggerContract;
+            if (message.numberOfContracts != null && message.hasOwnProperty("numberOfContracts"))
+                if (typeof message.numberOfContracts === "number")
+                    object.numberOfContracts = options.longs === String ? String(message.numberOfContracts) : message.numberOfContracts;
+                else
+                    object.numberOfContracts = options.longs === String ? $util.Long.prototype.toString.call(message.numberOfContracts) : options.longs === Number ? new $util.LongBits(message.numberOfContracts.low >>> 0, message.numberOfContracts.high >>> 0).toNumber(true) : message.numberOfContracts;
             return object;
         };
 
