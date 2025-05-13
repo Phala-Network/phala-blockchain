@@ -1,6 +1,6 @@
 {
   "name": "@phala/sdk",
-  "version": "0.5.10",
+  "version": "0.6.0-beta.16",
   "description": "Phala Phat Contract JS SDK",
   "license": "Apache-2.0",
   "author": [
@@ -9,7 +9,7 @@
   "homepage": "https://github.com/Phala-Network/phala-blockchain/tree/master/frontend/packages/sdk#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Phala-Network/phala-blockchain.git",
+    "url": "git+https://github.com/Phala-Network/phala-blockchain.git",
     "directory": "frontend/packages/sdk"
   },
   "bugs": {
@@ -55,16 +55,22 @@
     "test:ci": "vitest --run"
   },
   "dependencies": {
-    "@polkadot/api": "^10.9.1",
-    "@polkadot/api-contract": "^10.9.1",
-    "@polkadot/keyring": "^12.3.2",
-    "@polkadot/types": "^10.9.1",
-    "@polkadot/types-augment": "^10.9.1",
-    "@polkadot/util": "^12.3.2",
-    "@polkadot/util-crypto": "^12.3.2",
+    "@polkadot/api": "~10.11.1",
+    "@polkadot/api-contract": "~10.11.1",
+    "@polkadot/types": "~10.11.1",
+    "@polkadot/types-codec": "~10.11.1",
+    "@polkadot/types-augment": "~10.11.1",
+    "@polkadot/networks": "~12.6.1",
+    "@polkadot/keyring": "~12.6.1",
+    "@polkadot/util": "~12.6.1",
+    "@polkadot/util-crypto": "~12.6.1",
+    "@polkadot/extension-inject": "~0.46.6",
+    "@polkadot/ui-keyring": "~3.6.4",
+    "@polkadot/ui-settings": "~3.6.4",
     "browserify-cipher": "^1.0.1",
     "cross-fetch": "^4.0.0",
     "protobufjs": "^7.2.4",
+    "ramda": "^0.29.1",
     "randombytes": "^2.1.0",
     "rxjs": "^7.8.1",
     "viem": "^1.5.0"
@@ -73,6 +79,7 @@
     "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
     "@esbuild-plugins/node-modules-polyfill": "^0.2.2",
     "@types/node": "^20.4.1",
+    "@types/ramda": "^0.29.9",
     "@typescript-eslint/eslint-plugin": "^6.6.0",
     "@typescript-eslint/parser": "^6.6.0",
     "@vitest/coverage-v8": "^0.34.4",
@@ -96,7 +103,7 @@
     "vitest": "^0.34.6"
   },
   "engines": {
-    "node": ">=16"
+    "node": ">=18"
   },
   "prettier": {
     "semi": false,

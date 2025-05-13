@@ -9,15 +9,17 @@ import type { AbiConstructor, BlueprintOptions, ContractCallOutcome } from '@pol
 import { type Option } from '@polkadot/types'
 import type { AccountId, ContractInstantiateResult, Hash } from '@polkadot/types/interfaces'
 import type { IKeyringPair, ISubmittableResult } from '@polkadot/types/types'
-import { BN, BN_ZERO, hexAddPrefix, hexToU8a, isUndefined } from '@polkadot/util'
-import { sr25519Agreement, sr25519PairFromSeed } from '@polkadot/util-crypto'
+import { BN, BN_ZERO, isUndefined } from '@polkadot/util'
 import { from } from 'rxjs'
 import type { OnChainRegistry } from '../OnChainRegistry'
 import { phalaTypes } from '../options'
+import { Provider } from '../providers/types'
 import type { CertificateData } from '../pruntime/certificate'
 import { InkQueryInstantiate } from '../pruntime/coders'
 import { pinkQuery } from '../pruntime/pinkQuery'
-import type { AbiLike, FrameSystemAccountInfo, InkQueryError, InkResponse } from '../types'
+import { WorkerAgreementKey } from '../pruntime/WorkerAgreementKey'
+import type { AbiLike, FrameSystemAccountInfo, InkQueryError } from '../types'
+import { toAbi } from '../utils/abi/toAbi'
 import assert from '../utils/assert'
 import { BN_MAX_SUPPLY } from '../utils/constants'
 import { randomHex } from '../utils/hex'
@@ -71,6 +73,7 @@ interface SendOptions {
 export type PinkBlueprintSendOptions =
   | (PinkBlueprintOptions & SendOptions & { address: string | AccountId; signer: InjectedSigner })
   | (PinkBlueprintOptions & SendOptions & { pair: IKeyringPair })
+  | (PinkBlueprintOptions & SendOptions & { provider: Provider })
 
 export interface PinkBlueprintSend<TParams extends Array<any> = any[]> extends MessageMeta {
   (options: PinkBlueprintSendOptions, ...params: TParams): Promise<PinkBlueprintSubmittableResult>
@@ -85,12 +88,13 @@ export class PinkBlueprintSubmittableResult extends SubmittableResult {
   readonly abi: Abi
 
   #contractId?: string
-  #isFinalized: boolean = false
+  #isFinalized: boolean
   #contract?: PinkContractPromise
 
   constructor(result: ISubmittableResult, abi: Abi, registry: OnChainRegistry, contractId?: string) {
     super(result)
 
+    this.#isFinalized = false
     this.registry = registry
     this.abi = abi
     this.#contractId = contractId
@@ -208,7 +212,7 @@ export class PinkBlueprintPromise {
       throw new Error('Your phatRegistry has not been initialized correctly.')
     }
 
-    this.abi = abi instanceof Abi ? abi : new Abi(abi, api.registry.getChainProperties())
+    this.abi = toAbi(abi, api.registry.getChainProperties())
     this.api = api
     this._decorateMethod = toPromiseMethod
     this.phatRegistry = phatRegistry
@@ -296,14 +300,8 @@ export class PinkBlueprintPromise {
     options: PinkInstantiateQueryOptions,
     params: unknown[]
   ) => {
-    // Generate a keypair for encryption
-    // NOTE: each instance only has a pre-generated pair now, it maybe better to generate a new keypair every time encrypting
-    const seed = hexToU8a(hexAddPrefix(randomHex(32)))
-    const pair = sr25519PairFromSeed(seed)
-    const [sk, pk] = [pair.secretKey, pair.publicKey]
+    const agreement = new WorkerAgreementKey(this.phatRegistry.remotePubkey!)
     const { cert } = options
-
-    const queryAgreementKey = sr25519Agreement(sk, hexToU8a(hexAddPrefix(this.phatRegistry.remotePubkey)))
 
     const inkQueryInternal = async (origin: string | AccountId | Uint8Array) => {
       if (typeof origin === 'string') {
@@ -328,8 +326,7 @@ export class PinkBlueprintPromise {
         options.deposit,
         options.transfer
       )
-      const rawResponse = await pinkQuery(this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert)
-      const response = phalaTypes.createType<InkResponse>('InkResponse', rawResponse)
+      const response = await pinkQuery(this.phatRegistry.phactory, agreement, payload.toHex(), cert)
       if (response.result.isErr) {
         return phalaTypes.createType<InkQueryError>('InkQueryError', response.result.asErr.toHex())
       }
@@ -369,7 +366,7 @@ export class PinkBlueprintPromise {
       throw new Error(`Constructor not found: ${constructorOrId}`)
     }
 
-    const address = 'signer' in rest ? rest.address : rest.pair.address
+    const address = 'provider' in rest ? rest.provider.address : 'signer' in rest ? rest.address : rest.pair.address
     const cert = userCert || (await this.phatRegistry.getAnonymousCert())
     const estimate = this.#query[constructorOrId]
     if (!estimate) {
@@ -407,7 +404,19 @@ export class PinkBlueprintPromise {
       txOptions.gasLimit = gasLimit
     }
 
-    if ('signer' in rest) {
+    if ('provider' in rest) {
+      return await rest.provider.send(tx(txOptions, ...args), (result: ISubmittableResult) => {
+        let maybeContactId: string | undefined
+        const instantiateEvent = result.events.filter((i) => i.event.method === 'Instantiating')[0]
+        if (instantiateEvent) {
+          const contractId = (instantiateEvent.event.data as any).contract
+          if (contractId) {
+            maybeContactId = contractId.toString()
+          }
+        }
+        return new PinkBlueprintSubmittableResult(result, this.abi, this.phatRegistry, maybeContactId)
+      })
+    } else if ('signer' in rest) {
       return await signAndSend(tx(txOptions, ...args), rest.address, rest.signer)
     } else {
       return await signAndSend(tx(txOptions, ...args), rest.pair)

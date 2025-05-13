@@ -11,7 +11,7 @@ runs:
       run: cd ./standalone/prouter/ && cargo build -vv
       shell: bash
     - name: Save prouter binaries
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: prouter-binaries
         path: |

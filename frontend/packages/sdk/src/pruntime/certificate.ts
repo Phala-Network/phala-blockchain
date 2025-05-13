@@ -9,10 +9,10 @@ import { type Account, type Client } from 'viem'
 import { signTypedData } from 'viem/wallet'
 import { phalaTypes } from '../options'
 import { pruntime_rpc as pruntimeRpc } from '../pruntime/proto'
+import { createEip712StructedDataSignCertificate } from '../utils/eip712'
 import { randomHex } from '../utils/hex'
-import { createEip712StructedDataSignCertificate } from './eip712'
 
-interface InjectedAccount {
+export interface InjectedAccount {
   address: string
   genesisHash?: string | null
   name?: string
@@ -151,15 +151,15 @@ export async function signCertificate(params: CertificateParams): Promise<Certif
   return { address, certificate, pubkey, secret }
 }
 
-export async function unstable_signEip712Certificate({
+export async function signEip712Certificate({
   client,
   account,
-  compactPubkey,
+  compressedPubkey,
   ttl = 0x7fffffff,
 }: {
   client: Client
   account: Account
-  compactPubkey: string
+  compressedPubkey: string
   ttl?: number
 }): Promise<CertificateData> {
   await cryptoWaitReady()
@@ -171,7 +171,7 @@ export async function unstable_signEip712Certificate({
     client,
     createEip712StructedDataSignCertificate(account, u8aToHex(eip712Cert), ttl)
   )
-  const rootCert = CertificateBody(compactPubkey, ttl)
+  const rootCert = CertificateBody(compressedPubkey, ttl)
   const certificate: pruntimeRpc.ICertificate = {
     encodedBody: eip712Cert,
     signature: {
