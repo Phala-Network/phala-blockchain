@@ -12,7 +12,7 @@ env:
 jobs:
   build-core:
     name: Build core
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
@@ -24,7 +24,7 @@ jobs:
 
   build-pruntime:
     name: Build pruntime
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
@@ -34,7 +34,7 @@ jobs:
 
   build-contracts:
     name: Build contracts
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
@@ -44,7 +44,7 @@ jobs:
   publish:
     needs: [build-core, build-pruntime, build-contracts]
     name: Pack and publish
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 

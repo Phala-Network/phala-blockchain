@@ -12,7 +12,7 @@ env:
 jobs:
   build-core:
     name: Build core
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.3
@@ -29,7 +29,7 @@ jobs:
           RUSTC_WRAPPER: "sccache"
   build-pruntime:
     name: Build pruntime
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.3
@@ -46,7 +46,7 @@ jobs:
           RUSTC_WRAPPER: "sccache"
   build-prouter:
     name: Build prouter
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
@@ -54,7 +54,7 @@ jobs:
       - uses: ./.github/actions/build-prouter
   build-contracts:
     name: Build contracts
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
@@ -62,7 +62,7 @@ jobs:
       - uses: ./.github/actions/build-contracts
   e2e-test:
     name: Run E2E tests
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
@@ -110,7 +110,7 @@ jobs:
 
   cargo-tests:
     name: Run cargo tests
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
@@ -122,7 +122,7 @@ jobs:
 
   cargo-clippy:
     name: Run cargo clippy
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
