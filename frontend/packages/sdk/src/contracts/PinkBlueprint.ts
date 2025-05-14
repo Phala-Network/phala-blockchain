@@ -43,6 +43,7 @@ interface MapMessageInkQuery<ApiType extends ApiTypes> {
 
 interface PinkContractInstantiateResult extends ContractInstantiateResult {
   salt: string
+  blockNum: number
 }
 
 export interface PinkInstantiateQueryOptions {
@@ -326,7 +327,7 @@ export class PinkBlueprintPromise {
         options.deposit,
         options.transfer
       )
-      const [response, blocknumber] = await pinkQuery(this.phatRegistry.phactory, agreement, payload.toHex(), cert)
+      const [response, blockNum] = await pinkQuery(this.phatRegistry.phactory, agreement, payload.toHex(), cert)
       if (response.result.isErr) {
         return phalaTypes.createType<InkQueryError>('InkQueryError', response.result.asErr.toHex())
       }
@@ -345,6 +346,7 @@ export class PinkBlueprintPromise {
         throw new Error('Estimation failed: ' + JSON.stringify(result.result.asErr.toHuman()))
       }
 
+      ;(result as PinkContractInstantiateResult).blockNum = blockNum
       return result
     }
 

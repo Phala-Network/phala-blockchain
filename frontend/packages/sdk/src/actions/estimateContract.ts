@@ -21,6 +21,7 @@ export type EstimateContractParameters<T> = SendPinkQueryParameters<T> & {
 
 export type EstimateContractResult = Omit<ContractCallOutcome, 'output'> & {
   request: SendPinkCommandParameters
+  blockNum: number
 }
 
 export async function estimateContract(
@@ -45,7 +46,7 @@ export async function estimateContract(
 
   const cert = await provider.signCertificate()
 
-  const [clusterBalance, onchainBalance, [inkResponse, _]] = await Promise.all([
+  const [clusterBalance, onchainBalance, [inkResponse, blockNum]] = await Promise.all([
     client.getClusterBalance(provider.address),
     client.api.query.system.account<FrameSystemAccountInfo>(provider.address),
     pinkQuery(client.phactory, argument, inkMessage.toHex(), cert),
@@ -95,5 +96,6 @@ export async function estimateContract(
       gasLimit,
       deposit: autoDeposit,
     },
+    blockNum,
   }
 }
