@@ -405,6 +405,8 @@ message ContractQueryResponse {
   // The query result.
   // @codec scale crate::crypto::EncryptedData
   bytes encoded_encrypted_data = 1;
+  // The block number of the state when the query was executed.
+  uint32 blocknum = 2;
 }
 
 // Request parameters for GetWorkerState
