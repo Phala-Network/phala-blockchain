@@ -19,7 +19,7 @@ export type SendPinkQueryParameters<TArgs = any[]> = {
 export async function sendPinkQuery<TResult extends Codec = Codec>(
   client: OnChainRegistry,
   parameters: SendPinkQueryParameters
-): Promise<TResult | null> {
+): Promise<(TResult & { blockNum: number }) | null> {
   const { address, functionName, provider } = parameters
   if (!client.workerInfo?.pubkey) {
     throw new Error('Worker pubkey not found')
@@ -37,7 +37,7 @@ export async function sendPinkQuery<TResult extends Codec = Codec>(
   const argument = new WorkerAgreementKey(client.workerInfo.pubkey)
 
   const cert = await provider.signCertificate()
-  const inkResponse = await pinkQuery(client.phactory, argument, inkMessage.toHex(), cert)
+  const [inkResponse, blockNum] = await pinkQuery(client.phactory, argument, inkMessage.toHex(), cert)
 
   if (inkResponse.result.isErr) {
     // @FIXME: not sure this is enough as not yet tested
@@ -55,11 +55,13 @@ export async function sendPinkQuery<TResult extends Codec = Codec>(
     throw new Error(`ContractExecResult Error: ${result.asErr.toString()}`)
   }
   if (message.returnType) {
-    return abi.registry.createTypeUnsafe<TResult>(
+    const obj = abi.registry.createTypeUnsafe<TResult>(
       message.returnType.lookupName || message.returnType.type,
       [result.asOk.data.toU8a(true)],
       { isPedantic: true }
-    )
+    ) as TResult & { blockNum: number }
+    obj.blockNum = blockNum
+    return obj
   }
   return null
 }

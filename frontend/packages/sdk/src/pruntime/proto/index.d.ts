@@ -952,6 +952,9 @@ export namespace pruntime_rpc {
 
         /** PhactoryInfo maxSupportedPinkRuntimeVersion */
         maxSupportedPinkRuntimeVersion?: (string|null);
+
+        /** PhactoryInfo supportedAttestationMethods */
+        supportedAttestationMethods?: (string[]|null);
     }
 
     /** Represents a PhactoryInfo. */
@@ -1028,6 +1031,9 @@ export namespace pruntime_rpc {
 
         /** PhactoryInfo maxSupportedPinkRuntimeVersion. */
         public maxSupportedPinkRuntimeVersion: string;
+
+        /** PhactoryInfo supportedAttestationMethods. */
+        public supportedAttestationMethods: string[];
 
         /** PhactoryInfo _genesisBlockHash. */
         public _genesisBlockHash?: "genesisBlockHash";
@@ -2277,6 +2283,9 @@ export namespace pruntime_rpc {
 
         /** ContractQueryResponse encodedEncryptedData */
         encodedEncryptedData?: (Uint8Array|null);
+
+        /** ContractQueryResponse blocknum */
+        blocknum?: (number|null);
     }
 
     /** Represents a ContractQueryResponse. */
@@ -2290,6 +2299,9 @@ export namespace pruntime_rpc {
 
         /** ContractQueryResponse encodedEncryptedData. */
         public encodedEncryptedData: Uint8Array;
+
+        /** ContractQueryResponse blocknum. */
+        public blocknum: number;
 
         /**
          * Creates a new ContractQueryResponse instance using the specified properties.
@@ -3114,8 +3126,14 @@ export namespace pruntime_rpc {
         /** ClusterInfo stateRoot */
         stateRoot?: (string|null);
 
-        /** ClusterInfo contracts */
-        contracts?: (string[]|null);
+        /** ClusterInfo systemContract */
+        systemContract?: (string|null);
+
+        /** ClusterInfo loggerContract */
+        loggerContract?: (string|null);
+
+        /** ClusterInfo numberOfContracts */
+        numberOfContracts?: (number|Long|null);
     }
 
     /** Represents a ClusterInfo. */
@@ -3136,8 +3154,14 @@ export namespace pruntime_rpc {
         /** ClusterInfo stateRoot. */
         public stateRoot: string;
 
-        /** ClusterInfo contracts. */
-        public contracts: string[];
+        /** ClusterInfo systemContract. */
+        public systemContract: string;
+
+        /** ClusterInfo loggerContract. */
+        public loggerContract: string;
+
+        /** ClusterInfo numberOfContracts. */
+        public numberOfContracts: (number|Long);
 
         /**
          * Creates a new ClusterInfo instance using the specified properties.

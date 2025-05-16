@@ -1,7 +1,7 @@
 #!/bin/bash
 downloadProto() {
   echo "Downloading $1.proto…"
-  curl -o "proto/$1.proto" "https://raw.githubusercontent.com/Phala-Network/prpc-protos/master/$1.proto"
+  curl -o "proto/$1.proto" "https://raw.githubusercontent.com/Phala-Network/phala-blockchain/master/crates/phactory/api/proto/$1.proto"
 }
 
 rm -rf proto

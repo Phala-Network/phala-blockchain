@@ -192,7 +192,7 @@ function sidevmQueryWithReader({ phactory, remotePubkey, address, cert }: Sidevm
   return async function unsafeRunSidevmQuery<T>(sidevmMessage: Record<string, any>): Promise<T> {
     const encodedQuery = InkQuerySidevmMessage(address, sidevmMessage)
     const agreement = new WorkerAgreementKey(remotePubkey)
-    const inkResponse = await pinkQuery(phactory, agreement, encodedQuery.toHex(), cert)
+    const [inkResponse, _] = await pinkQuery(phactory, agreement, encodedQuery.toHex(), cert)
     if (inkResponse.result.isErr) {
       let error = `[${inkResponse.result.asErr.index}] ${inkResponse.result.asErr.type}`
       if (inkResponse.result.asErr.type === 'RuntimeError') {

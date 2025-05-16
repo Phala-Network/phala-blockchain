@@ -28,7 +28,7 @@ export async function pinkQuery(
   agreement: WorkerAgreementKey,
   encodedQuery: string,
   { certificate, pubkey, secret }: CertificateData
-): Promise<InkResponse> {
+): Promise<[InkResponse, number]> {
   // Encrypt the ContractQuery.
   const encryptedData = createEncryptedData(agreement.publicKey, encodedQuery, agreement.agreementKey)
   const encodedEncryptedData = phalaTypes.createType('EncryptedData', encryptedData).toU8a()
@@ -50,5 +50,7 @@ export async function pinkQuery(
 
   const { data: encryptedResult, iv } = phalaTypes.createType<IEncryptedData>('EncryptedData', res.encodedEncryptedData)
   const data = hexAddPrefix(decrypt(encryptedResult.toString(), agreement.agreementKey, iv))
-  return phalaTypes.createType<InkResponse>('InkResponse', data)
+  const resp = phalaTypes.createType<InkResponse>('InkResponse', data)
+  const blocknum = res.blocknum
+  return [resp, blocknum]
 }
