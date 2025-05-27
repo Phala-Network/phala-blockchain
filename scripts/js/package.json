@@ -14,7 +14,7 @@
     "@polkadot/types": "^10.6.1",
     "@polkadot/util": "^12.1.2",
     "@polkadot/util-crypto": "^12.1.2",
-    "axios": "^1.6.0",
+    "axios": "^1.8.2",
     "bn.js": "^5.2.1",
     "commander": "^10.0.0",
     "decimal.js": "^10.4.3",
