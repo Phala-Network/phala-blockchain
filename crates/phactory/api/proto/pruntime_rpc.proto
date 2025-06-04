@@ -119,7 +119,7 @@ service PhactoryAPI {
   rpc TakeCheckpoint (google.protobuf.Empty) returns (SyncedTo) {}
 
   // Get networks statistics for contracts
-  rpc Statistics (StatisticsReqeust) returns (StatisticsResponse) {}
+  rpc Statistics (StatisticsRequest) returns (StatisticsResponse) {}
 
   //Generate a request to send to another worker in the same cluster to get the cluster state.
   rpc GenerateClusterStateRequest (google.protobuf.Empty) returns (SaveClusterStateArguments) {}
@@ -689,7 +689,7 @@ message StorageProof {
 }
 
 // Used to specify the contracts addresses for which statistics should be returned.
-message StatisticsReqeust {
+message StatisticsRequest {
   // A list of contract addresses that to be queried.
   repeated string contracts = 1;
   // Query for all contracts.
