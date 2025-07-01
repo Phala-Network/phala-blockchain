@@ -62,7 +62,7 @@ rusty_fork_test! {
     }
 
     #[test]
-    fn show_log_via_tracing_subsriber() {
+    fn show_log_via_tracing_subscriber() {
         use log::info;
 
         std::env::set_var("RUST_LOG_SANITIZED", "1");
