@@ -49,7 +49,7 @@ apt install -y apt-utils \
  ocamlbuild \
  pkg-config \
  protobuf-compiler \
- python \
+ python-is-python3 \
  texinfo \
  llvm \
  clang \
