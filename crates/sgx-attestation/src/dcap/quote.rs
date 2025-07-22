@@ -37,6 +37,7 @@ pub struct Header {
 #[derive(Decode, Debug)]
 pub struct Body {
     pub body_type: u16,
+    #[allow(dead_code)]
     pub size: u32,
 }
 
