@@ -78,7 +78,7 @@ macro_rules! panic {
 
 /// An extension for Result<T, E> to log error conveniently.
 pub trait ResultExt {
-    /// Log the the error message with `pink::error!` with a tip `msg` in front if the Result is Err.
+    /// Log the error message with `pink::error!` with a tip `msg` in front if the Result is Err.
     fn log_err(self, msg: &str) -> Self
     where
         Self: Sized,
@@ -86,7 +86,7 @@ pub trait ResultExt {
         self.log_err_with_level(Level::Error, msg)
     }
 
-    /// Log the the error message with `level` and a tip `msg` in front if the Result is Err.
+    /// Log the error message with `level` and a tip `msg` in front if the Result is Err.
     fn log_err_with_level(self, level: Level, msg: &str) -> Self
     where
         Self: Sized;

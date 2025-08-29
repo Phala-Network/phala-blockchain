@@ -15,7 +15,7 @@ sidevm-host <sideprogram.wasm>
 ## Push messages to the sidevm program
 Sidevm programs can receive messages from the host. There are three message channels:
 
-- message: A arbitrary message can be sent from an ink contract in the the phat contract.
+- message: A arbitrary message can be sent from an ink contract in the phat contract.
 - sysmessage: A message sent from the phat contract host to the sidevm program to inform some system events: ink logs, ink message outputs, ink events emitted by commands.
 - query: A query is sent from a external user via a worker local RPC in the phat contract system.
 
