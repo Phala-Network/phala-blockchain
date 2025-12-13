@@ -18,7 +18,7 @@
     "jotai": "^2.0.4",
     "jotai-cache": "^0.3.0",
     "jotai-immer": "^0.2.0",
-    "next": "14.2.32",
+    "next": "14.2.35",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-icons": "^5.0.1",
