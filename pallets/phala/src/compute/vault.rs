@@ -107,7 +107,7 @@ pub mod pallet {
 		/// Affected states:
 		/// - the stake related fields in [`Pools`]
 		/// - the user W-PHA balance reduced
-		/// - the user recive ad share NFT once contribution succeeded
+		/// - the user receive ad share NFT once contribution succeeded
 		/// - when there was any request in the withdraw queue, the action may trigger withdrawals
 		///   ([`Withdrawal`](#variant.Withdrawal) event)
 		Contribution {
@@ -301,7 +301,7 @@ pub mod pallet {
 
 		/// Tries to settle owner shares if the vault profits
 		///
-		/// The mechanism of issuing shares to distribute owner reward is metioned in comments of struct `Vault` in poolproxy.rs
+		/// The mechanism of issuing shares to distribute owner reward is mentioned in comments of struct `Vault` in poolproxy.rs
 		///
 		/// Requires:
 		/// 1. The sender is the owner
@@ -526,7 +526,7 @@ pub mod pallet {
 		/// Demands the return of some stake from a pool.
 		///
 		/// Once a withdraw request is proceeded successfully, The withdrawal would be queued and waiting to be dealed.
-		/// Afer the withdrawal is queued, The withdraw queue will be automaticly consumed util there are not enough free stakes to fullfill withdrawals.
+		/// After the withdrawal is queued, The withdraw queue will be automatically consumed util there are not enough free stakes to fullfill withdrawals.
 		/// Everytime the free stakes in the pools increases, the withdraw queue will be consumed as it describes above.
 		#[pallet::call_index(6)]
 		#[pallet::weight({0})]
