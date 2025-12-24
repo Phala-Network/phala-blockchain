@@ -2,7 +2,7 @@
 
 ![Build](https://github.com/Phala-Network/phala-blockchain/actions/workflows/build.yml/badge.svg)
 
-Phala Network is the offchain computing protocol, powering the decentralized execution layer for AI agents.
+Phala Network is the off-chain computing protocol, powering the decentralized execution layer for AI agents.
 
 ## Native Build
 
@@ -52,7 +52,7 @@ Make sure you have Rust and LLVM-10 installed.
 
 > Note for Mac users: you also need `llvm` and `binutils` from Homebrew or MacPort, and to add their binaries to your $PATH
 
-Run `git submodule update --init` to fetch submodules before build if you haven't add option `--recursive ` when clone code.
+Run `git submodule update --init` to fetch submodules before build if you haven't added option `--recursive ` when clone code.
 
 ```bash
 cargo build --release

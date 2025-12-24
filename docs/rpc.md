@@ -17,11 +17,11 @@ To get better performance, the client should limit the amount of requested block
 
 ### **pha_getMqNextSequence**
 
-Return the next mq sequence number for given sender which take the ready transactions in txpool in count.
+Return the next mq sequence number for given sender which takes the ready transactions in txpool in count.
 
 **Args:**
 
-- `sender_hex`: `String` - the scale-codec encoded [`MessageOrigin`](https://github.com/Phala-Network/phala-blockchain/blob/df3037fd85ae0e673b4b42777975c718fce8d4c8/crates/phala-mq/src/types.rs#L23) hex of the offchain message sender to query
+- `sender_hex`: `String` - the scale-codec encoded [`MessageOrigin`](https://github.com/Phala-Network/phala-blockchain/blob/df3037fd85ae0e673b4b42777975c718fce8d4c8/crates/phala-mq/src/types.rs#L23) hex of the off-chain message sender to query
 
 **Returns:** `u64` - the next expected sequence number of the sender.
 
