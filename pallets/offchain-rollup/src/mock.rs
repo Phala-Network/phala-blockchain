@@ -1,5 +1,3 @@
-use crate::{anchor, oracle};
-
 use frame_support::{pallet_prelude::ConstU32, parameter_types};
 use frame_system as system;
 use sp_core::H256;
