@@ -86,7 +86,7 @@
     "@vitest/ui": "^0.34.4",
     "concurrently": "^8.2.1",
     "esbuild": "^0.18.11",
-    "eslint": "^8.48.0",
+    "eslint": "^9.26.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-import-resolver-alias": "^1.1.2",
     "eslint-plugin-import": "^2.28.1",
