@@ -83,7 +83,7 @@ pub mod pallet {
 	pub type AccountVoteMap<T: Config> =
 		StorageDoubleMap<_, Blake2_128Concat, T::AccountId, Blake2_128Concat, ReferendumIndex, ()>;
 
-	/// Mapping for users to their asset status proxys
+	/// Mapping for users to their asset status proxies
 	#[pallet::storage]
 	pub type StakerAccounts<T: Config> =
 		StorageMap<_, Twox64Concat, T::AccountId, FinanceAccount<BalanceOf<T>>>;
@@ -135,7 +135,7 @@ pub mod pallet {
 		ReferendumInvalid,
 		/// The vote is now on going and the W-PHA used in voting can not be unlocked
 		ReferendumOngoing,
-		/// The Iteration exceed the max limitaion
+		/// The Iteration exceed the max limitation
 		IterationsIsNotVaild,
 	}
 
@@ -218,7 +218,7 @@ pub mod pallet {
 
 		/// Burns the amount of all free W-PHA and unwraps equal amount of pha
 		///
-		/// The unwrapped pha is transfered from `WrappedBalancesAccountId` to the user's wallet
+		/// The unwrapped pha is transferred from `WrappedBalancesAccountId` to the user's wallet
 		#[pallet::call_index(1)]
 		#[pallet::weight({0})]
 		#[frame_support::transactional]
@@ -243,7 +243,7 @@ pub mod pallet {
 
 		/// Unwraps some pha by burning equal amount of W-PHA
 		///
-		/// The unwrapped pha is transfered from `WrappedBalancesAccountId` to the user's wallet
+		/// The unwrapped pha is transferred from `WrappedBalancesAccountId` to the user's wallet
 		#[pallet::call_index(2)]
 		#[pallet::weight({0})]
 		#[frame_support::transactional]
@@ -428,7 +428,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Caculates the net W-PHA value of a user
+		/// Calculates the net W-PHA value of a user
 		///
 		/// The net W-PHA value includes:
 		/// 1. Free stakes in user's asset account
