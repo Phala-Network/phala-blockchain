@@ -22,14 +22,15 @@ pub fn parse_duration(s: &str) -> Result<Duration, InvalidDuration> {
 
     let num = num_str.parse::<u64>().or(Err(InvalidDuration))?;
 
-    let num = match unit {
-        "s" | "" => num * 1000,
-        "m" => num * 60 * 1000,
-        "h" => num * 60 * 60 * 1000,
-        "d" => num * 60 * 60 * 24 * 1000,
-        "ms" => num,
+    let multiplier = match unit {
+        "ms" => 1,
+        "s" | "" => 1000,
+        "m" => 60 * 1000,
+        "h" => 60 * 60 * 1000,
+        "d" => 60 * 60 * 24 * 1000,
         _ => return Err(InvalidDuration),
     };
+    let num = num.checked_mul(multiplier).ok_or(InvalidDuration)?;
 
     Ok(Duration::from_millis(num))
 }
@@ -54,6 +55,11 @@ mod tests {
     fn test_parse_duration_invalid() {
         assert!(parse_duration("10x").is_err());
         assert!(parse_duration("ms").is_err());
+    }
+
+    #[test]
+    fn test_parse_duration_overflow() {
+        assert!(parse_duration(&format!("{}d", u64::MAX)).is_err());
     }
 
     #[test]
