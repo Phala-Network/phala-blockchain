@@ -167,7 +167,7 @@ pub fn verify(
                 continue;
             }
 
-            tcb_status = tcb_level.tcb_status.clone();
+            tcb_status.clone_from(&tcb_level.tcb_status);
             tcb_level
                 .advisory_ids
                 .iter()
