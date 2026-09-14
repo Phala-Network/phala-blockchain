@@ -11,7 +11,7 @@
   "dependencies": {
     "axios": "^1.8.2",
     "baseui": "0.0.0-next-2992a67",
-    "eslint": "8.39.0",
+    "eslint": "9.26.0",
     "eslint-config-next": "13.3.1",
     "formik": "^2.2.9",
     "immer": "^10.0.1",
