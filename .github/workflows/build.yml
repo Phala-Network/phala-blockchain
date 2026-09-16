@@ -77,17 +77,17 @@ jobs:
       - name: Install yarn 2
         run: sudo npm install -g yarn && yarn set version 3.6.4
       - name: Download core-blockchain binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.7
         with:
           name: core-blockchain-binaries
           path: ./target/release
       - name: Download pruntime binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.7
         with:
           name: pruntime-binaries
           path: ./standalone/pruntime/bin
       - name: Download contract binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.7
         with:
           name: contract-binaries
           path: ./e2e/res
