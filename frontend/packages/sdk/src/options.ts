@@ -6,6 +6,7 @@ import SubstrateLookupTypes from '@polkadot/types-augment/lookup/substrate'
 export const types = {
   ContractId: 'H256',
   EcdhPublicKey: 'SpCoreSr25519Public',
+  SpCoreSr25519Public: '[u8; 32]',
   ContractQueryHead: {
     id: 'ContractId',
     nonce: '[u8; 32]',
