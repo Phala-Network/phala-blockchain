@@ -3,51 +3,6 @@ source: pallets/phala/src/test.rs
 expression: take_events()
 ---
 [
-    RuntimeEvent::RmrkCore(
-        Event::PropertiesRemoved {
-            collection_id: 10000,
-            maybe_nft_id: Some(
-                0,
-            ),
-        },
-    ),
-    RuntimeEvent::Uniques(
-        Event::Burned {
-            collection: 10000,
-            item: 0,
-            owner: 13009150994509951074,
-        },
-    ),
-    RuntimeEvent::RmrkCore(
-        Event::NFTBurned {
-            owner: 7813586407040180578,
-            collection_id: 10000,
-            nft_id: 0,
-        },
-    ),
-    RuntimeEvent::RmrkCore(
-        Event::PropertyRemoved {
-            collection_id: 10000,
-            maybe_nft_id: Some(
-                0,
-            ),
-            key: BoundedVec(
-                [
-                    99,
-                    114,
-                    101,
-                    97,
-                    116,
-                    101,
-                    116,
-                    105,
-                    109,
-                    101,
-                ],
-                32000,
-            ),
-        },
-    ),
     RuntimeEvent::PhalaVault(
         Event::ForceShutdown {
             pid: 1,
