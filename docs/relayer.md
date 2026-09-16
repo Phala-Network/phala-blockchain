@@ -1,6 +1,6 @@
 # Relayer
 
-The relayer is responsible to sync data between the blockchain and pRuntime.
+The relayer is responsible for syncing data between the blockchain and pRuntime.
 
 Now we have two relayer implementations:
 
@@ -11,7 +11,7 @@ The code pointers in this doc are based on `pherry`.
 
 ## Blockchain -> Enclave Sync
 
-The relayer subscribes the blockchain, and sync new blocks (and the corresponding events and chain state) to `pRuntime`.
+The relayer subscribes to the blockchain, and sync new blocks (and the corresponding events and chain state) to `pRuntime`.
 
 However, all the data received by `pRuntime` must be validated. The secure enclave is supposed to be a trusted environment, but the relayer is not, because anyone controlling the relayer can modify or manipulate the data before it enters `pRuntime`. So besides the block data, we have to prove the ingested data is valid and finalized to `pRuntime`.
 
@@ -39,7 +39,7 @@ The relayer is responsible to get the initial validator set and the following au
 > - [Code: get the initial validator set](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/pherry/src/main.rs#L480)
 > - [Code: get authority change]((https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/pherry/src/main.rs#L389-L394))
 
-Because the validator set rotation in every era, the relayer can only sync the block headers up to the last block in the current era to `pRuntime`. The sequence of syncing must follow:
+Because the validator sets rotation in every era, the relayer can only sync the block headers up to the last block in the current era to `pRuntime`. The sequence of syncing must follow:
 
 1. Init `pRuntime` with the genesis validator set
 2. Sync block headers in era 0
