@@ -121,10 +121,14 @@ pub fn verify(
     let mut qe_report = auth_data.qe_report.as_slice();
     let qe_report = EnclaveReport::decode(&mut qe_report).map_err(|_err| Error::CodecError)?;
 
-    // Check QE hash
-    let mut qe_hash_data = [0u8; QE_HASH_DATA_BYTE_LEN];
-    qe_hash_data[0..ATTESTATION_KEY_LEN].copy_from_slice(&auth_data.ecdsa_attestation_key);
-    qe_hash_data[ATTESTATION_KEY_LEN..].copy_from_slice(&auth_data.qe_auth_data.data);
+    // Check QE hash. The QE authentication data is variable length, so build the
+    // hash input dynamically; copying it into a fixed-size buffer panics in
+    // `copy_from_slice` whenever `qe_auth_data` is not exactly 32 bytes.
+    let mut qe_hash_data = Vec::with_capacity(
+        auth_data.ecdsa_attestation_key.len() + auth_data.qe_auth_data.data.len(),
+    );
+    qe_hash_data.extend_from_slice(&auth_data.ecdsa_attestation_key);
+    qe_hash_data.extend_from_slice(&auth_data.qe_auth_data.data);
     let qe_hash = ring::digest::digest(&ring::digest::SHA256, &qe_hash_data);
     if qe_hash.as_ref() != &qe_report.report_data[0..32] {
         return Err(Error::QEReportHashMismatch);
@@ -231,5 +235,51 @@ mod test {
         insta::assert_debug_snapshot!(pruntime_hash);
         insta::assert_debug_snapshot!(tcb_status);
         insta::assert_debug_snapshot!(advisory_ids);
+    }
+
+    // Regression: a tampered quote with an unexpected qe_auth_data length must be
+    // rejected gracefully, not panic. The cert chain and QE report (hence their
+    // signature checks) are left intact, so execution reaches the qe-hash step.
+    #[cfg(feature = "verify")]
+    #[test]
+    fn tampered_qe_auth_data_len_is_graceful() {
+        let raw_quote = include_bytes!("../sample/dcap_quote").to_vec();
+        let raw_quote_collateral = include_bytes!("../sample/dcap_quote_collateral").to_vec();
+        let now = 1699301000u64;
+        let quote_collateral =
+            SgxV30QuoteCollateral::decode(&mut raw_quote_collateral.as_slice()).expect("decodable");
+
+        // Layout: Header(48) | EnclaveReport(384) | Data<u32>{ len:u32, blob }
+        const HEADER: usize = 48;
+        const REPORT: usize = 384;
+        let outer_len_off = HEADER + REPORT;
+        let auth_off = outer_len_off + 4;
+        let orig_outer_len = u32::from_le_bytes(
+            raw_quote[outer_len_off..outer_len_off + 4]
+                .try_into()
+                .unwrap(),
+        ) as usize;
+        let blob = raw_quote[auth_off..auth_off + orig_outer_len].to_vec();
+
+        // V3 auth blob: ecdsa_sig(64) ecdsa_key(64) qe_report(384) qe_report_sig(64)
+        // then qe_auth_data = Data<u16>{ len:u16, bytes }.
+        let la_off = 64 + 64 + 384 + 64;
+        let orig_qe_len = u16::from_le_bytes([blob[la_off], blob[la_off + 1]]) as usize;
+        assert_eq!(orig_qe_len, 32, "sample qe_auth_data is 32 bytes");
+
+        // Rebuild with qe_auth_data length = 0; certs / qe_report stay byte-identical.
+        let mut new_blob = Vec::new();
+        new_blob.extend_from_slice(&blob[..la_off]);
+        new_blob.extend_from_slice(&0u16.to_le_bytes());
+        new_blob.extend_from_slice(&blob[la_off + 2 + orig_qe_len..]);
+
+        let mut new_quote = Vec::new();
+        new_quote.extend_from_slice(&raw_quote[..outer_len_off]);
+        new_quote.extend_from_slice(&(new_blob.len() as u32).to_le_bytes());
+        new_quote.extend_from_slice(&new_blob);
+
+        // Current code panics here (copy_from_slice: 0 != 32); fixed code returns Err.
+        let r = verify(&new_quote, &quote_collateral, now);
+        assert!(r.is_err(), "tampered quote must be rejected, not panic");
     }
 }
